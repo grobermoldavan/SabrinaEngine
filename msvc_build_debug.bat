@@ -25,7 +25,7 @@ EXIT /B %ERRORLEVEL%
     call cl /Fd%%build_folder%%%~n1.pdb /Fe%%build_folder%%%~n1.exe /Fo%%build_folder%%%~n1.obj ^
     -Z7 -Od -EHsc -MT ^
     %~1 ^
-    /I "." ^
+    /I "." /DSE_DEBUG ^
     kernel32.lib user32.lib ^
     /link /DEBUG:FULL /OUT:%%build_folder%%%~n1.exe
 EXIT /B 0
@@ -36,7 +36,7 @@ EXIT /B 0
     call cl /Fd%%build_folder%%%~n1.pdb /Fo%%build_folder%%%~n1.obj ^
     -Z7 -Od -EHsc -MT ^
     %~1 ^
-    /LD /I "." ^
+    /LD /I "." /DSE_DEBUG ^
     kernel32.lib user32.lib ^
     /link /DEBUG:FULL /OUT:%%build_folder%%%~n1.dll
 

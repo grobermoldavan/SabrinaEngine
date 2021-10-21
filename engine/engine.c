@@ -69,4 +69,7 @@ void se_run(struct SabrinaEngine* engine)
     }
 }
 
+#include "debug.c"
+#include "se_math.c"
+#include "containers.c"
 #include "platform.c"

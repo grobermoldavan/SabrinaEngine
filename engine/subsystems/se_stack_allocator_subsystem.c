@@ -8,6 +8,7 @@ void se_stack_construct_allocator(struct SePlatformInterface* platformIface, str
 void se_stack_destruct_allocator(struct SeStackAllocator* allocator);
 void* se_stack_alloc(struct SeStackAllocator* allocator, size_t size, size_t alignment);
 void se_stack_reset(struct SeStackAllocator* allocator);
+void se_stack_dealloc(struct SeStackAllocator* allocator, void* ptr, size_t size);
 
 static struct SeStackAllocatorSubsystemInterface iface;
 
@@ -50,8 +51,8 @@ static void se_stack_to_allocator_bindings(struct SeStackAllocator* allocator, s
     *bindings = (struct SeAllocatorBindings)
     {
         .allocator = allocator,
-        .alloc = allocator->alloc,
-        .dealloc = NULL,
+        .alloc = se_stack_alloc,
+        .dealloc = se_stack_dealloc,
     };
 }
 
@@ -84,4 +85,9 @@ static void* se_stack_alloc(struct SeStackAllocator* allocator, size_t size, siz
 static void se_stack_reset(struct SeStackAllocator* allocator)
 {
     allocator->cur = 0;
+}
+
+void se_stack_dealloc(struct SeStackAllocator* allocator, void* ptr, size_t size)
+{
+    // nothing
 }
