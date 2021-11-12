@@ -1,25 +1,21 @@
 #ifndef _SE_WINDOW_SUBSYSTEM_H_
 #define _SE_WINDOW_SUBSYSTEM_H_
 
-#include "engine/common_includes.h"
+#include <inttypes.h>
+#include <stdbool.h>
 
 #define SE_WINDOW_SUBSYSTEM_NAME "se_window_subsystem"
 
 #define se_is_keyboard_button_pressed(inputPtr, keyFlag) (input->keyboardButtons[keyFlag / 64] & (1ull << (keyFlag - (keyFlag / 64) * 64)))
 
-SE_DLL_EXPORT void  se_init(struct SabrinaEngine*);
-SE_DLL_EXPORT void  se_terminate(struct SabrinaEngine*);
-SE_DLL_EXPORT void  se_update(struct SabrinaEngine*);
-SE_DLL_EXPORT void* se_get_interface(struct SabrinaEngine*);
-
-enum SeMouseInput
+typedef enum SeMouseInput
 {
     SE_LMB,
     SE_RMB,
     SE_MMB,
-};
+} SeMouseInput;
 
-enum SeKeyboardInput
+typedef enum SeKeyboardInput
 {
     SE_NONE,
     SE_Q, SE_W, SE_E, SE_R, SE_T, SE_Y, SE_U, SE_I, SE_O, SE_P, SE_A, SE_S, SE_D,
@@ -32,7 +28,7 @@ enum SeKeyboardInput
     SE_L_ALT, SE_R_ALT, SE_ALT,
     SE_ESCAPE, SE_F1, SE_F2, SE_F3, SE_F4, SE_F5, SE_F6, SE_F7, SE_F8, SE_F9, SE_F10, SE_F11, SE_F12,
     SE_ARROW_UP, SE_ARROW_DOWN, SE_ARROW_LEFT, SE_ARROW_RIGHT
-};
+} SeKeyboardInput;
 
 const char* SE_KEYBOARD_INPUT_TO_STRING[] =
 {
@@ -53,7 +49,7 @@ const char* SE_MOUSE_INPUT_TO_STRING[] =
     "LMB", "RMB", "MMB"
 };
 
-struct SeWindowSubsystemInput
+typedef struct SeWindowSubsystemInput
 {
     uint64_t keyboardButtons[2];    // flags
     uint32_t mouseButtons;          // flags
@@ -61,22 +57,30 @@ struct SeWindowSubsystemInput
     uint32_t mouseY;                // position
     uint32_t mouseWheel;            // wheel input
     bool isCloseButtonPressed;
-};
+} SeWindowSubsystemInput;
 
-struct SeWindowSubsystemCreateInfo
+typedef struct SeWindowSubsystemCreateInfo
 {
     const char* name;
     bool isFullscreen;
     bool isResizable;
     uint32_t width;
     uint32_t height;
-};
+} SeWindowSubsystemCreateInfo;
 
-struct SeWindowSubsystemInterface
+typedef struct SeWindowHandle
 {
-    void*                                (*create)(struct SeWindowSubsystemCreateInfo* createInfo);
-    void                                 (*destroy)(void* handle);
-    const struct SeWindowSubsystemInput* (*get_input)(void* handle);
-};
+    void* ptr;
+} SeWindowHandle;
+
+typedef struct SeWindowSubsystemInterface
+{
+    SeWindowHandle                  (*create)(SeWindowSubsystemCreateInfo* createInfo);
+    void                            (*destroy)(SeWindowHandle handle);
+    const SeWindowSubsystemInput*   (*get_input)(SeWindowHandle handle);
+    uint32_t                        (*get_width)(SeWindowHandle handle);
+    uint32_t                        (*get_height)(SeWindowHandle handle);
+    void*                           (*get_native_handle)(SeWindowHandle handle);
+} SeWindowSubsystemInterface;
 
 #endif

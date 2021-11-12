@@ -11,10 +11,10 @@
 
 #define se_add_subsystem(subsystemName, enginePtr)                      \
 {                                                                       \
-    struct SeHandle libHandle = (enginePtr)->platformIface.load_dynamic_library(subsystemName); \
+    SeHandle libHandle = (enginePtr)->platformIface.load_dynamic_library(subsystemName); \
     SeSubsystemFunc update = (SeSubsystemFunc)(enginePtr)->platformIface.get_dynamic_library_function_address(libHandle, "se_update"); \
     SeSubsystemReturnPtrFunc getInterface = (SeSubsystemReturnPtrFunc)(enginePtr)->platformIface.get_dynamic_library_function_address(libHandle, "se_get_interface"); \
-    struct SeSubsystemStorageEntry storageEntry =                       \
+    SeSubsystemStorageEntry storageEntry =                              \
     {                                                                   \
         .libraryHandle      = libHandle,                                \
         .getInterface       = getInterface,                             \
@@ -28,8 +28,6 @@
 #define se_kilobytes(val) val * 1024ull
 #define se_megabytes(val) val * 1024ull * 1024ull
 #define se_gigabytes(val) val * 1024ull * 1024ull * 1024ull
-
-#define se_default_alignment 8
 
 #ifdef _WIN32
 #   define SE_DLL_EXPORT __declspec(dllexport)

@@ -7,37 +7,38 @@
 #include "allocator_bindings.h"
 #include "containers.h"
 #include "platform.h"
+#include "render_abstraction_interface.h"
 #include "subsystems/se_application_allocators_subsystem.h"
 #include "subsystems/se_stack_allocator_subsystem.h"
 #include "subsystems/se_window_subsystem.h"
+#include "subsystems/se_vulkan_render_abstraction_subsystem.h"
 
 typedef void  (*SeSubsystemFunc)(struct SabrinaEngine*);
 typedef void* (*SeSubsystemReturnPtrFunc)(struct SabrinaEngine*);
 
-struct SeSubsystemStorageEntry
+typedef struct SeSubsystemStorageEntry
 {
-    struct SeHandle libraryHandle;
+    SeHandle libraryHandle;
     SeSubsystemReturnPtrFunc getInterface;
     SeSubsystemFunc update;
     const char* name;
-};
+} SeSubsystemStorageEntry;
 
-struct SeSubsystemStorage
+typedef struct SeSubsystemStorage
 {
-    struct SeSubsystemStorageEntry subsystemsStorage[256];
+    SeSubsystemStorageEntry subsystemsStorage[256];
     size_t subsystemsStorageSize;
-};
+} SeSubsystemStorage;
 
-struct SabrinaEngine
+typedef struct SabrinaEngine
 {
     void* (*find_subsystem_interface)(struct SabrinaEngine* engine, const char* name);
-
-    struct SePlatformInterface platformIface;
-    struct SeSubsystemStorage subsystems;
+    SePlatformInterface platformIface;
+    SeSubsystemStorage subsystems;
     bool shouldRun;
-};
+} SabrinaEngine;
 
-void  se_initialize(struct SabrinaEngine* engine);
-void  se_run(struct SabrinaEngine* engine);
+void  se_initialize(SabrinaEngine* engine);
+void  se_run(SabrinaEngine* engine);
 
 #endif

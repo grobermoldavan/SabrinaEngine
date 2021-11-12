@@ -1,0 +1,6 @@
+#ifndef _SE_VULKAN_RENDER_ABSTRACTION_SUBSYSTEM_H_
+#define _SE_VULKAN_RENDER_ABSTRACTION_SUBSYSTEM_H_
+
+#define SE_VULKAN_RENDER_SUBSYSTEM_NAME "se_vulkan_render_abstraction_subsystem"
+
+#endif

@@ -3,11 +3,13 @@
 
 #include <inttypes.h>
 
-struct SeAllocatorBindings
+#define se_default_alignment 8
+
+typedef struct SeAllocatorBindings
 {
     void* allocator;
     void* (*alloc)(void* allocator, size_t size, size_t alignment);
     void (*dealloc)(void* allocator, void* ptr, size_t size);
-};
+} SeAllocatorBindings;
 
 #endif

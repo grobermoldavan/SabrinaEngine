@@ -10,3 +10,14 @@ void se_assert_impl(const char* cond);
 #endif
 
 #endif
+
+#ifdef SE_DEBUG_IMPL
+#   ifndef _DE_BEBUG_IMPL_
+#   define _DE_BEBUG_IMPL_
+void se_assert_impl(const char* cond)
+{
+    int* a = 0;
+    *a = 0;
+}
+#   endif
+#endif

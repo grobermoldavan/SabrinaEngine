@@ -2,30 +2,41 @@
 #include "se_window_subsystem.h"
 #include "engine/engine.h"
 
-static struct SeWindowSubsystemInterface iface;
+#ifdef _WIN32
+#   define SE_WINDOW_IFACE_FUNC __declspec(dllexport)
+#else
+#   error Unsupported platform
+#endif
 
-static void fill_iface(struct SeWindowSubsystemInterface* iface);
+SE_WINDOW_IFACE_FUNC void  se_init(struct SabrinaEngine*);
+SE_WINDOW_IFACE_FUNC void  se_terminate(struct SabrinaEngine*);
+SE_WINDOW_IFACE_FUNC void  se_update(struct SabrinaEngine*);
+SE_WINDOW_IFACE_FUNC void* se_get_interface(struct SabrinaEngine*);
+
+static void fill_iface(SeWindowSubsystemInterface* iface);
 static void process_windows();
 static void destroy_windows();
 
-SE_DLL_EXPORT void se_init(struct SabrinaEngine* engine)
+static SeWindowSubsystemInterface g_Iface;
+
+SE_WINDOW_IFACE_FUNC void se_init(SabrinaEngine* engine)
 {
-    fill_iface(&iface);
+    fill_iface(&g_Iface);
 }
 
-SE_DLL_EXPORT void se_terminate(struct SabrinaEngine* engine)
+SE_WINDOW_IFACE_FUNC void se_terminate(SabrinaEngine* engine)
 {
     destroy_windows();
 }
 
-SE_DLL_EXPORT void se_update(struct SabrinaEngine* engine)
+SE_WINDOW_IFACE_FUNC void se_update(SabrinaEngine* engine)
 {
     process_windows();
 }
 
-SE_DLL_EXPORT void* se_get_interface(struct SabrinaEngine* engine)
+SE_WINDOW_IFACE_FUNC void* se_get_interface(SabrinaEngine* engine)
 {
-    return &iface;
+    return &g_Iface;
 }
 
 #ifdef _WIN32
@@ -33,33 +44,37 @@ SE_DLL_EXPORT void* se_get_interface(struct SabrinaEngine* engine)
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #include <Windowsx.h>
-#include <inttypes.h>
-#include <stdbool.h>
 #include <string.h>
 
-struct SeWindowWin32
+typedef struct SeWindowWin32
 {
-    struct SeWindowSubsystemInput input;
+    SeWindowSubsystemInput input;
     HWND handle;
     uint32_t width;
     uint32_t height;
-};
+} SeWindowWin32;
 
-struct SeWindowWin32 WINDOW_POOL[16] = {0};
+SeWindowWin32 WINDOW_POOL[16] = {0};
 
-static void*                                win32_window_create(struct SeWindowSubsystemCreateInfo* createInfo);
-static void                                 win32_window_destroy(void* handle);
-static const struct SeWindowSubsystemInput* win32_window_get_input(void* handle);
-static void                                 win32_window_process(struct SeWindowWin32* window);
-static LRESULT                              win32_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-static bool                                 win32_window_process_mouse_input(struct SeWindowWin32* window, UINT message, WPARAM wParam, LPARAM lParam);
-static bool                                 win32_window_process_keyboard_input(struct SeWindowWin32* window, UINT message, WPARAM wParam, LPARAM lParam);
+static SeWindowHandle                   win32_window_create(SeWindowSubsystemCreateInfo* createInfo);
+static void                             win32_window_destroy(SeWindowHandle handle);
+static const SeWindowSubsystemInput*    win32_window_get_input(SeWindowHandle handle);
+static uint32_t                         win32_window_get_width(SeWindowHandle handle);
+static uint32_t                         win32_window_get_height(SeWindowHandle handle);
+static void*                            win32_window_get_native_handle(SeWindowHandle handle);
+static void                             win32_window_process(SeWindowWin32* window);
+static LRESULT                          win32_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+static bool                             win32_window_process_mouse_input(SeWindowWin32* window, UINT message, WPARAM wParam, LPARAM lParam);
+static bool                             win32_window_process_keyboard_input(SeWindowWin32* window, UINT message, WPARAM wParam, LPARAM lParam);
 
-static void fill_iface(struct SeWindowSubsystemInterface* iface)
+static void fill_iface(SeWindowSubsystemInterface* iface)
 {
     iface->create = win32_window_create;
     iface->destroy = win32_window_destroy;
     iface->get_input = win32_window_get_input;
+    iface->get_width = win32_window_get_width;
+    iface->get_height = win32_window_get_height;
+    iface->get_native_handle = win32_window_get_native_handle;
 }
 
 static void process_windows()
@@ -79,12 +94,12 @@ static void destroy_windows()
     {
         if (WINDOW_POOL[i].handle != NULL)
         {
-            win32_window_destroy(&WINDOW_POOL[i]);
+            win32_window_destroy((SeWindowHandle){ &WINDOW_POOL[i] });
         }
     }
 }
 
-static struct SeWindowWin32* win32_get_new_window()
+static SeWindowWin32* win32_get_new_window()
 {
     for (size_t i = 0; i < se_array_size(WINDOW_POOL); i++)
     {
@@ -96,9 +111,9 @@ static struct SeWindowWin32* win32_get_new_window()
     return NULL;
 }
 
-static void* win32_window_create(struct SeWindowSubsystemCreateInfo* createInfo)
+static SeWindowHandle win32_window_create(SeWindowSubsystemCreateInfo* createInfo)
 {
-    struct SeWindowWin32* window = win32_get_new_window();
+    SeWindowWin32* window = win32_get_new_window();
 
     HMODULE moduleHandle = GetModuleHandle(NULL);
     
@@ -175,24 +190,42 @@ static void* win32_window_create(struct SeWindowSubsystemCreateInfo* createInfo)
     UpdateWindow(window->handle);
     win32_window_process(window);
 
-    return window;
+    return (SeWindowHandle){ window };
 }
 
-static void win32_window_destroy(void* handle)
+static void win32_window_destroy(SeWindowHandle handle)
 {
-    struct SeWindowWin32* window = (struct SeWindowWin32*)handle;
+    SeWindowWin32* window = (SeWindowWin32*)handle.ptr;
     DestroyWindow(window->handle);
     win32_window_process(window);
-    memset(window, 0, sizeof(struct SeWindowWin32));
+    memset(window, 0, sizeof(SeWindowWin32));
 }
 
-static const struct SeWindowSubsystemInput* win32_window_get_input(void* handle)
+static const SeWindowSubsystemInput* win32_window_get_input(SeWindowHandle handle)
 {
-    struct SeWindowWin32* window = (struct SeWindowWin32*)handle;
+    SeWindowWin32* window = (SeWindowWin32*)handle.ptr;
     return &window->input;
 }
 
-static void win32_window_process(struct SeWindowWin32* window)
+static uint32_t win32_window_get_width(SeWindowHandle handle)
+{
+    SeWindowWin32* window = (SeWindowWin32*)handle.ptr;
+    return window->width;
+}
+
+static uint32_t win32_window_get_height(SeWindowHandle handle)
+{
+    SeWindowWin32* window = (SeWindowWin32*)handle.ptr;
+    return window->height;
+}
+
+static void* win32_window_get_native_handle(SeWindowHandle handle)
+{
+    SeWindowWin32* window = (SeWindowWin32*)handle.ptr;
+    return window->handle;
+}
+
+static void win32_window_process(SeWindowWin32* window)
 {
     MSG msg = {0};
     while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
@@ -204,7 +237,7 @@ static void win32_window_process(struct SeWindowWin32* window)
 
 static LRESULT win32_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-    struct SeWindowWin32* window = (struct SeWindowWin32*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+    SeWindowWin32* window = (SeWindowWin32*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
     if (window)
     {
         if (win32_window_process_mouse_input(window, uMsg, wParam, lParam))
@@ -229,7 +262,7 @@ static LRESULT win32_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
-static bool win32_window_process_mouse_input(struct SeWindowWin32* window, UINT message, WPARAM wParam, LPARAM lParam)
+static bool win32_window_process_mouse_input(SeWindowWin32* window, UINT message, WPARAM wParam, LPARAM lParam)
 {
     #define BIT(bit) (1 << bit)
     #define LOGMSG(msg, ...)
@@ -303,7 +336,7 @@ static bool win32_window_process_mouse_input(struct SeWindowWin32* window, UINT 
     #undef BIT
 }
 
-static bool win32_window_process_keyboard_input(struct SeWindowWin32* window, UINT message, WPARAM wParam, LPARAM lParam)
+static bool win32_window_process_keyboard_input(SeWindowWin32* window, UINT message, WPARAM wParam, LPARAM lParam)
 {
     #define BIT(bit) (1ULL << bit)
     #define k(key) (uint64_t)(key)
