@@ -446,8 +446,8 @@ SeTextureFormat se_to_texture_format(VkFormat vkFormat)
 {
     switch (vkFormat)
     {
-        case VK_FORMAT_R8G8B8A8_SRGB: return SE_RGBA_8;
-        case VK_FORMAT_R32G32B32A32_SFLOAT: return SE_RGBA_32F;
+        case VK_FORMAT_R8G8B8A8_SRGB: return SE_TEXTURE_FORMAT_RGBA_8;
+        case VK_FORMAT_R32G32B32A32_SFLOAT: return SE_TEXTURE_FORMAT_RGBA_32F;
     }
     se_assert(!"Unsupported VkFormat");
     return (SeTextureFormat)0;
@@ -457,8 +457,8 @@ VkFormat se_to_vk_format(SeTextureFormat format)
 {
     switch (format)
     {
-        case SE_RGBA_8: return VK_FORMAT_R8G8B8A8_SRGB;
-        case SE_RGBA_32F: return VK_FORMAT_R32G32B32A32_SFLOAT;
+        case SE_TEXTURE_FORMAT_RGBA_8: return VK_FORMAT_R8G8B8A8_SRGB;
+        case SE_TEXTURE_FORMAT_RGBA_32F: return VK_FORMAT_R32G32B32A32_SFLOAT;
     }
     se_assert(!"Unsupported TextureFormat");
     return (VkFormat)0;

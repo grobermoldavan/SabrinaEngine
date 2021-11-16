@@ -157,26 +157,6 @@ static VkPhysicalDevice se_vk_gpu_pick_physical_device(VkInstance instance, VkSu
     return VK_NULL_HANDLE;
 }
 
-static VkSampleCountFlags se_vk_gpu_get_supported_framebuffer_multisample_types(SeVkGpu* gpu)
-{
-    // Is this even correct ?
-    return  gpu->deviceProperties_10.limits.framebufferColorSampleCounts &
-            gpu->deviceProperties_10.limits.framebufferDepthSampleCounts &
-            gpu->deviceProperties_10.limits.framebufferStencilSampleCounts &
-            gpu->deviceProperties_10.limits.framebufferNoAttachmentsSampleCounts &
-            gpu->deviceProperties_12.framebufferIntegerColorSampleCounts;
-}
-
-static VkSampleCountFlags se_vk_gpu_get_supported_image_multisample_types(SeVkGpu* gpu)
-{
-    // Is this even correct ?
-    return  gpu->deviceProperties_10.limits.sampledImageColorSampleCounts &
-            gpu->deviceProperties_10.limits.sampledImageIntegerSampleCounts &
-            gpu->deviceProperties_10.limits.sampledImageDepthSampleCounts &
-            gpu->deviceProperties_10.limits.sampledImageStencilSampleCounts &
-            gpu->deviceProperties_10.limits.storageImageSampleCounts;
-}
-
 VKAPI_ATTR VkBool32 VKAPI_CALL se_vk_debug_callback(
                                             VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
                                             VkDebugUtilsMessageTypeFlagsEXT messageType,
@@ -667,4 +647,44 @@ void se_vk_device_submit_command_buffer(SeRenderObject* _device, VkSubmitInfo* s
     se_vk_check(vkQueueSubmit(queue, 1, submitInfo, se_vk_command_buffer_get_fence(buffer)));
     se_sbuffer_push(data->commandBuffers, buffer);
     device->flags |= SE_VK_DEVICE_HAS_SUBMITTED_BUFFERS;
+}
+
+bool se_vk_device_is_stencil_supported(struct SeRenderObject* _device)
+{
+    SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
+    return device->gpu.flags & SE_VK_GPU_HAS_STENCIL;
+}
+
+VkSampleCountFlags se_vk_device_get_supported_framebuffer_multisample_types(SeRenderObject* _device)
+{
+    SeVkGpu* gpu = &((SeVkRenderDevice*)_device)->gpu;
+    // Is this even correct ?
+    return  gpu->deviceProperties_10.limits.framebufferColorSampleCounts &
+            gpu->deviceProperties_10.limits.framebufferDepthSampleCounts &
+            gpu->deviceProperties_10.limits.framebufferStencilSampleCounts &
+            gpu->deviceProperties_10.limits.framebufferNoAttachmentsSampleCounts &
+            gpu->deviceProperties_12.framebufferIntegerColorSampleCounts;
+}
+
+VkSampleCountFlags se_vk_device_get_supported_image_multisample_types(SeRenderObject* _device)
+{
+    SeVkGpu* gpu = &((SeVkRenderDevice*)_device)->gpu;
+    // Is this even correct ?
+    return  gpu->deviceProperties_10.limits.sampledImageColorSampleCounts &
+            gpu->deviceProperties_10.limits.sampledImageIntegerSampleCounts &
+            gpu->deviceProperties_10.limits.sampledImageDepthSampleCounts &
+            gpu->deviceProperties_10.limits.sampledImageStencilSampleCounts &
+            gpu->deviceProperties_10.limits.storageImageSampleCounts;
+}
+
+VkFormat se_vk_device_get_depth_stencil_format(struct SeRenderObject* _device)
+{
+    SeVkGpu* gpu = &((SeVkRenderDevice*)_device)->gpu;
+    return gpu->depthStencilFormat;
+}
+
+VkFormat se_vk_device_get_swap_chain_format(struct SeRenderObject* _device)
+{
+    SeVkSwapChain* swapChain = &((SeVkRenderDevice*)_device)->swapChain;
+    return swapChain->surfaceFormat.format;
 }

@@ -26,5 +26,10 @@ VkQueue                     se_vk_device_get_command_queue(struct SeRenderObject
 VkDevice                    se_vk_device_get_logical_handle(struct SeRenderObject* device);
 struct SeRenderObject*      se_vk_device_get_last_command_buffer(struct SeRenderObject* device);
 void                        se_vk_device_submit_command_buffer(struct SeRenderObject* device, VkSubmitInfo* submitInfo, struct SeRenderObject* buffer, VkQueue queue);
+bool                        se_vk_device_is_stencil_supported(struct SeRenderObject* device);
+VkSampleCountFlags          se_vk_device_get_supported_framebuffer_multisample_types(struct SeRenderObject* device);
+VkSampleCountFlags          se_vk_device_get_supported_image_multisample_types(struct SeRenderObject* device);
+VkFormat                    se_vk_device_get_depth_stencil_format(struct SeRenderObject* device);
+VkFormat                    se_vk_device_get_swap_chain_format(struct SeRenderObject* device);
 
 #endif

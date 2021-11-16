@@ -6,6 +6,7 @@
 
 SeWindowHandle windowHandle;
 SeRenderObject* renderDevice;
+SeRenderObject* renderPass;
 
 SE_DLL_EXPORT void se_load(struct SabrinaEngine* engine)
 {
@@ -33,15 +34,51 @@ SE_DLL_EXPORT void se_init(struct SabrinaEngine* engine)
         };
         windowHandle = windowInterface->create(&createInfo);
     }
+    SeRenderAbstractionSubsystemInterface* renderInterface = (SeRenderAbstractionSubsystemInterface*)engine->find_subsystem_interface(engine, SE_VULKAN_RENDER_SUBSYSTEM_NAME);
     {
-        SeRenderAbstractionSubsystemInterface* renderInterface = (SeRenderAbstractionSubsystemInterface*)engine->find_subsystem_interface(engine, SE_VULKAN_RENDER_SUBSYSTEM_NAME);
         SeRenderDeviceCreateInfo createInfo = (SeRenderDeviceCreateInfo)
         {
-            .window = &windowHandle,
-            .persistentAllocator = allocators->appAllocator,
-            .frameAllocator = allocators->frameAllocator,
+            .window                 = &windowHandle,
+            .persistentAllocator    = allocators->appAllocator,
+            .frameAllocator         = allocators->frameAllocator,
         };
         renderDevice = renderInterface->device_create(&createInfo);
+    }
+    {
+        SeRenderPassAttachment attachments[] =
+        {
+            (SeRenderPassAttachment)
+            {
+                .format     = SE_TEXTURE_FORMAT_SWAP_CHAIN,
+                .loadOp     = SE_LOAD_CLEAR,
+                .storeOp    = SE_STORE_STORE,
+                .samples    = SE_SAMPLE_1,
+            }
+        };
+        uint32_t colorRefs[] = { 0 };
+        SeRenderPassSubpass subpasses[] =
+        {
+            (SeRenderPassSubpass)
+            {
+                .colorRefs      = colorRefs,
+                .numColorRefs   = se_array_size(colorRefs),
+                .inputRefs      = NULL,
+                .numInputRefs   = 0,
+                .resolveRefs    = NULL,
+                .numResolveRefs = 0,
+                .depthOp        = SE_DEPTH_NOTHING,
+            }
+        };
+        SeRenderPassCreateInfo createInfo = (SeRenderPassCreateInfo)
+        {
+            .subpasses              = subpasses,
+            .numSubpasses           = se_array_size(subpasses),
+            .colorAttachments       = attachments,
+            .numColorAttachments    = se_array_size(attachments),
+            .depthStencilAttachment = NULL,
+            .device                 = renderDevice,
+        };
+        renderPass = renderInterface->render_pass_create(&createInfo);
     }
 }
 
@@ -51,6 +88,7 @@ SE_DLL_EXPORT void se_terminate(struct SabrinaEngine* engine)
 
     SeWindowSubsystemInterface* windowInterface = (SeWindowSubsystemInterface*)engine->find_subsystem_interface(engine, SE_WINDOW_SUBSYSTEM_NAME);
     
+    renderPass->destroy(renderPass);
     renderDevice->destroy(renderDevice);
     windowInterface->destroy(windowHandle);
 }

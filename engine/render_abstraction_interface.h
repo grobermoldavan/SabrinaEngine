@@ -4,7 +4,7 @@
 #include <inttypes.h>
 #include <stdbool.h>
 
-#define SE_RENDER_PASS_UNUSED_ATTACHMENT ~(0ul);
+#define SE_RENDER_PASS_UNUSED_ATTACHMENT ~(0ul)
 #define SE_RENDER_PASS_MAX_ATTACHMENTS 32
 
 typedef enum SeRenderHandleType
@@ -20,10 +20,10 @@ typedef enum SeRenderHandleType
 
 typedef enum SeTextureFormat
 {
-    SE_DEPTH_STENCIL,
-    SE_SWAP_CHAIN,
-    SE_RGBA_8,
-    SE_RGBA_32F,
+    SE_TEXTURE_FORMAT_DEPTH_STENCIL,
+    SE_TEXTURE_FORMAT_SWAP_CHAIN,
+    SE_TEXTURE_FORMAT_RGBA_8,
+    SE_TEXTURE_FORMAT_RGBA_32F,
 } SeTextureFormat;
 
 typedef enum SeAttachmentLoadOp
