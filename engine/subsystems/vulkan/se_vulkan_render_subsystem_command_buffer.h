@@ -5,11 +5,14 @@
 
 struct SeRenderObject;
 
-struct SeRenderObject* se_vk_command_buffer_request(struct SeCommandBufferRequestInfo* requestInfo);
-void            se_vk_command_buffer_submit(struct SeRenderObject* buffer);
-void            se_vk_command_bind_pipeline(struct SeRenderObject* buffer, struct SeCommandBindPipelineInfo* commandInfo);
-void            se_vk_command_draw(struct SeRenderObject* buffer, struct SeCommandDrawInfo* commandInfo);
+struct SeRenderObject*  se_vk_command_buffer_request(struct SeCommandBufferRequestInfo* requestInfo);
+void                    se_vk_command_buffer_submit(struct SeRenderObject* buffer);
+void                    se_vk_command_buffer_destroy(struct SeRenderObject* buffer);
+void                    se_vk_command_buffer_bind_pipeline(struct SeRenderObject* buffer, struct SeCommandBindPipelineInfo* commandInfo);
+void                    se_vk_command_buffer_draw(struct SeRenderObject* buffer, struct SeCommandDrawInfo* commandInfo);
 
-VkFence se_vk_command_buffer_get_fence(struct SeRenderObject* buffer);
+VkFence     se_vk_command_buffer_get_fence(struct SeRenderObject* buffer);
+VkSemaphore se_vk_command_buffer_get_semaphore(struct SeRenderObject* buffer);
+void        se_vk_command_buffer_transition_image_layout(struct SeRenderObject* buffer, struct SeRenderObject* texture, VkImageLayout targetLayout);
 
 #endif

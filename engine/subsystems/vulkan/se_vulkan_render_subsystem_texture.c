@@ -81,3 +81,59 @@ void se_vk_texture_destroy(SeRenderObject* _texture)
     SeAllocatorBindings* allocator = memoryManager->cpu_allocator;
     allocator->dealloc(allocator->allocator, texture, sizeof(SeVkTexture));
 }
+
+VkFormat se_vk_texture_get_format(SeRenderObject* _texture)
+{
+    SeVkTexture* texture = (SeVkTexture*)_texture;
+    return texture->format;
+}
+
+VkImageView se_vk_texture_get_view(SeRenderObject* _texture)
+{
+    SeVkTexture* texture = (SeVkTexture*)_texture;
+    return texture->imageView;
+}
+
+VkExtent3D se_vk_texture_get_extent(SeRenderObject* _texture)
+{
+    SeVkTexture* texture = (SeVkTexture*)_texture;
+    return texture->extent;
+}
+
+void se_vk_texture_transition_image_layout(SeRenderObject* _texture, VkCommandBuffer commandBuffer, VkImageLayout targetLayout)
+{
+    SeVkTexture* texture = (SeVkTexture*)_texture;
+    VkImageMemoryBarrier imageBarrier = (VkImageMemoryBarrier)
+    {
+        .sType                  = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .pNext                  = NULL,
+        .srcAccessMask          = se_vk_utils_image_layout_to_access_flags(texture->currentLayout),
+        .dstAccessMask          = se_vk_utils_image_layout_to_access_flags(targetLayout),
+        .oldLayout              = texture->currentLayout,
+        .newLayout              = targetLayout,
+        .srcQueueFamilyIndex    = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex    = VK_QUEUE_FAMILY_IGNORED,
+        .image                  = texture->image,
+        .subresourceRange       = texture->subresourceRange,
+    };
+    vkCmdPipelineBarrier
+    (
+        commandBuffer,
+        se_vk_utils_image_layout_to_pipeline_stage_flags(texture->currentLayout),
+        se_vk_utils_image_layout_to_pipeline_stage_flags(targetLayout),
+        0,
+        0,
+        NULL,
+        0,
+        NULL,
+        1,
+        &imageBarrier
+    );
+    texture->currentLayout = targetLayout;
+}
+
+VkImageLayout se_vk_texture_get_current_layout(SeRenderObject* _texture)
+{
+    SeVkTexture* texture = (SeVkTexture*)_texture;
+    return texture->currentLayout;
+}

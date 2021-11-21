@@ -1,6 +1,16 @@
 #ifndef _SE_ENGINE_H_
 #define _SE_ENGINE_H_
 
+// #ifdef SE_ENGINE_IMPL
+// #ifndef SE_ENGINE_IMPL_INNER
+// #define SE_ENGINE_IMPL_INNER
+// #   define SE_DEBUG_IMPL
+// #   define SE_MATH_IMPL
+// #   define SE_CONTAINERS_IMPL
+// #   define SE_PLATFORM_IMPL
+// #endif
+// #endif
+
 #include "common_includes.h"
 #include "debug.h"
 #include "se_math.h"

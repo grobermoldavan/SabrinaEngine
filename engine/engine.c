@@ -29,14 +29,14 @@ void se_run(SabrinaEngine* engine)
     for (size_t i = 0; i < engine->subsystems.subsystemsStorageSize; i++)
     {
         SeHandle handle = engine->subsystems.subsystemsStorage[i].libraryHandle;
-        SeSubsystemFunc load = (SeSubsystemFunc)engine->platformIface.get_dynamic_library_function_address(handle, "se_load");
+        SeSubsystemFunc load = (SeSubsystemFunc)engine->platformIface.dynamic_library_get_function_address(handle, "se_load");
         if (load) load(engine);
     }
     // Init subsystems after load (here subsytems can safely query interfaces of other subsystems)
     for (size_t i = 0; i < engine->subsystems.subsystemsStorageSize; i++)
     {
         SeHandle handle = engine->subsystems.subsystemsStorage[i].libraryHandle;
-        SeSubsystemFunc init = (SeSubsystemFunc)engine->platformIface.get_dynamic_library_function_address(handle, "se_init");
+        SeSubsystemFunc init = (SeSubsystemFunc)engine->platformIface.dynamic_library_get_function_address(handle, "se_init");
         if (init) init(engine);
     }
     // Update loop
@@ -52,20 +52,20 @@ void se_run(SabrinaEngine* engine)
     for (size_t i = engine->subsystems.subsystemsStorageSize; i > 0; i--)
     {
         SeHandle handle = engine->subsystems.subsystemsStorage[i - 1].libraryHandle;
-        SeSubsystemFunc terminate = (SeSubsystemFunc)engine->platformIface.get_dynamic_library_function_address(handle, "se_terminate");
+        SeSubsystemFunc terminate = (SeSubsystemFunc)engine->platformIface.dynamic_library_get_function_address(handle, "se_terminate");
         if (terminate) terminate(engine);
     }
     // Unload subsystems
     for (size_t i = engine->subsystems.subsystemsStorageSize; i > 0; i--)
     {
         SeHandle handle = engine->subsystems.subsystemsStorage[i - 1].libraryHandle;
-        SeSubsystemFunc unload = (SeSubsystemFunc)engine->platformIface.get_dynamic_library_function_address(handle, "se_unload");
+        SeSubsystemFunc unload = (SeSubsystemFunc)engine->platformIface.dynamic_library_get_function_address(handle, "se_unload");
         if (unload) unload(engine);
     }
     // Unload lib handle
     for (size_t i = engine->subsystems.subsystemsStorageSize; i > 0; i--)
     {
-        engine->platformIface.unload_dynamic_library(engine->subsystems.subsystemsStorage[i - 1].libraryHandle);
+        engine->platformIface.dynamic_library_unload(engine->subsystems.subsystemsStorage[i - 1].libraryHandle);
     }
 }
 

@@ -49,9 +49,9 @@ typedef struct SeFileContent
 
 typedef struct SePlatformInterface
 {
-    SeHandle    (*load_dynamic_library)                 (const char* name);
-    void        (*unload_dynamic_library)               (SeHandle handle);
-    void*       (*get_dynamic_library_function_address) (SeHandle handle, const char* functionName);
+    SeHandle    (*dynamic_library_load)                 (const char* name);
+    void        (*dynamic_library_unload)               (SeHandle handle);
+    void*       (*dynamic_library_get_function_address) (SeHandle handle, const char* functionName);
     size_t      (*get_mem_page_size)                    ();
     void*       (*mem_reserve)                          (size_t size);
     void*       (*mem_commit)                           (void* ptr, size_t size);
@@ -349,9 +349,9 @@ void se_get_platform_interface(SePlatformInterface* iface)
 {
     *iface = (SePlatformInterface)
     {
-        .load_dynamic_library                   = se_platform_load_dynamic_library,
-        .unload_dynamic_library                 = se_platform_unload_dynamic_library,
-        .get_dynamic_library_function_address   = se_platform_get_dynamic_library_function_address,
+        .dynamic_library_load                   = se_platform_load_dynamic_library,
+        .dynamic_library_unload                 = se_platform_unload_dynamic_library,
+        .dynamic_library_get_function_address   = se_platform_get_dynamic_library_function_address,
         .get_mem_page_size                      = se_platform_get_mem_page_size,
         .mem_reserve                            = se_platform_mem_reserve,
         .mem_commit                             = se_platform_mem_commit,

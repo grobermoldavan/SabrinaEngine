@@ -11,9 +11,9 @@
 
 #define se_add_subsystem(subsystemName, enginePtr)                      \
 {                                                                       \
-    SeHandle libHandle = (enginePtr)->platformIface.load_dynamic_library(subsystemName); \
-    SeSubsystemFunc update = (SeSubsystemFunc)(enginePtr)->platformIface.get_dynamic_library_function_address(libHandle, "se_update"); \
-    SeSubsystemReturnPtrFunc getInterface = (SeSubsystemReturnPtrFunc)(enginePtr)->platformIface.get_dynamic_library_function_address(libHandle, "se_get_interface"); \
+    SeHandle libHandle = (enginePtr)->platformIface.dynamic_library_load(subsystemName); \
+    SeSubsystemFunc update = (SeSubsystemFunc)(enginePtr)->platformIface.dynamic_library_get_function_address(libHandle, "se_update"); \
+    SeSubsystemReturnPtrFunc getInterface = (SeSubsystemReturnPtrFunc)(enginePtr)->platformIface.dynamic_library_get_function_address(libHandle, "se_get_interface"); \
     SeSubsystemStorageEntry storageEntry =                              \
     {                                                                   \
         .libraryHandle      = libHandle,                                \

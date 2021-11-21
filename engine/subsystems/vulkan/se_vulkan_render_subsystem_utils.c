@@ -12,7 +12,7 @@
 #define SE_DEBUG_IMPL
 #include "engine/debug.h"
 
-const char** se_get_required_validation_layers(size_t* outNum)
+const char** se_vk_utils_get_required_validation_layers(size_t* outNum)
 {
     static const char* VALIDATION_LAYERS[] = 
     {
@@ -22,7 +22,7 @@ const char** se_get_required_validation_layers(size_t* outNum)
     return VALIDATION_LAYERS;
 }
 
-const char** se_get_required_instance_extensions(size_t* outNum)
+const char** se_vk_utils_get_required_instance_extensions(size_t* outNum)
 {
     static const char* WINDOWS_INSTANCE_EXTENSIONS[] = 
     {
@@ -34,7 +34,7 @@ const char** se_get_required_instance_extensions(size_t* outNum)
     return WINDOWS_INSTANCE_EXTENSIONS;
 }
 
-const char** se_get_required_device_extensions(size_t* outNum)
+const char** se_vk_utils_get_required_device_extensions(size_t* outNum)
 {
     static const char* DEVICE_EXTENSIONS[] = 
     {
@@ -44,7 +44,7 @@ const char** se_get_required_device_extensions(size_t* outNum)
     return DEVICE_EXTENSIONS;
 }
 
-se_sbuffer(VkLayerProperties) se_get_available_validation_layers(struct SeAllocatorBindings* allocator)
+se_sbuffer(VkLayerProperties) se_vk_utils_get_available_validation_layers(struct SeAllocatorBindings* allocator)
 {
     uint32_t count;
     se_sbuffer(VkLayerProperties) result = {0};
@@ -55,7 +55,7 @@ se_sbuffer(VkLayerProperties) se_get_available_validation_layers(struct SeAlloca
     return result;
 }
 
-se_sbuffer(VkExtensionProperties) se_get_available_instance_extensions(struct SeAllocatorBindings* allocator)
+se_sbuffer(VkExtensionProperties) se_vk_utils_get_available_instance_extensions(struct SeAllocatorBindings* allocator)
 {
     uint32_t count;
     se_sbuffer(VkExtensionProperties) result = {0};
@@ -66,7 +66,7 @@ se_sbuffer(VkExtensionProperties) se_get_available_instance_extensions(struct Se
     return result;
 }
 
-VkDebugUtilsMessengerCreateInfoEXT se_get_debug_messenger_create_info(PFN_vkDebugUtilsMessengerCallbackEXT callback, void* userData)
+VkDebugUtilsMessengerCreateInfoEXT se_vk_utils_get_debug_messenger_create_info(PFN_vkDebugUtilsMessengerCallbackEXT callback, void* userData)
 {
     return (VkDebugUtilsMessengerCreateInfoEXT)
     {
@@ -80,7 +80,7 @@ VkDebugUtilsMessengerCreateInfoEXT se_get_debug_messenger_create_info(PFN_vkDebu
     };
 }
 
-VkDebugUtilsMessengerEXT se_create_debug_messenger(VkDebugUtilsMessengerCreateInfoEXT* createInfo, VkInstance instance, VkAllocationCallbacks* callbacks)
+VkDebugUtilsMessengerEXT se_vk_utils_create_debug_messenger(VkDebugUtilsMessengerCreateInfoEXT* createInfo, VkInstance instance, VkAllocationCallbacks* callbacks)
 {
     VkDebugUtilsMessengerEXT messenger;
     PFN_vkCreateDebugUtilsMessengerEXT CreateDebugUtilsMessengerEXT = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
@@ -89,14 +89,14 @@ VkDebugUtilsMessengerEXT se_create_debug_messenger(VkDebugUtilsMessengerCreateIn
     return messenger;
 }
 
-void se_destroy_debug_messenger(VkInstance instance, VkDebugUtilsMessengerEXT messenger, VkAllocationCallbacks* callbacks)
+void se_vk_utils_destroy_debug_messenger(VkInstance instance, VkDebugUtilsMessengerEXT messenger, VkAllocationCallbacks* callbacks)
 {
     PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessengerEXT = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
     se_assert(vkDestroyDebugUtilsMessengerEXT);
     vkDestroyDebugUtilsMessengerEXT(instance, messenger, callbacks);
 }
 
-VkCommandPool se_create_command_pool(VkDevice device, uint32_t queueFamilyIndex, VkAllocationCallbacks* callbacks, VkCommandPoolCreateFlags flags)
+VkCommandPool se_vk_utils_create_command_pool(VkDevice device, uint32_t queueFamilyIndex, VkAllocationCallbacks* callbacks, VkCommandPoolCreateFlags flags)
 {
     VkCommandPool pool;
     VkCommandPoolCreateInfo poolInfo = (VkCommandPoolCreateInfo)
@@ -110,12 +110,12 @@ VkCommandPool se_create_command_pool(VkDevice device, uint32_t queueFamilyIndex,
     return pool;
 }
 
-void se_destroy_command_pool(VkCommandPool pool, VkDevice device, VkAllocationCallbacks* callbacks)
+void se_vk_utils_destroy_command_pool(VkCommandPool pool, VkDevice device, VkAllocationCallbacks* callbacks)
 {
     vkDestroyCommandPool(device, pool, callbacks);
 }
 
-SeVkSwapChainSupportDetails se_create_swap_chain_support_details(VkSurfaceKHR surface, VkPhysicalDevice device, struct SeAllocatorBindings* allocator)
+SeVkSwapChainSupportDetails se_vk_utils_create_swap_chain_support_details(VkSurfaceKHR surface, VkPhysicalDevice device, struct SeAllocatorBindings* allocator)
 {
     SeVkSwapChainSupportDetails result = {0};
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &result.capabilities);
@@ -137,13 +137,13 @@ SeVkSwapChainSupportDetails se_create_swap_chain_support_details(VkSurfaceKHR su
     return result;
 }
 
-void se_destroy_swap_chain_support_details(SeVkSwapChainSupportDetails* details)
+void se_vk_utils_destroy_swap_chain_support_details(SeVkSwapChainSupportDetails* details)
 {
     se_sbuffer_destroy(details->formats);
     se_sbuffer_destroy(details->presentModes);
 }
 
-VkSurfaceFormatKHR se_choose_swap_chain_surface_format(se_sbuffer(VkSurfaceFormatKHR) available)
+VkSurfaceFormatKHR se_vk_utils_choose_swap_chain_surface_format(se_sbuffer(VkSurfaceFormatKHR) available)
 {
     for (size_t it = 0; it < se_sbuffer_size(available); it++)
     {
@@ -155,7 +155,7 @@ VkSurfaceFormatKHR se_choose_swap_chain_surface_format(se_sbuffer(VkSurfaceForma
     return available[0];
 }
 
-VkPresentModeKHR se_choose_swap_chain_surface_present_mode(se_sbuffer(VkPresentModeKHR) available)
+VkPresentModeKHR se_vk_utils_choose_swap_chain_surface_present_mode(se_sbuffer(VkPresentModeKHR) available)
 {
     for (size_t it = 0; it < se_sbuffer_size(available); it++)
     {
@@ -167,7 +167,7 @@ VkPresentModeKHR se_choose_swap_chain_surface_present_mode(se_sbuffer(VkPresentM
     return VK_PRESENT_MODE_FIFO_KHR; // Guarateed to be available
 }
 
-VkExtent2D se_choose_swap_chain_extent(uint32_t windowWidth, uint32_t windowHeight, VkSurfaceCapabilitiesKHR* capabilities)
+VkExtent2D se_vk_utils_choose_swap_chain_extent(uint32_t windowWidth, uint32_t windowHeight, VkSurfaceCapabilitiesKHR* capabilities)
 {
     if (capabilities->currentExtent.width != UINT32_MAX)
     {
@@ -183,7 +183,7 @@ VkExtent2D se_choose_swap_chain_extent(uint32_t windowWidth, uint32_t windowHeig
     }
 }
 
-uint32_t se_pick_graphics_queue(se_sbuffer(VkQueueFamilyProperties) familyProperties)
+uint32_t se_vk_utils_pick_graphics_queue(se_sbuffer(VkQueueFamilyProperties) familyProperties)
 {
     for (size_t it = 0; it < se_sbuffer_size(familyProperties); it++)
     {
@@ -195,7 +195,7 @@ uint32_t se_pick_graphics_queue(se_sbuffer(VkQueueFamilyProperties) familyProper
     return SE_VK_INVALID_QUEUE;
 }
 
-uint32_t se_pick_present_queue(se_sbuffer(VkQueueFamilyProperties) familyProperties, VkPhysicalDevice device, VkSurfaceKHR surface)
+uint32_t se_vk_utils_pick_present_queue(se_sbuffer(VkQueueFamilyProperties) familyProperties, VkPhysicalDevice device, VkSurfaceKHR surface)
 {
     for (size_t it = 0; it < se_sbuffer_size(familyProperties); it++)
     {
@@ -209,7 +209,7 @@ uint32_t se_pick_present_queue(se_sbuffer(VkQueueFamilyProperties) familyPropert
     return SE_VK_INVALID_QUEUE;
 }
 
-uint32_t se_pick_transfer_queue(se_sbuffer(VkQueueFamilyProperties) familyProperties)
+uint32_t se_vk_utils_pick_transfer_queue(se_sbuffer(VkQueueFamilyProperties) familyProperties)
 {
     for (size_t it = 0; it < se_sbuffer_size(familyProperties); it++)
     {
@@ -221,7 +221,7 @@ uint32_t se_pick_transfer_queue(se_sbuffer(VkQueueFamilyProperties) familyProper
     return SE_VK_INVALID_QUEUE;
 }
 
-se_sbuffer(VkDeviceQueueCreateInfo) se_get_queue_create_infos(uint32_t* queues, size_t numQueues, struct SeAllocatorBindings* allocator)
+se_sbuffer(VkDeviceQueueCreateInfo) se_vk_utils_get_queue_create_infos(uint32_t* queues, size_t numQueues, struct SeAllocatorBindings* allocator)
 {
     // @NOTE :  this is possible that queue family might support more than one of the required features,
     //          so we have to remove duplicates from queueFamiliesInfo and create VkDeviceQueueCreateInfos
@@ -263,7 +263,7 @@ se_sbuffer(VkDeviceQueueCreateInfo) se_get_queue_create_infos(uint32_t* queues, 
     return result;
 }
 
-VkCommandPoolCreateInfo se_command_pool_create_info(uint32_t queueFamilyIndex, VkCommandPoolCreateFlags flags)
+VkCommandPoolCreateInfo se_vk_utils_command_pool_create_info(uint32_t queueFamilyIndex, VkCommandPoolCreateFlags flags)
 {
     return (VkCommandPoolCreateInfo)
     {
@@ -274,7 +274,7 @@ VkCommandPoolCreateInfo se_command_pool_create_info(uint32_t queueFamilyIndex, V
     };
 }
 
-bool se_pick_depth_stencil_format(VkPhysicalDevice physicalDevice, VkFormat* result)
+bool se_vk_utils_pick_depth_stencil_format(VkPhysicalDevice physicalDevice, VkFormat* result)
 {
     // @NOTE :  taken from https://github.com/SaschaWillems/Vulkan/blob/master/base/VulkanTools.cpp
     // Since all depth formats may be optional, we need to find a suitable depth format to use
@@ -302,7 +302,7 @@ bool se_pick_depth_stencil_format(VkPhysicalDevice physicalDevice, VkFormat* res
     return false;
 }
 
-se_sbuffer(VkPhysicalDevice) se_get_available_physical_devices(VkInstance instance, struct SeAllocatorBindings* allocator)
+se_sbuffer(VkPhysicalDevice) se_vk_utils_get_available_physical_devices(VkInstance instance, struct SeAllocatorBindings* allocator)
 {
     uint32_t count;
     se_sbuffer(VkPhysicalDevice) result = {0};
@@ -313,7 +313,7 @@ se_sbuffer(VkPhysicalDevice) se_get_available_physical_devices(VkInstance instan
     return result;
 };
 
-se_sbuffer(VkQueueFamilyProperties) se_get_physical_device_queue_family_properties(VkPhysicalDevice physicalDevice, struct SeAllocatorBindings* allocator)
+se_sbuffer(VkQueueFamilyProperties) se_vk_utils_get_physical_device_queue_family_properties(VkPhysicalDevice physicalDevice, struct SeAllocatorBindings* allocator)
 {
     uint32_t count;
     se_sbuffer(VkQueueFamilyProperties) familyProperties;
@@ -324,7 +324,7 @@ se_sbuffer(VkQueueFamilyProperties) se_get_physical_device_queue_family_properti
     return familyProperties;
 }
 
-bool se_does_physical_device_supports_required_extensions(VkPhysicalDevice device, const char** extensions, size_t numExtensions, struct SeAllocatorBindings* allocator)
+bool se_vk_utils_does_physical_device_supports_required_extensions(VkPhysicalDevice device, const char** extensions, size_t numExtensions, struct SeAllocatorBindings* allocator)
 {
     uint32_t count;
     VkPhysicalDeviceFeatures feat = {0};
@@ -357,7 +357,7 @@ bool se_does_physical_device_supports_required_extensions(VkPhysicalDevice devic
     return result;
 };
 
-bool se_does_physical_device_supports_required_features(VkPhysicalDevice device, VkPhysicalDeviceFeatures* requiredFeatures)
+bool se_vk_utils_does_physical_device_supports_required_features(VkPhysicalDevice device, VkPhysicalDeviceFeatures* requiredFeatures)
 {
     // VkPhysicalDeviceFeatures is just a collection of VkBool32 values, so we can iterate over it like an array
     VkPhysicalDeviceFeatures supportedFeatures = {0};
@@ -374,7 +374,7 @@ bool se_does_physical_device_supports_required_features(VkPhysicalDevice device,
     return true;
 }
 
-VkImageType se_pick_image_type(VkExtent3D imageExtent)
+VkImageType se_vk_utils_pick_image_type(VkExtent3D imageExtent)
 {
     // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkImageCreateInfo.html
     // If imageType is VK_IMAGE_TYPE_1D, both extent.height and extent.depth must be 1
@@ -390,7 +390,7 @@ VkImageType se_pick_image_type(VkExtent3D imageExtent)
     return VK_IMAGE_TYPE_3D;
 }
 
-VkCommandBuffer se_create_command_buffer(VkDevice device, VkCommandPool pool, VkCommandBufferLevel level)
+VkCommandBuffer se_vk_utils_create_command_buffer(VkDevice device, VkCommandPool pool, VkCommandBufferLevel level)
 {
     VkCommandBuffer buffer;
     VkCommandBufferAllocateInfo allocInfo = (VkCommandBufferAllocateInfo)
@@ -405,7 +405,7 @@ VkCommandBuffer se_create_command_buffer(VkDevice device, VkCommandPool pool, Vk
     return buffer;
 };
 
-VkShaderModule se_create_shader_module(VkDevice device, uint32_t* bytecode, size_t bytecodeSIze, VkAllocationCallbacks* allocationCb)
+VkShaderModule se_vk_utils_create_shader_module(VkDevice device, uint32_t* bytecode, size_t bytecodeSIze, VkAllocationCallbacks* allocationCb)
 {
     VkShaderModuleCreateInfo createInfo = (VkShaderModuleCreateInfo)
     {
@@ -420,12 +420,12 @@ VkShaderModule se_create_shader_module(VkDevice device, uint32_t* bytecode, size
     return shaderModule;
 }
 
-void se_destroy_shader_module(VkDevice device, VkShaderModule module, VkAllocationCallbacks* allocationCb)
+void se_vk_utils_destroy_shader_module(VkDevice device, VkShaderModule module, VkAllocationCallbacks* allocationCb)
 {
     vkDestroyShaderModule(device, module, allocationCb);
 }
 
-bool se_get_memory_type_index(VkPhysicalDeviceMemoryProperties* props, uint32_t typeBits, VkMemoryPropertyFlags properties, uint32_t* result)
+bool se_vk_utils_get_memory_type_index(VkPhysicalDeviceMemoryProperties* props, uint32_t typeBits, VkMemoryPropertyFlags properties, uint32_t* result)
 {
     for (uint32_t it = 0; it < props->memoryTypeCount; it++)
     {
@@ -442,7 +442,7 @@ bool se_get_memory_type_index(VkPhysicalDeviceMemoryProperties* props, uint32_t 
     return false;
 }
 
-SeTextureFormat se_to_texture_format(VkFormat vkFormat)
+SeTextureFormat se_vk_utils_to_texture_format(VkFormat vkFormat)
 {
     switch (vkFormat)
     {
@@ -453,7 +453,7 @@ SeTextureFormat se_to_texture_format(VkFormat vkFormat)
     return (SeTextureFormat)0;
 }
 
-VkFormat se_to_vk_format(SeTextureFormat format)
+VkFormat se_vk_utils_to_vk_format(SeTextureFormat format)
 {
     switch (format)
     {
@@ -464,7 +464,7 @@ VkFormat se_to_vk_format(SeTextureFormat format)
     return (VkFormat)0;
 }
 
-VkAttachmentLoadOp se_to_vk_load_op(SeAttachmentLoadOp loadOp)
+VkAttachmentLoadOp se_vk_utils_to_vk_load_op(SeAttachmentLoadOp loadOp)
 {
     switch (loadOp)
     {
@@ -476,7 +476,7 @@ VkAttachmentLoadOp se_to_vk_load_op(SeAttachmentLoadOp loadOp)
     return (VkAttachmentLoadOp)0;
 }
 
-VkAttachmentStoreOp se_to_vk_store_op(SeAttachmentStoreOp storeOp)
+VkAttachmentStoreOp se_vk_utils_to_vk_store_op(SeAttachmentStoreOp storeOp)
 {
     switch (storeOp)
     {
@@ -487,7 +487,7 @@ VkAttachmentStoreOp se_to_vk_store_op(SeAttachmentStoreOp storeOp)
     return (VkAttachmentStoreOp)0;
 }
 
-VkPolygonMode se_to_vk_polygon_mode(SePipelinePoligonMode mode)
+VkPolygonMode se_vk_utils_to_vk_polygon_mode(SePipelinePoligonMode mode)
 {
     switch (mode)
     {
@@ -499,7 +499,7 @@ VkPolygonMode se_to_vk_polygon_mode(SePipelinePoligonMode mode)
     return (VkPolygonMode)0;
 }
 
-VkCullModeFlags se_to_vk_cull_mode(SePipelineCullMode mode)
+VkCullModeFlags se_vk_utils_to_vk_cull_mode(SePipelineCullMode mode)
 {
     switch (mode)
     {
@@ -512,7 +512,7 @@ VkCullModeFlags se_to_vk_cull_mode(SePipelineCullMode mode)
     return (VkCullModeFlags)0;
 }
 
-VkFrontFace se_to_vk_front_face(SePipelineFrontFace frontFace)
+VkFrontFace se_vk_utils_to_vk_front_face(SePipelineFrontFace frontFace)
 {
     switch (frontFace)
     {
@@ -523,7 +523,7 @@ VkFrontFace se_to_vk_front_face(SePipelineFrontFace frontFace)
     return (VkFrontFace)0;
 }
 
-VkSampleCountFlagBits se_to_vk_sample_count(SeMultisamplingType multisample)
+VkSampleCountFlagBits se_vk_utils_to_vk_sample_count(SeMultisamplingType multisample)
 {
     switch (multisample)
     {
@@ -536,7 +536,7 @@ VkSampleCountFlagBits se_to_vk_sample_count(SeMultisamplingType multisample)
     return 0;
 }
 
-VkSampleCountFlagBits se_pick_sample_count(VkSampleCountFlags desired, VkSampleCountFlags supported)
+VkSampleCountFlagBits se_vk_utils_pick_sample_count(VkSampleCountFlags desired, VkSampleCountFlags supported)
 {
     if (supported & desired) return (VkSampleCountFlagBits)desired;
     for (VkSampleCountFlags it = sizeof(VkSampleCountFlags) * 8 - 1; it >= 0; it++)
@@ -550,7 +550,7 @@ VkSampleCountFlagBits se_pick_sample_count(VkSampleCountFlags desired, VkSampleC
     return (VkSampleCountFlagBits)0;
 }
 
-VkStencilOp se_to_vk_stencil_op(SeStencilOp op)
+VkStencilOp se_vk_utils_to_vk_stencil_op(SeStencilOp op)
 {
     switch (op)
     {
@@ -567,7 +567,7 @@ VkStencilOp se_to_vk_stencil_op(SeStencilOp op)
     return (VkStencilOp)0;
 }
 
-VkCompareOp se_to_vk_compare_op(SeCompareOp op)
+VkCompareOp se_vk_utils_to_vk_compare_op(SeCompareOp op)
 {
     switch (op)
     {
@@ -584,12 +584,12 @@ VkCompareOp se_to_vk_compare_op(SeCompareOp op)
     return (VkCompareOp)0;
 }
 
-VkBool32 se_to_vk_bool(bool value)
+VkBool32 se_vk_utils_to_vk_bool(bool value)
 {
     return value ? VK_TRUE : VK_FALSE;
 }
 
-VkShaderStageFlags se_to_vk_stage_flags(SeProgramStageFlags stages)
+VkShaderStageFlags se_vk_utils_to_vk_stage_flags(SeProgramStageFlags stages)
 {
     return
         (VkShaderStageFlags)(stages & (uint32_t)SE_STAGE_VERTEX     ? VK_SHADER_STAGE_VERTEX_BIT    : 0) |
@@ -597,21 +597,7 @@ VkShaderStageFlags se_to_vk_stage_flags(SeProgramStageFlags stages)
         (VkShaderStageFlags)(stages & (uint32_t)SE_STAGE_COMPUTE    ? VK_SHADER_STAGE_COMPUTE_BIT   : 0);
 }
 
-VkPipelineShaderStageCreateInfo se_shader_stage_create_info(VkShaderStageFlagBits stage, VkShaderModule module, const char* pName)
-{
-    return (VkPipelineShaderStageCreateInfo)
-    {
-        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .pNext                  = NULL,
-        .flags                  = 0,
-        .stage                  = stage,
-        .module                 = module,
-        .pName                  = pName,
-        .pSpecializationInfo    = NULL,
-    };
-}
-
-VkPipelineVertexInputStateCreateInfo se_vertex_input_state_create_info(uint32_t bindingsCount, const VkVertexInputBindingDescription* bindingDescs, uint32_t attrCount, const VkVertexInputAttributeDescription* attrDescs)
+VkPipelineVertexInputStateCreateInfo se_vk_utils_vertex_input_state_create_info(uint32_t bindingsCount, const VkVertexInputBindingDescription* bindingDescs, uint32_t attrCount, const VkVertexInputAttributeDescription* attrDescs)
 {
     return (VkPipelineVertexInputStateCreateInfo)
     {
@@ -625,7 +611,7 @@ VkPipelineVertexInputStateCreateInfo se_vertex_input_state_create_info(uint32_t 
     };
 }
 
-VkPipelineInputAssemblyStateCreateInfo se_input_assembly_state_create_info(VkPrimitiveTopology topology, VkBool32 primitiveRestartEnable)
+VkPipelineInputAssemblyStateCreateInfo se_vk_utils_input_assembly_state_create_info(VkPrimitiveTopology topology, VkBool32 primitiveRestartEnable)
 {
     return (VkPipelineInputAssemblyStateCreateInfo)
     {
@@ -637,7 +623,7 @@ VkPipelineInputAssemblyStateCreateInfo se_input_assembly_state_create_info(VkPri
     };
 }
 
-SeVkViewportScissor se_default_viewport_scissor(uint32_t width, uint32_t height)
+SeVkViewportScissor se_vk_utils_default_viewport_scissor(uint32_t width, uint32_t height)
 {
     return (SeVkViewportScissor)
     {
@@ -656,7 +642,7 @@ SeVkViewportScissor se_default_viewport_scissor(uint32_t width, uint32_t height)
     };
 }
 
-VkPipelineViewportStateCreateInfo se_viewport_state_create_info(VkViewport* viewport, VkRect2D* scissor)
+VkPipelineViewportStateCreateInfo se_vk_utils_viewport_state_create_info(VkViewport* viewport, VkRect2D* scissor)
 {
     return (VkPipelineViewportStateCreateInfo)
     {
@@ -670,7 +656,7 @@ VkPipelineViewportStateCreateInfo se_viewport_state_create_info(VkViewport* view
     };
 }
 
-VkPipelineRasterizationStateCreateInfo se_rasterization_state_create_info(VkPolygonMode polygonMode, VkCullModeFlags cullMode, VkFrontFace frontFace)
+VkPipelineRasterizationStateCreateInfo se_vk_utils_rasterization_state_create_info(VkPolygonMode polygonMode, VkCullModeFlags cullMode, VkFrontFace frontFace)
 {
     return (VkPipelineRasterizationStateCreateInfo)
     {
@@ -690,7 +676,7 @@ VkPipelineRasterizationStateCreateInfo se_rasterization_state_create_info(VkPoly
     };
 }
 
-VkPipelineMultisampleStateCreateInfo se_multisample_state_create_info(VkSampleCountFlagBits resterizationSamples)
+VkPipelineMultisampleStateCreateInfo se_vk_utils_multisample_state_create_info(VkSampleCountFlagBits resterizationSamples)
 {
     return (VkPipelineMultisampleStateCreateInfo)
     {
@@ -706,7 +692,7 @@ VkPipelineMultisampleStateCreateInfo se_multisample_state_create_info(VkSampleCo
     };
 }
 
-VkPipelineColorBlendStateCreateInfo se_color_blending_create_info(VkPipelineColorBlendAttachmentState* colorBlendAttachmentStates, uint32_t numStates)
+VkPipelineColorBlendStateCreateInfo se_vk_utils_color_blending_create_info(VkPipelineColorBlendAttachmentState* colorBlendAttachmentStates, uint32_t numStates)
 {
     return (VkPipelineColorBlendStateCreateInfo)
     {
@@ -721,7 +707,7 @@ VkPipelineColorBlendStateCreateInfo se_color_blending_create_info(VkPipelineColo
     };
 }
 
-VkPipelineDynamicStateCreateInfo se_dynamic_state_default_create_info()
+VkPipelineDynamicStateCreateInfo se_vk_utils_dynamic_state_default_create_info()
 {
     static VkDynamicState dynamicStates[] =
     {
@@ -738,7 +724,7 @@ VkPipelineDynamicStateCreateInfo se_dynamic_state_default_create_info()
     };
 }
 
-VkAccessFlags se_image_layout_to_access_flags(VkImageLayout layout)
+VkAccessFlags se_vk_utils_image_layout_to_access_flags(VkImageLayout layout)
 {
     switch (layout)
     {
@@ -757,7 +743,7 @@ VkAccessFlags se_image_layout_to_access_flags(VkImageLayout layout)
     return (VkAccessFlags)0;
 }
 
-VkPipelineStageFlags se_image_layout_to_pipeline_stage_flags(VkImageLayout layout)
+VkPipelineStageFlags se_vk_utils_image_layout_to_pipeline_stage_flags(VkImageLayout layout)
 {
     switch (layout)
     {

@@ -4,8 +4,10 @@
 #include "se_vulkan_render_subsystem_device.h"
 #include "se_vulkan_render_subsystem_memory.h"
 #include "se_vulkan_render_subsystem_utils.h"
+#include "se_vulkan_render_subsystem_render_program.h"
+#include "se_vulkan_render_subsystem_framebuffer.h"
+#include "engine/libs/ssr/simple_spirv_reflection.h"
 #include "engine/allocator_bindings.h"
-#include "engine/containers.h"
 #include "engine/render_abstraction_interface.h"
 
 #define se_vk_rp_is_bit_set(mask, bit)      (((mask) >> (bit)) & 1)
@@ -37,6 +39,8 @@ typedef struct SeVkRenderPass
     SeVkSubpassInfo subpassInfos[SE_VK_RP_MAX_BITMASK_WIDTH];
     SeVkRenderPassAttachmentInfo attachmentInfos[SE_VK_RP_MAX_BITMASK_WIDTH];
     VkClearValue clearValues[SE_VK_RP_MAX_BITMASK_WIDTH];
+    size_t numSubpasses;
+    size_t numAttachments;
 } SeVkRenderPass;
 
 typedef struct SeVkSubpassIntermediateData
@@ -80,6 +84,7 @@ SeRenderObject* se_vk_render_pass_create(SeRenderPassCreateInfo* createInfo)
     SeVkRenderPass* pass = allocator->alloc(allocator->allocator, sizeof(SeVkRenderPass), se_default_alignment);
     pass->object.destroy = se_vk_render_pass_destroy;
     pass->object.handleType = SE_RENDER_PASS;
+    pass->device = device;
     //
     // Convert size_t values to uint32_t
     //
@@ -101,11 +106,11 @@ SeRenderObject* se_vk_render_pass_create(SeRenderPassCreateInfo* createInfo)
         {
             .flags          = 0,
             .format         = se_vk_device_get_depth_stencil_format(device),
-            .samples        = se_pick_sample_count(se_to_vk_sample_count(createInfo->depthStencilAttachment->samples), supprotedAttachmentSampleCounts),
-            .loadOp         = se_to_vk_load_op(createInfo->depthStencilAttachment->loadOp),
-            .storeOp        = se_to_vk_store_op(createInfo->depthStencilAttachment->storeOp),
-            .stencilLoadOp  = isStencilSupported ? se_to_vk_load_op(createInfo->depthStencilAttachment->loadOp) : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-            .stencilStoreOp = isStencilSupported ? se_to_vk_store_op(createInfo->depthStencilAttachment->storeOp) : VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .samples        = se_vk_utils_pick_sample_count(se_vk_utils_to_vk_sample_count(createInfo->depthStencilAttachment->samples), supprotedAttachmentSampleCounts),
+            .loadOp         = se_vk_utils_to_vk_load_op(createInfo->depthStencilAttachment->loadOp),
+            .storeOp        = se_vk_utils_to_vk_store_op(createInfo->depthStencilAttachment->storeOp),
+            .stencilLoadOp  = isStencilSupported ? se_vk_utils_to_vk_load_op(createInfo->depthStencilAttachment->loadOp) : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .stencilStoreOp = isStencilSupported ? se_vk_utils_to_vk_store_op(createInfo->depthStencilAttachment->storeOp) : VK_ATTACHMENT_STORE_OP_DONT_CARE,
             .initialLayout  = isStencilSupported ? VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
             .finalLayout    = VK_IMAGE_LAYOUT_UNDEFINED, // will be filled later
         };
@@ -123,10 +128,10 @@ SeRenderObject* se_vk_render_pass_create(SeRenderPassCreateInfo* createInfo)
             renderPassAttachmentDescriptions[it] = (VkAttachmentDescription)
             {
                 .flags          = 0,
-                .format         = isSwapChainImage ? se_vk_device_get_swap_chain_format(device) : se_to_vk_format(attachment->format),
-                .samples        = se_pick_sample_count(se_to_vk_sample_count(attachment->samples), supprotedAttachmentSampleCounts),
-                .loadOp         = se_to_vk_load_op(attachment->loadOp),
-                .storeOp        = se_to_vk_store_op(attachment->storeOp),
+                .format         = isSwapChainImage ? se_vk_device_get_swap_chain_format(device) : se_vk_utils_to_vk_format(attachment->format),
+                .samples        = se_vk_utils_pick_sample_count(se_vk_utils_to_vk_sample_count(attachment->samples), supprotedAttachmentSampleCounts),
+                .loadOp         = se_vk_utils_to_vk_load_op(attachment->loadOp),
+                .storeOp        = se_vk_utils_to_vk_store_op(attachment->storeOp),
                 .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
                 .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
                 .initialLayout  = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -483,7 +488,37 @@ SeRenderObject* se_vk_render_pass_create(SeRenderPassCreateInfo* createInfo)
         .pDependencies      = subpassDependencies,
     };
     se_vk_check(vkCreateRenderPass(se_vk_device_get_logical_handle(device), &renderPassInfo, callbacks, &pass->handle));
-    pass->device = device;
+    //
+    // Fill subpass and attachment infos
+    //
+    pass->numSubpasses = createInfo->numSubpasses;
+    for (size_t it = 0; it < pass->numSubpasses; it++)
+    {
+        SeRenderPassSubpass* subpassCreateInfo = &createInfo->subpasses[it];
+        SeVkSubpassInfo* subpassInfo = &pass->subpassInfos[it];
+        for (size_t refIt = 0; refIt < subpassCreateInfo->numInputRefs; refIt++) subpassInfo->inputAttachmentRefsBitmask |= 1 << subpassCreateInfo->inputRefs[refIt];
+        for (size_t refIt = 0; refIt < subpassCreateInfo->numColorRefs; refIt++) subpassInfo->colorAttachmentRefsBitmask |= 1 << subpassCreateInfo->colorRefs[refIt];
+    }
+    pass->numAttachments = numRenderPassAttachments;
+    for (size_t it = 0; it < pass->numAttachments; it++)
+    {
+        const VkFormat format = renderPassAttachmentDescriptions[it].format;
+        pass->attachmentInfos[it] = (SeVkRenderPassAttachmentInfo)
+        {
+            .initialLayout  = renderPassAttachmentDescriptions[it].initialLayout,
+            .finalLayout    = renderPassAttachmentDescriptions[it].finalLayout,
+            .format         = format,
+        };
+        const bool isColorFormat =
+            format == VK_FORMAT_D16_UNORM           ||
+            format == VK_FORMAT_D32_SFLOAT          ||
+            format == VK_FORMAT_D16_UNORM_S8_UINT   ||
+            format == VK_FORMAT_D24_UNORM_S8_UINT   ||
+            format == VK_FORMAT_D32_SFLOAT_S8_UINT  ? false : true;
+        pass->clearValues[it] = isColorFormat
+            ? (VkClearValue) { .color = { 1, 0, 1, 1, } }
+            : (VkClearValue) { .depthStencil = { 0, 0 } };
+    }
     return (SeRenderObject*)pass;
 }
 
@@ -493,6 +528,85 @@ void se_vk_render_pass_destroy(SeRenderObject* _pass)
     SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(pass->device);
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
     vkDestroyRenderPass(se_vk_device_get_logical_handle(pass->device), pass->handle, callbacks);
+    memoryManager->cpu_allocator->dealloc(memoryManager->cpu_allocator->allocator, pass, sizeof(SeVkRenderPass));
+}
+
+size_t se_vk_render_pass_get_num_subpasses(struct SeRenderObject* _pass)
+{
+    SeVkRenderPass* pass = (SeVkRenderPass*)_pass;
+    return pass->numSubpasses;
+}
+
+void se_vk_render_pass_validate_fragment_program_setup(SeRenderObject* _pass, SeRenderObject* fragmentProgram, size_t subpassIndex)
+{
+    SeVkRenderPass* pass = (SeVkRenderPass*)_pass;
+    SeVkSubpassInfo* subpass = &pass->subpassInfos[subpassIndex];
+    SimpleSpirvReflection* reflection = se_vk_render_program_get_reflection(fragmentProgram);
+    uint32_t shaderSubpassInputAttachmentMask = 0;
+    for (size_t it = 0; it < reflection->numUniforms; it++)
+    {
+        SsrUniform* uniform = &reflection->uniforms[it];
+        if (uniform->kind == SSR_UNIFORM_INPUT_ATTACHMENT)
+        {
+            se_assert(uniform->inputAttachmentIndex < 32);
+            shaderSubpassInputAttachmentMask |= 1 << uniform->inputAttachmentIndex;
+        }
+    }
+    se_assert((shaderSubpassInputAttachmentMask == subpass->inputAttachmentRefsBitmask) && "Mismatch between fragment shader subpass inputs and render pass input attachments");
+    uint32_t shaderColorAttachmentMask = 0;
+    for (size_t it = 0; it < reflection->numOutputs; it++)
+    {
+        SsrShaderIO* output = &reflection->outputs[it];
+        if (!output->isBuiltIn)
+        {
+            se_assert(output->location < 32);
+            shaderColorAttachmentMask |= 1 << output->location;
+        }
+    }
+    se_assert((shaderColorAttachmentMask == subpass->colorAttachmentRefsBitmask) && "Mismatch between fragment shader outputs and render pass color attachments");
+}
+
+uint32_t se_vk_render_pass_get_num_color_attachments(SeRenderObject* _pass, size_t subpassIndex)
+{
+    SeVkRenderPass* pass = (SeVkRenderPass*)_pass;
+    return se_vk_render_pass_count_flags(pass->subpassInfos[subpassIndex].colorAttachmentRefsBitmask);
+}
+
+VkRenderPass se_vk_render_pass_get_handle(struct SeRenderObject* _pass)
+{
+    SeVkRenderPass* pass = (SeVkRenderPass*)_pass;
+    return pass->handle;
+}
+
+void se_vk_render_pass_validate_framebuffer_textures(SeRenderObject* _pass, SeRenderObject** textures, size_t numTextures)
+{
+    SeVkRenderPass* pass = (SeVkRenderPass*)_pass;
+    se_assert(pass->numAttachments == numTextures);
+    for (size_t it = 0; it < numTextures; it++)
+    {
+        se_assert(pass->attachmentInfos[it].format == se_vk_texture_get_format(textures[it]));
+    }
+}
+
+VkRenderPassBeginInfo se_vk_render_pass_get_begin_info(SeRenderObject* _pass, SeRenderObject* framebuffer, VkRect2D renderArea)
+{
+    SeVkRenderPass* pass = (SeVkRenderPass*)_pass;
+    return (VkRenderPassBeginInfo)
+    {
+        .sType              = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        .pNext              = NULL,
+        .renderPass         = pass->handle,
+        .framebuffer        = se_vk_framebuffer_get_handle(framebuffer),
+        .renderArea         = renderArea,
+        .clearValueCount    = (uint32_t)pass->numAttachments, // @TODO : safe cast
+        .pClearValues       = pass->clearValues,
+    };
+}
+
+VkImageLayout se_vk_render_pass_get_initial_attachment_layout(SeRenderObject* _pass, size_t attachmentIndex)
+{
+    SeVkRenderPass* pass = (SeVkRenderPass*)_pass;
+    return pass->attachmentInfos[attachmentIndex].initialLayout;
 }
 
 #undef se_vk_rp_is_bit_set
