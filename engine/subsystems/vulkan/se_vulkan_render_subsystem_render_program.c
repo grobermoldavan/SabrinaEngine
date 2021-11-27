@@ -19,7 +19,7 @@ typedef struct
 void* se_vk_ssr_alloc(void* userData, size_t size)
 {
     SeAllocatorBindings* allocator = (SeAllocatorBindings*)userData;
-    return allocator->alloc(allocator->allocator, size, se_default_alignment);
+    return allocator->alloc(allocator->allocator, size, se_default_alignment, se_alloc_tag);
 }
 
 void se_vk_ssr_free(void* userData, void* ptr, size_t size)
@@ -33,9 +33,10 @@ SeRenderObject* se_vk_render_program_create(SeRenderProgramCreateInfo* createInf
     SeRenderObject* device = createInfo->device;
     SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(device);
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    SeAllocatorBindings* allocator = memoryManager->cpu_allocator;
+    SeAllocatorBindings* allocator = memoryManager->cpu_persistentAllocator;
     VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
-    SeVkRenderProgram* program = allocator->alloc(allocator->allocator, sizeof(SeVkRenderProgram), se_default_alignment);
+
+    SeVkRenderProgram* program = allocator->alloc(allocator->allocator, sizeof(SeVkRenderProgram), se_default_alignment, se_alloc_tag);
     program->object.destroy = se_vk_render_program_destroy;
     program->object.handleType = SE_RENDER_PROGRAM;
     program->device = device;
@@ -65,7 +66,7 @@ void se_vk_render_program_destroy(SeRenderObject* _program)
     VkDevice logicalHandle = se_vk_device_get_logical_handle(program->device);
     ssr_destroy(&program->reflection);
     se_vk_utils_destroy_shader_module(logicalHandle, program->handle, callbacks);
-    memoryManager->cpu_allocator->dealloc(memoryManager->cpu_allocator->allocator, program, sizeof(SeVkRenderProgram));
+    memoryManager->cpu_persistentAllocator->dealloc(memoryManager->cpu_persistentAllocator->allocator, program, sizeof(SeVkRenderProgram));
 }
 
 SimpleSpirvReflection* se_vk_render_program_get_reflection(SeRenderObject* _program)

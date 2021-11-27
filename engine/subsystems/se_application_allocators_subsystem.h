@@ -6,8 +6,7 @@
 typedef struct SeApplicationAllocatorsSubsystemInterface
 {
     struct SeAllocatorBindings* frameAllocator;
-    struct SeAllocatorBindings* sceneAllocator;
-    struct SeAllocatorBindings* appAllocator;
+    struct SeAllocatorBindings* persistentAllocator;
 } SeApplicationAllocatorsSubsystemInterface;
 
 #endif

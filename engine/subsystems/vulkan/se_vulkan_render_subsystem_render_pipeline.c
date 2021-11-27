@@ -237,12 +237,12 @@ SeRenderObject* se_vk_render_pipeline_graphics_create(SeGraphicsRenderPipelineCr
     SeRenderObject* device = createInfo->device;
     SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(device);
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    SeAllocatorBindings* allocator = memoryManager->cpu_allocator;
+    SeAllocatorBindings* allocator = memoryManager->cpu_persistentAllocator;
     VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
     //
     // Initial setup
     //
-    SeVkRenderPipeline* pipeline = allocator->alloc(allocator->allocator, sizeof(SeVkRenderPipeline), se_default_alignment);
+    SeVkRenderPipeline* pipeline = allocator->alloc(allocator->allocator, sizeof(SeVkRenderPipeline), se_default_alignment, se_alloc_tag);
     pipeline->object.handleType = SE_RENDER_PIPELINE;
     pipeline->object.destroy = se_vk_render_pipeline_destroy;
     pipeline->device = device;
@@ -442,7 +442,7 @@ void se_vk_render_pipeline_destroy(SeRenderObject* _pipeline)
     }
     vkDestroyPipeline(logicalHandle, pipeline->handle, callbacks);
     vkDestroyPipelineLayout(logicalHandle, pipeline->layout, callbacks);
-    memoryManager->cpu_allocator->dealloc(memoryManager->cpu_allocator->allocator, pipeline, sizeof(SeVkRenderPipeline));
+    memoryManager->cpu_persistentAllocator->dealloc(memoryManager->cpu_persistentAllocator->allocator, pipeline, sizeof(SeVkRenderPipeline));
 }
 
 SeRenderObject* se_vk_render_pipeline_get_render_pass(SeRenderObject* _pipeline)

@@ -53,7 +53,7 @@ SE_DLL_EXPORT void se_init(struct SabrinaEngine* engine)
         SeRenderDeviceCreateInfo createInfo = (SeRenderDeviceCreateInfo)
         {
             .window                 = &windowHandle,
-            .persistentAllocator    = allocatorsInterface->appAllocator,
+            .persistentAllocator    = allocatorsInterface->persistentAllocator,
             .frameAllocator         = allocatorsInterface->frameAllocator,
         };
         renderDevice = renderInterface->device_create(&createInfo);
@@ -144,7 +144,7 @@ SE_DLL_EXPORT void se_init(struct SabrinaEngine* engine)
     }
     {
         size_t numSwapChainTextures = renderInterface->get_swap_chain_textures_num(renderDevice);
-        se_sbuffer_construct(framebuffers, numSwapChainTextures, allocatorsInterface->appAllocator);
+        se_sbuffer_construct(framebuffers, numSwapChainTextures, allocatorsInterface->persistentAllocator);
         for (size_t it = 0; it < numSwapChainTextures; it++)
         {
             SeRenderObject* attachments[] = { renderInterface->get_swap_chain_texture(renderDevice, it) };
@@ -181,7 +181,7 @@ SE_DLL_EXPORT void se_terminate(struct SabrinaEngine* engine)
 SE_DLL_EXPORT void se_update(struct SabrinaEngine* engine)
 {
     const SeWindowSubsystemInput* input = windowInterface->get_input(windowHandle);
-    if (se_is_keyboard_button_pressed(input, SE_ESCAPE)) engine->shouldRun = false;
+    if (input->isCloseButtonPressed || se_is_keyboard_button_pressed(input, SE_ESCAPE)) engine->shouldRun = false;
 
     renderInterface->begin_frame(renderDevice);
     {

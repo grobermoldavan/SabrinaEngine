@@ -55,7 +55,6 @@ void* __se_memset(void* dst, int val, size_t size);
 #define __se_remove_idx(arr, idx)               __se_memcpy((void*)&(arr)[idx], (void*)&(arr)[__se_param(arr, 1) - 1], sizeof((arr)[0])), __se_param(arr, 1) -= 1
 #define __se_get_elem_idx(arr, valPtr)          ((valPtr) - (arr))
 
-#define se_sbuffer_construct_std(arr, capacity)             __se_sbuffer_construct((void**)&(arr), sizeof((arr)[0]), capacity, NULL)
 #define se_sbuffer_construct(arr, capacity, allocatorPtr)   __se_sbuffer_construct((void**)&(arr), sizeof((arr)[0]), capacity, allocatorPtr)
 #define se_sbuffer_destroy(arr)                             __se_sbuffer_destruct((void**)&(arr), sizeof((arr)[0]))
 
@@ -83,7 +82,7 @@ typedef void* SeAnyPtr;
 
 void __se_sbuffer_construct(void** arr, size_t entrySize, size_t capacity, struct SeAllocatorBindings* allocator)
 {
-    SeAnyPtr* mem = (SeAnyPtr*)allocator->alloc(allocator->allocator, __se_info_size + entrySize * capacity, se_default_alignment);
+    SeAnyPtr* mem = (SeAnyPtr*)allocator->alloc(allocator->allocator, __se_info_size + entrySize * capacity, se_default_alignment, se_alloc_tag);
     __se_memcpy(mem, allocator, sizeof(struct SeAllocatorBindings));
     size_t* params = (size_t*)(((char*)mem) + sizeof(struct SeAllocatorBindings));
     params[0] = capacity;
@@ -111,7 +110,7 @@ void __se_sbuffer_realloc(void** arr, size_t entrySize, size_t newCapacity)
 
     SeAnyPtr* oldMem = (SeAnyPtr*)__se_raw(*arr);
     struct SeAllocatorBindings* allocator = (struct SeAllocatorBindings*)oldMem;
-    SeAnyPtr* newMem = (SeAnyPtr*)allocator->alloc(allocator->allocator, newSize, se_default_alignment);
+    SeAnyPtr* newMem = (SeAnyPtr*)allocator->alloc(allocator->allocator, newSize, se_default_alignment, se_alloc_tag);
     __se_memcpy(newMem, oldMem, oldSize);
     allocator->dealloc(allocator->allocator, oldMem, oldSize);
 

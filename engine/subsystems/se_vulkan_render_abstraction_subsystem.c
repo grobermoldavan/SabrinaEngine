@@ -60,6 +60,7 @@ SE_VULKAN_IFACE_FUNC void* se_get_interface(SabrinaEngine* engine)
 #define VOLK_IMPLEMENTATION
 #include "engine/libs/volk/volk.h"
 
+#define SSR_DIRTY_ALLOCATOR
 #define SSR_IMPL
 #include "engine/libs/ssr/simple_spirv_reflection.h"
 

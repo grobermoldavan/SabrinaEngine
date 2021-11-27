@@ -26,13 +26,13 @@ SeRenderObject* se_vk_framebuffer_create(SeFramebufferCreateInfo* createInfo)
     SeRenderObject* device = createInfo->device;
     SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(device);
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    SeAllocatorBindings* allocator = memoryManager->cpu_allocator;
+    SeAllocatorBindings* allocator = memoryManager->cpu_persistentAllocator;
     VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
     //
     // Initial setup
     //
     se_vk_render_pass_validate_framebuffer_textures(createInfo->renderPass, createInfo->attachmentsPtr, createInfo->numAttachments);
-    SeVkFramebuffer* framebuffer = allocator->alloc(allocator->allocator, sizeof(SeVkFramebuffer), se_default_alignment);
+    SeVkFramebuffer* framebuffer = allocator->alloc(allocator->allocator, sizeof(SeVkFramebuffer), se_default_alignment, se_alloc_tag);
     framebuffer->object.handleType = SE_RENDER_FRAMEBUFFER;
     framebuffer->object.destroy = se_vk_framebuffer_destroy;
     framebuffer->device = createInfo->device;
@@ -78,7 +78,7 @@ void se_vk_framebuffer_destroy(SeRenderObject* _framebuffer)
     SeRenderObject* device = framebuffer->device;
     SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(device);
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    SeAllocatorBindings* allocator = memoryManager->cpu_allocator;
+    SeAllocatorBindings* allocator = memoryManager->cpu_persistentAllocator;
     VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
 
     vkDestroyFramebuffer(logicalHandle, framebuffer->handle, callbacks);

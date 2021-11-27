@@ -20,6 +20,7 @@
 #include "render_abstraction_interface.h"
 #include "subsystems/se_application_allocators_subsystem.h"
 #include "subsystems/se_stack_allocator_subsystem.h"
+#include "subsystems/se_pool_allocator_subsystem.h"
 #include "subsystems/se_window_subsystem.h"
 #include "subsystems/se_vulkan_render_abstraction_subsystem.h"
 

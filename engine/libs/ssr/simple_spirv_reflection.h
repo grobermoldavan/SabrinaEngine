@@ -778,6 +778,7 @@ void ssr_construct(SimpleSpirvReflection* reflection, SsrCreateInfo* createInfo)
 {
 #define ssr_save_decl_location(index) { SsrSpirvWord id = instruction[index]; ssr_assert(id < bound); ids[id].declarationLocation = instruction; }
     
+    ssr_clear_mem(reflection, sizeof(SimpleSpirvReflection));
     reflection->allocator = *createInfo->persistentAllocator;
     SsrAllocator* persistenAllocator = createInfo->persistentAllocator;
     SsrAllocator* nonPersistentAllocator = createInfo->nonPersistentAllocator;

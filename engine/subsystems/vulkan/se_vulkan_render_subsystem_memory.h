@@ -14,7 +14,8 @@
 
 typedef struct SeVkMemoryManagerCreateInfo
 {
-    struct SeAllocatorBindings* allocator;
+    struct SeAllocatorBindings* persistentAllocator;
+    struct SeAllocatorBindings* frameAllocator;
 } SeVkMemoryManagerCreateInfo;
 
 typedef struct SeVkGpuAllocationRequest
@@ -50,7 +51,8 @@ typedef struct SeVkMemoryManager
     //
     // CPU-side
     //
-    struct SeAllocatorBindings* cpu_allocator;
+    struct SeAllocatorBindings* cpu_persistentAllocator;
+    struct SeAllocatorBindings* cpu_frameAllocator;
     // VkAllocationCallbacks cpu_allocationCallbacks;
     // SeVkCpuAllocation* cpu_allocations;
     // size_t cpu_numAllocations;

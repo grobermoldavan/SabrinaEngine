@@ -76,12 +76,13 @@ SeRenderObject* se_vk_render_pass_create(SeRenderPassCreateInfo* createInfo)
     SeRenderObject* device = createInfo->device;
     SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(device);
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    SeAllocatorBindings* allocator = memoryManager->cpu_allocator;
+    SeAllocatorBindings* allocator = memoryManager->cpu_persistentAllocator;
     VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
+
     const bool isStencilSupported = se_vk_device_is_stencil_supported(device);
     const bool hasDepthStencilAttachment = createInfo->depthStencilAttachment != NULL;
     const VkSampleCountFlags supprotedAttachmentSampleCounts = se_vk_device_get_supported_framebuffer_multisample_types(device);
-    SeVkRenderPass* pass = allocator->alloc(allocator->allocator, sizeof(SeVkRenderPass), se_default_alignment);
+    SeVkRenderPass* pass = allocator->alloc(allocator->allocator, sizeof(SeVkRenderPass), se_default_alignment, se_alloc_tag);
     pass->object.destroy = se_vk_render_pass_destroy;
     pass->object.handleType = SE_RENDER_PASS;
     pass->device = device;
@@ -528,7 +529,7 @@ void se_vk_render_pass_destroy(SeRenderObject* _pass)
     SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(pass->device);
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
     vkDestroyRenderPass(se_vk_device_get_logical_handle(pass->device), pass->handle, callbacks);
-    memoryManager->cpu_allocator->dealloc(memoryManager->cpu_allocator->allocator, pass, sizeof(SeVkRenderPass));
+    memoryManager->cpu_persistentAllocator->dealloc(memoryManager->cpu_persistentAllocator->allocator, pass, sizeof(SeVkRenderPass));
 }
 
 size_t se_vk_render_pass_get_num_subpasses(struct SeRenderObject* _pass)

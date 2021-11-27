@@ -5,6 +5,7 @@
 #include <stdbool.h>
 
 #include "allocator_bindings.h"
+#include "debug.h"
 
 typedef struct SeHandle
 {
@@ -139,12 +140,14 @@ static size_t se_platform_get_mem_page_size()
 static void* se_platform_mem_reserve(size_t size)
 {
     void* res = VirtualAlloc(NULL, size, MEM_RESERVE, PAGE_READWRITE);
+    se_assert(res);
     return res;
 }
 
 static void* se_platform_mem_commit(void* ptr, size_t size)
 {
     void* res = VirtualAlloc(ptr, size, MEM_COMMIT, PAGE_READWRITE);
+    se_assert(res);
     return res;
 }
 
@@ -303,7 +306,7 @@ void se_platform_file_read(SeFileContent* content, SeFile* file, SeAllocatorBind
         se_assert(result);
         fileSize = size.QuadPart;
     }
-    void* buffer = allocator->alloc(allocator->allocator, fileSize + 1, se_default_alignment);
+    void* buffer = allocator->alloc(allocator->allocator, fileSize + 1, se_default_alignment, se_alloc_tag);
     {
         DWORD bytesRead = 0;
         const BOOL result = ReadFile

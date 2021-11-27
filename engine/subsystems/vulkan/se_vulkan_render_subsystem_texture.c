@@ -31,8 +31,8 @@ SeRenderObject* se_vk_texture_create(SeTextureCreateInfo* createInfo)
     se_assert(!"todo");
 
     SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(createInfo->device);
-    SeAllocatorBindings* allocator = memoryManager->cpu_allocator;
-    SeVkTexture* texture = allocator->alloc(allocator->allocator, sizeof(SeVkTexture), se_default_alignment);
+    SeAllocatorBindings* allocator = memoryManager->cpu_persistentAllocator;
+    SeVkTexture* texture = allocator->alloc(allocator->allocator, sizeof(SeVkTexture), se_default_alignment, se_alloc_tag);
     texture->handle.handleType = SE_RENDER_TEXTURE;
     texture->handle.destroy = se_vk_texture_destroy;
     texture->device = createInfo->device;
@@ -43,8 +43,8 @@ SeRenderObject* se_vk_texture_create(SeTextureCreateInfo* createInfo)
 SeRenderObject* se_vk_texture_create_from_external_resources(SeRenderObject* device, VkExtent2D* extent, VkImage image, VkImageView view, VkFormat format)
 {
     SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(device);
-    SeAllocatorBindings* allocator = memoryManager->cpu_allocator;
-    SeVkTexture* texture = allocator->alloc(allocator->allocator, sizeof(SeVkTexture), se_default_alignment);
+    SeAllocatorBindings* allocator = memoryManager->cpu_persistentAllocator;
+    SeVkTexture* texture = allocator->alloc(allocator->allocator, sizeof(SeVkTexture), se_default_alignment, se_alloc_tag);
     *texture = (SeVkTexture)
     {
         .handle             = (SeRenderObject)
@@ -78,7 +78,7 @@ void se_vk_texture_destroy(SeRenderObject* _texture)
 
     se_assert(texture->flags & SE_VK_TEXTURE_FROM_EXTERNAL_RESOURCES && "todo");
 
-    SeAllocatorBindings* allocator = memoryManager->cpu_allocator;
+    SeAllocatorBindings* allocator = memoryManager->cpu_persistentAllocator;
     allocator->dealloc(allocator->allocator, texture, sizeof(SeVkTexture));
 }
 

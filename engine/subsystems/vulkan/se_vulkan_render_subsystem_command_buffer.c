@@ -32,12 +32,12 @@ SeRenderObject* se_vk_command_buffer_request(SeCommandBufferRequestInfo* request
 {
     SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(requestInfo->device);
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    SeAllocatorBindings* allocator = memoryManager->cpu_allocator;
+    SeAllocatorBindings* allocator = memoryManager->cpu_persistentAllocator;
     VkDevice logicalHandle = se_vk_device_get_logical_handle(requestInfo->device);
     //
     //
     //
-    SeVkCommandBuffer* buffer = allocator->alloc(allocator->allocator, sizeof(SeVkCommandBuffer), se_default_alignment);
+    SeVkCommandBuffer* buffer = allocator->alloc(allocator->allocator, sizeof(SeVkCommandBuffer), se_default_alignment, se_alloc_tag);
     buffer->renderObject.handleType = SE_RENDER_COMMAND_BUFFER;
     buffer->renderObject.destroy = se_vk_command_buffer_destroy;
     buffer->device = requestInfo->device;
@@ -123,7 +123,7 @@ void se_vk_command_buffer_destroy(struct SeRenderObject* _buffer)
     SeVkCommandBuffer* buffer = (SeVkCommandBuffer*)_buffer;
     SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(buffer->device);
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    SeAllocatorBindings* allocator = memoryManager->cpu_allocator;
+    SeAllocatorBindings* allocator = memoryManager->cpu_persistentAllocator;
     VkDevice logicalHandle = se_vk_device_get_logical_handle(buffer->device);
     //
     //

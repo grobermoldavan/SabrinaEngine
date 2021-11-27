@@ -170,7 +170,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL se_vk_debug_callback(
 SeRenderObject* se_vk_device_create(SeRenderDeviceCreateInfo* deviceCreateInfo)
 {
     SeAllocatorBindings* allocator = deviceCreateInfo->persistentAllocator;
-    SeVkRenderDevice* device = allocator->alloc(allocator->allocator, sizeof(SeVkRenderDevice), se_default_alignment);
+    SeVkRenderDevice* device = allocator->alloc(allocator->allocator, sizeof(SeVkRenderDevice), se_default_alignment, se_alloc_tag);
     device->handle.handleType = SE_RENDER_DEVICE;
     device->handle.destroy = se_vk_device_destroy;
     //
@@ -179,7 +179,8 @@ SeRenderObject* se_vk_device_create(SeRenderDeviceCreateInfo* deviceCreateInfo)
     {
         SeVkMemoryManagerCreateInfo createInfo = (SeVkMemoryManagerCreateInfo)
         {
-            .allocator = deviceCreateInfo->persistentAllocator,
+            .persistentAllocator = deviceCreateInfo->persistentAllocator,
+            .frameAllocator = deviceCreateInfo->frameAllocator,
         };
         se_vk_memory_manager_construct(&device->memoryManager, &createInfo);
     }
@@ -194,7 +195,7 @@ SeRenderObject* se_vk_device_create(SeRenderDeviceCreateInfo* deviceCreateInfo)
         //
         size_t numValidationLayers = 0;
         const char** validationLayers = se_vk_utils_get_required_validation_layers(&numValidationLayers);
-        se_sbuffer(VkLayerProperties) availableValidationLayers = se_vk_utils_get_available_validation_layers(device->memoryManager.cpu_allocator);
+        se_sbuffer(VkLayerProperties) availableValidationLayers = se_vk_utils_get_available_validation_layers(device->memoryManager.cpu_frameAllocator);
         size_t size = se_sbuffer_size(availableValidationLayers);
         for (size_t requiredIt = 0; requiredIt < numValidationLayers; requiredIt++)
         {
@@ -218,7 +219,7 @@ SeRenderObject* se_vk_device_create(SeRenderDeviceCreateInfo* deviceCreateInfo)
         //
         size_t numInstanceExtensions = 0;
         const char** instanceExtensions = se_vk_utils_get_required_instance_extensions(&numInstanceExtensions);
-        se_sbuffer(VkExtensionProperties) availableInstanceExtensions = se_vk_utils_get_available_instance_extensions(device->memoryManager.cpu_allocator);
+        se_sbuffer(VkExtensionProperties) availableInstanceExtensions = se_vk_utils_get_available_instance_extensions(device->memoryManager.cpu_frameAllocator);
         for (size_t requiredIt = 0; requiredIt < numInstanceExtensions; requiredIt++)
         {
             const char* requiredExtensionName = instanceExtensions[requiredIt];
@@ -517,7 +518,7 @@ SeRenderObject* se_vk_device_create(SeRenderDeviceCreateInfo* deviceCreateInfo)
         {
             SeVkPerImageInFlightData* data = &device->inFlightData.inFlightData[it];
             se_vk_check(vkCreateSemaphore(device->gpu.logicalHandle, &semaphoreCreateInfo, callbacks, &data->imageAvailableSemaphore));
-            se_sbuffer_construct(data->commandBuffers, 8, device->memoryManager.cpu_allocator);
+            se_sbuffer_construct(data->commandBuffers, 8, device->memoryManager.cpu_persistentAllocator);
         }
         for (size_t it = 0; it < SE_VK_MAX_SWAP_CHAIN_IMAGES; it++)
         {
@@ -581,7 +582,7 @@ void se_vk_device_destroy(SeRenderObject* _device)
     se_vk_utils_destroy_debug_messenger(device->instance, device->debugMessenger, callbacks);
 #endif
     vkDestroyInstance(device->instance, callbacks);
-    device->memoryManager.cpu_allocator->dealloc(device->memoryManager.cpu_allocator->allocator, device, sizeof(SeVkRenderDevice));
+    device->memoryManager.cpu_persistentAllocator->dealloc(device->memoryManager.cpu_persistentAllocator->allocator, device, sizeof(SeVkRenderDevice));
 }
 
 void se_vk_device_wait(SeRenderObject* _device)

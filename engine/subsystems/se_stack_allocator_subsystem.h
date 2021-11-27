@@ -12,14 +12,14 @@ typedef struct SeStackAllocator
     size_t cur;         // offset form base
     size_t reservedMax; // offset form base
     size_t commitedMax; // offset form base
-    void* (*alloc)(void* allocator, size_t sizeBytes, size_t alignment);
-    void  (*reset)(void* allocator);
+    void* (*alloc)(struct SeStackAllocator* allocator, size_t sizeBytes, size_t alignment, const char* allocTag);
+    void  (*reset)(struct SeStackAllocator* allocator);
 } SeStackAllocator;
 
 typedef struct SeStackAllocatorSubsystemInterface
 {
-    void (*construct_allocator)(struct SePlatformInterface* platformIface, SeStackAllocator* allocator, size_t capacity);
-    void (*destruct_allocator)(SeStackAllocator* allocator);
+    void (*construct)(struct SePlatformInterface* platformIface, SeStackAllocator* allocator, size_t capacity);
+    void (*destroy)(SeStackAllocator* allocator);
     void (*to_allocator_bindings)(SeStackAllocator* allocator, struct SeAllocatorBindings* bindings);
 } SeStackAllocatorSubsystemInterface;
 
