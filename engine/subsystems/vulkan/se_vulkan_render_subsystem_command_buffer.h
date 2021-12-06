@@ -10,6 +10,7 @@ void                    se_vk_command_buffer_submit(struct SeRenderObject* buffe
 void                    se_vk_command_buffer_destroy(struct SeRenderObject* buffer);
 void                    se_vk_command_buffer_bind_pipeline(struct SeRenderObject* buffer, struct SeCommandBindPipelineInfo* commandInfo);
 void                    se_vk_command_buffer_draw(struct SeRenderObject* buffer, struct SeCommandDrawInfo* commandInfo);
+void                    se_vk_command_bind_resource_set(struct SeRenderObject* cmdBuffer, struct SeCommandBindResourceSetInfo* commandInfo);
 
 VkFence     se_vk_command_buffer_get_fence(struct SeRenderObject* buffer);
 VkSemaphore se_vk_command_buffer_get_semaphore(struct SeRenderObject* buffer);

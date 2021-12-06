@@ -103,7 +103,7 @@ static void se_stack_reset(SeStackAllocator* allocator)
     allocator->cur = 0;
 }
 
-void se_stack_dealloc(SeStackAllocator* allocator, void* ptr, size_t size)
+static void se_stack_dealloc(SeStackAllocator* allocator, void* ptr, size_t size)
 {
     // nothing
 }

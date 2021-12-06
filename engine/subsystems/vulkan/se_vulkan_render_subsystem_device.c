@@ -5,6 +5,7 @@
 #include "se_vulkan_render_subsystem_utils.h"
 #include "se_vulkan_render_subsystem_texture.h"
 #include "se_vulkan_render_subsystem_command_buffer.h"
+#include "se_vulkan_render_subsystem_in_flight_manager.h"
 #include "engine/subsystems/se_window_subsystem.h"
 #include "engine/platform.h"
 #include "engine/render_abstraction_interface.h"
@@ -15,10 +16,8 @@
 
 extern SeWindowSubsystemInterface* g_windowIface;
 
-#define SE_VK_MAX_UNIQUE_COMMAND_QUEUES 3
 #define SE_VK_MAX_SWAP_CHAIN_IMAGES     16
 #define SE_VK_UNUSED_IN_FLIGHT_DATA_REF ~((uint32_t)0)
-#define SE_VK_NUM_IMAGES_IN_FLIGHT      3
 
 typedef enum SeVkGpuFlags
 {
@@ -68,20 +67,6 @@ typedef struct SeVkSwapChain
     size_t numTextures;
 } SeVkSwapChain;
 
-typedef struct SeVkPerImageInFlightData
-{
-    se_sbuffer(SeRenderObject*) commandBuffers;
-    VkSemaphore imageAvailableSemaphore;
-} SeVkPerImageInFlightData;
-
-typedef struct SeVkInFlightData
-{
-    SeVkPerImageInFlightData inFlightData[SE_VK_NUM_IMAGES_IN_FLIGHT];
-    uint32_t swapChainImageToInFlightFrameMap[SE_VK_MAX_SWAP_CHAIN_IMAGES];
-    uint32_t activeFrameInFlightIndex;
-    uint32_t activeSwapChainImageIndex;
-} SeVkInFlightData;
-
 typedef struct SeVkRenderDevice
 {
     SeRenderObject handle;
@@ -91,7 +76,7 @@ typedef struct SeVkRenderDevice
     VkSurfaceKHR surface;
     SeVkGpu gpu;
     SeVkSwapChain swapChain;
-    SeVkInFlightData inFlightData;
+    SeVkInFlightManager inFlightManager;
     uint64_t flags;
 } SeVkRenderDevice;
 
@@ -384,7 +369,7 @@ SeRenderObject* se_vk_device_create(SeRenderDeviceCreateInfo* deviceCreateInfo)
         device->gpu.deviceProperties_11 = deviceProperties_11;
         device->gpu.deviceProperties_12 = deviceProperties_12;
     }
-    se_vk_memory_manager_set_device(&device->memoryManager, device->gpu.logicalHandle);
+    se_vk_memory_manager_set_device(&device->memoryManager, (SeRenderObject*)device);
     //
     // Swap chain
     //
@@ -505,27 +490,16 @@ SeRenderObject* se_vk_device_create(SeRenderDeviceCreateInfo* deviceCreateInfo)
         }
     }
     //
-    // In flight data
+    // In flight manager
     //
     {
-        VkSemaphoreCreateInfo semaphoreCreateInfo = (VkSemaphoreCreateInfo)
+        SeVkInFlightManagerCreateInfo inFlightManagerCreateInfo = (SeVkInFlightManagerCreateInfo)
         {
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-            .pNext = NULL,
-            .flags = 0,
+            .device = (SeRenderObject*)device,
+            .numSwapChainImages = device->swapChain.numTextures,
+            .numImagesInFlight = 3,
         };
-        for (size_t it = 0; it < SE_VK_NUM_IMAGES_IN_FLIGHT; it++)
-        {
-            SeVkPerImageInFlightData* data = &device->inFlightData.inFlightData[it];
-            se_vk_check(vkCreateSemaphore(device->gpu.logicalHandle, &semaphoreCreateInfo, callbacks, &data->imageAvailableSemaphore));
-            se_sbuffer_construct(data->commandBuffers, 8, device->memoryManager.cpu_persistentAllocator);
-        }
-        for (size_t it = 0; it < SE_VK_MAX_SWAP_CHAIN_IMAGES; it++)
-        {
-            device->inFlightData.swapChainImageToInFlightFrameMap[it] = SE_VK_UNUSED_IN_FLIGHT_DATA_REF;
-        }
-        device->inFlightData.activeFrameInFlightIndex = 0;
-        device->inFlightData.activeSwapChainImageIndex = 0;
+        se_vk_in_flight_manager_construct(&device->inFlightManager, &inFlightManagerCreateInfo);
     }
     return (SeRenderObject*)device;
 }
@@ -535,18 +509,9 @@ void se_vk_device_destroy(SeRenderObject* _device)
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(&device->memoryManager);
     //
-    // In flight data
+    // In flight manager
     //
-    for (size_t it = 0; it < SE_VK_NUM_IMAGES_IN_FLIGHT; it++)
-    {
-        SeVkPerImageInFlightData* perImageData = &device->inFlightData.inFlightData[it];
-        vkDestroySemaphore(device->gpu.logicalHandle, perImageData->imageAvailableSemaphore, callbacks);
-        for (size_t cbIt = 0; cbIt < se_sbuffer_size(perImageData->commandBuffers); cbIt++)
-        {
-            se_vk_command_buffer_destroy(perImageData->commandBuffers[cbIt]);
-        }
-        se_sbuffer_destroy(perImageData->commandBuffers);
-    }
+    se_vk_in_flight_manager_destroy(&device->inFlightManager);
     //
     // Swap Chain
     //
@@ -594,72 +559,36 @@ void se_vk_device_wait(SeRenderObject* _device)
 void se_vk_device_begin_frame(SeRenderObject* _device)
 {
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
-    //
-    // Advance in flight frame
-    //
-    {
-        /*
-            1. Advance in flight index
-            2. Wait until previous command buffers of this frame finish execution
-            3. Acquire next image and set the image semaphore to wait for
-            4. If this image is already used by another in flight frame, wait for it's execution fence too
-            5. Save in flight frame reference to tha map
-        */
-        SeVkInFlightData* data = &device->inFlightData;
-        data->activeFrameInFlightIndex = (data->activeFrameInFlightIndex + 1) % SE_VK_NUM_IMAGES_IN_FLIGHT;
-        se_sbuffer(SeRenderObject*) activeFrameCommandBuffers = data->inFlightData[data->activeFrameInFlightIndex].commandBuffers;
-        if (se_sbuffer_size(activeFrameCommandBuffers))
-        {
-            SeRenderObject* lastCommandBuffer = activeFrameCommandBuffers[se_sbuffer_size(activeFrameCommandBuffers) - 1];
-            VkFence fence = se_vk_command_buffer_get_fence(lastCommandBuffer);
-            vkWaitForFences(device->gpu.logicalHandle, 1, &fence, VK_TRUE, UINT64_MAX);
-        }
-        se_vk_check(vkAcquireNextImageKHR(device->gpu.logicalHandle, device->swapChain.handle, UINT64_MAX, data->inFlightData[data->activeFrameInFlightIndex].imageAvailableSemaphore, VK_NULL_HANDLE, &data->activeSwapChainImageIndex));
-        const uint32_t inFlightFrameReferencedBySwapChainImage = data->swapChainImageToInFlightFrameMap[data->activeSwapChainImageIndex];
-        if (inFlightFrameReferencedBySwapChainImage != SE_VK_UNUSED_IN_FLIGHT_DATA_REF)
-        {
-            se_sbuffer(SeRenderObject*) referencedCommandBuffers = data->inFlightData[inFlightFrameReferencedBySwapChainImage].commandBuffers;
-            if (se_sbuffer_size(referencedCommandBuffers))
-            {
-                SeRenderObject* lastCommandBuffer = referencedCommandBuffers[se_sbuffer_size(referencedCommandBuffers) - 1];
-                VkFence fence = se_vk_command_buffer_get_fence(lastCommandBuffer);
-                vkWaitForFences(device->gpu.logicalHandle, 1, &fence, VK_TRUE, UINT64_MAX);
-            }
-        }
-        data->swapChainImageToInFlightFrameMap[data->activeSwapChainImageIndex] = data->activeFrameInFlightIndex;
-        for (size_t it = 0; it < se_sbuffer_size(activeFrameCommandBuffers); it++)
-        {
-            se_vk_command_buffer_destroy(activeFrameCommandBuffers[it]);
-        }
-        se_sbuffer_set_size(activeFrameCommandBuffers, 0);
-    }
-    //
-    // Remove flag
-    //
+    se_vk_in_flight_manager_advance_frame(&device->inFlightManager);
     device->flags &= ~((uint64_t)SE_VK_DEVICE_HAS_SUBMITTED_BUFFERS);
 }
 
 void se_vk_device_end_frame(SeRenderObject* _device)
 {
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
-    SeVkPerImageInFlightData* currentInFlightData = &device->inFlightData.inFlightData[device->inFlightData.activeFrameInFlightIndex];
     se_assert(device->flags & SE_VK_DEVICE_HAS_SUBMITTED_BUFFERS && "You must submit some commands between being_frame and end_frame");
-    
+    uint32_t swapChainImageIndex = se_vk_in_flight_manager_get_current_swap_chain_image_index(&device->inFlightManager);
+    //
+    // Prepare swap chain image for presentation
+    //
     SeCommandBufferRequestInfo requestInfo = (SeCommandBufferRequestInfo)
     {
         (SeRenderObject*)device,
         SE_USAGE_TRANSFER,
     };
     SeRenderObject* commandBuffer = se_vk_command_buffer_request(&requestInfo);
-    SeRenderObject* swapChainTexture = device->swapChain.textures[device->inFlightData.activeSwapChainImageIndex];
+    SeRenderObject* swapChainTexture = device->swapChain.textures[swapChainImageIndex];
     se_vk_command_buffer_transition_image_layout(commandBuffer, swapChainTexture, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     se_vk_command_buffer_submit(commandBuffer);
-
+    //
+    // Present
+    //
     VkSwapchainKHR swapChains[] = { device->swapChain.handle, };
+    uint32_t imageIndices[] = { swapChainImageIndex };
     VkSemaphore presentWaitSemaphores[] =
     {
-        se_vk_command_buffer_get_semaphore(currentInFlightData->commandBuffers[se_sbuffer_size(currentInFlightData->commandBuffers) - 1]),
-        currentInFlightData->imageAvailableSemaphore,
+        se_vk_command_buffer_get_semaphore(se_vk_in_flight_manager_get_last_submitted_command_buffer(&device->inFlightManager)),
+        se_vk_in_flight_manager_get_image_available_semaphore(&device->inFlightManager),
     };
     VkPresentInfoKHR presentInfo = (VkPresentInfoKHR)
     {
@@ -669,7 +598,7 @@ void se_vk_device_end_frame(SeRenderObject* _device)
         .pWaitSemaphores    = presentWaitSemaphores,
         .swapchainCount     = se_array_size(swapChains),
         .pSwapchains        = swapChains,
-        .pImageIndices      = &device->inFlightData.activeSwapChainImageIndex,
+        .pImageIndices      = imageIndices,
         .pResults           = NULL,
     };
     se_vk_check(vkQueuePresentKHR(se_vk_device_get_command_queue((SeRenderObject*)device, SE_VK_CMD_QUEUE_PRESENT), &presentInfo));
@@ -690,7 +619,7 @@ SeRenderObject* se_vk_device_get_swap_chain_texture(SeRenderObject* _device, siz
 size_t se_vk_device_get_active_swap_chain_texture_index(SeRenderObject* _device)
 {
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
-    return device->inFlightData.activeSwapChainImageIndex;
+    return se_vk_in_flight_manager_get_current_swap_chain_image_index(&device->inFlightManager);
 }
 
 SeVkMemoryManager* se_vk_device_get_memory_manager(SeRenderObject* _device)
@@ -713,6 +642,13 @@ VkQueue se_vk_device_get_command_queue(SeRenderObject* _device, SeVkCommandQueue
     return queue->handle;
 }
 
+uint32_t se_vk_device_get_command_queue_family_index(SeRenderObject* _device, SeVkCommandQueueFlags flags)
+{
+    SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
+    SeVkCommandQueue* queue = se_vk_gpu_get_command_queue(&device->gpu, flags);
+    return queue->queueFamilyIndex;
+}
+
 VkDevice se_vk_device_get_logical_handle(SeRenderObject* _device)
 {
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
@@ -722,20 +658,14 @@ VkDevice se_vk_device_get_logical_handle(SeRenderObject* _device)
 SeRenderObject* se_vk_device_get_last_command_buffer(SeRenderObject* _device)
 {
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
-    SeVkPerImageInFlightData* data = &device->inFlightData.inFlightData[device->inFlightData.activeFrameInFlightIndex];
-    if (se_sbuffer_size(data->commandBuffers))
-    {
-        return data->commandBuffers[se_sbuffer_size(data->commandBuffers) - 1];
-    }
-    return NULL;
+    return se_vk_in_flight_manager_get_last_submitted_command_buffer(&device->inFlightManager);
 }
 
 void se_vk_device_submit_command_buffer(SeRenderObject* _device, VkSubmitInfo* submitInfo, SeRenderObject* buffer, VkQueue queue)
 {
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
-    SeVkPerImageInFlightData* data = &device->inFlightData.inFlightData[device->inFlightData.activeFrameInFlightIndex];
     se_vk_check(vkQueueSubmit(queue, 1, submitInfo, se_vk_command_buffer_get_fence(buffer)));
-    se_sbuffer_push(data->commandBuffers, buffer);
+    se_vk_in_flight_manager_submit_command_buffer(&device->inFlightManager, buffer);
     device->flags |= SE_VK_DEVICE_HAS_SUBMITTED_BUFFERS;
 }
 
@@ -783,4 +713,21 @@ VkExtent2D se_vk_device_get_swap_chain_extent(SeRenderObject* _device)
 {
     SeVkSwapChain* swapChain = &((SeVkRenderDevice*)_device)->swapChain;
     return swapChain->extent;
+}
+
+VkPhysicalDeviceMemoryProperties* se_vk_device_get_memory_properties(SeRenderObject* _device)
+{
+    SeVkGpu* gpu = &((SeVkRenderDevice*)_device)->gpu;
+    return &gpu->memoryProperties;
+}
+
+VkSwapchainKHR se_vk_device_get_swap_chain_handle(SeRenderObject* _device)
+{
+    SeVkSwapChain* swapChain = &((SeVkRenderDevice*)_device)->swapChain;
+    return swapChain->handle;
+}
+
+SeVkInFlightManager* se_vk_device_get_in_flight_manager(SeRenderObject* _device)
+{
+    return &((SeVkRenderDevice*)_device)->inFlightManager;
 }

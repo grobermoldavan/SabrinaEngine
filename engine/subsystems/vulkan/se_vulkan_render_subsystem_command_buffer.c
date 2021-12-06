@@ -169,7 +169,27 @@ void se_vk_command_buffer_bind_pipeline(SeRenderObject* _buffer, SeCommandBindPi
 void se_vk_command_buffer_draw(SeRenderObject* _buffer, SeCommandDrawInfo* commandInfo)
 {
     SeVkCommandBuffer* buffer = (SeVkCommandBuffer*)_buffer;
-    vkCmdDraw(buffer->handle, commandInfo->vertexCount, 1, 0, 0);
+    vkCmdDraw(buffer->handle, commandInfo->numVertices, commandInfo->numInstances, 0, 0);
+    buffer->flags |= SE_VK_COMMAND_BUFFER_HAS_SUBMITTED_COMMANDS;
+}
+
+void se_vk_command_bind_resource_set(SeRenderObject* _buffer, SeCommandBindResourceSetInfo* commandInfo)
+{
+    SeVkCommandBuffer* buffer = (SeVkCommandBuffer*)_buffer;
+    SeRenderObject* pipeline = se_vk_resource_set_get_pipeline(commandInfo->resourceSet);
+    VkDescriptorSet set = se_vk_resource_set_get_descriptor_set(commandInfo->resourceSet);
+    se_vk_resource_set_prepare(commandInfo->resourceSet);
+    vkCmdBindDescriptorSets
+    (
+        buffer->handle,
+        se_vk_render_pipeline_get_bind_point(pipeline),
+        se_vk_render_pipeline_get_layout(pipeline),
+        se_vk_resource_set_get_set_index(commandInfo->resourceSet),
+        1,
+        &set,
+        0,
+        NULL
+    );
     buffer->flags |= SE_VK_COMMAND_BUFFER_HAS_SUBMITTED_COMMANDS;
 }
 

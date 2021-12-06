@@ -3,6 +3,8 @@
 #include <stdbool.h>
 
 #include "se_vulkan_render_subsystem_memory.h"
+#include "se_vulkan_render_subsystem_device.h"
+#include "engine/render_abstraction_interface.h"
 #include "engine/allocator_bindings.h"
 #include "engine/common_includes.h"
 
@@ -149,12 +151,13 @@ void se_vk_memory_manager_construct(SeVkMemoryManager* memoryManager, SeVkMemory
 
 void se_vk_memory_manager_destroy(SeVkMemoryManager* memoryManager)
 {
+    VkDevice logicalHandle = se_vk_device_get_logical_handle(memoryManager->device);
     for (size_t it = 0; it < SE_VK_GPU_MAX_CHUNKS; it++)
     {
         SeVkGpuMemoryChunk* chunk = &memoryManager->gpu_chunks[it];
         if (chunk->memory)
         {
-            vkFreeMemory(memoryManager->device, chunk->memory, NULL /*&memoryManager->cpu_allocationCallbacks*/);
+            vkFreeMemory(logicalHandle, chunk->memory, NULL /*&memoryManager->cpu_allocationCallbacks*/);
         }
     }
     SeAllocatorBindings* allocator = memoryManager->cpu_persistentAllocator;
@@ -162,9 +165,10 @@ void se_vk_memory_manager_destroy(SeVkMemoryManager* memoryManager)
     allocator->dealloc(allocator->allocator, memoryManager->gpu_ledgers, SE_VK_GPU_CHUNK_LEDGER_SIZE_BYTES * SE_VK_GPU_MAX_CHUNKS);
 }
 
-void se_vk_memory_manager_set_device(SeVkMemoryManager* memoryManager, VkDevice device)
+void se_vk_memory_manager_set_device(SeVkMemoryManager* memoryManager, SeRenderObject* device)
 {
     memoryManager->device = device;
+    memoryManager->memoryProperties = se_vk_device_get_memory_properties(device);
 }
 
 bool se_vk_gpu_is_valid_memory(SeVkMemory memory)
@@ -176,7 +180,17 @@ SeVkMemory se_vk_gpu_allocate(SeVkMemoryManager* memoryManager, SeVkGpuAllocatio
 {
     se_assert(request.sizeBytes <= SE_VK_GPU_CHUNK_SIZE_BYTES);
     size_t requiredNumberOfBlocks = 1 + ((request.sizeBytes - 1) / SE_VK_GPU_MEMORY_BLOCK_SIZE_BYTES);
-    // 1. Try to find memory in available chunks
+    //
+    // 1. Find suitable memory type
+    //
+    uint32_t memoryTypeIndex = 0;
+    if (!se_vk_utils_get_memory_type_index(memoryManager->memoryProperties, request.memoryTypeBits, request.properties, &memoryTypeIndex))
+    {
+        se_assert(!"Unable to find memory type index");
+    }
+    //
+    // 2. Try to find memory in available chunks
+    //
     for (size_t it = 0; it < SE_VK_GPU_MAX_CHUNKS; it++)
     {
         SeVkGpuMemoryChunk* chunk = &memoryManager->gpu_chunks[it];
@@ -184,7 +198,7 @@ SeVkMemory se_vk_gpu_allocate(SeVkMemoryManager* memoryManager, SeVkGpuAllocatio
         {
             continue;
         }
-        if (chunk->memoryTypeIndex != request.memoryTypeIndex)
+        if (chunk->memoryTypeIndex != memoryTypeIndex)
         {
             continue;
         }
@@ -200,12 +214,15 @@ SeVkMemory se_vk_gpu_allocate(SeVkMemoryManager* memoryManager, SeVkGpuAllocatio
         se_vk_memory_manager_set_in_use(chunk, requiredNumberOfBlocks, inChunkOffset);
         return (SeVkMemory)
         {
-            .memory = chunk->memory,
-            .offsetBytes = inChunkOffset * SE_VK_GPU_MEMORY_BLOCK_SIZE_BYTES,
-            .sizeBytes = requiredNumberOfBlocks * SE_VK_GPU_MEMORY_BLOCK_SIZE_BYTES,
+            .memory         = chunk->memory,
+            .offsetBytes    = inChunkOffset * SE_VK_GPU_MEMORY_BLOCK_SIZE_BYTES,
+            .sizeBytes      = requiredNumberOfBlocks * SE_VK_GPU_MEMORY_BLOCK_SIZE_BYTES,
+            .mappedMemory   = ((char*)chunk->mappedMemory) + inChunkOffset * SE_VK_GPU_MEMORY_BLOCK_SIZE_BYTES,
         };
     }
-    // 2. Try to allocate new chunk
+    //
+    // 3. Try to allocate new chunk
+    //
     for (size_t it = 0; it < SE_VK_GPU_MAX_CHUNKS; it++)
     {
         SeVkGpuMemoryChunk* chunk = &memoryManager->gpu_chunks[it];
@@ -213,28 +230,41 @@ SeVkMemory se_vk_gpu_allocate(SeVkMemoryManager* memoryManager, SeVkGpuAllocatio
         {
             continue;
         }
+        //
         // Allocating new chunk
+        //
         {
+            VkDevice logicalHandle = se_vk_device_get_logical_handle(memoryManager->device);
             VkMemoryAllocateInfo memoryAllocateInfo = (VkMemoryAllocateInfo)
             {
                 .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
                 .pNext = NULL,
                 .allocationSize = SE_VK_GPU_CHUNK_SIZE_BYTES,
-                .memoryTypeIndex = request.memoryTypeIndex,
+                .memoryTypeIndex = memoryTypeIndex,
             };
-            se_vk_check(vkAllocateMemory(memoryManager->device, &memoryAllocateInfo, NULL /*&memoryManager->cpu_allocationCallbacks*/, &chunk->memory));
-            chunk->memoryTypeIndex = request.memoryTypeIndex;
+            se_vk_check(vkAllocateMemory(logicalHandle, &memoryAllocateInfo, NULL /*&memoryManager->cpu_allocationCallbacks*/, &chunk->memory));
+            chunk->memoryTypeIndex = memoryTypeIndex;
             memset(chunk->ledger, 0, SE_VK_GPU_CHUNK_LEDGER_SIZE_BYTES);
+            //
+            // Map allocated memory if it is host visible
+            //
+            if (request.properties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+                vkMapMemory(logicalHandle, chunk->memory, 0, SE_VK_GPU_CHUNK_SIZE_BYTES, 0, &chunk->mappedMemory);
+            else
+                chunk->mappedMemory = NULL;
         }
+        //
         // Allocating memory in new chunk
+        //
         size_t inChunkOffset = se_vk_memory_chunk_find_aligned_free_space(chunk, requiredNumberOfBlocks, request.alignment);
         se_assert(inChunkOffset != SE_VK_GPU_CHUNK_LEDGER_SIZE_BYTES);
         se_vk_memory_manager_set_in_use(chunk, requiredNumberOfBlocks, inChunkOffset);
         return (SeVkMemory)
         {
-            .memory = chunk->memory,
-            .offsetBytes = inChunkOffset * SE_VK_GPU_MEMORY_BLOCK_SIZE_BYTES,
-            .sizeBytes = requiredNumberOfBlocks * SE_VK_GPU_MEMORY_BLOCK_SIZE_BYTES,
+            .memory         = chunk->memory,
+            .offsetBytes    = inChunkOffset * SE_VK_GPU_MEMORY_BLOCK_SIZE_BYTES,
+            .sizeBytes      = requiredNumberOfBlocks * SE_VK_GPU_MEMORY_BLOCK_SIZE_BYTES,
+            .mappedMemory   = ((char*)chunk->mappedMemory) + inChunkOffset * SE_VK_GPU_MEMORY_BLOCK_SIZE_BYTES,
         };
     }
     se_assert(!"Out of memory");
@@ -256,7 +286,8 @@ void se_vk_gpu_deallocate(SeVkMemoryManager* memoryManager, SeVkMemory allocatio
         if (chunk->usedMemoryBytes == 0)
         {
             // Chunk is empty, so we free it
-            vkFreeMemory(memoryManager->device, chunk->memory, NULL /*&memoryManager->cpu_allocationCallbacks*/);
+            VkDevice logicalHandle = se_vk_device_get_logical_handle(memoryManager->device);
+            vkFreeMemory(logicalHandle, chunk->memory, NULL /*&memoryManager->cpu_allocationCallbacks*/);
             chunk->memory = VK_NULL_HANDLE;
         }
         break;

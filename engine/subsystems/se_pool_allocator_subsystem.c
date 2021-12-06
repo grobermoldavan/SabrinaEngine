@@ -239,6 +239,7 @@ void* se_pool_allocator_alloc(SePoolAllocator* allocator, size_t allocationSize,
                 size_t currentByte = (firstValidLedgerBit + it) / 8;
                 size_t currentBit = (firstValidLedgerBit + it) % 8;
                 uint8_t* byte = ((uint8_t*)(bucket->ledger.base)) + currentByte;
+                se_assert(!(*byte & (1 << currentBit)));
                 *byte = *byte | (1 << currentBit);
             }
             break;

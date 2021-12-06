@@ -19,6 +19,11 @@ for %%f in (user_application\subsystems\*.c) do call :build_dll %%f
 call :message "[MESSAGE] Build main exe"
 call :build_exe user_application/main.c
 
+call :message "[MESSAGE] Build shaders"
+for /r %%f in (*.vert) do glslangValidator %%f -o %%f.spv -V -S vert
+for /r %%f in (*.frag) do glslangValidator %%f -o %%f.spv -V -S frag
+for /r %%f in (*.spv) do spirv-dis %%f -o %%f.dis
+
 EXIT /B %ERRORLEVEL%
 
 :build_exe

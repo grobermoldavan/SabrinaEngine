@@ -22,7 +22,8 @@ typedef struct SeVkGpuAllocationRequest
 {
     size_t sizeBytes;
     size_t alignment;
-    uint32_t memoryTypeIndex;
+    uint32_t memoryTypeBits;
+    VkMemoryPropertyFlags properties;
 } SeVkGpuAllocationRequest;
 
 typedef struct SeVkMemory
@@ -30,6 +31,7 @@ typedef struct SeVkMemory
     VkDeviceMemory memory;
     VkDeviceSize offsetBytes;
     VkDeviceSize sizeBytes;
+    void* mappedMemory;
 } SeVkMemory;
 
 // typedef struct SeVkCpuAllocation
@@ -44,6 +46,7 @@ typedef struct SeVkGpuMemoryChunk
     uint32_t memoryTypeIndex;
     uint32_t usedMemoryBytes;
     uint8_t* ledger;
+    void* mappedMemory;
 } SeVkGpuMemoryChunk;
 
 typedef struct SeVkMemoryManager
@@ -61,12 +64,13 @@ typedef struct SeVkMemoryManager
     //
     SeVkGpuMemoryChunk* gpu_chunks;
     uint8_t* gpu_ledgers;
-    VkDevice device;
+    struct SeRenderObject* device;
+    VkPhysicalDeviceMemoryProperties* memoryProperties;
 } SeVkMemoryManager;
 
 void        se_vk_memory_manager_construct(SeVkMemoryManager* memoryManager, SeVkMemoryManagerCreateInfo* createInfo);
 void        se_vk_memory_manager_destroy(SeVkMemoryManager* memoryManager);
-void        se_vk_memory_manager_set_device(SeVkMemoryManager* memoryManager, VkDevice device);
+void        se_vk_memory_manager_set_device(SeVkMemoryManager* memoryManager, struct SeRenderObject* device);
 bool        se_vk_gpu_is_valid_memory(SeVkMemory memory);
 SeVkMemory  se_vk_gpu_allocate(SeVkMemoryManager* memoryManager, SeVkGpuAllocationRequest request);
 void        se_vk_gpu_deallocate(SeVkMemoryManager* memoryManager, SeVkMemory allocation);
