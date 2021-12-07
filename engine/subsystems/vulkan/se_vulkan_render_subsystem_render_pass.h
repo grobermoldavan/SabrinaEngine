@@ -4,6 +4,7 @@
 #include "se_vulkan_render_subsystem_base.h"
 
 struct SeRenderObject*  se_vk_render_pass_create(struct SeRenderPassCreateInfo* createInfo);
+void                    se_vk_render_pass_submit_for_deffered_destruction(struct SeRenderObject* pass);
 void                    se_vk_render_pass_destroy(struct SeRenderObject* pass);
 
 size_t                  se_vk_render_pass_get_num_subpasses(struct SeRenderObject* pass);

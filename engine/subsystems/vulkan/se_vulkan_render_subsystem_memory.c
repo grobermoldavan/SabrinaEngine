@@ -167,6 +167,7 @@ void se_vk_memory_manager_destroy(SeVkMemoryManager* memoryManager)
 
 void se_vk_memory_manager_set_device(SeVkMemoryManager* memoryManager, SeRenderObject* device)
 {
+    se_vk_expect_handle(device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't set device to memory manager");
     memoryManager->device = device;
     memoryManager->memoryProperties = se_vk_device_get_memory_properties(device);
 }

@@ -5,6 +5,7 @@
 #include "se_vulkan_render_subsystem_memory.h"
 #include "se_vulkan_render_subsystem_utils.h"
 #include "se_vulkan_render_subsystem_in_flight_manager.h"
+#include "se_vulkan_render_subsystem_render_pipeline.h"
 #include "se_vulkan_render_subsystem_memory_buffer.h"
 #include "se_vulkan_render_subsystem_texture.h"
 #include "se_vulkan_render_subsystem_command_buffer.h"
@@ -24,22 +25,23 @@ typedef struct SeVkResourceSet
 
 SeRenderObject* se_vk_resource_set_create(SeResourceSetCreateInfo* createInfo)
 {
-    SeRenderObject* device = createInfo->device;
-    SeVkInFlightManager* inFlightManager = se_vk_device_get_in_flight_manager(device);
-    SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(device);
+    se_vk_expect_handle(createInfo->device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't create resource set");
+    se_vk_expect_handle(createInfo->pipeline, SE_RENDER_HANDLE_TYPE_PIPELINE, "Can't create resource set");
+    SeVkInFlightManager* inFlightManager = se_vk_device_get_in_flight_manager(createInfo->device);
+    SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(createInfo->device);
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
     SeAllocatorBindings* persistentAllocator = memoryManager->cpu_persistentAllocator;
     SeAllocatorBindings* frameAllocator = memoryManager->cpu_frameAllocator;
-    VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
+    VkDevice logicalHandle = se_vk_device_get_logical_handle(createInfo->device);
     //
     // Base info
     //
     SeVkResourceSet* resourceSet = persistentAllocator->alloc(persistentAllocator->allocator, sizeof(SeVkResourceSet), se_default_alignment, se_alloc_tag);
-    resourceSet->object.handleType = SE_RENDER_RESOURCE_SET;
+    resourceSet->object.handleType = SE_RENDER_HANDLE_TYPE_RESOURCE_SET;
     resourceSet->object.destroy = se_vk_resource_set_destroy;
-    resourceSet->device = device;
+    resourceSet->device = createInfo->device;
     resourceSet->pipeline = createInfo->pipeline;
-    resourceSet->handle = se_vk_in_flight_manager_create_descriptor_set(se_vk_device_get_in_flight_manager(device), createInfo->pipeline, createInfo->set);
+    resourceSet->handle = se_vk_in_flight_manager_create_descriptor_set(se_vk_device_get_in_flight_manager(createInfo->device), createInfo->pipeline, createInfo->set);
     resourceSet->set = (uint32_t)createInfo->set; // @TODO : safe cast
     resourceSet->numBindings = (uint32_t)createInfo->numBindings; // @TODO : safe cast
     //
@@ -69,7 +71,7 @@ SeRenderObject* se_vk_resource_set_create(SeResourceSetCreateInfo* createInfo)
             .pBufferInfo        = NULL,
             .pTexelBufferView   = NULL,
         };
-        if (boundObject->handleType == SE_RENDER_MEMORY_BUFFER)
+        if (boundObject->handleType == SE_RENDER_HANDLE_TYPE_MEMORY_BUFFER)
         {
             VkDescriptorBufferInfo* bufferInfo = &bufferInfos[bufferInfosIt++];
             *bufferInfo = (VkDescriptorBufferInfo)
@@ -80,7 +82,7 @@ SeRenderObject* se_vk_resource_set_create(SeResourceSetCreateInfo* createInfo)
             };
             write.pBufferInfo = bufferInfo;
         }
-        else if (boundObject->handleType == SE_RENDER_TEXTURE)
+        else if (boundObject->handleType == SE_RENDER_HANDLE_TYPE_TEXTURE)
         {
             VkDescriptorImageInfo* imageInfo = &imageInfos[imageInfosIt++];
             *imageInfo = (VkDescriptorImageInfo)
@@ -100,6 +102,7 @@ SeRenderObject* se_vk_resource_set_create(SeResourceSetCreateInfo* createInfo)
 
 void se_vk_resource_set_destroy(SeRenderObject* _set)
 {
+    se_vk_expect_handle(_set, SE_RENDER_HANDLE_TYPE_RESOURCE_SET, "Can't destroy resource set");
     SeVkResourceSet* set = (SeVkResourceSet*)_set;
     SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(set->device);
     SeAllocatorBindings* persistentAllocator = memoryManager->cpu_persistentAllocator;
@@ -112,29 +115,33 @@ void se_vk_resource_set_destroy(SeRenderObject* _set)
 
 SeRenderObject* se_vk_resource_set_get_pipeline(SeRenderObject* _set)
 {
+    se_vk_expect_handle(_set, SE_RENDER_HANDLE_TYPE_RESOURCE_SET, "Can't get resource set pipeline");
     return ((SeVkResourceSet*)_set)->pipeline;
 }
 
 VkDescriptorSet se_vk_resource_set_get_descriptor_set(SeRenderObject* _set)
 {
+    se_vk_expect_handle(_set, SE_RENDER_HANDLE_TYPE_RESOURCE_SET, "Can't resource descriptor set");
     return ((SeVkResourceSet*)_set)->handle;
 }
 
 uint32_t se_vk_resource_set_get_set_index(SeRenderObject* _set)
 {
+    se_vk_expect_handle(_set, SE_RENDER_HANDLE_TYPE_RESOURCE_SET, "Can't get resource set index");
     return ((SeVkResourceSet*)_set)->set;
 }
 
 void se_vk_resource_set_prepare(SeRenderObject* _set)
 {
+    se_vk_expect_handle(_set, SE_RENDER_HANDLE_TYPE_RESOURCE_SET, "Can't prepare resource set");
     SeVkResourceSet* set = (SeVkResourceSet*)_set;
     SeRenderObject* cmd = NULL;
     for (size_t it = 0; it < set->numBindings; it++)
     {
         SeRenderObject* obj = set->boundObjects[it];
-        if (obj->handleType == SE_RENDER_TEXTURE && se_vk_texture_get_current_layout(obj) != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+        if (obj->handleType == SE_RENDER_HANDLE_TYPE_TEXTURE && se_vk_texture_get_current_layout(obj) != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
         {
-            if (!cmd) cmd = se_vk_command_buffer_request(&((SeCommandBufferRequestInfo) { .device = set->device, .usage = SE_USAGE_TRANSFER }));
+            if (!cmd) cmd = se_vk_command_buffer_request(&((SeCommandBufferRequestInfo) { .device = set->device, .usage = SE_COMMAND_BUFFER_USAGE_TRANSFER }));
             se_vk_command_buffer_transition_image_layout(cmd, obj, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         }
     }

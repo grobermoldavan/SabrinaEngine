@@ -5,6 +5,7 @@
 
 struct SeRenderObject*  se_vk_texture_create(struct SeTextureCreateInfo* createInfo);
 struct SeRenderObject*  se_vk_texture_create_from_external_resources(struct SeRenderObject* device, VkExtent2D* extent, VkImage image, VkImageView view, VkFormat format);
+void                    se_vk_texture_submit_for_deffered_destruction(struct SeRenderObject* texture);
 void                    se_vk_texture_destroy(struct SeRenderObject* texture);
 uint32_t                se_vk_texture_get_width(struct SeRenderObject* texture);
 uint32_t                se_vk_texture_get_height(struct SeRenderObject* texture);

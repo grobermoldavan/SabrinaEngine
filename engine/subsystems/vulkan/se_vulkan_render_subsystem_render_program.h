@@ -4,6 +4,7 @@
 #include "se_vulkan_render_subsystem_base.h"
 
 struct SeRenderObject*  se_vk_render_program_create(struct SeRenderProgramCreateInfo* createInfo);
+void                    se_vk_render_program_submit_for_deffered_destruction(struct SeRenderObject* program);
 void                    se_vk_render_program_destroy(struct SeRenderObject* program);
 
 struct SimpleSpirvReflection*   se_vk_render_program_get_reflection(struct SeRenderObject* program);

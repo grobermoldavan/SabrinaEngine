@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "se_vulkan_render_subsystem_utils.h"
+#include "engine/render_abstraction_interface.h"
 
 #define SE_MATH_IMPL
 #include "engine/se_math.h"
@@ -468,9 +469,9 @@ VkAttachmentLoadOp se_vk_utils_to_vk_load_op(SeAttachmentLoadOp loadOp)
 {
     switch (loadOp)
     {
-        case SE_LOAD_CLEAR: return VK_ATTACHMENT_LOAD_OP_CLEAR;
-        case SE_LOAD_LOAD: return VK_ATTACHMENT_LOAD_OP_LOAD;
-        case SE_LOAD_NOTHING: return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        case SE_ATTACHMENT_LOAD_OP_CLEAR: return VK_ATTACHMENT_LOAD_OP_CLEAR;
+        case SE_ATTACHMENT_LOAD_OP_LOAD: return VK_ATTACHMENT_LOAD_OP_LOAD;
+        case SE_ATTACHMENT_LOAD_OP_NOTHING: return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     }
     se_assert(!"Unsupported SeAttachmentLoadOp");
     return (VkAttachmentLoadOp)0;
@@ -480,8 +481,8 @@ VkAttachmentStoreOp se_vk_utils_to_vk_store_op(SeAttachmentStoreOp storeOp)
 {
     switch (storeOp)
     {
-        case SE_STORE_STORE: return VK_ATTACHMENT_STORE_OP_STORE;
-        case SE_STORE_NOTHING: return VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        case SE_ATTACHMENT_STORE_OP_STORE: return VK_ATTACHMENT_STORE_OP_STORE;
+        case SE_ATTACHMENT_STORE_OP_NOTHING: return VK_ATTACHMENT_STORE_OP_DONT_CARE;
     }
     se_assert(!"Unsupported SeAttachmentStoreOp");
     return (VkAttachmentStoreOp)0;
@@ -491,9 +492,9 @@ VkPolygonMode se_vk_utils_to_vk_polygon_mode(SePipelinePoligonMode mode)
 {
     switch (mode)
     {
-        case SE_POLIGON_FILL: return VK_POLYGON_MODE_FILL;
-        case SE_POLIGON_LINE: return VK_POLYGON_MODE_LINE;
-        case SE_POLIGON_POINT: return VK_POLYGON_MODE_POINT;
+        case SE_PIPELINE_POLIGON_FILL_MODE_FILL: return VK_POLYGON_MODE_FILL;
+        case SE_PIPELINE_POLIGON_FILL_MODE_LINE: return VK_POLYGON_MODE_LINE;
+        case SE_PIPELINE_POLIGON_FILL_MODE_POINT: return VK_POLYGON_MODE_POINT;
     }
     se_assert(!"Unsupported PipelinePoligonMode");
     return (VkPolygonMode)0;
@@ -503,10 +504,10 @@ VkCullModeFlags se_vk_utils_to_vk_cull_mode(SePipelineCullMode mode)
 {
     switch (mode)
     {
-        case SE_CULL_NONE: return VK_CULL_MODE_NONE;
-        case SE_CULL_FRONT: return VK_CULL_MODE_FRONT_BIT;
-        case SE_CULL_BACK: return VK_CULL_MODE_BACK_BIT;
-        case SE_CULL_FRONT_BACK: return VK_CULL_MODE_FRONT_AND_BACK;
+        case SE_PIPELINE_CULL_MODE_NONE: return VK_CULL_MODE_NONE;
+        case SE_PIPELINE_CULL_MODE_FRONT: return VK_CULL_MODE_FRONT_BIT;
+        case SE_PIPELINE_CULL_MODE_BACK: return VK_CULL_MODE_BACK_BIT;
+        case SE_PIPELINE_CULL_MODE_FRONT_BACK: return VK_CULL_MODE_FRONT_AND_BACK;
     }
     se_assert(!"Unsupported PipelineCullMode");
     return (VkCullModeFlags)0;
@@ -516,8 +517,8 @@ VkFrontFace se_vk_utils_to_vk_front_face(SePipelineFrontFace frontFace)
 {
     switch (frontFace)
     {
-        case SE_CLOCKWISE: return VK_FRONT_FACE_CLOCKWISE;
-        case SE_COUNTER_CLOCKWISE: return VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        case SE_PIPELINE_FRONT_FACE_CLOCKWISE: return VK_FRONT_FACE_CLOCKWISE;
+        case SE_PIPELINE_FRONT_FACE_COUNTER_CLOCKWISE: return VK_FRONT_FACE_COUNTER_CLOCKWISE;
     }
     se_assert(!"Unsupported SePipelineFrontFace");
     return (VkFrontFace)0;
@@ -554,14 +555,14 @@ VkStencilOp se_vk_utils_to_vk_stencil_op(SeStencilOp op)
 {
     switch (op)
     {
-        case SE_STENCIL_KEEP:                   return VK_STENCIL_OP_KEEP;
-        case SE_STENCIL_ZERO:                   return VK_STENCIL_OP_ZERO;
-        case SE_STENCIL_REPLACE:                return VK_STENCIL_OP_REPLACE;
-        case SE_STENCIL_INCREMENT_AND_CLAMP:    return VK_STENCIL_OP_INCREMENT_AND_CLAMP;
-        case SE_STENCIL_DECREMENT_AND_CLAMP:    return VK_STENCIL_OP_DECREMENT_AND_CLAMP;
-        case SE_STENCIL_INVERT:                 return VK_STENCIL_OP_INVERT;
-        case SE_STENCIL_INCREMENT_AND_WRAP:     return VK_STENCIL_OP_INCREMENT_AND_WRAP;
-        case SE_STENCIL_DECREMENT_AND_WRAP:     return VK_STENCIL_OP_DECREMENT_AND_WRAP;
+        case SE_STENCIL_OP_KEEP:                return VK_STENCIL_OP_KEEP;
+        case SE_STENCIL_OP_ZERO:                return VK_STENCIL_OP_ZERO;
+        case SE_STENCIL_OP_REPLACE:             return VK_STENCIL_OP_REPLACE;
+        case SE_STENCIL_OP_INCREMENT_AND_CLAMP: return VK_STENCIL_OP_INCREMENT_AND_CLAMP;
+        case SE_STENCIL_OP_DECREMENT_AND_CLAMP: return VK_STENCIL_OP_DECREMENT_AND_CLAMP;
+        case SE_STENCIL_OP_INVERT:              return VK_STENCIL_OP_INVERT;
+        case SE_STENCIL_OP_INCREMENT_AND_WRAP:  return VK_STENCIL_OP_INCREMENT_AND_WRAP;
+        case SE_STENCIL_OP_DECREMENT_AND_WRAP:  return VK_STENCIL_OP_DECREMENT_AND_WRAP;
     }
     se_assert(!"Unsupported SeStencilOp");
     return (VkStencilOp)0;
@@ -571,14 +572,14 @@ VkCompareOp se_vk_utils_to_vk_compare_op(SeCompareOp op)
 {
     switch (op)
     {
-        case SE_COMPARE_NEVER:              return VK_COMPARE_OP_NEVER;
-        case SE_COMPARE_LESS:               return VK_COMPARE_OP_LESS;
-        case SE_COMPARE_EQUAL:              return VK_COMPARE_OP_EQUAL;
-        case SE_COMPARE_LESS_OR_EQUAL:      return VK_COMPARE_OP_LESS_OR_EQUAL;
-        case SE_COMPARE_GREATER:            return VK_COMPARE_OP_GREATER;
-        case SE_COMPARE_NOT_EQUAL:          return VK_COMPARE_OP_NOT_EQUAL;
-        case SE_COMPARE_GREATER_OR_EQUAL:   return VK_COMPARE_OP_GREATER_OR_EQUAL;
-        case SE_COMPARE_ALWAYS:             return VK_COMPARE_OP_ALWAYS;
+        case SE_COMPARE_OP_NEVER:               return VK_COMPARE_OP_NEVER;
+        case SE_COMPARE_OP_LESS:                return VK_COMPARE_OP_LESS;
+        case SE_COMPARE_OP_EQUAL:               return VK_COMPARE_OP_EQUAL;
+        case SE_COMPARE_OP_LESS_OR_EQUAL:       return VK_COMPARE_OP_LESS_OR_EQUAL;
+        case SE_COMPARE_OP_GREATER:             return VK_COMPARE_OP_GREATER;
+        case SE_COMPARE_OP_NOT_EQUAL:           return VK_COMPARE_OP_NOT_EQUAL;
+        case SE_COMPARE_OP_GREATER_OR_EQUAL:    return VK_COMPARE_OP_GREATER_OR_EQUAL;
+        case SE_COMPARE_OP_ALWAYS:              return VK_COMPARE_OP_ALWAYS;
     }
     se_assert(!"Unsupported CompareOp");
     return (VkCompareOp)0;
@@ -592,9 +593,9 @@ VkBool32 se_vk_utils_to_vk_bool(bool value)
 VkShaderStageFlags se_vk_utils_to_vk_stage_flags(SeProgramStageFlags stages)
 {
     return
-        (VkShaderStageFlags)(stages & (uint32_t)SE_STAGE_VERTEX     ? VK_SHADER_STAGE_VERTEX_BIT    : 0) |
-        (VkShaderStageFlags)(stages & (uint32_t)SE_STAGE_FRAGMENT   ? VK_SHADER_STAGE_FRAGMENT_BIT  : 0) |
-        (VkShaderStageFlags)(stages & (uint32_t)SE_STAGE_COMPUTE    ? VK_SHADER_STAGE_COMPUTE_BIT   : 0);
+        (VkShaderStageFlags)(stages & (uint32_t)SE_PROGRAM_STAGE_VERTEX     ? VK_SHADER_STAGE_VERTEX_BIT    : 0) |
+        (VkShaderStageFlags)(stages & (uint32_t)SE_PROGRAM_STAGE_FRAGMENT   ? VK_SHADER_STAGE_FRAGMENT_BIT  : 0) |
+        (VkShaderStageFlags)(stages & (uint32_t)SE_PROGRAM_STAGE_COMPUTE    ? VK_SHADER_STAGE_COMPUTE_BIT   : 0);
 }
 
 VkPipelineVertexInputStateCreateInfo se_vk_utils_vertex_input_state_create_info(uint32_t bindingsCount, const VkVertexInputBindingDescription* bindingDescs, uint32_t attrCount, const VkVertexInputAttributeDescription* attrDescs)

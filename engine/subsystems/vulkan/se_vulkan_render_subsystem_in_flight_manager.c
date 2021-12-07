@@ -35,7 +35,8 @@ void se_vk_in_flight_manager_construct(SeVkInFlightManager* manager, SeVkInFligh
     {
         SeVkInFlightData* data = &manager->inFlightDatas[it];
         se_vk_check(vkCreateSemaphore(logicalHandle, &semaphoreCreateInfo, callbacks, &data->imageAvailableSemaphore));
-        se_sbuffer_construct(data->submittedCommandBuffers, 8, allocator);
+        se_sbuffer_construct(data->defferedDestructions, 64, allocator);
+        se_sbuffer_construct(data->submittedCommandBuffers, 64, allocator);
         se_sbuffer_construct(data->renderPipelinePools, 64, allocator);
     }
     for (size_t it = 0; it < createInfo->numSwapChainImages; it++)
@@ -53,36 +54,42 @@ void se_vk_in_flight_manager_destroy(SeVkInFlightManager* manager)
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
     VkDevice logicalHandle = se_vk_device_get_logical_handle(manager->device);
     //
-    //
+    // Destroy command buffers and process deffered destructions in first pass.
     //
     const size_t numInFlightDatas = se_sbuffer_size(manager->inFlightDatas);
-    const size_t numRegisteredPipelines = se_sbuffer_size(manager->registeredPipelines);
     for (size_t it = 0; it < numInFlightDatas; it++)
     {
         SeVkInFlightData* inFlightData = &manager->inFlightDatas[it];
         vkDestroySemaphore(logicalHandle, inFlightData->imageAvailableSemaphore, callbacks);
+        // Destroy command buffers
         const size_t numSubmittedCommandBuffers = se_sbuffer_size(inFlightData->submittedCommandBuffers);
         for (size_t cbIt = 0; cbIt < numSubmittedCommandBuffers; cbIt++)
         {
             se_vk_command_buffer_destroy(inFlightData->submittedCommandBuffers[cbIt]);
         }
-        for (size_t pipelineIt = 0; pipelineIt < numRegisteredPipelines; pipelineIt++)
+        // Process deffered destructions
+        // @NOTE : at this point all registered pipelines will be unregistered from this manager using
+        //         deffered destruction. If number of registered pipelines won't be zero,
+        //         something went terribly wrong.
+        const size_t numDefferedDestructions = se_sbuffer_size(inFlightData->defferedDestructions);
+        for (size_t destIt = 0; destIt < numDefferedDestructions; destIt++)
         {
-            const size_t numSets = se_sbuffer_size(inFlightData->renderPipelinePools[pipelineIt].setPools);
-            for (size_t setIt = 0; setIt < numSets; setIt++)
-            {
-                const size_t numPools = se_sbuffer_size(inFlightData->renderPipelinePools[pipelineIt].setPools[setIt]);
-                for (size_t poolIt = 0; poolIt < numPools; poolIt++)
-                {
-                    vkDestroyDescriptorPool(logicalHandle, inFlightData->renderPipelinePools[pipelineIt].setPools[setIt][poolIt].handle, callbacks);
-                }
-                se_sbuffer_destroy(inFlightData->renderPipelinePools[pipelineIt].setPools[setIt]);
-            }
-            se_sbuffer_destroy(inFlightData->renderPipelinePools[pipelineIt].setPools);
+            inFlightData->defferedDestructions[destIt].destroy(inFlightData->defferedDestructions[destIt].object);
         }
+    }
+    //
+    // Actually destroy in flight data containers in second pass.
+    // Two passes are needed because deffered destructions from first pass can access these containers
+    // (if we destroying render pipelines), so memory must be valid.
+    //
+    for (size_t it = 0; it < numInFlightDatas; it++)
+    {
+        SeVkInFlightData* inFlightData = &manager->inFlightDatas[it];
+        se_sbuffer_destroy(inFlightData->defferedDestructions);
         se_sbuffer_destroy(inFlightData->submittedCommandBuffers);
         se_sbuffer_destroy(inFlightData->renderPipelinePools);
     }
+    se_assert(se_sbuffer_size(manager->registeredPipelines) == 0 && "All render pipelines must be submitted to destruction before destroying in flight manager");
     se_sbuffer_destroy(manager->inFlightDatas);
     se_sbuffer_destroy(manager->registeredPipelines);
     se_sbuffer_destroy(manager->swapChainImageToInFlightFrameMap);
@@ -93,10 +100,11 @@ void se_vk_in_flight_manager_advance_frame(SeVkInFlightManager* manager)
     /*
         1. Advance in flight index
         2. Wait until previous command buffers of this frame finish execution
-        3. Reset all resource set pools
-        4. Acquire next image and set the image semaphore to wait for
-        5. If this image is already used by another in flight frame, wait for it's execution fence too
-        6. Save in flight frame reference to tha map
+        3. Process deffered destructions
+        4. Reset all resource set pools
+        5. Acquire next image and set the image semaphore to wait for
+        6. If this image is already used by another in flight frame, wait for it's execution fence too
+        7. Save in flight frame reference to the map
     */
     VkDevice logicalHandle = se_vk_device_get_logical_handle(manager->device);
     //
@@ -121,29 +129,41 @@ void se_vk_in_flight_manager_advance_frame(SeVkInFlightManager* manager)
         se_sbuffer_set_size(activeFrameCommandBuffers, 0);
     }
     //
-    // 3. Reset all resource set pools
+    // 3. Process deffered destructions
+    //
+    se_sbuffer(SeVkDefferedDestruction) defferedDestructions = inFlightData->defferedDestructions;
+    const size_t numDefferedDestructions = se_sbuffer_size(defferedDestructions);
+    for (size_t destIt = 0; destIt < numDefferedDestructions; destIt++)
+    {
+        defferedDestructions[destIt].destroy(defferedDestructions[destIt].object);
+    }
+    se_sbuffer_set_size(defferedDestructions, 0);
+    //
+    // 4. Reset all resource set pools
     //
     const size_t numRegisteredPipelines = se_sbuffer_size(inFlightData->renderPipelinePools);
     for (size_t pipelineIt = 0; pipelineIt < numRegisteredPipelines; pipelineIt++)
     {
-        const size_t numSets = se_sbuffer_size(inFlightData->renderPipelinePools[pipelineIt].setPools);
+        SeVkRenderPipelinePools* pools = &inFlightData->renderPipelinePools[pipelineIt];
+        const size_t numSets = se_sbuffer_size(pools->setPools);
         for (size_t setIt = 0; setIt < numSets; setIt++)
         {
-            const size_t numPools = se_sbuffer_size(inFlightData->renderPipelinePools[pipelineIt].setPools[setIt]);
+            se_sbuffer(SeVkDescriptorSetPool) setPools = pools->setPools[setIt];
+            const size_t numPools = se_sbuffer_size(setPools);
             for (size_t poolIt = 0; poolIt < numPools; poolIt++)
             {
-                vkResetDescriptorPool(logicalHandle, inFlightData->renderPipelinePools[pipelineIt].setPools[setIt][poolIt].handle, 0);
-                inFlightData->renderPipelinePools[pipelineIt].setPools[setIt][poolIt].numAllocations = 0;
-                inFlightData->renderPipelinePools[pipelineIt].setPools[setIt][poolIt].isLastAllocationSuccessful = true;
+                vkResetDescriptorPool(logicalHandle, setPools[poolIt].handle, 0);
+                setPools[poolIt].numAllocations = 0;
+                setPools[poolIt].isLastAllocationSuccessful = true;
             }
         }
     }
     //
-    // 4. Acquire next image and set the image semaphore to wait for
+    // 5. Acquire next image and set the image semaphore to wait for
     //
     se_vk_check(vkAcquireNextImageKHR(logicalHandle, se_vk_device_get_swap_chain_handle(manager->device), UINT64_MAX, inFlightData->imageAvailableSemaphore, VK_NULL_HANDLE, &manager->currentSwapChainImageIndex));
     //
-    // 5. If this image is already used by another in flight frame, wait for it's execution fence too
+    // 6. If this image is already used by another in flight frame, wait for it's execution fence too
     //
     const uint32_t inFlightImageReferencedBySwapChainImage = manager->swapChainImageToInFlightFrameMap[manager->currentSwapChainImageIndex];
     if (inFlightImageReferencedBySwapChainImage != SE_VK_UNUSED_IN_FLIGHT_DATA_REF)
@@ -157,21 +177,25 @@ void se_vk_in_flight_manager_advance_frame(SeVkInFlightManager* manager)
         }
     }
     //
-    // 6. Save in flight frame reference to tha map
+    // 7. Save in flight frame reference to tha map
     //
     manager->swapChainImageToInFlightFrameMap[manager->currentSwapChainImageIndex] = manager->currentImageInFlight;
 }
 
 void se_vk_in_flight_manager_register_pipeline(SeVkInFlightManager* manager, SeRenderObject* pipeline)
 {
+    se_vk_expect_handle(pipeline, SE_RENDER_HANDLE_TYPE_PIPELINE, "Can't register pipeline");
     SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(manager->device);
     SeAllocatorBindings* allocator = memoryManager->cpu_persistentAllocator;
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
     VkDevice logicalHandle = se_vk_device_get_logical_handle(manager->device);
     //
-    //
+    // Push pipeline to registeredPipelines array
     //
     se_sbuffer_push(manager->registeredPipelines, pipeline);
+    //
+    // Allocate first pools for every descriptor set of the pipeline
+    //
     const size_t numImagesInFlight = se_sbuffer_size(manager->inFlightDatas);
     const size_t numSets = se_vk_render_pipeline_get_biggest_set_index(pipeline);
     for (size_t it = 0; it < numImagesInFlight; it++)
@@ -195,40 +219,60 @@ void se_vk_in_flight_manager_register_pipeline(SeVkInFlightManager* manager, SeR
 
 void se_vk_in_flight_manager_unregister_pipeline(SeVkInFlightManager* manager, SeRenderObject* pipeline)
 {
-    // todo
-    // todo
-    // todo
-    // todo
-    // todo
-    // todo
-    // todo
-    // todo
-    // todo
-    // todo
-    // todo
-    // todo
-    // todo
-    // todo
-    // todo
-    // todo
-    // todo
-    // todo
-    // todo
-    // todo
-    // todo
-    // todo
-    // todo
-    // todo
-    // todo
-    // todo
-    // todo
-    
+    se_vk_expect_handle(pipeline, SE_RENDER_HANDLE_TYPE_PIPELINE, "Can't unregister pipeline");
+    SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(manager->device);
+    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
+    VkDevice logicalHandle = se_vk_device_get_logical_handle(manager->device);
+    //
+    // Find pipeline index
+    //
+    const size_t numRegisteredPipelines = se_sbuffer_size(manager->registeredPipelines);
+    size_t pipelineIndex = numRegisteredPipelines;
+    for (size_t it = 0; it < numRegisteredPipelines; it++)
+    {
+        if (manager->registeredPipelines[it] == pipeline)
+        {
+            pipelineIndex = it;
+            break;
+        }
+    }
+    se_assert(pipelineIndex != numRegisteredPipelines && "Trying to unregister already unregistered pipeline");
+    //
+    // Remove pipeline from registeredPipelines array and destroy all pipeline pools
+    //
+    se_sbuffer_remove_idx(manager->registeredPipelines, pipelineIndex);
+    const size_t numImagesInFlight = se_sbuffer_size(manager->inFlightDatas);
+    for (size_t it = 0; it < numImagesInFlight; it++)
+    {
+        SeVkInFlightData* inFlightData = &manager->inFlightDatas[it];
+        SeVkRenderPipelinePools* pools = &inFlightData->renderPipelinePools[pipelineIndex];
+        const size_t numSets = se_sbuffer_size(pools->setPools);
+        for (size_t setIt = 0; setIt < numSets; setIt++)
+        {
+            se_sbuffer(SeVkDescriptorSetPool) setPools = pools->setPools[setIt];
+            const size_t numPools = se_sbuffer_size(setPools);
+            for (size_t poolIt = 0; poolIt < numPools; poolIt++)
+            {
+                vkDestroyDescriptorPool(logicalHandle, setPools[poolIt].handle, callbacks);
+            }
+            se_sbuffer_destroy(setPools);
+        }
+        se_sbuffer_destroy(pools->setPools);
+        se_sbuffer_remove_idx(inFlightData->renderPipelinePools, pipelineIndex);
+    }
 }
 
 void se_vk_in_flight_manager_submit_command_buffer(SeVkInFlightManager* manager, SeRenderObject* commandBuffer)
 {
+    se_vk_expect_handle(commandBuffer, SE_RENDER_HANDLE_TYPE_COMMAND_BUFFER, "Can't submit command buffer");
     SeVkInFlightData* inFlightData = &manager->inFlightDatas[manager->currentImageInFlight];
     se_sbuffer_push(inFlightData->submittedCommandBuffers, commandBuffer);
+}
+
+void se_vk_in_flight_manager_submit_deffered_destruction(SeVkInFlightManager* manager, SeVkDefferedDestruction destruction)
+{
+    SeVkInFlightData* inFlightData = &manager->inFlightDatas[manager->currentImageInFlight];
+    se_sbuffer_push(inFlightData->defferedDestructions, destruction);
 }
 
 SeRenderObject* se_vk_in_flight_manager_get_last_submitted_command_buffer(SeVkInFlightManager* manager)
@@ -251,13 +295,14 @@ uint32_t se_vk_in_flight_manager_get_current_swap_chain_image_index(SeVkInFlight
 
 VkDescriptorSet se_vk_in_flight_manager_create_descriptor_set(SeVkInFlightManager* manager, SeRenderObject* pipeline, size_t set)
 {
+    se_vk_expect_handle(pipeline, SE_RENDER_HANDLE_TYPE_PIPELINE, "Can't create descriptor set");
     VkDevice logicalHandle = se_vk_device_get_logical_handle(manager->device);
     VkDescriptorSetLayout layout = se_vk_render_pipeline_get_descriptor_set_layout(pipeline, set);
     //
     // First find pipeline index in the array of registered pipelines
     //
-    size_t pipelineIndex = 0;
     const size_t numRegisteredPipelines = se_sbuffer_size(manager->registeredPipelines);
+    size_t pipelineIndex = numRegisteredPipelines;
     for (size_t it = 0; it < numRegisteredPipelines; it++)
     {
         if (manager->registeredPipelines[it] == pipeline)
@@ -266,6 +311,7 @@ VkDescriptorSet se_vk_in_flight_manager_create_descriptor_set(SeVkInFlightManage
             break;
         }
     }
+    se_assert(pipelineIndex != numRegisteredPipelines && "Trying to create descriptor set for an unregistered pipeline");
     //
     // Using pipeline index get the pipeline set pools (array of pools for a given set) from the current in flight data
     //

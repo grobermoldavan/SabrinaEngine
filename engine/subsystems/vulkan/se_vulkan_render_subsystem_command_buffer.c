@@ -6,6 +6,7 @@
 #include "se_vulkan_render_subsystem_utils.h"
 #include "se_vulkan_render_subsystem_framebuffer.h"
 #include "se_vulkan_render_subsystem_render_pass.h"
+#include "se_vulkan_render_subsystem_in_flight_manager.h"
 #include "engine/render_abstraction_interface.h"
 #include "engine/allocator_bindings.h"
 
@@ -38,19 +39,19 @@ SeRenderObject* se_vk_command_buffer_request(SeCommandBufferRequestInfo* request
     //
     //
     SeVkCommandBuffer* buffer = allocator->alloc(allocator->allocator, sizeof(SeVkCommandBuffer), se_default_alignment, se_alloc_tag);
-    buffer->renderObject.handleType = SE_RENDER_COMMAND_BUFFER;
-    buffer->renderObject.destroy = se_vk_command_buffer_destroy;
+    buffer->renderObject.handleType = SE_RENDER_HANDLE_TYPE_COMMAND_BUFFER;
+    buffer->renderObject.destroy = se_vk_command_buffer_submit_for_deffered_destruction;
     buffer->device = requestInfo->device;
     buffer->usage = requestInfo->usage;
     buffer->flags = 0;
     buffer->queueFlags =
-        requestInfo->usage == SE_USAGE_GRAPHICS ? SE_VK_CMD_QUEUE_GRAPHICS :
-        requestInfo->usage == SE_USAGE_TRANSFER ? SE_VK_CMD_QUEUE_TRANSFER :
+        requestInfo->usage == SE_COMMAND_BUFFER_USAGE_GRAPHICS ? SE_VK_CMD_QUEUE_GRAPHICS :
+        requestInfo->usage == SE_COMMAND_BUFFER_USAGE_TRANSFER ? SE_VK_CMD_QUEUE_TRANSFER :
         0;
     //
     //
     //
-    se_assert(requestInfo->usage == SE_USAGE_GRAPHICS || requestInfo->usage == SE_USAGE_TRANSFER);
+    se_assert(requestInfo->usage == SE_COMMAND_BUFFER_USAGE_GRAPHICS || requestInfo->usage == SE_COMMAND_BUFFER_USAGE_TRANSFER);
     VkCommandBufferAllocateInfo allocateInfo = (VkCommandBufferAllocateInfo)
     {
         .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -87,6 +88,7 @@ SeRenderObject* se_vk_command_buffer_request(SeCommandBufferRequestInfo* request
 
 void se_vk_command_buffer_submit(SeRenderObject* _buffer)
 {
+    se_vk_expect_handle(_buffer, SE_RENDER_HANDLE_TYPE_COMMAND_BUFFER, "Can't submit command buffer");
     SeVkCommandBuffer* buffer = (SeVkCommandBuffer*)_buffer;
     //
     //
@@ -118,8 +120,16 @@ void se_vk_command_buffer_submit(SeRenderObject* _buffer)
     se_vk_device_submit_command_buffer(buffer->device, &submitInfo, (SeRenderObject*)buffer, se_vk_device_get_command_queue(buffer->device, buffer->queueFlags));
 }
 
-void se_vk_command_buffer_destroy(struct SeRenderObject* _buffer)
+void se_vk_command_buffer_submit_for_deffered_destruction(SeRenderObject* _buffer)
 {
+    se_vk_expect_handle(_buffer, SE_RENDER_HANDLE_TYPE_COMMAND_BUFFER, "Can't submit command buffer for deffered destruction");
+    SeVkInFlightManager* inFlightManager = se_vk_device_get_in_flight_manager(((SeVkCommandBuffer*)_buffer)->device);
+    se_vk_in_flight_manager_submit_deffered_destruction(inFlightManager, (SeVkDefferedDestruction) { _buffer, se_vk_command_buffer_destroy });
+}
+
+void se_vk_command_buffer_destroy(SeRenderObject* _buffer)
+{
+    se_vk_expect_handle(_buffer, SE_RENDER_HANDLE_TYPE_COMMAND_BUFFER, "Can't destroy command buffer");
     SeVkCommandBuffer* buffer = (SeVkCommandBuffer*)_buffer;
     SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(buffer->device);
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
@@ -136,28 +146,31 @@ void se_vk_command_buffer_destroy(struct SeRenderObject* _buffer)
 
 void se_vk_command_buffer_bind_pipeline(SeRenderObject* _buffer, SeCommandBindPipelineInfo* commandInfo)
 {
+    se_vk_expect_handle(_buffer, SE_RENDER_HANDLE_TYPE_COMMAND_BUFFER, "Can't process bind pipleine command");
+    se_vk_expect_handle(commandInfo->framebuffer, SE_RENDER_HANDLE_TYPE_FRAMEBUFFER, "Can't process bind pipleine command");
+    se_vk_expect_handle(commandInfo->pipeline, SE_RENDER_HANDLE_TYPE_PIPELINE, "Can't process bind pipleine command");
     SeVkCommandBuffer* buffer = (SeVkCommandBuffer*)_buffer;
     se_vk_framebuffer_prepare(commandInfo->framebuffer);
-    VkExtent2D swapChainExtent = se_vk_device_get_swap_chain_extent(buffer->device);
+    VkExtent2D framebufferExtent = se_vk_framebuffer_get_extent(commandInfo->framebuffer);
     VkRenderPassBeginInfo renderPassInfo = se_vk_render_pass_get_begin_info
     (
         se_vk_render_pipeline_get_render_pass(commandInfo->pipeline),
         commandInfo->framebuffer,
-        (VkRect2D) { .offset = { 0, 0 }, .extent = swapChainExtent }
+        (VkRect2D) { .offset = { 0, 0 }, .extent = framebufferExtent }
     );
     VkViewport viewport = (VkViewport)
     {
         .x          = 0.0f,
         .y          = 0.0f,
-        .width      = (float)swapChainExtent.width,
-        .height     = (float)swapChainExtent.height,
+        .width      = (float)framebufferExtent.width,
+        .height     = (float)framebufferExtent.height,
         .minDepth   = 0.0f,
         .maxDepth   = 1.0f,
     };
     VkRect2D scissor = (VkRect2D)
     {
         .offset = (VkOffset2D) { 0, 0 },
-        .extent = swapChainExtent,
+        .extent = framebufferExtent,
     };
     vkCmdSetViewport(buffer->handle, 0, 1, &viewport);
     vkCmdSetScissor(buffer->handle, 0, 1, &scissor);
@@ -168,6 +181,7 @@ void se_vk_command_buffer_bind_pipeline(SeRenderObject* _buffer, SeCommandBindPi
 
 void se_vk_command_buffer_draw(SeRenderObject* _buffer, SeCommandDrawInfo* commandInfo)
 {
+    se_vk_expect_handle(_buffer, SE_RENDER_HANDLE_TYPE_COMMAND_BUFFER, "Can't process draw command");
     SeVkCommandBuffer* buffer = (SeVkCommandBuffer*)_buffer;
     vkCmdDraw(buffer->handle, commandInfo->numVertices, commandInfo->numInstances, 0, 0);
     buffer->flags |= SE_VK_COMMAND_BUFFER_HAS_SUBMITTED_COMMANDS;
@@ -175,6 +189,8 @@ void se_vk_command_buffer_draw(SeRenderObject* _buffer, SeCommandDrawInfo* comma
 
 void se_vk_command_bind_resource_set(SeRenderObject* _buffer, SeCommandBindResourceSetInfo* commandInfo)
 {
+    se_vk_expect_handle(_buffer, SE_RENDER_HANDLE_TYPE_COMMAND_BUFFER, "Can't process bind resource set command");
+    se_vk_expect_handle(commandInfo->resourceSet, SE_RENDER_HANDLE_TYPE_RESOURCE_SET, "Can't process bind resource set command");
     SeVkCommandBuffer* buffer = (SeVkCommandBuffer*)_buffer;
     SeRenderObject* pipeline = se_vk_resource_set_get_pipeline(commandInfo->resourceSet);
     VkDescriptorSet set = se_vk_resource_set_get_descriptor_set(commandInfo->resourceSet);
@@ -195,18 +211,22 @@ void se_vk_command_bind_resource_set(SeRenderObject* _buffer, SeCommandBindResou
 
 VkFence se_vk_command_buffer_get_fence(SeRenderObject* _buffer)
 {
+    se_vk_expect_handle(_buffer, SE_RENDER_HANDLE_TYPE_COMMAND_BUFFER, "Can't get buffer fence");
     SeVkCommandBuffer* buffer = (SeVkCommandBuffer*)_buffer;
     return buffer->executionFence;
 }
 
 VkSemaphore se_vk_command_buffer_get_semaphore(SeRenderObject* _buffer)
 {
+    se_vk_expect_handle(_buffer, SE_RENDER_HANDLE_TYPE_COMMAND_BUFFER, "Can't get buffer semaphore");
     SeVkCommandBuffer* buffer = (SeVkCommandBuffer*)_buffer;
     return buffer->executionFinishedSemaphore;
 }
 
 void se_vk_command_buffer_transition_image_layout(SeRenderObject* _buffer, SeRenderObject* texture, VkImageLayout targetLayout)
 {
+    se_vk_expect_handle(_buffer, SE_RENDER_HANDLE_TYPE_COMMAND_BUFFER, "Can't transition image layout");
+    se_vk_expect_handle(texture, SE_RENDER_HANDLE_TYPE_TEXTURE, "Can't transition image layout");
     SeVkCommandBuffer* buffer = (SeVkCommandBuffer*)_buffer;
     se_vk_texture_transition_image_layout(texture, buffer->handle, targetLayout);
     buffer->flags |= SE_VK_COMMAND_BUFFER_HAS_SUBMITTED_COMMANDS;

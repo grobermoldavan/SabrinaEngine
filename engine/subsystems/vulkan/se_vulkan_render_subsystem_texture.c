@@ -4,6 +4,7 @@
 #include "se_vulkan_render_subsystem_device.h"
 #include "se_vulkan_render_subsystem_memory.h"
 #include "se_vulkan_render_subsystem_utils.h"
+#include "se_vulkan_render_subsystem_in_flight_manager.h"
 #include "engine/render_abstraction_interface.h"
 #include "engine/allocator_bindings.h"
 
@@ -11,8 +12,6 @@ enum SeVkTextureFlags
 {
     SE_VK_TEXTURE_FROM_EXTERNAL_RESOURCES = 0x00000001,
 };
-
-struct SeVkRenderDevice;
 
 typedef struct SeVkTexture
 {
@@ -31,16 +30,17 @@ typedef struct SeVkTexture
 
 SeRenderObject* se_vk_texture_create(SeTextureCreateInfo* createInfo)
 {
+    se_vk_expect_handle(createInfo->device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't create texture");
     SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(createInfo->device);
     SeAllocatorBindings* allocator = memoryManager->cpu_persistentAllocator;
-    SeVkTexture* texture = allocator->alloc(allocator->allocator, sizeof(SeVkTexture), se_default_alignment, se_alloc_tag);
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
     VkDevice logicalHandle = se_vk_device_get_logical_handle(createInfo->device);
     //
     // Basic info
     //
-    texture->object.handleType = SE_RENDER_TEXTURE;
-    texture->object.destroy = se_vk_texture_destroy;
+    SeVkTexture* texture = allocator->alloc(allocator->allocator, sizeof(SeVkTexture), se_default_alignment, se_alloc_tag);
+    texture->object.handleType = SE_RENDER_HANDLE_TYPE_TEXTURE;
+    texture->object.destroy = se_vk_texture_submit_for_deffered_destruction;
     texture->device = createInfo->device;
     texture->extent = (VkExtent3D){ .width = createInfo->width, .height = createInfo->height, .depth = 1, };
     texture->format = createInfo->format == SE_TEXTURE_FORMAT_DEPTH_STENCIL ? se_vk_device_get_depth_stencil_format(createInfo->device) : se_vk_utils_to_vk_format(createInfo->format);
@@ -182,15 +182,19 @@ SeRenderObject* se_vk_texture_create(SeTextureCreateInfo* createInfo)
 
 SeRenderObject* se_vk_texture_create_from_external_resources(SeRenderObject* device, VkExtent2D* extent, VkImage image, VkImageView view, VkFormat format)
 {
+    se_vk_expect_handle(device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't create texture from external resources");
     SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(device);
     SeAllocatorBindings* allocator = memoryManager->cpu_persistentAllocator;
+    //
+    //
+    //
     SeVkTexture* texture = allocator->alloc(allocator->allocator, sizeof(SeVkTexture), se_default_alignment, se_alloc_tag);
     *texture = (SeVkTexture)
     {
         .object             = (SeRenderObject)
         {
-            .handleType     = SE_RENDER_TEXTURE,
-            .destroy        = se_vk_texture_destroy,
+            .handleType     = SE_RENDER_HANDLE_TYPE_TEXTURE,
+            .destroy        = se_vk_texture_submit_for_deffered_destruction,
         },
         .device             = device,
         .fullSubresourceRange = (VkImageSubresourceRange)
@@ -211,12 +215,23 @@ SeRenderObject* se_vk_texture_create_from_external_resources(SeRenderObject* dev
     return (SeRenderObject*)texture;
 }
 
+void se_vk_texture_submit_for_deffered_destruction(SeRenderObject* _texture)
+{
+    se_vk_expect_handle(_texture, SE_RENDER_HANDLE_TYPE_TEXTURE, "Can't submit texture for deffered destruction");
+    SeVkInFlightManager* inFlightManager = se_vk_device_get_in_flight_manager(((SeVkTexture*)_texture)->device);
+    se_vk_in_flight_manager_submit_deffered_destruction(inFlightManager, (SeVkDefferedDestruction) { _texture, se_vk_texture_destroy });
+}
+
 void se_vk_texture_destroy(SeRenderObject* _texture)
 {
+    se_vk_expect_handle(_texture, SE_RENDER_HANDLE_TYPE_TEXTURE, "Can't destroy texture");
     SeVkTexture* texture = (SeVkTexture*)_texture;
     SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(texture->device);
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
     VkDevice logicalHandle = se_vk_device_get_logical_handle(texture->device);
+    //
+    //
+    //
     if (!(texture->flags & SE_VK_TEXTURE_FROM_EXTERNAL_RESOURCES))
     {
         if (texture->defaultSampler) vkDestroySampler(logicalHandle, texture->defaultSampler, callbacks);
@@ -230,36 +245,42 @@ void se_vk_texture_destroy(SeRenderObject* _texture)
 
 uint32_t se_vk_texture_get_width(SeRenderObject* _texture)
 {
+    se_vk_expect_handle(_texture, SE_RENDER_HANDLE_TYPE_TEXTURE, "Can't get texture width");
     SeVkTexture* texture = (SeVkTexture*)_texture;
     return texture->extent.width;
 }
 
 uint32_t se_vk_texture_get_height(SeRenderObject* _texture)
 {
+    se_vk_expect_handle(_texture, SE_RENDER_HANDLE_TYPE_TEXTURE, "Can't get texture height");
     SeVkTexture* texture = (SeVkTexture*)_texture;
     return texture->extent.height;
 }
 
 VkFormat se_vk_texture_get_format(SeRenderObject* _texture)
 {
+    se_vk_expect_handle(_texture, SE_RENDER_HANDLE_TYPE_TEXTURE, "Can't get texture format");
     SeVkTexture* texture = (SeVkTexture*)_texture;
     return texture->format;
 }
 
 VkImageView se_vk_texture_get_view(SeRenderObject* _texture)
 {
+    se_vk_expect_handle(_texture, SE_RENDER_HANDLE_TYPE_TEXTURE, "Can't get texture view");
     SeVkTexture* texture = (SeVkTexture*)_texture;
     return texture->imageView;
 }
 
 VkExtent3D se_vk_texture_get_extent(SeRenderObject* _texture)
 {
+    se_vk_expect_handle(_texture, SE_RENDER_HANDLE_TYPE_TEXTURE, "Can't get texture extent");
     SeVkTexture* texture = (SeVkTexture*)_texture;
     return texture->extent;
 }
 
 void se_vk_texture_transition_image_layout(SeRenderObject* _texture, VkCommandBuffer commandBuffer, VkImageLayout targetLayout)
 {
+    se_vk_expect_handle(_texture, SE_RENDER_HANDLE_TYPE_TEXTURE, "Can't transition texture image layout");
     SeVkTexture* texture = (SeVkTexture*)_texture;
     VkImageMemoryBarrier imageBarrier = (VkImageMemoryBarrier)
     {
@@ -292,12 +313,14 @@ void se_vk_texture_transition_image_layout(SeRenderObject* _texture, VkCommandBu
 
 VkImageLayout se_vk_texture_get_current_layout(SeRenderObject* _texture)
 {
+    se_vk_expect_handle(_texture, SE_RENDER_HANDLE_TYPE_TEXTURE, "Can't get current texture image layout");
     SeVkTexture* texture = (SeVkTexture*)_texture;
     return texture->currentLayout;
 }
 
 VkSampler se_vk_texture_get_default_sampler(SeRenderObject* _texture)
 {
+    se_vk_expect_handle(_texture, SE_RENDER_HANDLE_TYPE_TEXTURE, "Can't get texture default sampler");
     SeVkTexture* texture = (SeVkTexture*)_texture;
     return texture->defaultSampler;
 }

@@ -156,7 +156,7 @@ SeRenderObject* se_vk_device_create(SeRenderDeviceCreateInfo* deviceCreateInfo)
 {
     SeAllocatorBindings* allocator = deviceCreateInfo->persistentAllocator;
     SeVkRenderDevice* device = allocator->alloc(allocator->allocator, sizeof(SeVkRenderDevice), se_default_alignment, se_alloc_tag);
-    device->handle.handleType = SE_RENDER_DEVICE;
+    device->handle.handleType = SE_RENDER_HANDLE_TYPE_DEVICE;
     device->handle.destroy = se_vk_device_destroy;
     //
     // Memory manager
@@ -296,12 +296,12 @@ SeRenderObject* se_vk_device_create(SeRenderDeviceCreateInfo* deviceCreateInfo)
         // Get command queue infos
         //
         se_sbuffer(VkQueueFamilyProperties) familyProperties = se_vk_utils_get_physical_device_queue_family_properties(device->gpu.physicalHandle, deviceCreateInfo->frameAllocator);
-		uint32_t queuesFamilyIndices[] =
-		{
-			se_vk_utils_pick_graphics_queue(familyProperties),
-			se_vk_utils_pick_present_queue(familyProperties, device->gpu.physicalHandle, device->surface),
-			se_vk_utils_pick_transfer_queue(familyProperties),
-		};
+        uint32_t queuesFamilyIndices[] =
+        {
+            se_vk_utils_pick_graphics_queue(familyProperties),
+            se_vk_utils_pick_present_queue(familyProperties, device->gpu.physicalHandle, device->surface),
+            se_vk_utils_pick_transfer_queue(familyProperties),
+        };
         se_sbuffer(VkDeviceQueueCreateInfo) queueCreateInfos = se_vk_utils_get_queue_create_infos(queuesFamilyIndices, se_array_size(queuesFamilyIndices), deviceCreateInfo->frameAllocator);
         //
         // Create logical device
@@ -506,6 +506,7 @@ SeRenderObject* se_vk_device_create(SeRenderDeviceCreateInfo* deviceCreateInfo)
 
 void se_vk_device_destroy(SeRenderObject* _device)
 {
+    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't destroy device");
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(&device->memoryManager);
     //
@@ -519,7 +520,7 @@ void se_vk_device_destroy(SeRenderObject* _device)
     {
         SeVkSwapChainImage* image = &device->swapChain.images[it];
         if (!image->handle) break;
-        se_vk_texture_destroy(device->swapChain.textures[it]);
+        se_vk_texture_submit_for_deffered_destruction(device->swapChain.textures[it]);
         vkDestroyImageView(device->gpu.logicalHandle, image->view, callbacks);
     }
     vkDestroySwapchainKHR(device->gpu.logicalHandle, device->swapChain.handle, callbacks);
@@ -552,12 +553,14 @@ void se_vk_device_destroy(SeRenderObject* _device)
 
 void se_vk_device_wait(SeRenderObject* _device)
 {
+    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't wait for device");
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
     vkDeviceWaitIdle(device->gpu.logicalHandle);
 }
 
 void se_vk_device_begin_frame(SeRenderObject* _device)
 {
+    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't begin frame");
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
     se_vk_in_flight_manager_advance_frame(&device->inFlightManager);
     device->flags &= ~((uint64_t)SE_VK_DEVICE_HAS_SUBMITTED_BUFFERS);
@@ -565,6 +568,7 @@ void se_vk_device_begin_frame(SeRenderObject* _device)
 
 void se_vk_device_end_frame(SeRenderObject* _device)
 {
+    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't end frame");
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
     se_assert(device->flags & SE_VK_DEVICE_HAS_SUBMITTED_BUFFERS && "You must submit some commands between being_frame and end_frame");
     uint32_t swapChainImageIndex = se_vk_in_flight_manager_get_current_swap_chain_image_index(&device->inFlightManager);
@@ -574,7 +578,7 @@ void se_vk_device_end_frame(SeRenderObject* _device)
     SeCommandBufferRequestInfo requestInfo = (SeCommandBufferRequestInfo)
     {
         (SeRenderObject*)device,
-        SE_USAGE_TRANSFER,
+        SE_COMMAND_BUFFER_USAGE_TRANSFER,
     };
     SeRenderObject* commandBuffer = se_vk_command_buffer_request(&requestInfo);
     SeRenderObject* swapChainTexture = device->swapChain.textures[swapChainImageIndex];
@@ -606,30 +610,35 @@ void se_vk_device_end_frame(SeRenderObject* _device)
 
 size_t se_vk_device_get_swap_chain_textures_num(SeRenderObject* _device)
 {
+    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't get numer of swap chain textures");
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
     return device->swapChain.numTextures;
 }
 
 SeRenderObject* se_vk_device_get_swap_chain_texture(SeRenderObject* _device, size_t index)
 {
+    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't get swap chain texture");
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
     return device->swapChain.textures[index];
 }
 
 size_t se_vk_device_get_active_swap_chain_texture_index(SeRenderObject* _device)
 {
+    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't get active swap chain texture index");
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
     return se_vk_in_flight_manager_get_current_swap_chain_image_index(&device->inFlightManager);
 }
 
 SeVkMemoryManager* se_vk_device_get_memory_manager(SeRenderObject* _device)
 {
+    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't get memory manager");
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
     return &device->memoryManager;
 }
 
 VkCommandPool se_vk_device_get_command_pool(SeRenderObject* _device, SeVkCommandQueueFlags flags)
 {
+    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't get command pool");
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
     SeVkCommandQueue* queue = se_vk_gpu_get_command_queue(&device->gpu, flags);
     return queue->commandPoolHandle;
@@ -637,6 +646,7 @@ VkCommandPool se_vk_device_get_command_pool(SeRenderObject* _device, SeVkCommand
 
 VkQueue se_vk_device_get_command_queue(SeRenderObject* _device, SeVkCommandQueueFlags flags)
 {
+    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't get command queue");
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
     SeVkCommandQueue* queue = se_vk_gpu_get_command_queue(&device->gpu, flags);
     return queue->handle;
@@ -644,6 +654,7 @@ VkQueue se_vk_device_get_command_queue(SeRenderObject* _device, SeVkCommandQueue
 
 uint32_t se_vk_device_get_command_queue_family_index(SeRenderObject* _device, SeVkCommandQueueFlags flags)
 {
+    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't get command queue family index");
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
     SeVkCommandQueue* queue = se_vk_gpu_get_command_queue(&device->gpu, flags);
     return queue->queueFamilyIndex;
@@ -651,18 +662,22 @@ uint32_t se_vk_device_get_command_queue_family_index(SeRenderObject* _device, Se
 
 VkDevice se_vk_device_get_logical_handle(SeRenderObject* _device)
 {
+    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't get logical handle");
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
     return device->gpu.logicalHandle;
 }
 
 SeRenderObject* se_vk_device_get_last_command_buffer(SeRenderObject* _device)
 {
+    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't get last submitted command buffer");
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
     return se_vk_in_flight_manager_get_last_submitted_command_buffer(&device->inFlightManager);
 }
 
 void se_vk_device_submit_command_buffer(SeRenderObject* _device, VkSubmitInfo* submitInfo, SeRenderObject* buffer, VkQueue queue)
 {
+    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't submit command buffer");
+    se_vk_expect_handle(buffer, SE_RENDER_HANDLE_TYPE_COMMAND_BUFFER, "Can't submit command buffer");
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
     se_vk_check(vkQueueSubmit(queue, 1, submitInfo, se_vk_command_buffer_get_fence(buffer)));
     se_vk_in_flight_manager_submit_command_buffer(&device->inFlightManager, buffer);
@@ -671,12 +686,14 @@ void se_vk_device_submit_command_buffer(SeRenderObject* _device, VkSubmitInfo* s
 
 bool se_vk_device_is_stencil_supported(SeRenderObject* _device)
 {
+    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't check if stencil supported");
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
     return device->gpu.flags & SE_VK_GPU_HAS_STENCIL;
 }
 
 VkSampleCountFlags se_vk_device_get_supported_framebuffer_multisample_types(SeRenderObject* _device)
 {
+    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't get supported framebuffer multisample type");
     SeVkGpu* gpu = &((SeVkRenderDevice*)_device)->gpu;
     // Is this even correct ?
     return  gpu->deviceProperties_10.limits.framebufferColorSampleCounts &
@@ -688,6 +705,7 @@ VkSampleCountFlags se_vk_device_get_supported_framebuffer_multisample_types(SeRe
 
 VkSampleCountFlags se_vk_device_get_supported_image_multisample_types(SeRenderObject* _device)
 {
+    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't get supported image multisample type");
     SeVkGpu* gpu = &((SeVkRenderDevice*)_device)->gpu;
     // Is this even correct ?
     return  gpu->deviceProperties_10.limits.sampledImageColorSampleCounts &
@@ -699,35 +717,41 @@ VkSampleCountFlags se_vk_device_get_supported_image_multisample_types(SeRenderOb
 
 VkFormat se_vk_device_get_depth_stencil_format(SeRenderObject* _device)
 {
+    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't get depth stencil format");
     SeVkGpu* gpu = &((SeVkRenderDevice*)_device)->gpu;
     return gpu->depthStencilFormat;
 }
 
 VkFormat se_vk_device_get_swap_chain_format(SeRenderObject* _device)
 {
+    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't get swap chain format");
     SeVkSwapChain* swapChain = &((SeVkRenderDevice*)_device)->swapChain;
     return swapChain->surfaceFormat.format;
 }
 
 VkExtent2D se_vk_device_get_swap_chain_extent(SeRenderObject* _device)
 {
+    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't get swap chain extent");
     SeVkSwapChain* swapChain = &((SeVkRenderDevice*)_device)->swapChain;
     return swapChain->extent;
 }
 
 VkPhysicalDeviceMemoryProperties* se_vk_device_get_memory_properties(SeRenderObject* _device)
 {
+    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't get device memory properties");
     SeVkGpu* gpu = &((SeVkRenderDevice*)_device)->gpu;
     return &gpu->memoryProperties;
 }
 
 VkSwapchainKHR se_vk_device_get_swap_chain_handle(SeRenderObject* _device)
 {
+    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't get swap chain handle");
     SeVkSwapChain* swapChain = &((SeVkRenderDevice*)_device)->swapChain;
     return swapChain->handle;
 }
 
 SeVkInFlightManager* se_vk_device_get_in_flight_manager(SeRenderObject* _device)
 {
+    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't get in flight manager");
     return &((SeVkRenderDevice*)_device)->inFlightManager;
 }

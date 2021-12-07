@@ -35,14 +35,24 @@ typedef struct SeVkRenderPipelinePools
     se_sbuffer(se_sbuffer(SeVkDescriptorSetPool)) setPools;
 } SeVkRenderPipelinePools;
 
+typedef struct SeVkDefferedDestruction
+{
+    struct SeRenderObject* object;
+    void (*destroy)(struct SeRenderObject*);
+} SeVkDefferedDestruction;
+
 /*
     Vulkan backend can render a few frames in advance, so cpu doesn't
     have to wait for gpu to finish rendering every frame.
     SeVkInFlightData contains all the data required on a per image-in-flight
     basis.
+
+    defferedDestructions are needed, so that we don't delete resources right at
+    resource->destroy(resource) call - these resources may still be used by some other in flight frames.
 */
 typedef struct SeVkInFlightData
 {
+    se_sbuffer(SeVkDefferedDestruction) defferedDestructions;
     se_sbuffer(struct SeRenderObject*) submittedCommandBuffers;
     se_sbuffer(SeVkRenderPipelinePools) renderPipelinePools;
     VkSemaphore imageAvailableSemaphore;
@@ -89,6 +99,7 @@ void                    se_vk_in_flight_manager_register_pipeline(SeVkInFlightMa
 void                    se_vk_in_flight_manager_unregister_pipeline(SeVkInFlightManager* manager, struct SeRenderObject* pipeline);
 
 void                    se_vk_in_flight_manager_submit_command_buffer(SeVkInFlightManager* manager, struct SeRenderObject* commandBuffer);
+void                    se_vk_in_flight_manager_submit_deffered_destruction(SeVkInFlightManager* manager, SeVkDefferedDestruction destruction);
 struct SeRenderObject*  se_vk_in_flight_manager_get_last_submitted_command_buffer(SeVkInFlightManager* manager);
 VkSemaphore             se_vk_in_flight_manager_get_image_available_semaphore(SeVkInFlightManager* manager);
 uint32_t                se_vk_in_flight_manager_get_current_swap_chain_image_index(SeVkInFlightManager* manager);

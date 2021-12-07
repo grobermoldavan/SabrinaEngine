@@ -124,16 +124,16 @@ void init_flat_pipeline()
         {
             {
                 .format     = SE_TEXTURE_FORMAT_RGBA_8,
-                .loadOp     = SE_LOAD_CLEAR,
-                .storeOp    = SE_STORE_STORE,
+                .loadOp     = SE_ATTACHMENT_LOAD_OP_CLEAR,
+                .storeOp    = SE_ATTACHMENT_STORE_OP_STORE,
                 .samples    = SE_SAMPLE_1,
             },
         };
         SeRenderPassAttachment depthAttachment = (SeRenderPassAttachment)
         {
             .format     = SE_TEXTURE_FORMAT_DEPTH_STENCIL,
-            .loadOp     = SE_LOAD_CLEAR,
-            .storeOp    = SE_STORE_STORE,
+            .loadOp     = SE_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp    = SE_ATTACHMENT_STORE_OP_STORE,
             .samples    = SE_SAMPLE_1,
         };
         uint32_t colorRefs[] = { 0 };
@@ -146,7 +146,7 @@ void init_flat_pipeline()
                 .numInputRefs   = 0,
                 .resolveRefs    = NULL,
                 .numResolveRefs = 0,
-                .depthOp        = SE_DEPTH_READ_WRITE,
+                .depthOp        = SE_DEPTH_OP_READ_WRITE,
             }
         };
         SeRenderPassCreateInfo createInfo = (SeRenderPassCreateInfo)
@@ -168,7 +168,7 @@ void init_flat_pipeline()
             .isTestEnabled          = true,
             .isWriteEnabled         = true,
             .isBoundsTestEnabled    = false,
-            .compareOp              = SE_COMPARE_GREATER,
+            .compareOp              = SE_COMPARE_OP_GREATER,
         };
         SeGraphicsRenderPipelineCreateInfo createInfo = (SeGraphicsRenderPipelineCreateInfo)
         {
@@ -180,9 +180,9 @@ void init_flat_pipeline()
             .backStencilOpState     = NULL,
             .depthTestState         = &depthTest,
             .subpassIndex           = 0,
-            .poligonMode            = SE_POLIGON_FILL,
-            .cullMode               = SE_CULL_NONE,
-            .frontFace              = SE_CLOCKWISE,
+            .poligonMode            = SE_PIPELINE_POLIGON_FILL_MODE_FILL,
+            .cullMode               = SE_PIPELINE_CULL_MODE_NONE,
+            .frontFace              = SE_PIPELINE_FRONT_FACE_CLOCKWISE,
             .multisamplingType      = SE_SAMPLE_1,
         };
         flatRenderPipeline = renderInterface->render_pipeline_graphics_create(&createInfo);
@@ -210,8 +210,8 @@ void init_present_pipeline()
         {
             {
                 .format     = SE_TEXTURE_FORMAT_SWAP_CHAIN,
-                .loadOp     = SE_LOAD_CLEAR,
-                .storeOp    = SE_STORE_STORE,
+                .loadOp     = SE_ATTACHMENT_LOAD_OP_CLEAR,
+                .storeOp    = SE_ATTACHMENT_STORE_OP_STORE,
                 .samples    = SE_SAMPLE_1,
             },
         };
@@ -225,7 +225,7 @@ void init_present_pipeline()
                 .numInputRefs   = 0,
                 .resolveRefs    = NULL,
                 .numResolveRefs = 0,
-                .depthOp        = SE_DEPTH_NOTHING,
+                .depthOp        = SE_DEPTH_OP_NOTHING,
             }
         };
         SeRenderPassCreateInfo createInfo = (SeRenderPassCreateInfo)
@@ -247,7 +247,7 @@ void init_present_pipeline()
             .isTestEnabled          = false,
             .isWriteEnabled         = false,
             .isBoundsTestEnabled    = false,
-            .compareOp              = SE_COMPARE_ALWAYS,
+            .compareOp              = SE_COMPARE_OP_ALWAYS,
         };
         SeGraphicsRenderPipelineCreateInfo createInfo = (SeGraphicsRenderPipelineCreateInfo)
         {
@@ -259,9 +259,9 @@ void init_present_pipeline()
             .backStencilOpState     = NULL,
             .depthTestState         = &depthTest,
             .subpassIndex           = 0,
-            .poligonMode            = SE_POLIGON_FILL,
-            .cullMode               = SE_CULL_NONE,
-            .frontFace              = SE_CLOCKWISE,
+            .poligonMode            = SE_PIPELINE_POLIGON_FILL_MODE_FILL,
+            .cullMode               = SE_PIPELINE_CULL_MODE_NONE,
+            .frontFace              = SE_PIPELINE_FRONT_FACE_CLOCKWISE,
             .multisamplingType      = SE_SAMPLE_1,
         };
         presentRenderPipeline = renderInterface->render_pipeline_graphics_create(&createInfo);
@@ -424,7 +424,7 @@ SE_DLL_EXPORT void se_update(struct SabrinaEngine* engine)
         };
         SeRenderObject* resourceSet1 = renderInterface->resource_set_create(&set1CreateInfo);
         {
-            SeCommandBufferRequestInfo cmdRequest = (SeCommandBufferRequestInfo) { .device = renderDevice, .usage = SE_USAGE_GRAPHICS, };
+            SeCommandBufferRequestInfo cmdRequest = (SeCommandBufferRequestInfo) { .device = renderDevice, .usage = SE_COMMAND_BUFFER_USAGE_GRAPHICS, };
             SeRenderObject* cmd = renderInterface->command_buffer_request(&cmdRequest);
             SeCommandBindPipelineInfo bindPipeline = (SeCommandBindPipelineInfo) { .pipeline = flatRenderPipeline, .framebuffer = flatFramebuffer };
             renderInterface->command_bind_pipeline(cmd, &bindPipeline);
@@ -455,7 +455,7 @@ SE_DLL_EXPORT void se_update(struct SabrinaEngine* engine)
         SeRenderObject* resourceSet0 = renderInterface->resource_set_create(&set0CreateInfo);
         {
             SeRenderObject* framebuffer = presentFramebuffers[renderInterface->get_active_swap_chain_texture_index(renderDevice)];
-            SeCommandBufferRequestInfo cmdRequest = (SeCommandBufferRequestInfo) { .device = renderDevice, .usage = SE_USAGE_GRAPHICS, };
+            SeCommandBufferRequestInfo cmdRequest = (SeCommandBufferRequestInfo) { .device = renderDevice, .usage = SE_COMMAND_BUFFER_USAGE_GRAPHICS, };
             SeRenderObject* cmd = renderInterface->command_buffer_request(&cmdRequest);
             SeCommandBindPipelineInfo bindPipeline = (SeCommandBindPipelineInfo) { .pipeline = presentRenderPipeline, .framebuffer = framebuffer };
             renderInterface->command_bind_pipeline(cmd, &bindPipeline);

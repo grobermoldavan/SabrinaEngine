@@ -14,5 +14,6 @@
 #include "engine/debug.h"
 
 #define se_vk_check(cmd) do { VkResult __result = cmd; se_assert(__result == VK_SUCCESS); } while(0)
+#define se_vk_expect_handle(renderObjPtr, expectedHandleType, msg) se_assert(renderObjPtr->handleType == expectedHandleType && msg" - incorrect render object type (expected "#expectedHandleType")")
 
 #endif

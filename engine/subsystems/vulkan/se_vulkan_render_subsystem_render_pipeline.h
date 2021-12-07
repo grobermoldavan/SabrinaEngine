@@ -11,6 +11,7 @@ typedef struct SeVkDescriptorSetBindingInfo
 } SeVkDescriptorSetBindingInfo;
 
 struct SeRenderObject*          se_vk_render_pipeline_graphics_create(struct SeGraphicsRenderPipelineCreateInfo* createInfo);
+void                            se_vk_render_pipeline_submit_for_deffered_destruction(struct SeRenderObject* pipeline);
 void                            se_vk_render_pipeline_destroy(struct SeRenderObject* pipeline);
 
 struct SeRenderObject*          se_vk_render_pipeline_get_render_pass(struct SeRenderObject* pipeline);

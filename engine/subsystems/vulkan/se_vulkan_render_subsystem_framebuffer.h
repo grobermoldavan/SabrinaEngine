@@ -4,9 +4,11 @@
 #include "se_vulkan_render_subsystem_base.h"
 
 struct SeRenderObject*  se_vk_framebuffer_create(struct SeFramebufferCreateInfo* createInfo);
+void                    se_vk_framebuffer_submit_for_deffered_destruction(struct SeRenderObject* framebuffer);
 void                    se_vk_framebuffer_destroy(struct SeRenderObject* framebuffer);
 
 VkFramebuffer   se_vk_framebuffer_get_handle(struct SeRenderObject* framebuffer);
 void            se_vk_framebuffer_prepare(struct SeRenderObject* framebuffer);
+VkExtent2D      se_vk_framebuffer_get_extent(struct SeRenderObject* framebuffer);
 
 #endif
