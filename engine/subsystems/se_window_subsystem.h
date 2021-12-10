@@ -7,6 +7,7 @@
 #define SE_WINDOW_SUBSYSTEM_NAME "se_window_subsystem"
 
 #define se_is_keyboard_button_pressed(inputPtr, keyFlag) (input->keyboardButtons[keyFlag / 64] & (1ull << (keyFlag - (keyFlag / 64) * 64)))
+#define se_is_mouse_button_pressed(inputPtr, keyFlag) (input->mouseButtons & (1ull << keyFlag))
 
 typedef enum SeMouseInput
 {
@@ -53,8 +54,8 @@ typedef struct SeWindowSubsystemInput
 {
     uint64_t keyboardButtons[2];    // flags
     uint32_t mouseButtons;          // flags
-    uint32_t mouseX;                // position
-    uint32_t mouseY;                // position
+    int64_t mouseX;                 // position
+    int64_t mouseY;                 // position
     uint32_t mouseWheel;            // wheel input
     bool isCloseButtonPressed;
 } SeWindowSubsystemInput;

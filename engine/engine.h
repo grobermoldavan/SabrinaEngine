@@ -26,12 +26,18 @@
 
 typedef void  (*SeSubsystemFunc)(struct SabrinaEngine*);
 typedef void* (*SeSubsystemReturnPtrFunc)(struct SabrinaEngine*);
+typedef void  (*SeSubsystemUpdateFunc)(struct SabrinaEngine*, const struct SeUpdateInfo* dt);
+
+typedef struct SeUpdateInfo
+{
+    float dt;
+} SeUpdateInfo;
 
 typedef struct SeSubsystemStorageEntry
 {
     SeHandle libraryHandle;
     SeSubsystemReturnPtrFunc getInterface;
-    SeSubsystemFunc update;
+    SeSubsystemUpdateFunc update;
     const char* name;
 } SeSubsystemStorageEntry;
 

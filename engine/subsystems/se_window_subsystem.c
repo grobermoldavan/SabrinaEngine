@@ -8,11 +8,6 @@
 #   error Unsupported platform
 #endif
 
-SE_WINDOW_IFACE_FUNC void  se_init(struct SabrinaEngine*);
-SE_WINDOW_IFACE_FUNC void  se_terminate(struct SabrinaEngine*);
-SE_WINDOW_IFACE_FUNC void  se_update(struct SabrinaEngine*);
-SE_WINDOW_IFACE_FUNC void* se_get_interface(struct SabrinaEngine*);
-
 static void fill_iface(SeWindowSubsystemInterface* iface);
 static void process_windows();
 static void destroy_windows();
@@ -29,7 +24,7 @@ SE_WINDOW_IFACE_FUNC void se_terminate(SabrinaEngine* engine)
     destroy_windows();
 }
 
-SE_WINDOW_IFACE_FUNC void se_update(SabrinaEngine* engine)
+SE_WINDOW_IFACE_FUNC void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
 {
     process_windows();
 }
@@ -271,47 +266,55 @@ static bool win32_window_process_mouse_input(SeWindowWin32* window, UINT message
         case WM_LBUTTONDOWN:
         {
             window->input.mouseButtons |= BIT((uint32_t)(SE_LMB));
-            LOGMSG(WM_LBUTTONDOWN)
+            LOGMSG(WM_LBUTTONDOWN);
+            SetCapture(window->handle);
             break;
         }
         case WM_LBUTTONUP:
         {
             window->input.mouseButtons &= ~BIT((uint32_t)(SE_LMB));
-            LOGMSG(WM_LBUTTONUP)
+            LOGMSG(WM_LBUTTONUP);
+            ReleaseCapture();
             break;
         }
         case WM_MBUTTONDOWN:
         {
             window->input.mouseButtons |= BIT((uint32_t)(SE_MMB));
-            LOGMSG(WM_MBUTTONDOWN)
+            LOGMSG(WM_MBUTTONDOWN);
+            SetCapture(window->handle);
             break;
         }
         case WM_MBUTTONUP:
         {
             window->input.mouseButtons &= ~BIT((uint32_t)(SE_MMB));
-            LOGMSG(WM_MBUTTONUP)
+            LOGMSG(WM_MBUTTONUP);
+            ReleaseCapture();
             break;
         }
         case WM_RBUTTONDOWN:
         {
             window->input.mouseButtons |= BIT((uint32_t)(SE_RMB));
-            LOGMSG(WM_RBUTTONDOWN)
+            LOGMSG(WM_RBUTTONDOWN);
+            SetCapture(window->handle);
             break;
         }
         case WM_RBUTTONUP:
         {
             window->input.mouseButtons &= ~BIT((uint32_t)(SE_RMB));
-            LOGMSG(WM_RBUTTONUP)
+            LOGMSG(WM_RBUTTONUP);
+            ReleaseCapture();
             break;
         }
         case WM_XBUTTONDOWN:
         {
-            LOGMSG(WM_XBUTTONDOWN)
+            LOGMSG(WM_XBUTTONDOWN);
+            SetCapture(window->handle);
             break;
         }
         case WM_XBUTTONUP:
         {
-            LOGMSG(WM_XBUTTONUP)
+            LOGMSG(WM_XBUTTONUP);
+            ReleaseCapture();
             break;
         }
         case WM_MOUSEMOVE:

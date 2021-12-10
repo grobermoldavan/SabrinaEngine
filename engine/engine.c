@@ -40,13 +40,19 @@ void se_run(SabrinaEngine* engine)
         if (init) init(engine);
     }
     // Update loop
+    const double counterFrequency = (double)engine->platformIface.get_perf_frequency();
+    uint64_t prevCounter = engine->platformIface.get_perf_counter();
     while (engine->shouldRun)
     {
+        uint64_t newCounter = engine->platformIface.get_perf_counter();
+        const float dt = (float)((double)(newCounter - prevCounter) / counterFrequency);
+        const SeUpdateInfo info = (SeUpdateInfo){ dt };
         for (size_t i = 0; i < engine->subsystems.subsystemsStorageSize; i++)
         {
-            SeSubsystemFunc update = engine->subsystems.subsystemsStorage[i].update;
-            if (update) update(engine);
+            SeSubsystemUpdateFunc update = engine->subsystems.subsystemsStorage[i].update;
+            if (update) update(engine, &info);
         }
+        prevCounter = newCounter;
     }
     // Terminate subsystems (here subsytems can safely query interfaces of other subsystems)
     for (size_t i = engine->subsystems.subsystemsStorageSize; i > 0; i--)

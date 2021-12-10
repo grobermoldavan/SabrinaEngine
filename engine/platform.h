@@ -79,6 +79,9 @@ typedef struct SePlatformInterface
     void        (*file_read)                (SeFileContent* content, SeFile* file, SeAllocatorBindings* allocator);
     void        (*file_free_content)        (SeFileContent* content);
     void        (*file_write)               (SeFile* file, const void* data, size_t size);
+
+    uint64_t    (*get_perf_counter)         ();
+    uint64_t    (*get_perf_frequency)       ();
 } SePlatformInterface;
 
 void se_get_platform_interface(SePlatformInterface* iface);
@@ -344,6 +347,20 @@ void se_platform_file_write(SeFile* file, const void* data, size_t size)
     se_assert(bytesWritten == size);
 }
 
+uint64_t se_platform_get_perf_counter()
+{
+    LARGE_INTEGER counter;
+    QueryPerformanceCounter(&counter);
+    return counter.QuadPart;
+}
+
+uint64_t se_platform_get_perf_frequency()
+{
+    LARGE_INTEGER frequency;
+    QueryPerformanceFrequency(&frequency);
+    return frequency.QuadPart;
+}
+
 #else
 #   error Unsupported platform
 #endif // ifdef _WIN32
@@ -378,6 +395,8 @@ void se_get_platform_interface(SePlatformInterface* iface)
         .file_read                              = se_platform_file_read,
         .file_free_content                      = se_platform_file_free_content,
         .file_write                             = se_platform_file_write,
+        .get_perf_counter                       = se_platform_get_perf_counter,
+        .get_perf_frequency                     = se_platform_get_perf_frequency,
     };
 }
 

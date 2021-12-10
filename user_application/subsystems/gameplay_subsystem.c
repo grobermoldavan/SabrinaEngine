@@ -7,6 +7,8 @@
 #define SE_MATH_IMPL
 #include "engine/engine.h"
 
+#include "debug_camera.h"
+
 SePlatformInterface* platformInterface;
 SeWindowSubsystemInterface* windowInterface;
 SeRenderAbstractionSubsystemInterface* renderInterface;
@@ -50,6 +52,8 @@ SeRenderObject* presentVs;
 SeRenderObject* presentFs;
 SeRenderObject* presentRenderPipeline;
 se_sbuffer(SeRenderObject*) presentFramebuffers;
+
+UserAppDebugCamera camera;
 
 SeRenderObject* sync_load_shader(const char* path)
 {
@@ -168,7 +172,7 @@ void init_flat_pipeline()
             .isTestEnabled          = true,
             .isWriteEnabled         = true,
             .isBoundsTestEnabled    = false,
-            .compareOp              = SE_COMPARE_OP_GREATER,
+            .compareOp              = SE_COMPARE_OP_LESS,
         };
         SeGraphicsRenderPipelineCreateInfo createInfo = (SeGraphicsRenderPipelineCreateInfo)
         {
@@ -285,17 +289,17 @@ void init_present_pipeline()
     }
 }
 
-SE_DLL_EXPORT void se_load(struct SabrinaEngine* engine)
+SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
 {
     printf("Load\n");
 }
 
-SE_DLL_EXPORT void se_unload(struct SabrinaEngine* engine)
+SE_DLL_EXPORT void se_unload(SabrinaEngine* engine)
 {
     printf("Unload\n");
 }
 
-SE_DLL_EXPORT void se_init(struct SabrinaEngine* engine)
+SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 {
     printf("Init\n");
     windowInterface = (SeWindowSubsystemInterface*)engine->find_subsystem_interface(engine, SE_WINDOW_SUBSYSTEM_NAME);
@@ -326,28 +330,28 @@ SE_DLL_EXPORT void se_init(struct SabrinaEngine* engine)
     init_flat_pipeline();
     init_present_pipeline();
     {
-        SeTransform vp = SE_T_IDENTITY;
-        vp.matrix = se_f4x4_transposed(vp.matrix);
+        FrameData frameData = {0};
+        frameData.viewProjection = se_f4x4_transposed(se_f4x4_mul_f4x4(se_perspective_projection(60.0f, 4.0f / 3.0f, 0.1f, 100.0f), se_f4x4_translation((SeFloat3){ 0, 0, 0 })));
         SeMemoryBufferCreateInfo memoryBufferCreateInfo = (SeMemoryBufferCreateInfo)
         {
             .device     = renderDevice,
-            .size       = sizeof(vp),
+            .size       = sizeof(frameData),
             .usage      = SE_MEMORY_BUFFER_USAGE_TRANSFER_DST | SE_MEMORY_BUFFER_USAGE_UNIFORM_BUFFER,
             .visibility = SE_MEMORY_BUFFER_VISIBILITY_GPU_AND_CPU,
         };
         frameDataBuffer = renderInterface->memory_buffer_create(&memoryBufferCreateInfo);
         void* addr = renderInterface->memory_buffer_get_mapped_address(frameDataBuffer);
-        memcpy(addr, &vp, sizeof(vp));
+        memcpy(addr, &frameData, sizeof(frameData));
     }
     {
         InputVertex verts[] =
         {
-            { .positionLS = { 0, 0, 0 }, .uv = { 0, 0, }, },
-            { .positionLS = { 0, 1, 0 }, .uv = { 0, 1, }, },
-            { .positionLS = { 1, 1, 0 }, .uv = { 1, 1, }, },
-            { .positionLS = { 0, 0, 0 }, .uv = { 0, 0, }, },
-            { .positionLS = { 1, 1, 0 }, .uv = { 1, 1, }, },
-            { .positionLS = { 1, 0, 0 }, .uv = { 1, 0, }, },
+            { .positionLS = { 0 , 0 , 0 }, .uv = { 0, 0, }, },
+            { .positionLS = { 0 , 10, 0 }, .uv = { 0, 1, }, },
+            { .positionLS = { 10, 10, 0 }, .uv = { 1, 1, }, },
+            { .positionLS = { 0 , 0 , 0 }, .uv = { 0, 0, }, },
+            { .positionLS = { 10, 10, 0 }, .uv = { 1, 1, }, },
+            { .positionLS = { 10, 0 , 0 }, .uv = { 1, 0, }, },
         };
         SeMemoryBufferCreateInfo memoryBufferCreateInfo = (SeMemoryBufferCreateInfo)
         {
@@ -361,24 +365,25 @@ SE_DLL_EXPORT void se_init(struct SabrinaEngine* engine)
         memcpy(addr, verts, sizeof(verts));
     }
     {
-        SeTransform trfs[] = { SE_T_IDENTITY, SE_T_IDENTITY, SE_T_IDENTITY };
-        se_t_set_position(&trfs[0], (SeFloat3){ 0     , 0     , 0.25f }); trfs[0].matrix = se_f4x4_transposed(trfs[0].matrix); // matrix must be transposed...
-        se_t_set_position(&trfs[1], (SeFloat3){ -0.66f, -0.25f, 0.5f  }); trfs[1].matrix = se_f4x4_transposed(trfs[1].matrix); // matrix must be transposed...
-        se_t_set_position(&trfs[2], (SeFloat3){ -0.9f , 0.5f  , 0.1f  }); trfs[2].matrix = se_f4x4_transposed(trfs[2].matrix); // matrix must be transposed...
+        InputInstanceData insts[] = { { SE_F4X4_IDENTITY }, { SE_F4X4_IDENTITY }, { SE_F4X4_IDENTITY } };
+        insts[0].trfWS = se_f4x4_transposed(se_f4x4_translation((SeFloat3){ 0   , 0   , 1.0f }));
+        insts[1].trfWS = se_f4x4_transposed(se_f4x4_translation((SeFloat3){ -10 , 0   , 2.0f }));
+        insts[2].trfWS = se_f4x4_transposed(se_f4x4_translation((SeFloat3){ -10 , -10 , 3.0f }));
         SeMemoryBufferCreateInfo memoryBufferCreateInfo = (SeMemoryBufferCreateInfo)
         {
             .device     = renderDevice,
-            .size       = sizeof(trfs),
+            .size       = sizeof(insts),
             .usage      = SE_MEMORY_BUFFER_USAGE_TRANSFER_DST | SE_MEMORY_BUFFER_USAGE_STORAGE_BUFFER,
             .visibility = SE_MEMORY_BUFFER_VISIBILITY_GPU_AND_CPU,
         };
         instanceDataBuffer = renderInterface->memory_buffer_create(&memoryBufferCreateInfo);
         void* addr = renderInterface->memory_buffer_get_mapped_address(instanceDataBuffer);
-        memcpy(addr, trfs, sizeof(trfs));
+        memcpy(addr, insts, sizeof(insts));
     }
+    user_app_debug_camera_construct(&camera, 60, 4.0f / 3.0f, 0.1f, 100.0f);
 }
 
-SE_DLL_EXPORT void se_terminate(struct SabrinaEngine* engine)
+SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
 {
     printf("Terminate\n");
 
@@ -393,12 +398,20 @@ SE_DLL_EXPORT void se_terminate(struct SabrinaEngine* engine)
     windowInterface->destroy(windowHandle);
 }
 
-SE_DLL_EXPORT void se_update(struct SabrinaEngine* engine)
+SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
 {
     const SeWindowSubsystemInput* input = windowInterface->get_input(windowHandle);
     if (input->isCloseButtonPressed || se_is_keyboard_button_pressed(input, SE_ESCAPE)) engine->shouldRun = false;
 
+    user_app_debug_camera_update(&camera, input, info->dt);
+
     renderInterface->begin_frame(renderDevice);
+
+    FrameData frameData = {0};
+    frameData.viewProjection = se_f4x4_transposed(user_app_debug_camera_get_view_projection(&camera));
+    void* addr = renderInterface->memory_buffer_get_mapped_address(frameDataBuffer);
+    memcpy(addr, &frameData, sizeof(frameData));
+
     //
     // Flat pass
     //

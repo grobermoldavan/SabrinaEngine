@@ -53,7 +53,7 @@ SE_APP_ALLOCATOR_IFACE_FUNC void se_terminate(SabrinaEngine* engine)
     stackIface->destroy(&frameAllocator);
 }
 
-SE_APP_ALLOCATOR_IFACE_FUNC void se_update(SabrinaEngine* engine)
+SE_APP_ALLOCATOR_IFACE_FUNC void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
 {
     frameAllocator.reset(&frameAllocator);
 }
