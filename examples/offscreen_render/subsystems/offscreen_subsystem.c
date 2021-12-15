@@ -1,12 +1,6 @@
 
-#include <stdio.h>
-
-#include "gameplay_subsystem.h"
-
-#define SE_CONTAINERS_IMPL
-#define SE_MATH_IMPL
+#include "offscreen_subsystem.h"
 #include "engine/engine.h"
-
 #include "debug_camera.h"
 
 SePlatformInterface* platformInterface;
@@ -35,14 +29,14 @@ typedef struct InputInstanceData
     SeFloat4x4 trfWS;
 } InputInstanceData;
 
-SeRenderObject* frameDataBuffer;    // frame
-SeRenderObject* verticesBuffer;     // object
-SeRenderObject* instanceDataBuffer; // object (kinda???)
+SeRenderObject* frameDataBuffer;
+SeRenderObject* verticesBuffer;
+SeRenderObject* instanceDataBuffer;
 
-SeRenderObject* flatRenderPass;     // material
-SeRenderObject* flatVs;             // material
-SeRenderObject* flatFs;             // material
-SeRenderObject* flatRenderPipeline; // material
+SeRenderObject* flatRenderPass;
+SeRenderObject* flatVs;
+SeRenderObject* flatFs;
+SeRenderObject* flatRenderPipeline;
 SeRenderObject* flatColorTexture;   
 SeRenderObject* flatDepthTexture;
 SeRenderObject* flatFramebuffer;
@@ -53,7 +47,7 @@ SeRenderObject* presentFs;
 SeRenderObject* presentRenderPipeline;
 se_sbuffer(SeRenderObject*) presentFramebuffers;
 
-UserAppDebugCamera camera;
+DebugCamera camera;
 
 SeRenderObject* sync_load_shader(const char* path)
 {
@@ -98,8 +92,8 @@ void terminate_present_pipeline()
 
 void init_flat_pipeline()
 {
-    flatVs = sync_load_shader("../assets/shaders/flat.vert.spv");
-    flatFs = sync_load_shader("../assets/shaders/flat.frag.spv");
+    flatVs = sync_load_shader("assets/default/shaders/flat.vert.spv");
+    flatFs = sync_load_shader("assets/default/shaders/flat.frag.spv");
     SeRenderObject* swapChainTexture = renderInterface->get_swap_chain_texture(renderDevice, 0);
     {
         SeTextureCreateInfo createInfo = (SeTextureCreateInfo)
@@ -206,8 +200,8 @@ void init_flat_pipeline()
 
 void init_present_pipeline()
 {
-    presentVs = sync_load_shader("../assets/shaders/present.vert.spv");
-    presentFs = sync_load_shader("../assets/shaders/present.frag.spv");
+    presentVs = sync_load_shader("assets/default/shaders/present.vert.spv");
+    presentFs = sync_load_shader("assets/default/shaders/present.frag.spv");
     SeRenderObject* swapChainTexture = renderInterface->get_swap_chain_texture(renderDevice, 0);
     {
         SeRenderPassAttachment colorAttachments[] =
@@ -289,19 +283,8 @@ void init_present_pipeline()
     }
 }
 
-SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
-{
-    printf("Load\n");
-}
-
-SE_DLL_EXPORT void se_unload(SabrinaEngine* engine)
-{
-    printf("Unload\n");
-}
-
 SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 {
-    printf("Init\n");
     windowInterface = (SeWindowSubsystemInterface*)engine->find_subsystem_interface(engine, SE_WINDOW_SUBSYSTEM_NAME);
     renderInterface = (SeRenderAbstractionSubsystemInterface*)engine->find_subsystem_interface(engine, SE_VULKAN_RENDER_SUBSYSTEM_NAME);
     allocatorsInterface = (SeApplicationAllocatorsSubsystemInterface*)engine->find_subsystem_interface(engine, SE_APPLICATION_ALLOCATORS_SUBSYSTEM_NAME);
@@ -380,13 +363,11 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
         void* addr = renderInterface->memory_buffer_get_mapped_address(instanceDataBuffer);
         memcpy(addr, insts, sizeof(insts));
     }
-    user_app_debug_camera_construct(&camera, 60, 4.0f / 3.0f, 0.1f, 100.0f);
+    debug_camera_construct(&camera, 60, 4.0f / 3.0f, 0.1f, 100.0f);
 }
 
 SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
 {
-    printf("Terminate\n");
-
     renderInterface->device_wait(renderDevice);
     
     terminate_flat_pipeline();
@@ -403,12 +384,12 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
     const SeWindowSubsystemInput* input = windowInterface->get_input(windowHandle);
     if (input->isCloseButtonPressed || se_is_keyboard_button_pressed(input, SE_ESCAPE)) engine->shouldRun = false;
 
-    user_app_debug_camera_update(&camera, input, info->dt);
+    debug_camera_update(&camera, input, info->dt);
 
     renderInterface->begin_frame(renderDevice);
 
     FrameData frameData = {0};
-    frameData.viewProjection = se_f4x4_transposed(user_app_debug_camera_get_view_projection(&camera));
+    frameData.viewProjection = se_f4x4_transposed(debug_camera_get_view_projection(&camera));
     void* addr = renderInterface->memory_buffer_get_mapped_address(frameDataBuffer);
     memcpy(addr, &frameData, sizeof(frameData));
 

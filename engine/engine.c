@@ -1,6 +1,5 @@
 
 #include <string.h>
-
 #include "engine.h"
 
 static void* se_find_subsystem_interface(SabrinaEngine* engine, const char* name)
@@ -75,14 +74,4 @@ void se_run(SabrinaEngine* engine)
     }
 }
 
-#define SE_DEBUG_IMPL
-#include "debug.h"
-
-#define SE_MATH_IMPL
-#include "se_math.h"
-
-#define SE_CONTAINERS_IMPL
-#include "containers.h"
-
-#define SE_PLATFORM_IMPL
-#include "platform.h"
+#include "platform.c"

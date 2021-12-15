@@ -1,6 +1,0 @@
-#ifndef _USER_APP_GAMEPLAY_SUBSYSTEM_H_
-#define _USER_APP_GAMEPLAY_SUBSYSTEM_H_
-
-#define USER_APP_GAMEPLAY_SUBSYSTEM_NAME "gameplay_subsystem"
-
-#endif

@@ -4,6 +4,13 @@
 #include <inttypes.h>
 #include <stdbool.h>
 
+#ifdef _WIN32
+#   define SE_DLL_EXPORT __declspec(dllexport)
+#   define SE_PATH_SEP "\\"
+#else
+#   error Unsupported platform
+#endif
+
 #define se_array_size(arr) (sizeof(arr) / sizeof(arr[0]))
 
 #define se_concat(first, second) first##second
@@ -11,7 +18,13 @@
 
 #define se_add_subsystem(subsystemName, enginePtr)                      \
 {                                                                       \
-    SeHandle libHandle = (enginePtr)->platformIface.dynamic_library_load(subsystemName); \
+    const char* possibleLibPaths[] =                                    \
+    {                                                                   \
+        subsystemName,                                                  \
+        "." SE_PATH_SEP "subsystems" SE_PATH_SEP "default" SE_PATH_SEP subsystemName, \
+        "." SE_PATH_SEP "subsystems" SE_PATH_SEP "application" SE_PATH_SEP subsystemName, \
+    };                                                                  \
+    SeHandle libHandle = (enginePtr)->platformIface.dynamic_library_load(possibleLibPaths, se_array_size(possibleLibPaths)); \
     SeSubsystemUpdateFunc update = (SeSubsystemUpdateFunc)(enginePtr)->platformIface.dynamic_library_get_function_address(libHandle, "se_update"); \
     SeSubsystemReturnPtrFunc getInterface = (SeSubsystemReturnPtrFunc)(enginePtr)->platformIface.dynamic_library_get_function_address(libHandle, "se_get_interface"); \
     SeSubsystemStorageEntry storageEntry =                              \
@@ -28,12 +41,6 @@
 #define se_kilobytes(val) val * 1024ull
 #define se_megabytes(val) val * 1024ull * 1024ull
 #define se_gigabytes(val) val * 1024ull * 1024ull * 1024ull
-
-#ifdef _WIN32
-#   define SE_DLL_EXPORT __declspec(dllexport)
-#else
-#   error Unsupported platform
-#endif
 
 void se_qsort(void* memory, size_t left, size_t right, bool (*is_greater)(void* mem, size_t one, size_t other), void (*swap)(void* mem, size_t one, size_t other))
 {

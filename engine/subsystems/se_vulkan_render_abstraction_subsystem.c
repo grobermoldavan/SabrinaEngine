@@ -83,9 +83,3 @@ SE_VULKAN_IFACE_FUNC void* se_get_interface(SabrinaEngine* engine)
 #include "vulkan/se_vulkan_render_subsystem_framebuffer.c"
 #include "vulkan/se_vulkan_render_subsystem_memory_buffer.c"
 #include "vulkan/se_vulkan_render_subsystem_resource_set.c"
-
-#define SE_DEBUG_IMPL
-#include "engine/debug.h"
-
-#define SE_CONTAINERS_IMPL
-#include "engine/containers.h"

@@ -520,7 +520,7 @@ SeRenderObject* se_vk_render_pass_create(SeRenderPassCreateInfo* createInfo)
             format == VK_FORMAT_D24_UNORM_S8_UINT   ||
             format == VK_FORMAT_D32_SFLOAT_S8_UINT  ? false : true;
         pass->clearValues[it] = isColorFormat
-            ? (VkClearValue) { .color = { 1, 0, 1, 1, } }
+            ? (VkClearValue) { .color = { 0, 0, 0, 1, } }
             : (VkClearValue) { .depthStencil = { 1, 0 } };
     }
     return (SeRenderObject*)pass;

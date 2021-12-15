@@ -4,7 +4,7 @@
 #include "engine/se_math.h"
 #include "engine/subsystems/se_window_subsystem.h"
 
-typedef struct UserAppDebugCamera
+typedef struct DebugCamera
 {
     SeTransform trf;
     float fovDeg;
@@ -15,9 +15,9 @@ typedef struct UserAppDebugCamera
     int64_t lastMouseY;
     uint32_t lastMouseWheel;
     bool isRbmPressed;
-} UserAppDebugCamera;
+} DebugCamera;
 
-void user_app_debug_camera_construct(UserAppDebugCamera* camera, float fovDeg, float aspect, float nearPlane, float farPlane)
+void debug_camera_construct(DebugCamera* camera, float fovDeg, float aspect, float nearPlane, float farPlane)
 {
     camera->trf = SE_T_IDENTITY;
     camera->fovDeg = fovDeg;
@@ -28,7 +28,7 @@ void user_app_debug_camera_construct(UserAppDebugCamera* camera, float fovDeg, f
     se_t_look_at(&camera->trf, (SeFloat3){0}, (SeFloat3){ 0, 0, 1 }, (SeFloat3){ 0, 1, 0 });
 }
 
-void user_app_debug_camera_update(UserAppDebugCamera* camera, const SeWindowSubsystemInput* input, float dt)
+void debug_camera_update(DebugCamera* camera, const SeWindowSubsystemInput* input, float dt)
 {
     //
     // Update position
@@ -73,7 +73,7 @@ void user_app_debug_camera_update(UserAppDebugCamera* camera, const SeWindowSubs
     se_t_set_rotation(&camera->trf, rotation);
 }
 
-SeFloat4x4 user_app_debug_camera_get_view_projection(UserAppDebugCamera* camera)
+SeFloat4x4 debug_camera_get_view_projection(DebugCamera* camera)
 {
     return se_f4x4_mul_f4x4
     (

@@ -1,6 +1,10 @@
 #ifndef _SE_CONTAINERS_H_
 #define _SE_CONTAINERS_H_
 
+#include <string.h>
+#include <stdlib.h>
+
+#include "allocator_bindings.h"
 #include "engine/common_includes.h"
 
 /*
@@ -67,17 +71,6 @@ void* __se_memset(void* dst, int val, size_t size);
 #define se_sbuffer_remove_val(arr, valPtr)          ((valPtr) >= (arr) ? se_sbuffer_remove_idx(arr, __se_get_elem_idx(arr, valPtr)), 0 : 0)
 #define se_sbuffer_clear(arr)                       ((arr) ? __se_memset(arr, 0, sizeof((arr)[0]) * __se_param(arr, 1)), __se_param(arr, 1) = 0, 0 : 0)
 
-#endif
-
-#ifdef SE_CONTAINERS_IMPL
-#   ifndef _SE_CONTAINERS_IMPL
-#   define _SE_CONTAINERS_IMPL
-
-#include <string.h>
-#include <stdlib.h>
-
-#include "allocator_bindings.h"
-
 typedef void* SeAnyPtr;
 
 void __se_sbuffer_construct(void** arr, size_t entrySize, size_t capacity, struct SeAllocatorBindings* allocator)
@@ -130,5 +123,4 @@ void* __se_memset(void* dst, int val, size_t size)
     return memset(dst, val, size);
 }
 
-#   endif
 #endif

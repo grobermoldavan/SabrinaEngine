@@ -3,14 +3,8 @@
 
 #include "se_vulkan_render_subsystem_utils.h"
 #include "engine/render_abstraction_interface.h"
-
-#define SE_MATH_IMPL
 #include "engine/se_math.h"
-
-#define SE_CONTAINERS_IMPL
 #include "engine/containers.h"
-
-#define SE_DEBUG_IMPL
 #include "engine/debug.h"
 
 const char** se_vk_utils_get_required_validation_layers(size_t* outNum)

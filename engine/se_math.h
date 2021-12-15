@@ -1,6 +1,8 @@
 #ifndef _SE_MATH_H_
 #define _SE_MATH_H_
 
+#include <math.h>
+
 #define SE_PI 3.14159265358979323846
 #define SE_EPSILON 0.0000001
 #define SE_MAX_FLOAT 3.402823466e+38F
@@ -217,13 +219,11 @@ void        se_t_look_at(SeTransform* trf, SeFloat3 from, SeFloat3 to, SeFloat3 
 SeFloat4x4 se_perspective_projection(float fovDeg, float aspect, float near, float far);
 SeFloat4x4 se_look_at(SeFloat3 from, SeFloat3 to, SeFloat3 up);
 
-#endif
-
-#ifdef SE_MATH_IMPL
-#   ifndef _SE_MATH_IMPL
-#   define _SE_MATH_IMPL
-
-#include <math.h>
+// =================================================================================================================
+//
+// Implementation
+//
+// =================================================================================================================
 
 float       se_f2_dot(SeFloat2 first, SeFloat2 second)  { return first.x * second.x + first.y * second.y; }
 SeFloat2    se_f2_add(SeFloat2 first, SeFloat2 second)  { return (SeFloat2){ first.x + second.x, first.y + second.y }; }
@@ -813,5 +813,4 @@ SeFloat4x4 se_look_at(SeFloat3 from, SeFloat3 to, SeFloat3 up)
     return rotation;
 }
 
-#   endif
 #endif
