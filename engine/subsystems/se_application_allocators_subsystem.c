@@ -4,12 +4,6 @@
 #include "se_pool_allocator_subsystem.h"
 #include "engine/engine.h"
 
-#ifdef _WIN32
-#   define SE_APP_ALLOCATOR_IFACE_FUNC __declspec(dllexport)
-#else
-#   error Unsupported platform
-#endif
-
 static SeStackAllocator frameAllocator;
 static SePoolAllocator persistentAllocator;
 
@@ -18,7 +12,7 @@ static SeAllocatorBindings persistentAllocatorBindings;
 
 static SeApplicationAllocatorsSubsystemInterface g_Iface;
 
-SE_APP_ALLOCATOR_IFACE_FUNC void se_load(SabrinaEngine* engine)
+SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
 {
     g_Iface = (SeApplicationAllocatorsSubsystemInterface)
     {
@@ -27,7 +21,7 @@ SE_APP_ALLOCATOR_IFACE_FUNC void se_load(SabrinaEngine* engine)
     };
 }
 
-SE_APP_ALLOCATOR_IFACE_FUNC void se_init(SabrinaEngine* engine)
+SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 {
     SeStackAllocatorSubsystemInterface* stackIface = (SeStackAllocatorSubsystemInterface*)engine->find_subsystem_interface(engine, SE_STACK_ALLOCATOR_SUBSYSTEM_NAME);
     SePoolAllocatorSubsystemInterface* poolIface = (SePoolAllocatorSubsystemInterface*)engine->find_subsystem_interface(engine, SE_POOL_ALLOCATOR_SUBSYSTEM_NAME);
@@ -44,7 +38,7 @@ SE_APP_ALLOCATOR_IFACE_FUNC void se_init(SabrinaEngine* engine)
     poolIface->to_allocator_bindings(&persistentAllocator, &persistentAllocatorBindings);
 }
 
-SE_APP_ALLOCATOR_IFACE_FUNC void se_terminate(SabrinaEngine* engine)
+SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
 {
     SeStackAllocatorSubsystemInterface* stackIface = (SeStackAllocatorSubsystemInterface*)engine->find_subsystem_interface(engine, SE_STACK_ALLOCATOR_SUBSYSTEM_NAME);
     SePoolAllocatorSubsystemInterface* poolIface = (SePoolAllocatorSubsystemInterface*)engine->find_subsystem_interface(engine, SE_POOL_ALLOCATOR_SUBSYSTEM_NAME);
@@ -53,12 +47,12 @@ SE_APP_ALLOCATOR_IFACE_FUNC void se_terminate(SabrinaEngine* engine)
     stackIface->destroy(&frameAllocator);
 }
 
-SE_APP_ALLOCATOR_IFACE_FUNC void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
+SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
 {
     frameAllocator.reset(&frameAllocator);
 }
 
-SE_APP_ALLOCATOR_IFACE_FUNC void* se_get_interface(SabrinaEngine* engine)
+SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
 {
     return &g_Iface;
 }

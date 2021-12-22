@@ -126,7 +126,7 @@ SeRenderObject* se_vk_render_pass_create(SeRenderPassCreateInfo* createInfo)
         {
             se_assert(!"todo");
         }
-        else 
+        else
         {
             const bool isSwapChainImage = attachment->format == SE_TEXTURE_FORMAT_SWAP_CHAIN;
             renderPassAttachmentDescriptions[it] = (VkAttachmentDescription)
@@ -294,7 +294,7 @@ SeRenderObject* se_vk_render_pass_create(SeRenderPassCreateInfo* createInfo)
             VkAttachmentReference* color    = se_vk_render_pass_find_attachment_reference(subpass->colorAttachmentRefs, subpassCreateInfo->numColorRefs, attachmentIt);
             VkAttachmentReference* input    = se_vk_render_pass_find_attachment_reference(subpass->inputAttachmentRefs, subpassCreateInfo->numInputRefs, attachmentIt);
             VkAttachmentReference* resolve  = se_vk_render_pass_find_attachment_reference(subpass->resolveAttachmentRefs, subpassCreateInfo->numResolveRefs, attachmentIt);
-            VkAttachmentReference* depth    =   subpass->depthStencilReference.attachment != VK_ATTACHMENT_UNUSED && 
+            VkAttachmentReference* depth    =   subpass->depthStencilReference.attachment != VK_ATTACHMENT_UNUSED &&
                                                 subpass->depthStencilReference.attachment == attachmentIt ?
                                                 &subpass->depthStencilReference : NULL;
             if (!color && !input && !resolve && !depth)
@@ -519,9 +519,14 @@ SeRenderObject* se_vk_render_pass_create(SeRenderPassCreateInfo* createInfo)
             format == VK_FORMAT_D16_UNORM_S8_UINT   ||
             format == VK_FORMAT_D24_UNORM_S8_UINT   ||
             format == VK_FORMAT_D32_SFLOAT_S8_UINT  ? false : true;
+        //
+        // @NOTE : Engine always uses reverse depth, so .depthStencil is hardcoded to { 0, 0 }.
+        //         If you want to change this, then se_vk_perspective_projection_matrix must be reevaluated in
+        //         order to remap Z coord to the new range (instead of [1, 0]), as well as render pipeline depthCompareOp.
+        //
         pass->clearValues[it] = isColorFormat
             ? (VkClearValue) { .color = { 0, 0, 0, 1, } }
-            : (VkClearValue) { .depthStencil = { 1, 0 } };
+            : (VkClearValue) { .depthStencil = { 0, 0 } };
     }
     return (SeRenderObject*)pass;
 }

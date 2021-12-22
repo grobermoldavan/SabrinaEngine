@@ -14,6 +14,7 @@ typedef struct InputVertex
     float pad1;
     SeFloat2 uv;
     float pad2[2];
+    SeFloat4 color;
 } InputVertex;
 
 typedef struct InputInstanceData
@@ -69,7 +70,7 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
     {
         SeWindowSubsystemCreateInfo createInfo = (SeWindowSubsystemCreateInfo)
         {
-            .name           = "Drawing quad",
+            .name           = "Sabrina engine - triangle example",
             .isFullscreen   = false,
             .isResizable    = false,
             .width          = 640,
@@ -91,8 +92,8 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
     // Create shaders
     //
     {
-        vs = sync_load_shader("assets/default/shaders/flat.vert.spv");
-        fs = sync_load_shader("assets/default/shaders/flat.frag.spv");
+        vs = sync_load_shader("assets/default/shaders/flat_color.vert.spv");
+        fs = sync_load_shader("assets/default/shaders/flat_color.frag.spv");
     }
     //
     // Create render pass
@@ -177,13 +178,15 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
     //
     {
         const float aspect = (float)windowInterface->get_width(windowHandle) / (float)windowInterface->get_height(windowHandle);
+        SeFloat4x4 projection;
+        renderInterface->perspective_projection_matrix(&projection, 60, aspect, 0.1f, 100.0f);
         FrameData data =
         {
             .viewProjection = se_f4x4_transposed
             (
                 se_f4x4_mul_f4x4
                 (
-                    se_perspective_projection(60, aspect, 0.1f, 100.0f),
+                    projection,
                     se_f4x4_inverted(se_look_at((SeFloat3){ 0, 0, 0 }, (SeFloat3){ 0, 0, 1 }, (SeFloat3){ 0, 1, 0 }))
                 )
             ),
@@ -202,9 +205,9 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
     {
         InputVertex vertices[] =
         {
-            { .positionLS = { -1, -1, 3 }, .uv = { 0, 0 } },
-            { .positionLS = {  1, -1, 3 }, .uv = { 1, 1 } },
-            { .positionLS = {  0,  1, 3 }, .uv = { 1, 0 } },
+            { .positionLS = { -1, -1, 3 }, .uv = { 0, 0 }, .color = { 0.7f, 0.5f, 0.5f, 1.0f, } },
+            { .positionLS = {  1, -1, 3 }, .uv = { 1, 1 }, .color = { 0.7f, 0.5f, 0.5f, 1.0f, } },
+            { .positionLS = {  0,  1, 3 }, .uv = { 1, 0 }, .color = { 0.7f, 0.5f, 0.5f, 1.0f, } },
         };
         SeMemoryBufferCreateInfo createInfo = (SeMemoryBufferCreateInfo)
         {
@@ -266,7 +269,7 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
     renderInterface->begin_frame(renderDevice);
     {
         SeRenderObject* framebuffer = framebuffers[renderInterface->get_active_swap_chain_texture_index(renderDevice)];
-        SeRenderObject* bindings0[] = { frameDataBuffer, }; 
+        SeRenderObject* bindings0[] = { frameDataBuffer, };
         SeRenderObject* bindings1[] = { verticesBuffer, instancesBuffer, };
         SeResourceSetCreateInfo setCreateInfos[] =
         {

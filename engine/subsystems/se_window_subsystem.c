@@ -2,34 +2,28 @@
 #include "se_window_subsystem.h"
 #include "engine/engine.h"
 
-#ifdef _WIN32
-#   define SE_WINDOW_IFACE_FUNC __declspec(dllexport)
-#else
-#   error Unsupported platform
-#endif
-
 static void fill_iface(SeWindowSubsystemInterface* iface);
 static void process_windows();
 static void destroy_windows();
 
 static SeWindowSubsystemInterface g_Iface;
 
-SE_WINDOW_IFACE_FUNC void se_init(SabrinaEngine* engine)
+SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 {
     fill_iface(&g_Iface);
 }
 
-SE_WINDOW_IFACE_FUNC void se_terminate(SabrinaEngine* engine)
+SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
 {
     destroy_windows();
 }
 
-SE_WINDOW_IFACE_FUNC void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
+SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
 {
     process_windows();
 }
 
-SE_WINDOW_IFACE_FUNC void* se_get_interface(SabrinaEngine* engine)
+SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
 {
     return &g_Iface;
 }
@@ -111,7 +105,7 @@ static SeWindowHandle win32_window_create(SeWindowSubsystemCreateInfo* createInf
     SeWindowWin32* window = win32_get_new_window();
 
     HMODULE moduleHandle = GetModuleHandle(NULL);
-    
+
     WNDCLASSA wc = {0};
     wc.lpfnWndProc      = win32_window_proc;
     wc.hInstance        = moduleHandle;
@@ -121,18 +115,18 @@ static SeWindowHandle win32_window_create(SeWindowSubsystemCreateInfo* createInf
     const bool isClassRegistered = RegisterClassA(&wc);
     // al_assert(isClassRegistered);
 
-    const DWORD windowedStyleNoResize = 
+    const DWORD windowedStyleNoResize =
         WS_OVERLAPPED   |           // Window has title and borders
         WS_SYSMENU      |           // Add sys menu (close button)
         WS_MINIMIZEBOX  ;           // Add minimize button
 
-    const DWORD windowedStyleResize = 
+    const DWORD windowedStyleResize =
         WS_OVERLAPPED   |           // Window has title and borders
         WS_SYSMENU      |           // Add sys menu (close button)
         WS_MINIMIZEBOX  |           // Add minimize button
         WS_MAXIMIZEBOX  |           // Add maximize button
         WS_SIZEBOX      ;           // Add ability to resize window by dragging it's frame
-    
+
     const DWORD fullscreenStyle = WS_POPUP;
 
     DWORD activeStyle = createInfo->isFullscreen ? fullscreenStyle : (createInfo->isResizable ? windowedStyleResize : windowedStyleNoResize);
@@ -150,7 +144,7 @@ static SeWindowHandle win32_window_create(SeWindowSubsystemCreateInfo* createInf
         CW_USEDEFAULT,      // Position Y
         targetWidth,        // Size X
         targetHeight,       // Size Y
-        NULL,               // Parent window    
+        NULL,               // Parent window
         NULL,               // Menu
         moduleHandle,       // Instance handle
         NULL                // Additional application data
@@ -222,6 +216,7 @@ static void* win32_window_get_native_handle(SeWindowHandle handle)
 
 static void win32_window_process(SeWindowWin32* window)
 {
+    memcpy(window->input.keyboardButtonsPrevious, window->input.keyboardButtonsCurrent, sizeof(window->input.keyboardButtonsPrevious));
     MSG msg = {0};
     while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
     {
@@ -607,14 +602,14 @@ static bool win32_window_process_keyboard_input(SeWindowWin32* window, UINT mess
         {
             uint64_t flag = VK_CODE_TO_KEYBOARD_FLAGS[wParam];
             uint64_t id = flag / 64ULL;
-            window->input.keyboardButtons[id] |= BIT(flag - id * 64);
+            window->input.keyboardButtonsCurrent[id] |= BIT(flag - id * 64);
             break;
         }
         case WM_KEYUP:
         {
             uint64_t flag = VK_CODE_TO_KEYBOARD_FLAGS[wParam];
             uint64_t id = flag / 64ULL;
-            window->input.keyboardButtons[id] &= ~BIT(flag - id * 64);
+            window->input.keyboardButtonsCurrent[id] &= ~BIT(flag - id * 64);
             break;
         }
         default:

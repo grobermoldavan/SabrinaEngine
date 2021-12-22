@@ -1,6 +1,16 @@
 #ifndef _SE_MATH_H_
 #define _SE_MATH_H_
 
+/*
+    Sabrina Engine math library.
+
+    Coordinate system is left handed.
+    Positive X - right direction
+    Positive Y - up direction
+    Positive Z - forward direction
+    Cross product is right handed (https://en.wikipedia.org/wiki/Cross_product)
+*/
+
 #include <math.h>
 
 #define SE_PI 3.14159265358979323846
@@ -17,12 +27,12 @@ typedef struct SeFloat2
 {
     union
     {
-        struct 
+        struct
         {
             float x;
             float y;
         };
-        struct 
+        struct
         {
             float u;
             float v;
@@ -44,13 +54,13 @@ typedef struct SeFloat3
 {
     union
     {
-        struct 
+        struct
         {
             float x;
             float y;
             float z;
         };
-        struct 
+        struct
         {
             float r;
             float g;
@@ -74,14 +84,14 @@ typedef struct SeFloat4
 {
     union
     {
-        struct 
+        struct
         {
             float x;
             float y;
             float z;
             float w;
         };
-        struct 
+        struct
         {
             float r;
             float g;
@@ -252,7 +262,6 @@ SeFloat4    se_f4_div(SeFloat4 vec, float value)        { return (SeFloat4){ vec
 float       se_f4_len(SeFloat4 vec)                     { return sqrt(vec.x * vec.x + vec.y * vec.y + vec.z * vec.z + vec.w * vec.w); }
 float       se_f4_len2(SeFloat4 vec)                    { return vec.x * vec.x + vec.y * vec.y + vec.z * vec.z + vec.w * vec.w; }
 SeFloat4    se_f4_normalized(SeFloat4 vec)              { float length = se_f4_len(vec); return (SeFloat4){ vec.x / length, vec.y / length, vec.z / length, vec.w / length }; }
-SeFloat4    se_f4_cross(SeFloat4 a, SeFloat4 b)         { return (SeFloat4){ a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x }; }
 
 SeFloat4x4 se_f4x4_mul_f4x4(SeFloat4x4 first, SeFloat4x4 second)
 {
@@ -536,7 +545,7 @@ SeQuaternion se_q_from_rotation_mat(SeFloat4x4 mat)
 {
     const float tr = mat._00 + mat._11 + mat._22;
     if (!se_is_equal_float(tr, 0.0f) && tr > 0.0f)
-    { 
+    {
         float S = sqrt(tr + 1.0f) * 2.0f;
         return (SeQuaternion)
         {
@@ -547,7 +556,7 @@ SeQuaternion se_q_from_rotation_mat(SeFloat4x4 mat)
         };
     }
     else if ((mat._00 > mat._11) && (mat._00 > mat._22))
-    { 
+    {
         float S = sqrt(1.0f + mat._00 - mat._11 - mat._22) * 2.0f;
         return (SeQuaternion)
         {
@@ -558,7 +567,7 @@ SeQuaternion se_q_from_rotation_mat(SeFloat4x4 mat)
         };
     }
     else if (mat._11 > mat._22)
-    { 
+    {
         float S = sqrt(1.0f + mat._11 - mat._00 - mat._22) * 2.0f;
         return (SeQuaternion)
         {
@@ -569,7 +578,7 @@ SeQuaternion se_q_from_rotation_mat(SeFloat4x4 mat)
         };
     }
     else
-    { 
+    {
         float S = sqrt(1.0f + mat._22 - mat._00 - mat._11) * 2.0f;
         return (SeQuaternion)
         {
@@ -762,7 +771,7 @@ void se_t_set_position(SeTransform* trf, SeFloat3 position)
 void se_t_set_rotation(SeTransform* trf, SeFloat3 eulerAngles)
 {
     SeFloat4x4 tr = se_f4x4_translation(se_t_get_position(trf));
-    SeFloat4x4 rt = se_f4x4_rotation(eulerAngles); 
+    SeFloat4x4 rt = se_f4x4_rotation(eulerAngles);
     SeFloat4x4 sc = se_f4x4_scale(se_t_get_scale(trf));
     trf->matrix = se_f4x4_mul_f4x4(tr, se_f4x4_mul_f4x4(rt, sc));
 }
@@ -770,7 +779,7 @@ void se_t_set_rotation(SeTransform* trf, SeFloat3 eulerAngles)
 void se_t_set_scale(SeTransform* trf, SeFloat3 scale)
 {
     SeFloat4x4 tr = se_f4x4_translation(se_t_get_position(trf));
-    SeFloat4x4 rt = se_f4x4_rotation(se_t_get_rotation(trf)); 
+    SeFloat4x4 rt = se_f4x4_rotation(se_t_get_rotation(trf));
     SeFloat4x4 sc = se_f4x4_scale(scale);
     trf->matrix = se_f4x4_mul_f4x4(tr, se_f4x4_mul_f4x4(rt, sc));
 }
@@ -781,18 +790,6 @@ void se_t_look_at(SeTransform* trf, SeFloat3 from, SeFloat3 to, SeFloat3 up)
     SeFloat4x4 rt = se_look_at(from, to, up);
     SeFloat4x4 sc = se_f4x4_scale(se_t_get_scale(trf));
     trf->matrix = se_f4x4_mul_f4x4(tr, se_f4x4_mul_f4x4(rt, sc));
-}
-
-SeFloat4x4 se_perspective_projection(float fovDeg, float aspect, float nearPlane, float farPlane)
-{
-    SeFloat4x4 result = SE_F4X4_IDENTITY;
-    const float tanHalfFov = tan(se_to_radians(fovDeg) / 2.0f);
-    result.m[0][0] = 1.0f / (aspect * tanHalfFov);
-    result.m[1][1] = 1.0f / tanHalfFov;
-    result.m[2][2] = 1.0f * (farPlane + nearPlane) / (farPlane - nearPlane);
-    result.m[3][2] = 1.0f;
-    result.m[2][3] = -1.0f * (2.0f * farPlane * nearPlane) / (farPlane - nearPlane);
-    return result;
 }
 
 SeFloat4x4 se_look_at(SeFloat3 from, SeFloat3 to, SeFloat3 up)

@@ -1,16 +1,7 @@
 
 #include <string.h>
-
 #include "se_stack_allocator_subsystem.h"
-
-#define SE_DEBUG_IMPL
 #include "engine/engine.h"
-
-#ifdef _WIN32
-#   define SE_STACK_IFACE_FUNC __declspec(dllexport)
-#else
-#   error Unsupported platform
-#endif
 
 void se_stack_construct_allocator(SePlatformInterface* platformIface, SeStackAllocator* allocator, size_t capacity);
 void se_stack_destruct_allocator(SeStackAllocator* allocator);
@@ -22,7 +13,7 @@ void se_stack_dealloc(SeStackAllocator* allocator, void* ptr, size_t size);
 
 static SeStackAllocatorSubsystemInterface g_Iface;
 
-SE_STACK_IFACE_FUNC void se_load(SabrinaEngine* engine)
+SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
 {
     g_Iface = (SeStackAllocatorSubsystemInterface)
     {
@@ -32,7 +23,7 @@ SE_STACK_IFACE_FUNC void se_load(SabrinaEngine* engine)
     };
 }
 
-SE_STACK_IFACE_FUNC void* se_get_interface(SabrinaEngine* engine)
+SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
 {
     return &g_Iface;
 }

@@ -212,12 +212,8 @@ typedef struct SeStencilOpState
 
 typedef struct SeDepthTestState
 {
-    float minDepthBounds;
-    float maxDepthBounds;
     bool isTestEnabled;
     bool isWriteEnabled;
-    bool isBoundsTestEnabled;
-    SeCompareOp compareOp;
 } SeDepthTestState;
 
 typedef struct SeGraphicsRenderPipelineCreateInfo
@@ -308,6 +304,7 @@ typedef struct SeRenderAbstractionSubsystemInterface
     void            (*command_bind_pipeline)                (SeRenderObject* cmdBuffer, SeCommandBindPipelineInfo* commandInfo);
     void            (*command_draw)                         (SeRenderObject* cmdBuffer, SeCommandDrawInfo* commandInfo);
     void            (*command_bind_resource_set)            (SeRenderObject* cmdBuffer, SeCommandBindResourceSetInfo* commandInfo);
+    void            (*perspective_projection_matrix)        (struct SeFloat4x4* result, float fovDeg, float aspect, float nearPlane, float farPlane);
 } SeRenderAbstractionSubsystemInterface;
 
 #endif

@@ -4,6 +4,7 @@ struct InputVertex
 {
     vec3 positionLS;
     vec2 uv;
+    vec4 color;
 };
 
 struct InputInstanceData
@@ -27,6 +28,7 @@ layout(std140, set = 1, binding = 1) readonly buffer InputInstances
 } se_inputInstances;
 
 layout (location = 0) out vec2 outUv;
+layout (location = 1) out vec4 outColor;
 
 void main()
 {
@@ -34,4 +36,5 @@ void main()
     InputVertex vert = se_inputGeometry.vertices[gl_VertexIndex];
     gl_Position = se_frameData.viewProjection * instanceData.transformWS * vec4(vert.positionLS, 1);
     outUv = vert.uv;
+    outColor = vert.color;
 }

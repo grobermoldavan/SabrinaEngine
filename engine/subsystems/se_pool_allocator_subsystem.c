@@ -3,15 +3,7 @@
 #include "engine/common_includes.h"
 #include "engine/allocator_bindings.h"
 #include "engine/platform.h"
-
-#define SE_DEBUG_IMPL
 #include "engine/debug.h"
-
-#ifdef _WIN32
-#   define SE_POOL_ALLOCATOR_IFACE_FUNC __declspec(dllexport)
-#else
-#   error Unsupported platform
-#endif
 
 typedef struct SePoolMemoryBucketCompareInfo
 {
@@ -29,7 +21,7 @@ void se_pool_allocator_dealloc(SePoolAllocator* allocator, void* ptr, size_t siz
 
 static SePoolAllocatorSubsystemInterface g_iface;
 
-SE_POOL_ALLOCATOR_IFACE_FUNC void se_load(struct SabrinaEngine* engine)
+SE_DLL_EXPORT void se_load(struct SabrinaEngine* engine)
 {
     g_iface = (SePoolAllocatorSubsystemInterface)
     {
@@ -39,7 +31,7 @@ SE_POOL_ALLOCATOR_IFACE_FUNC void se_load(struct SabrinaEngine* engine)
     };
 }
 
-SE_POOL_ALLOCATOR_IFACE_FUNC void* se_get_interface(struct SabrinaEngine* engine)
+SE_DLL_EXPORT void* se_get_interface(struct SabrinaEngine* engine)
 {
     return &g_iface;
 }

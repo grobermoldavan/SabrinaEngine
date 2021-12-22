@@ -7,6 +7,7 @@ set build_folder_examples=%bat_file_dir%\win32_debug\
 
 call :message "[MESSAGE] Bat file dir: %bat_file_dir%"
 call :message "[MESSAGE] Build dir: %build_folder_examples%"
+rmdir /s /q %build_folder_examples%
 md %build_folder_examples%
 
 call :message "[MESSAGE] Call some msvc specific stuff"

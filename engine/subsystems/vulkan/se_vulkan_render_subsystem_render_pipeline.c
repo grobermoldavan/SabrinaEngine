@@ -363,6 +363,12 @@ SeRenderObject* se_vk_render_pipeline_graphics_create(SeGraphicsRenderPipelineCr
         VkPipelineMultisampleStateCreateInfo multisampleState = se_vk_utils_multisample_state_create_info(se_vk_utils_pick_sample_count(se_vk_utils_to_vk_sample_count(createInfo->multisamplingType), se_vk_device_get_supported_framebuffer_multisample_types(createInfo->device)));
         VkStencilOpState frontStencilOpState = isStencilSupported && createInfo->frontStencilOpState ? se_vk_render_pipeline_stencil_op_state(createInfo->frontStencilOpState) : (VkStencilOpState){0};
         VkStencilOpState backStencilOpState = isStencilSupported && createInfo->backStencilOpState ? se_vk_render_pipeline_stencil_op_state(createInfo->backStencilOpState) : (VkStencilOpState){0};
+        //
+        // @NOTE : Engine always uses reverse depth, so depthCompareOp is hardcoded to VK_COMPARE_OP_GREATER.
+        //         If you want to change this, then se_vk_perspective_projection_matrix must be reevaluated in
+        //         order to remap Z coord to the new range (instead of [1, 0]), as well as render pass depth
+        //         clear values.
+        //
         VkPipelineDepthStencilStateCreateInfo depthStencilState = (VkPipelineDepthStencilStateCreateInfo)
         {
             .sType                  = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
@@ -370,13 +376,13 @@ SeRenderObject* se_vk_render_pipeline_graphics_create(SeGraphicsRenderPipelineCr
             .flags                  = 0,
             .depthTestEnable        = createInfo->depthTestState ? se_vk_utils_to_vk_bool(createInfo->depthTestState->isTestEnabled) : VK_FALSE,
             .depthWriteEnable       = createInfo->depthTestState ? se_vk_utils_to_vk_bool(createInfo->depthTestState->isWriteEnabled) : VK_FALSE,
-            .depthCompareOp         = createInfo->depthTestState ? se_vk_utils_to_vk_compare_op(createInfo->depthTestState->compareOp) : VK_COMPARE_OP_ALWAYS,
-            .depthBoundsTestEnable  = createInfo->depthTestState ? se_vk_utils_to_vk_bool(createInfo->depthTestState->isBoundsTestEnabled) : VK_FALSE,
+            .depthCompareOp         = createInfo->depthTestState ? VK_COMPARE_OP_GREATER : VK_COMPARE_OP_ALWAYS,
+            .depthBoundsTestEnable  = VK_FALSE,
             .stencilTestEnable      = se_vk_utils_to_vk_bool(isStencilSupported && (createInfo->frontStencilOpState || createInfo->backStencilOpState)),
             .front                  = frontStencilOpState,
             .back                   = backStencilOpState,
-            .minDepthBounds         = createInfo->depthTestState ? createInfo->depthTestState->minDepthBounds : 0.0f,
-            .maxDepthBounds         = createInfo->depthTestState ? createInfo->depthTestState->maxDepthBounds : 1.0f,
+            .minDepthBounds         = 0.0f,
+            .maxDepthBounds         = 0.0f,
         };
         VkPipelineColorBlendAttachmentState colorBlendAttachments[32] = { 0 /* COLOR BLENDING IS UNSUPPORTED */ };
         for (size_t it = 0; it < se_array_size(colorBlendAttachments); it++) colorBlendAttachments[it].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;

@@ -1,6 +1,6 @@
 
 #include "engine/engine.h"
-#include "subsystems/offscreen_subsystem.h"
+#include "subsystems/tetris_subsystem.h"
 
 int main(int argc, char* argv[])
 {
@@ -11,7 +11,7 @@ int main(int argc, char* argv[])
     se_add_subsystem(SE_APPLICATION_ALLOCATORS_SUBSYSTEM_NAME, &engine);
     se_add_subsystem(SE_WINDOW_SUBSYSTEM_NAME, &engine);
     se_add_subsystem(SE_VULKAN_RENDER_SUBSYSTEM_NAME, &engine);
-    se_add_subsystem(OFFSCREEN_SUBSYSTEM_NAME, &engine);
+    se_add_subsystem(TETRIS_SUBSYSTEM_NAME, &engine);
     se_run(&engine);
     return 0;
 }

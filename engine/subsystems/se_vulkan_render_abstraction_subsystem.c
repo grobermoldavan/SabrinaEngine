@@ -15,16 +15,33 @@
 #include "vulkan/se_vulkan_render_subsystem_resource_set.h"
 #include "engine/engine.h"
 
-#ifdef _WIN32
-#   define SE_VULKAN_IFACE_FUNC __declspec(dllexport)
-#else
-#   error Unsupported platform
-#endif
-
 static SeRenderAbstractionSubsystemInterface g_Iface;
 static SeWindowSubsystemInterface* g_windowIface;
 
-SE_VULKAN_IFACE_FUNC void se_load(SabrinaEngine* engine)
+static void se_vk_perspective_projection_matrix(SeFloat4x4* result, float fovDeg, float aspect, float nearPlane, float farPlane)
+{
+    //
+    // https://vincent-p.github.io/posts/vulkan_perspective_matrix/
+    // @NOTE : This matrix works for reverse depth (near plane = 1, far plane = 0).
+    //         If you want to change this, then render pass clear values must be reevaluated
+    //         as well as render pipeline depthCompareOp.
+    // @NOTE : This matrix works for coordinate system used in se_math.h (forward == positive z)
+    //
+    const float focalLength = 1.0f / tan(se_to_radians(fovDeg) / 2.0f);
+    const float x  =  focalLength / aspect;
+    const float y  = -focalLength;
+    const float A  = nearPlane / (nearPlane - farPlane);
+    const float B  = A * -farPlane;
+    *result = (SeFloat4x4)
+    {
+        x,    0.0f,  0.0f, 0.0f,
+        0.0f,    y,  0.0f, 0.0f,
+        0.0f, 0.0f,     A,    B,
+        0.0f, 0.0f,  1.0f, 0.0f,
+    };
+}
+
+SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
 {
     g_Iface = (SeRenderAbstractionSubsystemInterface)
     {
@@ -50,16 +67,17 @@ SE_VULKAN_IFACE_FUNC void se_load(SabrinaEngine* engine)
         .command_bind_pipeline                  = se_vk_command_buffer_bind_pipeline,
         .command_draw                           = se_vk_command_buffer_draw,
         .command_bind_resource_set              = se_vk_command_bind_resource_set,
+        .perspective_projection_matrix          = se_vk_perspective_projection_matrix,
     };
 }
 
-SE_VULKAN_IFACE_FUNC void se_init(SabrinaEngine* engine)
+SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 {
     se_vk_check(volkInitialize());
     g_windowIface = (SeWindowSubsystemInterface*)engine->find_subsystem_interface(engine, SE_WINDOW_SUBSYSTEM_NAME);
 }
 
-SE_VULKAN_IFACE_FUNC void* se_get_interface(SabrinaEngine* engine)
+SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
 {
     return &g_Iface;
 }

@@ -9,7 +9,7 @@
 
 const char** se_vk_utils_get_required_validation_layers(size_t* outNum)
 {
-    static const char* VALIDATION_LAYERS[] = 
+    static const char* VALIDATION_LAYERS[] =
     {
         "VK_LAYER_KHRONOS_validation",
     };
@@ -19,7 +19,7 @@ const char** se_vk_utils_get_required_validation_layers(size_t* outNum)
 
 const char** se_vk_utils_get_required_instance_extensions(size_t* outNum)
 {
-    static const char* WINDOWS_INSTANCE_EXTENSIONS[] = 
+    static const char* WINDOWS_INSTANCE_EXTENSIONS[] =
     {
         "VK_KHR_surface",
         "VK_KHR_win32_surface",
@@ -31,7 +31,7 @@ const char** se_vk_utils_get_required_instance_extensions(size_t* outNum)
 
 const char** se_vk_utils_get_required_device_extensions(size_t* outNum)
 {
-    static const char* DEVICE_EXTENSIONS[] = 
+    static const char* DEVICE_EXTENSIONS[] =
     {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
     };
