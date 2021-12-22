@@ -472,9 +472,38 @@ void tetris_render_init(TetrisRenderInitInfo* initInfo)
     }
 }
 
-void tetris_render_terminate()
+void tetris_render_terminate(TetrisRenderState* renderState)
 {
+    renderState->renderInterface->device_wait(renderState->renderDevice);
 
+    for (size_t it = 0; it < se_sbuffer_size(renderState->cubeInstanceBuffers); it++)
+        renderState->cubeInstanceBuffers[it]->destroy(renderState->cubeInstanceBuffers[it]);
+    se_sbuffer_destroy(renderState->cubeInstanceBuffers);
+    renderState->cubeIndicesBuffer->destroy(renderState->cubeIndicesBuffer);
+    renderState->cubeVerticesBuffer->destroy(renderState->cubeVerticesBuffer);
+    renderState->frameDataBuffer->destroy(renderState->frameDataBuffer);
+
+    renderState->gridInstanceBuffer->destroy(renderState->gridInstanceBuffer);
+    renderState->gridIndicesBuffer->destroy(renderState->gridIndicesBuffer);
+    renderState->gridVerticesBuffer->destroy(renderState->gridVerticesBuffer);
+
+    renderState->drawFramebuffer->destroy(renderState->drawFramebuffer);
+    renderState->drawDepthTexture->destroy(renderState->drawDepthTexture);
+    renderState->drawColorTexture->destroy(renderState->drawColorTexture);
+    renderState->drawRenderPipeline->destroy(renderState->drawRenderPipeline);
+    renderState->drawFs->destroy(renderState->drawFs);
+    renderState->drawVs->destroy(renderState->drawVs);
+    renderState->drawRenderPass->destroy(renderState->drawRenderPass);
+
+    for (size_t it = 0; it < se_sbuffer_size(renderState->presentFramebuffers); it++)
+        renderState->presentFramebuffers[it]->destroy(renderState->presentFramebuffers[it]);
+    se_sbuffer_destroy(renderState->presentFramebuffers);
+    renderState->presentRenderPipeline->destroy(renderState->presentRenderPipeline);
+    renderState->presentFs->destroy(renderState->presentFs);
+    renderState->presentVs->destroy(renderState->presentVs);
+    renderState->presentRenderPass->destroy(renderState->presentRenderPass);
+
+    renderState->renderDevice->destroy(renderState->renderDevice);
 }
 
 void tetris_render_update(TetrisRenderState* renderState, TetrisState* state, const SeWindowSubsystemInput* input, float dt)

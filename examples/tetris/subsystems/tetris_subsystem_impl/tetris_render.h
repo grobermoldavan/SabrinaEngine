@@ -44,7 +44,7 @@ typedef struct TetrisRenderState
 } TetrisRenderState;
 
 void tetris_render_init(TetrisRenderInitInfo* initInfo);
-void tetris_render_terminate();
+void tetris_render_terminate(TetrisRenderState* renderState);
 void tetris_render_update(TetrisRenderState* renderState, struct TetrisState* state, const struct SeWindowSubsystemInput* input, float dt);
 
 #endif

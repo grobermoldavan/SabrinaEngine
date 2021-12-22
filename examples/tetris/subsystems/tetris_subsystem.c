@@ -26,7 +26,7 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 
 SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
 {
-    tetris_render_terminate();
+    tetris_render_terminate(&tetrisRenderState);
     windowInterface->destroy(windowHandle);
 }
 
