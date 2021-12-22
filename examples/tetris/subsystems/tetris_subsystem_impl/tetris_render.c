@@ -2,7 +2,6 @@
 #include <string.h>
 #include "tetris_render.h"
 #include "tetris_controller.h"
-#include "../debug_camera.h"
 #include "engine/engine.h"
 
 typedef struct FrameData

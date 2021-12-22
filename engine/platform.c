@@ -29,6 +29,7 @@ static SeHandle se_platform_load_dynamic_library(const char** possibleLibPaths, 
         handle = LoadLibraryA(possibleLibPaths[it]);
         if (handle) break;
     }
+    se_assert_msg(handle, possibleLibPaths[0]);
     SeHandle result = {0};
     memcpy(&result, &handle, sizeof(handle));
     return result;
@@ -92,9 +93,9 @@ uint64_t se_platform_atomic_64_bit_load(uint64_t* val, SeMemoryOrder memoryOrder
 {
     se_assert
     (
-        memoryOrder != SE_RELAXED && 
-        memoryOrder != SE_CONSUME && 
-        memoryOrder != SE_ACQUIRE && 
+        memoryOrder != SE_RELAXED &&
+        memoryOrder != SE_CONSUME &&
+        memoryOrder != SE_ACQUIRE &&
         memoryOrder != SE_SEQUENTIALLY_CONSISTENT
     );
     uint64_t loaded = *val;
@@ -106,8 +107,8 @@ uint64_t se_platform_atomic_64_bit_store(uint64_t* val, uint64_t newValue, SeMem
 {
     se_assert
     (
-        memoryOrder != SE_RELAXED && 
-        memoryOrder != SE_RELEASE && 
+        memoryOrder != SE_RELAXED &&
+        memoryOrder != SE_RELEASE &&
         memoryOrder != SE_SEQUENTIALLY_CONSISTENT
     );
     *val = newValue;
@@ -142,9 +143,9 @@ uint32_t se_platform_atomic_32_bit_load(uint32_t* val, SeMemoryOrder memoryOrder
 {
     se_assert
     (
-        memoryOrder != SE_RELAXED && 
-        memoryOrder != SE_CONSUME && 
-        memoryOrder != SE_ACQUIRE && 
+        memoryOrder != SE_RELAXED &&
+        memoryOrder != SE_CONSUME &&
+        memoryOrder != SE_ACQUIRE &&
         memoryOrder != SE_SEQUENTIALLY_CONSISTENT
     );
     uint32_t loaded = *val;
@@ -156,8 +157,8 @@ uint32_t se_platform_atomic_32_bit_store(uint32_t* val, uint32_t newValue, SeMem
 {
     se_assert
     (
-        memoryOrder != SE_RELAXED && 
-        memoryOrder != SE_RELEASE && 
+        memoryOrder != SE_RELAXED &&
+        memoryOrder != SE_RELEASE &&
         memoryOrder != SE_SEQUENTIALLY_CONSISTENT
     );
     *val = newValue;
@@ -196,7 +197,7 @@ void se_platform_file_load(SeFile* file, const char* path, SeFileLoadMode loadMo
         FILE_ATTRIBUTE_NORMAL /*| FILE_FLAG_WRITE_THROUGH // ? */,
         NULL
     );
-    se_assert(handle != INVALID_HANDLE_VALUE);
+    se_assert_msg(handle != INVALID_HANDLE_VALUE, path);
     file->flags = SE_FILE_IS_LOADED;
     memcpy(&file->handle, &handle, sizeof(HANDLE));
 }

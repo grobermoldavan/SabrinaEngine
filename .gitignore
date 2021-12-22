@@ -1,4 +1,5 @@
 win32_debug/*
+win32_release/*
 .vscode/*
 CSI.*
 *.spv.dis
