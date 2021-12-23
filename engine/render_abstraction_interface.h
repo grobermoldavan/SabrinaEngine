@@ -70,13 +70,17 @@ typedef enum SePipelineFrontFace
     SE_PIPELINE_FRONT_FACE_COUNTER_CLOCKWISE,
 } SePipelineFrontFace;
 
-typedef enum SeMultisamplingType
+typedef enum SeSamplingType
 {
-    SE_SAMPLE_1,
-    SE_SAMPLE_2,
-    SE_SAMPLE_4,
-    SE_SAMPLE_8,
-} SeMultisamplingType;
+    SE_SAMPLING_1  = 0x00000001,
+    SE_SAMPLING_2  = 0x00000002,
+    SE_SAMPLING_4  = 0x00000004,
+    SE_SAMPLING_8  = 0x00000008,
+    SE_SAMPLING_16 = 0x00000010,
+    SE_SAMPLING_32 = 0x00000020,
+    SE_SAMPLING_64 = 0x00000040,
+} SeSamplingType;
+typedef uint32_t SeSamplingFlags;
 
 typedef enum SeStencilOp
 {
@@ -175,7 +179,7 @@ typedef struct SeRenderPassAttachment
     SeTextureFormat format;
     SeAttachmentLoadOp loadOp;
     SeAttachmentStoreOp storeOp;
-    SeMultisamplingType samples;
+    SeSamplingType sampling;
 } SeRenderPassAttachment;
 
 typedef struct SeRenderPassSubpass
@@ -229,7 +233,7 @@ typedef struct SeGraphicsRenderPipelineCreateInfo
     SePipelinePoligonMode poligonMode;
     SePipelineCullMode cullMode;
     SePipelineFrontFace frontFace;
-    SeMultisamplingType multisamplingType;
+    SeSamplingType samplingType;
 } SeGraphicsRenderPipelineCreateInfo;
 
 typedef struct SeFramebufferCreateInfo
@@ -287,6 +291,7 @@ typedef struct SeRenderAbstractionSubsystemInterface
     size_t          (*get_swap_chain_textures_num)          (SeRenderObject* device);
     SeRenderObject* (*get_swap_chain_texture)               (SeRenderObject* device, size_t textureIndex);
     size_t          (*get_active_swap_chain_texture_index)  (SeRenderObject* device);
+    SeSamplingFlags (*get_supported_sampling_types)         (SeRenderObject* device);
     void            (*begin_frame)                          (SeRenderObject* device);
     void            (*end_frame)                            (SeRenderObject* device);
     SeRenderObject* (*program_create)                       (SeRenderProgramCreateInfo* createInfo);

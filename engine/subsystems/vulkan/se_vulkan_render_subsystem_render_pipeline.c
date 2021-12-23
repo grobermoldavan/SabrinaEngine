@@ -360,7 +360,7 @@ SeRenderObject* se_vk_render_pipeline_graphics_create(SeGraphicsRenderPipelineCr
         SeVkViewportScissor viewportScissor = se_vk_utils_default_viewport_scissor(swapChainExtent.width, swapChainExtent.height);
         VkPipelineViewportStateCreateInfo viewportState = se_vk_utils_viewport_state_create_info(&viewportScissor.viewport, &viewportScissor.scissor);
         VkPipelineRasterizationStateCreateInfo rasterizationState = se_vk_utils_rasterization_state_create_info(se_vk_utils_to_vk_polygon_mode(createInfo->poligonMode), se_vk_utils_to_vk_cull_mode(createInfo->cullMode), se_vk_utils_to_vk_front_face(createInfo->frontFace));
-        VkPipelineMultisampleStateCreateInfo multisampleState = se_vk_utils_multisample_state_create_info(se_vk_utils_pick_sample_count(se_vk_utils_to_vk_sample_count(createInfo->multisamplingType), se_vk_device_get_supported_framebuffer_multisample_types(createInfo->device)));
+        VkPipelineMultisampleStateCreateInfo multisampleState = se_vk_utils_multisample_state_create_info(se_vk_utils_pick_sample_count(se_vk_utils_to_vk_sample_count(createInfo->samplingType), se_vk_device_get_supported_framebuffer_multisample_types(createInfo->device)));
         VkStencilOpState frontStencilOpState = isStencilSupported && createInfo->frontStencilOpState ? se_vk_render_pipeline_stencil_op_state(createInfo->frontStencilOpState) : (VkStencilOpState){0};
         VkStencilOpState backStencilOpState = isStencilSupported && createInfo->backStencilOpState ? se_vk_render_pipeline_stencil_op_state(createInfo->backStencilOpState) : (VkStencilOpState){0};
         //

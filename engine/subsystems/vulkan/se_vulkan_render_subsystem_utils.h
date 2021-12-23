@@ -56,7 +56,7 @@ VkAttachmentStoreOp                     se_vk_utils_to_vk_store_op(enum SeAttach
 VkPolygonMode                           se_vk_utils_to_vk_polygon_mode(enum SePipelinePoligonMode mode);
 VkCullModeFlags                         se_vk_utils_to_vk_cull_mode(enum SePipelineCullMode mode);
 VkFrontFace                             se_vk_utils_to_vk_front_face(enum SePipelineFrontFace frontFace);
-VkSampleCountFlagBits                   se_vk_utils_to_vk_sample_count(enum SeMultisamplingType multisample);
+VkSampleCountFlagBits                   se_vk_utils_to_vk_sample_count(enum SeSamplingType sampling);
 VkSampleCountFlagBits                   se_vk_utils_pick_sample_count(VkSampleCountFlags desired, VkSampleCountFlags supported);
 VkStencilOp                             se_vk_utils_to_vk_stencil_op(enum SeStencilOp op);
 VkCompareOp                             se_vk_utils_to_vk_compare_op(enum SeCompareOp op);

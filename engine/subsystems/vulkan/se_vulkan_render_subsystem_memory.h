@@ -2,15 +2,8 @@
 #define _SE_VULKAN_RENDER_SUBSYSTEM_MEMORY_H_
 
 #include <inttypes.h>
-
 #include "se_vulkan_render_subsystem_base.h"
-
-#define SE_VK_MAX_CPU_ALLOCATIONS 8192
-
-#define SE_VK_GPU_MEMORY_BLOCK_SIZE_BYTES   64ull
-#define SE_VK_GPU_CHUNK_SIZE_BYTES          (64ull * 1024ull * 1024ull)
-#define SE_VK_GPU_CHUNK_LEDGER_SIZE_BYTES   (SE_VK_GPU_CHUNK_SIZE_BYTES / SE_VK_GPU_MEMORY_BLOCK_SIZE_BYTES / 8ull)
-#define SE_VK_GPU_MAX_CHUNKS                64ull
+#include "engine/containers.h"
 
 typedef struct SeVkMemoryManagerCreateInfo
 {
@@ -34,37 +27,23 @@ typedef struct SeVkMemory
     void* mappedMemory;
 } SeVkMemory;
 
-// typedef struct SeVkCpuAllocation
-// {
-//     void* ptr;
-//     size_t size;
-// } SeVkCpuAllocation;
-
 typedef struct SeVkGpuMemoryChunk
 {
+    size_t memorySize;
     VkDeviceMemory memory;
+    void* mappedMemory;
+    size_t ledgerSize;
+    uint8_t* ledger;
     uint32_t memoryTypeIndex;
     uint32_t usedMemoryBytes;
-    uint8_t* ledger;
-    void* mappedMemory;
 } SeVkGpuMemoryChunk;
 
 typedef struct SeVkMemoryManager
 {
-    //
-    // CPU-side
-    //
     struct SeAllocatorBindings* cpu_persistentAllocator;
     struct SeAllocatorBindings* cpu_frameAllocator;
-    // VkAllocationCallbacks cpu_allocationCallbacks;
-    // SeVkCpuAllocation* cpu_allocations;
-    // size_t cpu_numAllocations;
-    //
-    // GPU-side
-    //
-    SeVkGpuMemoryChunk* gpu_chunks;
-    uint8_t* gpu_ledgers;
     struct SeRenderObject* device;
+    se_sbuffer(SeVkGpuMemoryChunk) gpu_chunks;
     VkPhysicalDeviceMemoryProperties* memoryProperties;
 } SeVkMemoryManager;
 

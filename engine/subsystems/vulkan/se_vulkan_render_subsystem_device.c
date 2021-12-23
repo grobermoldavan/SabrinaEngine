@@ -8,7 +8,6 @@
 #include "se_vulkan_render_subsystem_in_flight_manager.h"
 #include "engine/subsystems/se_window_subsystem.h"
 #include "engine/platform.h"
-#include "engine/render_abstraction_interface.h"
 #include "engine/allocator_bindings.h"
 
 #define SE_DEBUG_IMPL
@@ -146,7 +145,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL se_vk_debug_callback(
                                             VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
                                             VkDebugUtilsMessageTypeFlagsEXT messageType,
                                             const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
-                                            void* pUserData) 
+                                            void* pUserData)
 {
     printf("Debug callback : %s\n", pCallbackData->pMessage);
     return VK_FALSE;
@@ -627,6 +626,23 @@ size_t se_vk_device_get_active_swap_chain_texture_index(SeRenderObject* _device)
     se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't get active swap chain texture index");
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
     return se_vk_in_flight_manager_get_current_swap_chain_image_index(&device->inFlightManager);
+}
+
+SeSamplingFlags se_vk_device_get_supported_sampling_types(SeRenderObject* _device)
+{
+    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't get active swap chain texture index");
+    SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
+    VkSampleCountFlags vkSampleFlags;
+    if (device->gpu.flags & SE_VK_GPU_HAS_STENCIL)
+        vkSampleFlags = device->gpu.deviceProperties_10.limits.sampledImageColorSampleCounts &
+                        device->gpu.deviceProperties_10.limits.sampledImageIntegerSampleCounts &
+                        device->gpu.deviceProperties_10.limits.sampledImageDepthSampleCounts &
+                        device->gpu.deviceProperties_10.limits.sampledImageStencilSampleCounts;
+    else
+        vkSampleFlags = device->gpu.deviceProperties_10.limits.sampledImageColorSampleCounts &
+                        device->gpu.deviceProperties_10.limits.sampledImageIntegerSampleCounts &
+                        device->gpu.deviceProperties_10.limits.sampledImageDepthSampleCounts;
+    return (SeSamplingFlags)vkSampleFlags;
 }
 
 SeVkMemoryManager* se_vk_device_get_memory_manager(SeRenderObject* _device)

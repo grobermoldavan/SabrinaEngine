@@ -518,16 +518,16 @@ VkFrontFace se_vk_utils_to_vk_front_face(SePipelineFrontFace frontFace)
     return (VkFrontFace)0;
 }
 
-VkSampleCountFlagBits se_vk_utils_to_vk_sample_count(SeMultisamplingType multisample)
+VkSampleCountFlagBits se_vk_utils_to_vk_sample_count(SeSamplingType sampling)
 {
-    switch (multisample)
+    switch (sampling)
     {
-        case SE_SAMPLE_1: return VK_SAMPLE_COUNT_1_BIT;
-        case SE_SAMPLE_2: return VK_SAMPLE_COUNT_2_BIT;
-        case SE_SAMPLE_4: return VK_SAMPLE_COUNT_4_BIT;
-        case SE_SAMPLE_8: return VK_SAMPLE_COUNT_8_BIT;
+        case SE_SAMPLING_1: return VK_SAMPLE_COUNT_1_BIT;
+        case SE_SAMPLING_2: return VK_SAMPLE_COUNT_2_BIT;
+        case SE_SAMPLING_4: return VK_SAMPLE_COUNT_4_BIT;
+        case SE_SAMPLING_8: return VK_SAMPLE_COUNT_8_BIT;
     }
-    se_assert(!"Unsupported SeMultisamplingType");
+    se_assert(!"Unsupported SeSamplingType");
     return 0;
 }
 

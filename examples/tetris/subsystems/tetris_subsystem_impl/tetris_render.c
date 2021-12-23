@@ -102,7 +102,7 @@ void tetris_render_init(TetrisRenderInitInfo* initInfo)
                     .format     = SE_TEXTURE_FORMAT_RGBA_8,
                     .loadOp     = SE_ATTACHMENT_LOAD_OP_CLEAR,
                     .storeOp    = SE_ATTACHMENT_STORE_OP_STORE,
-                    .samples    = SE_SAMPLE_1,
+                    .sampling   = SE_SAMPLING_1,
                 },
             };
             SeRenderPassAttachment depthAttachment = (SeRenderPassAttachment)
@@ -110,7 +110,7 @@ void tetris_render_init(TetrisRenderInitInfo* initInfo)
                 .format     = SE_TEXTURE_FORMAT_DEPTH_STENCIL,
                 .loadOp     = SE_ATTACHMENT_LOAD_OP_CLEAR,
                 .storeOp    = SE_ATTACHMENT_STORE_OP_STORE,
-                .samples    = SE_SAMPLE_1,
+                .sampling   = SE_SAMPLING_1,
             };
             uint32_t colorRefs[] = { 0 };
             SeRenderPassSubpass subpasses[] =
@@ -155,7 +155,7 @@ void tetris_render_init(TetrisRenderInitInfo* initInfo)
                 .poligonMode            = SE_PIPELINE_POLIGON_FILL_MODE_FILL,
                 .cullMode               = SE_PIPELINE_CULL_MODE_BACK,
                 .frontFace              = SE_PIPELINE_FRONT_FACE_CLOCKWISE,
-                .multisamplingType      = SE_SAMPLE_1,
+                .samplingType           = SE_SAMPLING_1,
             };
             renderState->drawRenderPipeline = renderState->renderInterface->render_pipeline_graphics_create(&createInfo);
         }
@@ -185,7 +185,7 @@ void tetris_render_init(TetrisRenderInitInfo* initInfo)
                     .format     = SE_TEXTURE_FORMAT_SWAP_CHAIN,
                     .loadOp     = SE_ATTACHMENT_LOAD_OP_CLEAR,
                     .storeOp    = SE_ATTACHMENT_STORE_OP_STORE,
-                    .samples    = SE_SAMPLE_1,
+                    .sampling   = SE_SAMPLING_1,
                 },
             };
             uint32_t colorRefs[] = { 0 };
@@ -231,7 +231,7 @@ void tetris_render_init(TetrisRenderInitInfo* initInfo)
                 .poligonMode            = SE_PIPELINE_POLIGON_FILL_MODE_FILL,
                 .cullMode               = SE_PIPELINE_CULL_MODE_NONE,
                 .frontFace              = SE_PIPELINE_FRONT_FACE_CLOCKWISE,
-                .multisamplingType      = SE_SAMPLE_1,
+                .samplingType      = SE_SAMPLING_1,
             };
             renderState->presentRenderPipeline = renderState->renderInterface->render_pipeline_graphics_create(&createInfo);
         }

@@ -50,6 +50,7 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
         .get_swap_chain_textures_num            = se_vk_device_get_swap_chain_textures_num,
         .get_swap_chain_texture                 = se_vk_device_get_swap_chain_texture,
         .get_active_swap_chain_texture_index    = se_vk_device_get_active_swap_chain_texture_index,
+        .get_supported_sampling_types           = se_vk_device_get_supported_sampling_types,
         .begin_frame                            = se_vk_device_begin_frame,
         .end_frame                              = se_vk_device_end_frame,
         .program_create                         = se_vk_render_program_create,

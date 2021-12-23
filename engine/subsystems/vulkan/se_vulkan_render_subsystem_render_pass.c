@@ -110,7 +110,7 @@ SeRenderObject* se_vk_render_pass_create(SeRenderPassCreateInfo* createInfo)
         {
             .flags          = 0,
             .format         = se_vk_device_get_depth_stencil_format(createInfo->device),
-            .samples        = se_vk_utils_pick_sample_count(se_vk_utils_to_vk_sample_count(createInfo->depthStencilAttachment->samples), supprotedAttachmentSampleCounts),
+            .samples        = se_vk_utils_pick_sample_count(se_vk_utils_to_vk_sample_count(createInfo->depthStencilAttachment->sampling), supprotedAttachmentSampleCounts),
             .loadOp         = se_vk_utils_to_vk_load_op(createInfo->depthStencilAttachment->loadOp),
             .storeOp        = se_vk_utils_to_vk_store_op(createInfo->depthStencilAttachment->storeOp),
             .stencilLoadOp  = isStencilSupported ? se_vk_utils_to_vk_load_op(createInfo->depthStencilAttachment->loadOp) : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
@@ -133,7 +133,7 @@ SeRenderObject* se_vk_render_pass_create(SeRenderPassCreateInfo* createInfo)
             {
                 .flags          = 0,
                 .format         = isSwapChainImage ? se_vk_device_get_swap_chain_format(createInfo->device) : se_vk_utils_to_vk_format(attachment->format),
-                .samples        = se_vk_utils_pick_sample_count(se_vk_utils_to_vk_sample_count(attachment->samples), supprotedAttachmentSampleCounts),
+                .samples        = se_vk_utils_pick_sample_count(se_vk_utils_to_vk_sample_count(attachment->sampling), supprotedAttachmentSampleCounts),
                 .loadOp         = se_vk_utils_to_vk_load_op(attachment->loadOp),
                 .storeOp        = se_vk_utils_to_vk_store_op(attachment->storeOp),
                 .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,

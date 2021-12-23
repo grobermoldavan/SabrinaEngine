@@ -2,6 +2,7 @@
 #define _SE_VULKAN_RENDER_SUSBSYSTEM_DEVICE_H_
 
 #include "se_vulkan_render_subsystem_base.h"
+#include "engine/render_abstraction_interface.h"
 
 #define SE_VK_MAX_UNIQUE_COMMAND_QUEUES 3
 #define SE_VK_NUM_IMAGES_IN_FLIGHT      3
@@ -22,6 +23,7 @@ void                    se_vk_device_end_frame(struct SeRenderObject* device);
 size_t                  se_vk_device_get_swap_chain_textures_num(struct SeRenderObject* device);
 struct SeRenderObject*  se_vk_device_get_swap_chain_texture(struct SeRenderObject* device, size_t index);
 size_t                  se_vk_device_get_active_swap_chain_texture_index(struct SeRenderObject* device);
+SeSamplingFlags         se_vk_device_get_supported_sampling_types(struct SeRenderObject* device);
 
 struct SeVkMemoryManager*           se_vk_device_get_memory_manager(struct SeRenderObject* device);
 VkCommandPool                       se_vk_device_get_command_pool(struct SeRenderObject* device, SeVkCommandQueueFlags flags);
