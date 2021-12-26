@@ -63,6 +63,7 @@ static void* se_platform_mem_reserve(size_t size)
 
 static void* se_platform_mem_commit(void* ptr, size_t size)
 {
+    se_assert((size % se_platform_get_mem_page_size()) == 0);
     void* res = VirtualAlloc(ptr, size, MEM_COMMIT, PAGE_READWRITE);
     se_assert(res);
     return res;
@@ -71,7 +72,6 @@ static void* se_platform_mem_commit(void* ptr, size_t size)
 static void se_platform_mem_release(void* ptr, size_t size)
 {
     BOOL res = VirtualFree(ptr, /*size*/ 0, MEM_RELEASE);
-    int i = 0;
 }
 
 uint64_t se_platform_atomic_64_bit_increment(uint64_t* val)

@@ -252,14 +252,14 @@ typedef struct SeMemoryBufferCreateInfo
     SeMemoryBufferVisibility visibility;
 } SeMemoryBufferCreateInfo;
 
-typedef struct SeResourceSetCreateInfo
+typedef struct SeResourceSetRequestInfo
 {
     SeRenderObject* device;
     SeRenderObject* pipeline;
     size_t set;
     SeRenderObject** bindings;
     size_t numBindings;
-} SeResourceSetCreateInfo;
+} SeResourceSetRequestInfo;
 
 typedef struct SeCommandBufferRequestInfo
 {
@@ -301,7 +301,7 @@ typedef struct SeRenderAbstractionSubsystemInterface
     SeRenderObject* (*render_pass_create)                   (SeRenderPassCreateInfo* createInfo);
     SeRenderObject* (*render_pipeline_graphics_create)      (SeGraphicsRenderPipelineCreateInfo* createInfo);
     SeRenderObject* (*framebuffer_create)                   (SeFramebufferCreateInfo* createInfo);
-    SeRenderObject* (*resource_set_create)                  (SeResourceSetCreateInfo* createInfo);
+    SeRenderObject* (*resource_set_request)                 (SeResourceSetRequestInfo* requestInfo);
     SeRenderObject* (*memory_buffer_create)                 (SeMemoryBufferCreateInfo* createInfo);
     void*           (*memory_buffer_get_mapped_address)     (SeRenderObject* buffer);
     SeRenderObject* (*command_buffer_request)               (SeCommandBufferRequestInfo* requestInfo);

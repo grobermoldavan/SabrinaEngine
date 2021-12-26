@@ -3,7 +3,7 @@
 
 #include "se_vulkan_render_subsystem_base.h"
 
-struct SeRenderObject* se_vk_resource_set_create(struct SeResourceSetCreateInfo* createInfo);
+struct SeRenderObject* se_vk_resource_set_request(struct SeResourceSetRequestInfo* requestInfo);
 void se_vk_resource_set_destroy(struct SeRenderObject* set);
 
 struct SeRenderObject* se_vk_resource_set_get_pipeline(struct SeRenderObject* set);

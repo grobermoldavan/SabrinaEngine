@@ -17,7 +17,7 @@ void se_vk_in_flight_manager_construct(SeVkInFlightManager* manager, SeVkInFligh
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
     VkDevice logicalHandle = se_vk_device_get_logical_handle(createInfo->device);
     //
-    // 
+    //
     //
     manager->device = createInfo->device;
     se_sbuffer_construct(manager->inFlightDatas, createInfo->numImagesInFlight, allocator);
@@ -36,7 +36,8 @@ void se_vk_in_flight_manager_construct(SeVkInFlightManager* manager, SeVkInFligh
         SeVkInFlightData* data = &manager->inFlightDatas[it];
         se_vk_check(vkCreateSemaphore(logicalHandle, &semaphoreCreateInfo, callbacks, &data->imageAvailableSemaphore));
         se_sbuffer_construct(data->defferedDestructions, 64, allocator);
-        se_sbuffer_construct(data->submittedCommandBuffers, 64, allocator);
+        se_sbuffer_construct(data->frameResourceSets, 64, allocator);
+        se_sbuffer_construct(data->frameCommandBuffers, 64, allocator);
         se_sbuffer_construct(data->renderPipelinePools, 64, allocator);
     }
     for (size_t it = 0; it < createInfo->numSwapChainImages; it++)
@@ -61,12 +62,13 @@ void se_vk_in_flight_manager_destroy(SeVkInFlightManager* manager)
     {
         SeVkInFlightData* inFlightData = &manager->inFlightDatas[it];
         vkDestroySemaphore(logicalHandle, inFlightData->imageAvailableSemaphore, callbacks);
-        // Destroy command buffers
-        const size_t numSubmittedCommandBuffers = se_sbuffer_size(inFlightData->submittedCommandBuffers);
+        // Destroy command buffers and resource sets
+        const size_t numSubmittedCommandBuffers = se_sbuffer_size(inFlightData->frameCommandBuffers);
         for (size_t cbIt = 0; cbIt < numSubmittedCommandBuffers; cbIt++)
-        {
-            se_vk_command_buffer_destroy(inFlightData->submittedCommandBuffers[cbIt]);
-        }
+            se_vk_command_buffer_destroy(inFlightData->frameCommandBuffers[cbIt]);
+        const size_t numResourceSets = se_sbuffer_size(inFlightData->frameResourceSets);
+        for (size_t resIt = 0; resIt < numResourceSets; resIt++)
+            se_vk_resource_set_destroy(inFlightData->frameResourceSets[resIt]);
         // Process deffered destructions
         // @NOTE : at this point all registered pipelines will be unregistered from this manager using
         //         deffered destruction. If number of registered pipelines won't be zero,
@@ -86,7 +88,8 @@ void se_vk_in_flight_manager_destroy(SeVkInFlightManager* manager)
     {
         SeVkInFlightData* inFlightData = &manager->inFlightDatas[it];
         se_sbuffer_destroy(inFlightData->defferedDestructions);
-        se_sbuffer_destroy(inFlightData->submittedCommandBuffers);
+        se_sbuffer_destroy(inFlightData->frameResourceSets);
+        se_sbuffer_destroy(inFlightData->frameCommandBuffers);
         se_sbuffer_destroy(inFlightData->renderPipelinePools);
     }
     se_assert(se_sbuffer_size(manager->registeredPipelines) == 0 && "All render pipelines must be submitted to destruction before destroying in flight manager");
@@ -99,7 +102,7 @@ void se_vk_in_flight_manager_advance_frame(SeVkInFlightManager* manager)
 {
     /*
         1. Advance in flight index
-        2. Wait until previous command buffers of this frame finish execution
+        2.  Wait until previous command buffers of this frame finish execution, then delete previous command buffers and resource sets
         3. Process deffered destructions
         4. Reset all resource set pools
         5. Acquire next image and set the image semaphore to wait for
@@ -113,20 +116,27 @@ void se_vk_in_flight_manager_advance_frame(SeVkInFlightManager* manager)
     manager->currentImageInFlight = (manager->currentImageInFlight + 1) % se_sbuffer_size(manager->inFlightDatas);
     SeVkInFlightData* inFlightData = &manager->inFlightDatas[manager->currentImageInFlight];
     //
-    // 2. Wait until previous command buffers of this frame finish execution
+    // 2. Wait until previous command buffers of this frame finish execution, then delete previous command buffers and resource sets
     //
-    se_sbuffer(SeRenderObject*) activeFrameCommandBuffers = inFlightData->submittedCommandBuffers;
-    const size_t numCommandBuffers = se_sbuffer_size(activeFrameCommandBuffers);
-    if (numCommandBuffers)
     {
-        SeRenderObject* lastCommandBuffer = activeFrameCommandBuffers[numCommandBuffers - 1];
-        VkFence fence = se_vk_command_buffer_get_fence(lastCommandBuffer);
-        vkWaitForFences(logicalHandle, 1, &fence, VK_TRUE, UINT64_MAX);
-        for (size_t it = 0; it < numCommandBuffers; it++)
+        se_sbuffer(SeRenderObject*) frameCommandBuffers = inFlightData->frameCommandBuffers;
+        const size_t numCommandBuffers = se_sbuffer_size(frameCommandBuffers);
+        if (numCommandBuffers)
         {
-            se_vk_command_buffer_destroy(activeFrameCommandBuffers[it]);
+            SeRenderObject* lastCommandBuffer = frameCommandBuffers[numCommandBuffers - 1];
+            VkFence fence = se_vk_command_buffer_get_fence(lastCommandBuffer);
+            vkWaitForFences(logicalHandle, 1, &fence, VK_TRUE, UINT64_MAX);
+            for (size_t it = 0; it < numCommandBuffers; it++)
+                se_vk_command_buffer_destroy(frameCommandBuffers[it]);
+            se_sbuffer_set_size(frameCommandBuffers, 0);
         }
-        se_sbuffer_set_size(activeFrameCommandBuffers, 0);
+    }
+    {
+        se_sbuffer(SeRenderObject*) frameResourceSets = inFlightData->frameResourceSets;
+        const size_t numResourceSets = se_sbuffer_size(frameResourceSets);
+        for (size_t it = 0; it < numResourceSets; it++)
+            se_vk_resource_set_destroy(frameResourceSets[it]);
+        se_sbuffer_set_size(frameResourceSets, 0);
     }
     //
     // 3. Process deffered destructions
@@ -168,7 +178,7 @@ void se_vk_in_flight_manager_advance_frame(SeVkInFlightManager* manager)
     const uint32_t inFlightImageReferencedBySwapChainImage = manager->swapChainImageToInFlightFrameMap[manager->currentSwapChainImageIndex];
     if (inFlightImageReferencedBySwapChainImage != SE_VK_UNUSED_IN_FLIGHT_DATA_REF)
     {
-        se_sbuffer(SeRenderObject*) referencedCommandBuffers = manager->inFlightDatas[inFlightImageReferencedBySwapChainImage].submittedCommandBuffers;
+        se_sbuffer(SeRenderObject*) referencedCommandBuffers = manager->inFlightDatas[inFlightImageReferencedBySwapChainImage].frameCommandBuffers;
         if (se_sbuffer_size(referencedCommandBuffers))
         {
             SeRenderObject* lastCommandBuffer = referencedCommandBuffers[se_sbuffer_size(referencedCommandBuffers) - 1];
@@ -262,11 +272,18 @@ void se_vk_in_flight_manager_unregister_pipeline(SeVkInFlightManager* manager, S
     }
 }
 
-void se_vk_in_flight_manager_submit_command_buffer(SeVkInFlightManager* manager, SeRenderObject* commandBuffer)
+void se_vk_in_flight_manager_register_resource_set(SeVkInFlightManager* manager, struct SeRenderObject* resourceSet)
+{
+    se_vk_expect_handle(resourceSet, SE_RENDER_HANDLE_TYPE_RESOURCE_SET, "Can't register resource set");
+    SeVkInFlightData* inFlightData = &manager->inFlightDatas[manager->currentImageInFlight];
+    se_sbuffer_push(inFlightData->frameResourceSets, resourceSet);
+}
+
+void se_vk_in_flight_manager_register_command_buffer(SeVkInFlightManager* manager, SeRenderObject* commandBuffer)
 {
     se_vk_expect_handle(commandBuffer, SE_RENDER_HANDLE_TYPE_COMMAND_BUFFER, "Can't submit command buffer");
     SeVkInFlightData* inFlightData = &manager->inFlightDatas[manager->currentImageInFlight];
-    se_sbuffer_push(inFlightData->submittedCommandBuffers, commandBuffer);
+    se_sbuffer_push(inFlightData->frameCommandBuffers, commandBuffer);
 }
 
 void se_vk_in_flight_manager_submit_deffered_destruction(SeVkInFlightManager* manager, SeVkDefferedDestruction destruction)
@@ -275,11 +292,11 @@ void se_vk_in_flight_manager_submit_deffered_destruction(SeVkInFlightManager* ma
     se_sbuffer_push(inFlightData->defferedDestructions, destruction);
 }
 
-SeRenderObject* se_vk_in_flight_manager_get_last_submitted_command_buffer(SeVkInFlightManager* manager)
+SeRenderObject* se_vk_in_flight_manager_get_last_command_buffer(SeVkInFlightManager* manager)
 {
     SeVkInFlightData* inFlightData = &manager->inFlightDatas[manager->currentImageInFlight];
-    const size_t numSubmittedCommandBuffers = se_sbuffer_size(inFlightData->submittedCommandBuffers);
-    return numSubmittedCommandBuffers ? inFlightData->submittedCommandBuffers[numSubmittedCommandBuffers - 1] : NULL;
+    const size_t numCommandBuffers = se_sbuffer_size(inFlightData->frameCommandBuffers);
+    return numCommandBuffers ? inFlightData->frameCommandBuffers[numCommandBuffers - 1] : NULL;
 }
 
 VkSemaphore se_vk_in_flight_manager_get_image_available_semaphore(SeVkInFlightManager* manager)

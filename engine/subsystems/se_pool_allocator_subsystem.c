@@ -38,10 +38,26 @@ SE_DLL_EXPORT void* se_get_interface(struct SabrinaEngine* engine)
 
 void se_pool_allocator_memory_bucket_source_construct(SePoolMemoryBucketSource* source, SePlatformInterface* platformIface)
 {
-    const size_t RESERVE_SIZE = se_gigabytes(32);
-    source->base = platformIface->mem_reserve(RESERVE_SIZE);
-    source->reserved = RESERVE_SIZE;
+    const size_t reserveSize = se_gigabytes(32);
+    source->base = platformIface->mem_reserve(reserveSize);
+    source->reserved = reserveSize;
     source->commited = 0;
+    source->used = 0;
+}
+
+void se_pool_allocator_memory_bucket_source_add_memory(SePoolMemoryBucketSource* source, SePlatformInterface* platformIface, size_t size)
+{
+    source->used += size;
+    if (source->used > source->commited)
+    {
+        const size_t requiredCommit = source->used - source->commited;
+        const size_t memPageSize = platformIface->get_mem_page_size();
+        const size_t numPagesToCommit = 1 + ((requiredCommit - 1) / memPageSize);
+        const size_t actualCommitSize = numPagesToCommit * memPageSize;
+        se_assert((source->commited + actualCommitSize) <= source->reserved);
+        platformIface->mem_commit(((char*)source->base) + source->commited, actualCommitSize);
+        source->commited += actualCommitSize;
+    }
 }
 
 void se_pool_allocator_memory_bucket_source_destroy(SePoolMemoryBucketSource* source, SePlatformInterface* platformIface)
@@ -53,7 +69,6 @@ void se_pool_allocator_construct(SePoolAllocator* allocator, SePoolAllocatorCrea
 {
     *allocator = (SePoolAllocator){0};
     allocator->platformIface = createInfo->platformIface;
-    const size_t memPageSize = allocator->platformIface->get_mem_page_size();
     for (size_t it = 0; it < SE_POOL_ALLOCATOR_SUBSYSTEM_MAX_BUCKETS; it++)
     {
         const SePoolMemoryBucketConfig* config = &createInfo->buckets[it];
@@ -144,7 +159,7 @@ void* se_pool_allocator_alloc(SePoolAllocator* allocator, size_t allocationSize,
         {
             size_t contiguousBitsCount = 0; // Contains the number of contiguous free blocks
             size_t currentLedgerBit = 0;    // Contains id of current block
-            for (size_t it = 0; it < bucket->ledger.commited; it++)
+            for (size_t it = 0; it < bucket->ledger.used; it++)
             {
                 const uint8_t ledgerByte = *((uint8_t*)(bucket->ledger.base) + it);
                 if (ledgerByte == 255)
@@ -184,42 +199,17 @@ void* se_pool_allocator_alloc(SePoolAllocator* allocator, size_t allocationSize,
                 }
             }
             // If nothing was found set firstBlockId to blockCount - this indicates failure of method
-            firstValidLedgerBit = bucket->ledger.commited * 8;
+            firstValidLedgerBit = bucket->ledger.used * 8;
         }
         //
         // Commit new memory if there is not enough space for allocation
         //
         block_found:
-        if (firstValidLedgerBit == (bucket->ledger.commited * 8))
+        if (firstValidLedgerBit == (bucket->ledger.used * 8))
         {
-            const size_t memPageSize = allocator->platformIface->get_mem_page_size();
-            size_t ledgerCommitSize = 0;
-            {   // Commit ledger bucket memory
-                //
-                // Ledger memory gets commited with granularity of LEDGER_COMMIT_GRANULARITY
-                // This is done, so we don't overcommit bucket main memory later
-                //
-                const size_t LEDGER_COMMIT_GRANULARITY_BYTES = 64;
-                const size_t numLedgerBytes = 1 + ((numOccupiedLedgerBits - 1) / 8);
-                const size_t numGranules = 1 + ((numLedgerBytes - 1) / LEDGER_COMMIT_GRANULARITY_BYTES);
-                void* memCommitBase = ((uint8_t*)bucket->ledger.base) + bucket->ledger.commited;
-                ledgerCommitSize = numGranules * LEDGER_COMMIT_GRANULARITY_BYTES;
-                se_assert(bucket->ledger.reserved - bucket->ledger.commited >= ledgerCommitSize);
-                allocator->platformIface->mem_commit(memCommitBase, ledgerCommitSize);
-                bucket->ledger.commited += ledgerCommitSize;
-            }
-            se_assert(ledgerCommitSize != 0);
-            {   // Commit main bucket memory
-                //
-                // Main memory commit size depends on the size of ledger commit
-                //
-                const size_t numPages = 1 + (((ledgerCommitSize * 8 * bucket->blockSize) - 1) / memPageSize);
-                const size_t commitSize = numPages * memPageSize;
-                void* memCommitBase = ((uint8_t*)bucket->memory.base) + bucket->memory.commited;
-                se_assert(bucket->memory.reserved - bucket->memory.commited >= commitSize);
-                allocator->platformIface->mem_commit(memCommitBase, commitSize);
-                bucket->memory.commited += commitSize;
-            }
+            const size_t numOccupiedLedgerBytes = numOccupiedLedgerBits / 8 + ((numOccupiedLedgerBits % 8) ? 1 : 0);
+            se_pool_allocator_memory_bucket_source_add_memory(&bucket->ledger, allocator->platformIface, numOccupiedLedgerBytes);
+            se_pool_allocator_memory_bucket_source_add_memory(&bucket->memory, allocator->platformIface, numOccupiedLedgerBytes * 8 * bucket->blockSize);
         }
         //
         // Set ledger blocks in use if requested memory if found
@@ -246,7 +236,7 @@ void se_pool_allocator_dealloc(SePoolAllocator* allocator, void* ptr, size_t siz
     {
         SePoolMemoryBucket* bucket = &allocator->buckets[it];
         const intptr_t base = (intptr_t)bucket->memory.base;
-        const intptr_t end = base + bucket->memory.commited;
+        const intptr_t end = base + bucket->memory.used;
         const intptr_t candidate = (intptr_t)ptr;
         if (candidate >= base && candidate < end)
         {

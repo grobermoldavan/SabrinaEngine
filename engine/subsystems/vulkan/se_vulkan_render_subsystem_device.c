@@ -46,8 +46,7 @@ typedef struct SeVkGpu
 
 typedef enum SeVkRenderDeviceFlags
 {
-    SE_VK_DEVICE_IS_IN_RENDER_FRAME      = 0x00000001,
-    SE_VK_DEVICE_HAS_SUBMITTED_BUFFERS   = 0x00000002,
+    __NOTHING_HERE_FOR_NOW
 } SeVkRenderDeviceFlags;
 
 typedef struct SeVkSwapChainImage
@@ -132,12 +131,13 @@ static VkPhysicalDevice se_vk_gpu_pick_physical_device(VkInstance instance, VkSu
             // @TODO :  log device name and shit
             // VkPhysicalDeviceProperties deviceProperties;
             // vkGetPhysicalDeviceProperties(chosenPhysicalDevice, &deviceProperties);
+            VkPhysicalDevice result = available[it];
             se_sbuffer_destroy(available);
-            return available[it];
+            return result;
         }
     }
     se_sbuffer_destroy(available);
-    se_assert(!"Unable to puck physical device");
+    se_assert_msg(false, "Unable to pick physical device");
     return VK_NULL_HANDLE;
 }
 
@@ -324,7 +324,8 @@ SeRenderObject* se_vk_device_create(SeRenderDeviceCreateInfo* deviceCreateInfo)
             .ppEnabledExtensionNames    = requiredDeviceExtensions,
             .pEnabledFeatures           = &deviceFeatures
         };
-        se_vk_check(vkCreateDevice(device->gpu.physicalHandle, &logicalDeviceCreateInfo, callbacks, &device->gpu.logicalHandle));
+        VkResult res = vkCreateDevice(device->gpu.physicalHandle, &logicalDeviceCreateInfo, callbacks, &device->gpu.logicalHandle);
+        se_vk_check(res);
         //
         // Create queues
         //
@@ -509,24 +510,17 @@ void se_vk_device_destroy(SeRenderObject* _device)
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(&device->memoryManager);
     //
-    // In flight manager
+    // Submit swap chain texture objects to destruction and destroy in flight manager
     //
+    for (size_t it = 0; it < device->swapChain.numTextures; it++)
+        se_vk_texture_submit_for_deffered_destruction(device->swapChain.textures[it]);
     se_vk_in_flight_manager_destroy(&device->inFlightManager);
     //
     // Swap Chain
     //
     for (size_t it = 0; it < device->swapChain.numTextures; it++)
-    {
-        SeVkSwapChainImage* image = &device->swapChain.images[it];
-        if (!image->handle) break;
-        se_vk_texture_submit_for_deffered_destruction(device->swapChain.textures[it]);
-        vkDestroyImageView(device->gpu.logicalHandle, image->view, callbacks);
-    }
+        vkDestroyImageView(device->gpu.logicalHandle, device->swapChain.images[it].view, callbacks);
     vkDestroySwapchainKHR(device->gpu.logicalHandle, device->swapChain.handle, callbacks);
-    //
-    // Memory manager
-    //
-    se_vk_memory_manager_destroy(&device->memoryManager);
     //
     // Gpu
     //
@@ -535,6 +529,7 @@ void se_vk_device_destroy(SeRenderObject* _device)
         if (device->gpu.commandQueues[it].commandPoolHandle == VK_NULL_HANDLE) break;
         vkDestroyCommandPool(device->gpu.logicalHandle, device->gpu.commandQueues[it].commandPoolHandle, callbacks);
     }
+    se_vk_memory_manager_free_gpu_memory(&device->memoryManager);
     vkDestroyDevice(device->gpu.logicalHandle, callbacks);
     //
     // Surface
@@ -547,6 +542,7 @@ void se_vk_device_destroy(SeRenderObject* _device)
     se_vk_utils_destroy_debug_messenger(device->instance, device->debugMessenger, callbacks);
 #endif
     vkDestroyInstance(device->instance, callbacks);
+    se_vk_memory_manager_free_cpu_memory(&device->memoryManager);
     device->memoryManager.cpu_persistentAllocator->dealloc(device->memoryManager.cpu_persistentAllocator->allocator, device, sizeof(SeVkRenderDevice));
 }
 
@@ -562,14 +558,12 @@ void se_vk_device_begin_frame(SeRenderObject* _device)
     se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't begin frame");
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
     se_vk_in_flight_manager_advance_frame(&device->inFlightManager);
-    device->flags &= ~((uint64_t)SE_VK_DEVICE_HAS_SUBMITTED_BUFFERS);
 }
 
 void se_vk_device_end_frame(SeRenderObject* _device)
 {
     se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't end frame");
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
-    se_assert(device->flags & SE_VK_DEVICE_HAS_SUBMITTED_BUFFERS && "You must submit some commands between being_frame and end_frame");
     uint32_t swapChainImageIndex = se_vk_in_flight_manager_get_current_swap_chain_image_index(&device->inFlightManager);
     //
     // Prepare swap chain image for presentation
@@ -590,7 +584,7 @@ void se_vk_device_end_frame(SeRenderObject* _device)
     uint32_t imageIndices[] = { swapChainImageIndex };
     VkSemaphore presentWaitSemaphores[] =
     {
-        se_vk_command_buffer_get_semaphore(se_vk_in_flight_manager_get_last_submitted_command_buffer(&device->inFlightManager)),
+        se_vk_command_buffer_get_semaphore(se_vk_in_flight_manager_get_last_command_buffer(&device->inFlightManager)),
         se_vk_in_flight_manager_get_image_available_semaphore(&device->inFlightManager),
     };
     VkPresentInfoKHR presentInfo = (VkPresentInfoKHR)
@@ -681,23 +675,6 @@ VkDevice se_vk_device_get_logical_handle(SeRenderObject* _device)
     se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't get logical handle");
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
     return device->gpu.logicalHandle;
-}
-
-SeRenderObject* se_vk_device_get_last_command_buffer(SeRenderObject* _device)
-{
-    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't get last submitted command buffer");
-    SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
-    return se_vk_in_flight_manager_get_last_submitted_command_buffer(&device->inFlightManager);
-}
-
-void se_vk_device_submit_command_buffer(SeRenderObject* _device, VkSubmitInfo* submitInfo, SeRenderObject* buffer, VkQueue queue)
-{
-    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't submit command buffer");
-    se_vk_expect_handle(buffer, SE_RENDER_HANDLE_TYPE_COMMAND_BUFFER, "Can't submit command buffer");
-    SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
-    se_vk_check(vkQueueSubmit(queue, 1, submitInfo, se_vk_command_buffer_get_fence(buffer)));
-    se_vk_in_flight_manager_submit_command_buffer(&device->inFlightManager, buffer);
-    device->flags |= SE_VK_DEVICE_HAS_SUBMITTED_BUFFERS;
 }
 
 bool se_vk_device_is_stencil_supported(SeRenderObject* _device)

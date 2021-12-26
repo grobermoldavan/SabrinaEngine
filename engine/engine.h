@@ -45,7 +45,7 @@ typedef struct SabrinaEngine
     bool shouldRun;
 } SabrinaEngine;
 
-void  se_initialize(SabrinaEngine* engine);
-void  se_run(SabrinaEngine* engine);
+void se_initialize(SabrinaEngine* engine);
+void se_run(SabrinaEngine* engine);
 
 #endif

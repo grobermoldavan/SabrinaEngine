@@ -10,6 +10,53 @@
 #define SE_VK_GPU_MEMORY_BLOCK_SIZE_BYTES   64ull
 #define SE_VK_GPU_DEFAULT_CHUNK_SIZE_BYTES  (64ull * 1024ull * 1024ull)
 
+static void* se_vk_memory_manager_alloc(void* pUserData, size_t size, size_t alignment, VkSystemAllocationScope allocationScope)
+{
+    SeVkMemoryManager* manager = (SeVkMemoryManager*)pUserData;
+    SeAllocatorBindings* allocator = manager->cpu_persistentAllocator;
+    void* result = allocator->alloc(allocator->allocator, size, alignment, se_alloc_tag);
+    SeVkCpuAllocation allocation = (SeVkCpuAllocation) { result, size, };
+    se_sbuffer_push(manager->cpu_allocations, allocation);
+    return result;
+}
+
+static void* se_vk_memory_manager_realloc(void* pUserData, void* pOriginal, size_t size, size_t alignment, VkSystemAllocationScope allocationScope)
+{
+    SeVkMemoryManager* manager = (SeVkMemoryManager*)pUserData;
+    SeAllocatorBindings* allocator = manager->cpu_persistentAllocator;
+    const size_t numAllocations = se_sbuffer_size(manager->cpu_allocations);
+    void* result = NULL;
+    for (size_t it = 0; it < numAllocations; it++)
+    {
+        if (manager->cpu_allocations[it].ptr == pOriginal)
+        {
+            result = allocator->alloc(allocator->allocator, size, alignment, se_alloc_tag);
+            memcpy(result, pOriginal, manager->cpu_allocations[it].size);
+            allocator->dealloc(allocator->allocator, manager->cpu_allocations[it].ptr, manager->cpu_allocations[it].size);
+            manager->cpu_allocations[it] = (SeVkCpuAllocation) { result, size, };
+            break;
+        }
+    }
+    se_assert(result);
+    return result;
+}
+
+static void se_vk_memory_manager_dealloc(void* pUserData, void* pMemory)
+{
+    SeVkMemoryManager* manager = (SeVkMemoryManager*)pUserData;
+    SeAllocatorBindings* allocator = manager->cpu_persistentAllocator;
+    const size_t numAllocations = se_sbuffer_size(manager->cpu_allocations);
+    for (size_t it = 0; it < numAllocations; it++)
+    {
+        if (manager->cpu_allocations[it].ptr == pMemory)
+        {
+            allocator->dealloc(allocator->allocator, manager->cpu_allocations[it].ptr, manager->cpu_allocations[it].size);
+            se_sbuffer_remove_idx(manager->cpu_allocations, it);
+            break;
+        }
+    }
+}
+
 static void se_vk_memory_manager_set_in_use(SeVkGpuMemoryChunk* chunk, size_t numBlocks, size_t startBlock)
 {
     for (size_t it = 0; it < numBlocks; it++)
@@ -90,11 +137,20 @@ void se_vk_memory_manager_construct(SeVkMemoryManager* memoryManager, SeVkMemory
 {
     memoryManager->cpu_persistentAllocator = createInfo->persistentAllocator;
     memoryManager->cpu_frameAllocator = createInfo->frameAllocator;
-    SeAllocatorBindings* allocator = memoryManager->cpu_persistentAllocator;
+    memoryManager->cpu_allocationCallbacks = (VkAllocationCallbacks)
+    {
+        .pUserData               = memoryManager,
+        .pfnAllocation           = se_vk_memory_manager_alloc,
+        .pfnReallocation         = se_vk_memory_manager_realloc,
+        .pfnFree                 = se_vk_memory_manager_dealloc,
+        .pfnInternalAllocation   = NULL,
+        .pfnInternalFree         = NULL,
+    };
+    se_sbuffer_construct(memoryManager->cpu_allocations, 4096, memoryManager->cpu_persistentAllocator);
     se_sbuffer_construct(memoryManager->gpu_chunks, 64, memoryManager->cpu_persistentAllocator);
 }
 
-void se_vk_memory_manager_destroy(SeVkMemoryManager* memoryManager)
+void se_vk_memory_manager_free_gpu_memory(SeVkMemoryManager* memoryManager)
 {
     VkDevice logicalHandle = se_vk_device_get_logical_handle(memoryManager->device);
     const size_t numChunks = se_sbuffer_size(memoryManager->gpu_chunks);
@@ -105,6 +161,15 @@ void se_vk_memory_manager_destroy(SeVkMemoryManager* memoryManager)
         memoryManager->cpu_persistentAllocator->dealloc(memoryManager->cpu_persistentAllocator->allocator, chunk->ledger, chunk->ledgerSize);
     }
     se_sbuffer_destroy(memoryManager->gpu_chunks);
+}
+
+void se_vk_memory_manager_free_cpu_memory(SeVkMemoryManager* memoryManager)
+{
+    SeAllocatorBindings* allocator = memoryManager->cpu_persistentAllocator;
+    const size_t numAllocations = se_sbuffer_size(memoryManager->cpu_allocations);
+    for (size_t it = 0; it < numAllocations; it++)
+        allocator->dealloc(allocator->allocator, memoryManager->cpu_allocations[it].ptr, memoryManager->cpu_allocations[it].size);
+    se_sbuffer_destroy(memoryManager->cpu_allocations);
 }
 
 void se_vk_memory_manager_set_device(SeVkMemoryManager* memoryManager, SeRenderObject* device)
@@ -126,17 +191,17 @@ SeVkMemory se_vk_gpu_allocate(SeVkMemoryManager* memoryManager, SeVkGpuAllocatio
     if (!se_vk_utils_get_memory_type_index(memoryManager->memoryProperties, request.memoryTypeBits, request.properties, &memoryTypeIndex))
         se_assert_msg(false, "Unable to find memory type index");
     //
-    // 2. Try to find memory in available chunks
+    // 1. Try to find memory in available chunks
     //
     const size_t numChunks = se_sbuffer_size(memoryManager->gpu_chunks);
     for (size_t it = 0; it < numChunks; it++)
     {
         SeVkGpuMemoryChunk* chunk = &memoryManager->gpu_chunks[it];
         se_assert(chunk->memory != VK_NULL_HANDLE);
-        if (chunk->memoryTypeIndex != memoryTypeIndex)                          continue;
-        if ((chunk->memorySize - chunk->usedMemoryBytes) < request.sizeBytes)   continue;
+        if (chunk->memoryTypeIndex != memoryTypeIndex) continue;
+        if ((chunk->memorySize - chunk->usedMemoryBytes) < request.sizeBytes) continue;
         const size_t inChunkOffset = se_vk_memory_chunk_find_aligned_free_space(chunk, requiredNumberOfBlocks, request.alignment);
-        if (inChunkOffset == chunk->ledgerSize)                                 continue;
+        if (inChunkOffset == chunk->ledgerSize) continue;
         se_vk_memory_manager_set_in_use(chunk, requiredNumberOfBlocks, inChunkOffset);
         return (SeVkMemory)
         {
@@ -147,31 +212,35 @@ SeVkMemory se_vk_gpu_allocate(SeVkMemoryManager* memoryManager, SeVkGpuAllocatio
         };
     }
     //
-    // 3. Try to allocate new chunk
+    // 2. Try to allocate new chunk
     //
     {
         SeVkGpuMemoryChunk newChunk = {0};
         VkDevice logicalHandle = se_vk_device_get_logical_handle(memoryManager->device);
-        const size_t allocationSize = request.sizeBytes > SE_VK_GPU_DEFAULT_CHUNK_SIZE_BYTES ? request.sizeBytes : SE_VK_GPU_DEFAULT_CHUNK_SIZE_BYTES;
+        // chunkNumberOfBlocks is aligned to 8 because each ledger byte can store info about 8 blocks
+        const size_t chunkNumberOfBlocks = requiredNumberOfBlocks + (8 - (requiredNumberOfBlocks % 8));
+        const size_t chunkMemorySize = request.sizeBytes > SE_VK_GPU_DEFAULT_CHUNK_SIZE_BYTES
+            ? chunkNumberOfBlocks * SE_VK_GPU_MEMORY_BLOCK_SIZE_BYTES
+            : SE_VK_GPU_DEFAULT_CHUNK_SIZE_BYTES;
         VkMemoryAllocateInfo memoryAllocateInfo = (VkMemoryAllocateInfo)
         {
             .sType              = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
             .pNext              = NULL,
-            .allocationSize     = allocationSize,
+            .allocationSize     = chunkMemorySize,
             .memoryTypeIndex    = memoryTypeIndex,
         };
         se_vk_check(vkAllocateMemory(logicalHandle, &memoryAllocateInfo, se_vk_memory_manager_get_callbacks(memoryManager), &newChunk.memory));
-        newChunk.memorySize = allocationSize;
+        newChunk.memorySize = chunkMemorySize;
         if (request.properties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
             vkMapMemory(logicalHandle, newChunk.memory, 0, newChunk.memorySize, 0, &newChunk.mappedMemory);
-        newChunk.ledgerSize = allocationSize / SE_VK_GPU_MEMORY_BLOCK_SIZE_BYTES / 8;
+        newChunk.ledgerSize = chunkNumberOfBlocks / 8;
         newChunk.ledger = memoryManager->cpu_persistentAllocator->alloc(memoryManager->cpu_persistentAllocator->allocator, newChunk.ledgerSize, se_default_alignment, se_alloc_tag);
         memset(newChunk.ledger, 0, newChunk.ledgerSize);
         newChunk.memoryTypeIndex = memoryTypeIndex;
         se_sbuffer_push(memoryManager->gpu_chunks, newChunk);
     }
     //
-    // 4. Allocate memory in new chunk
+    // 3. Allocate memory in new chunk
     //
     {
         SeVkGpuMemoryChunk* chunk = &memoryManager->gpu_chunks[se_sbuffer_size(memoryManager->gpu_chunks) - 1];
@@ -212,5 +281,5 @@ void se_vk_gpu_deallocate(SeVkMemoryManager* memoryManager, SeVkMemory allocatio
 
 VkAllocationCallbacks* se_vk_memory_manager_get_callbacks(SeVkMemoryManager* memoryManager)
 {
-    return NULL;
+    return &memoryManager->cpu_allocationCallbacks;
 }

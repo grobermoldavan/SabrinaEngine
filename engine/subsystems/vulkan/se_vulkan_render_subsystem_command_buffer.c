@@ -29,6 +29,11 @@ typedef struct SeVkCommandBuffer
     VkFence executionFence;
 } SeVkCommandBuffer;
 
+static void se_vk_command_buffer_assert_no_manual_destroy_call(SeRenderObject* _)
+{
+    se_assert_msg(false, "Command buffers must not be destroyed manually - their lifetime is handled by the rendering backed");
+}
+
 SeRenderObject* se_vk_command_buffer_request(SeCommandBufferRequestInfo* requestInfo)
 {
     SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(requestInfo->device);
@@ -40,7 +45,7 @@ SeRenderObject* se_vk_command_buffer_request(SeCommandBufferRequestInfo* request
     //
     SeVkCommandBuffer* buffer = allocator->alloc(allocator->allocator, sizeof(SeVkCommandBuffer), se_default_alignment, se_alloc_tag);
     buffer->renderObject.handleType = SE_RENDER_HANDLE_TYPE_COMMAND_BUFFER;
-    buffer->renderObject.destroy = se_vk_command_buffer_submit_for_deffered_destruction;
+    buffer->renderObject.destroy = se_vk_command_buffer_assert_no_manual_destroy_call;
     buffer->device = requestInfo->device;
     buffer->usage = requestInfo->usage;
     buffer->flags = 0;
@@ -90,6 +95,7 @@ void se_vk_command_buffer_submit(SeRenderObject* _buffer)
 {
     se_vk_expect_handle(_buffer, SE_RENDER_HANDLE_TYPE_COMMAND_BUFFER, "Can't submit command buffer");
     SeVkCommandBuffer* buffer = (SeVkCommandBuffer*)_buffer;
+    SeVkInFlightManager* inFlightManager = se_vk_device_get_in_flight_manager(buffer->device);
     //
     //
     //
@@ -102,7 +108,7 @@ void se_vk_command_buffer_submit(SeRenderObject* _buffer)
     //
     //
     //
-    SeVkCommandBuffer* waitBuffer = (SeVkCommandBuffer*)se_vk_device_get_last_command_buffer(buffer->device);
+    SeVkCommandBuffer* waitBuffer = (SeVkCommandBuffer*)se_vk_in_flight_manager_get_last_command_buffer(inFlightManager);
     VkSemaphore waitSemaphores[] = { waitBuffer ? waitBuffer->executionFinishedSemaphore : VK_NULL_HANDLE };
     VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_ALL_COMMANDS_BIT }; // TODO : optimize this
     VkSubmitInfo submitInfo = (VkSubmitInfo)
@@ -117,14 +123,8 @@ void se_vk_command_buffer_submit(SeRenderObject* _buffer)
         .signalSemaphoreCount   = 1,
         .pSignalSemaphores      = &buffer->executionFinishedSemaphore,
     };
-    se_vk_device_submit_command_buffer(buffer->device, &submitInfo, (SeRenderObject*)buffer, se_vk_device_get_command_queue(buffer->device, buffer->queueFlags));
-}
-
-void se_vk_command_buffer_submit_for_deffered_destruction(SeRenderObject* _buffer)
-{
-    se_vk_expect_handle(_buffer, SE_RENDER_HANDLE_TYPE_COMMAND_BUFFER, "Can't submit command buffer for deffered destruction");
-    SeVkInFlightManager* inFlightManager = se_vk_device_get_in_flight_manager(((SeVkCommandBuffer*)_buffer)->device);
-    se_vk_in_flight_manager_submit_deffered_destruction(inFlightManager, (SeVkDefferedDestruction) { _buffer, se_vk_command_buffer_destroy });
+    se_vk_check(vkQueueSubmit(se_vk_device_get_command_queue(buffer->device, buffer->queueFlags), 1, &submitInfo, buffer->executionFence));
+    se_vk_in_flight_manager_register_command_buffer(inFlightManager, (SeRenderObject*)buffer);
 }
 
 void se_vk_command_buffer_destroy(SeRenderObject* _buffer)

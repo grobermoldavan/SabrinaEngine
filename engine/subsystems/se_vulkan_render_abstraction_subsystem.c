@@ -60,7 +60,7 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
         .render_pass_create                     = se_vk_render_pass_create,
         .render_pipeline_graphics_create        = se_vk_render_pipeline_graphics_create,
         .framebuffer_create                     = se_vk_framebuffer_create,
-        .resource_set_create                    = se_vk_resource_set_create,
+        .resource_set_request                   = se_vk_resource_set_request,
         .memory_buffer_create                   = se_vk_memory_buffer_create,
         .memory_buffer_get_mapped_address       = se_vk_memory_buffer_get_mapped_address,
         .command_buffer_request                 = se_vk_command_buffer_request,

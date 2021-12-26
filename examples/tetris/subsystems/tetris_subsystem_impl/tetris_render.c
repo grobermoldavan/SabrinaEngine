@@ -535,7 +535,7 @@ void tetris_render_update(TetrisRenderState* renderState, TetrisState* state, co
     //
     {
         SeRenderObject* bindingsSet0[] = { renderState->frameDataBuffer, };
-        SeResourceSetCreateInfo set0CreateInfo = (SeResourceSetCreateInfo)
+        SeResourceSetRequestInfo set0RequestInfo = (SeResourceSetRequestInfo)
         {
             .device         = renderState->renderDevice,
             .pipeline       = renderState->drawRenderPipeline,
@@ -543,9 +543,9 @@ void tetris_render_update(TetrisRenderState* renderState, TetrisState* state, co
             .bindings       = bindingsSet0,
             .numBindings    = se_array_size(bindingsSet0),
         };
-        SeRenderObject* resourceSet0 = renderState->renderInterface->resource_set_create(&set0CreateInfo);
+        SeRenderObject* resourceSet0 = renderState->renderInterface->resource_set_request(&set0RequestInfo);
         SeRenderObject* bindingsSet1[] = { renderState->cubeVerticesBuffer, renderState->cubeIndicesBuffer, cubeInstanceBuffer };
-        SeResourceSetCreateInfo set1CreateInfo = (SeResourceSetCreateInfo)
+        SeResourceSetRequestInfo set1RequestInfo = (SeResourceSetRequestInfo)
         {
             .device         = renderState->renderDevice,
             .pipeline       = renderState->drawRenderPipeline,
@@ -553,9 +553,9 @@ void tetris_render_update(TetrisRenderState* renderState, TetrisState* state, co
             .bindings       = bindingsSet1,
             .numBindings    = se_array_size(bindingsSet1),
         };
-        SeRenderObject* resourceSet1 = renderState->renderInterface->resource_set_create(&set1CreateInfo);
+        SeRenderObject* resourceSet1 = renderState->renderInterface->resource_set_request(&set1RequestInfo);
         SeRenderObject* bindingsSet2[] = { renderState->gridVerticesBuffer, renderState->gridIndicesBuffer, renderState->gridInstanceBuffer };
-        SeResourceSetCreateInfo set2CreateInfo = (SeResourceSetCreateInfo)
+        SeResourceSetRequestInfo set2RequestInfo = (SeResourceSetRequestInfo)
         {
             .device         = renderState->renderDevice,
             .pipeline       = renderState->drawRenderPipeline,
@@ -563,7 +563,7 @@ void tetris_render_update(TetrisRenderState* renderState, TetrisState* state, co
             .bindings       = bindingsSet2,
             .numBindings    = se_array_size(bindingsSet2),
         };
-        SeRenderObject* resourceSet2 = renderState->renderInterface->resource_set_create(&set2CreateInfo);
+        SeRenderObject* resourceSet2 = renderState->renderInterface->resource_set_request(&set2RequestInfo);
         {
             SeCommandBufferRequestInfo cmdRequest = (SeCommandBufferRequestInfo) { .device = renderState->renderDevice, .usage = SE_COMMAND_BUFFER_USAGE_GRAPHICS, };
             SeRenderObject* cmd = renderState->renderInterface->command_buffer_request(&cmdRequest);
@@ -581,15 +581,13 @@ void tetris_render_update(TetrisRenderState* renderState, TetrisState* state, co
             renderState->renderInterface->command_draw(cmd, &drawGrid);
             renderState->renderInterface->command_buffer_submit(cmd);
         }
-        resourceSet0->destroy(resourceSet0);
-        resourceSet1->destroy(resourceSet1);
     }
     //
     // Present pass
     //
     {
         SeRenderObject* bindingsSet0[] = { renderState->drawColorTexture, };
-        SeResourceSetCreateInfo set0CreateInfo = (SeResourceSetCreateInfo)
+        SeResourceSetRequestInfo set0RequestInfo = (SeResourceSetRequestInfo)
         {
             .device         = renderState->renderDevice,
             .pipeline       = renderState->presentRenderPipeline,
@@ -597,7 +595,7 @@ void tetris_render_update(TetrisRenderState* renderState, TetrisState* state, co
             .bindings       = bindingsSet0,
             .numBindings    = se_array_size(bindingsSet0),
         };
-        SeRenderObject* resourceSet0 = renderState->renderInterface->resource_set_create(&set0CreateInfo);
+        SeRenderObject* resourceSet0 = renderState->renderInterface->resource_set_request(&set0RequestInfo);
         {
             SeRenderObject* framebuffer = renderState->presentFramebuffers[activeSwapChainImageIndex];
             SeCommandBufferRequestInfo cmdRequest = (SeCommandBufferRequestInfo) { .device = renderState->renderDevice, .usage = SE_COMMAND_BUFFER_USAGE_GRAPHICS, };
@@ -610,7 +608,6 @@ void tetris_render_update(TetrisRenderState* renderState, TetrisState* state, co
             renderState->renderInterface->command_draw(cmd, &draw);
             renderState->renderInterface->command_buffer_submit(cmd);
         }
-        resourceSet0->destroy(resourceSet0);
     }
     renderState->renderInterface->end_frame(renderState->renderDevice);
 }

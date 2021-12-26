@@ -271,7 +271,7 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
         SeRenderObject* framebuffer = framebuffers[renderInterface->get_active_swap_chain_texture_index(renderDevice)];
         SeRenderObject* bindings0[] = { frameDataBuffer, };
         SeRenderObject* bindings1[] = { verticesBuffer, instancesBuffer, };
-        SeResourceSetCreateInfo setCreateInfos[] =
+        SeResourceSetRequestInfo setCreateInfos[] =
         {
             {
                 .device         = renderDevice,
@@ -289,8 +289,8 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
             },
         };
         SeRenderObject* resourceSets[2] = {0};
-        resourceSets[0] = renderInterface->resource_set_create(&setCreateInfos[0]);
-        resourceSets[1] = renderInterface->resource_set_create(&setCreateInfos[1]);
+        resourceSets[0] = renderInterface->resource_set_request(&setCreateInfos[0]);
+        resourceSets[1] = renderInterface->resource_set_request(&setCreateInfos[1]);
         {
             SeCommandBufferRequestInfo requestInfo = (SeCommandBufferRequestInfo) { renderDevice, SE_COMMAND_BUFFER_USAGE_GRAPHICS };
             SeRenderObject* cmd = renderInterface->command_buffer_request(&requestInfo);
@@ -301,8 +301,6 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
             renderInterface->command_draw(cmd, &((SeCommandDrawInfo) { .numVertices = 3, .numInstances = 1 }));
             renderInterface->command_buffer_submit(cmd);
         }
-        resourceSets[0]->destroy(resourceSets[0]);
-        resourceSets[1]->destroy(resourceSets[1]);
     }
     renderInterface->end_frame(renderDevice);
 }

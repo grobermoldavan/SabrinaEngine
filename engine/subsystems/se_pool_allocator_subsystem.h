@@ -11,6 +11,7 @@ typedef struct SePoolMemoryBucketSource
     void* base;
     size_t reserved;
     size_t commited;
+    size_t used;
 } SePoolMemoryBucketSource;
 
 typedef struct SePoolMemoryBucket

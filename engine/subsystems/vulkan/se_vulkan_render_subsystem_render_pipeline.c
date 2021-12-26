@@ -13,7 +13,7 @@
 #include "engine/containers.h"
 
 #define SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SET_LAYOUTS 8
-#define SE_VK_RENDER_PIPELINE_NUMBER_OF_SETS_IN_POOL 64
+#define SE_VK_RENDER_PIPELINE_NUMBER_OF_SETS_IN_POOL 32
 
 typedef struct SeVkDescriptorSetLayout
 {

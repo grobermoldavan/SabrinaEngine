@@ -23,40 +23,44 @@ typedef struct SeVkResourceSet
     uint32_t numBindings;
 } SeVkResourceSet;
 
-SeRenderObject* se_vk_resource_set_create(SeResourceSetCreateInfo* createInfo)
+static void se_vk_resource_set_assert_no_manual_destroy_call(SeRenderObject* _)
 {
-    se_vk_expect_handle(createInfo->device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't create resource set");
-    se_vk_expect_handle(createInfo->pipeline, SE_RENDER_HANDLE_TYPE_PIPELINE, "Can't create resource set");
-    SeVkInFlightManager* inFlightManager = se_vk_device_get_in_flight_manager(createInfo->device);
-    SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(createInfo->device);
+    se_assert_msg(false, "Resource sets must not be destroyed manually - their lifetime is handled by the rendering backed");
+}
+
+SeRenderObject* se_vk_resource_set_request(SeResourceSetRequestInfo* requestInfo)
+{
+    se_vk_expect_handle(requestInfo->device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't create resource set");
+    se_vk_expect_handle(requestInfo->pipeline, SE_RENDER_HANDLE_TYPE_PIPELINE, "Can't create resource set");
+    SeVkInFlightManager* inFlightManager = se_vk_device_get_in_flight_manager(requestInfo->device);
+    SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(requestInfo->device);
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
     SeAllocatorBindings* persistentAllocator = memoryManager->cpu_persistentAllocator;
-    SeAllocatorBindings* frameAllocator = memoryManager->cpu_frameAllocator;
-    VkDevice logicalHandle = se_vk_device_get_logical_handle(createInfo->device);
+    VkDevice logicalHandle = se_vk_device_get_logical_handle(requestInfo->device);
     //
     // Base info
     //
     SeVkResourceSet* resourceSet = persistentAllocator->alloc(persistentAllocator->allocator, sizeof(SeVkResourceSet), se_default_alignment, se_alloc_tag);
     resourceSet->object.handleType = SE_RENDER_HANDLE_TYPE_RESOURCE_SET;
-    resourceSet->object.destroy = se_vk_resource_set_destroy;
-    resourceSet->device = createInfo->device;
-    resourceSet->pipeline = createInfo->pipeline;
-    resourceSet->handle = se_vk_in_flight_manager_create_descriptor_set(se_vk_device_get_in_flight_manager(createInfo->device), createInfo->pipeline, createInfo->set);
-    resourceSet->set = (uint32_t)createInfo->set; // @TODO : safe cast
-    resourceSet->numBindings = (uint32_t)createInfo->numBindings; // @TODO : safe cast
+    resourceSet->object.destroy = se_vk_resource_set_assert_no_manual_destroy_call;
+    resourceSet->device = requestInfo->device;
+    resourceSet->pipeline = requestInfo->pipeline;
+    resourceSet->handle = se_vk_in_flight_manager_create_descriptor_set(se_vk_device_get_in_flight_manager(requestInfo->device), requestInfo->pipeline, requestInfo->set);
+    resourceSet->set = (uint32_t)requestInfo->set; // @TODO : safe cast
+    resourceSet->numBindings = (uint32_t)requestInfo->numBindings; // @TODO : safe cast
     //
     // Write descriptor sets
     //
-    se_assert(createInfo->numBindings == se_vk_render_pipeline_get_biggest_binding_index(createInfo->pipeline, createInfo->set));
+    se_assert(requestInfo->numBindings == se_vk_render_pipeline_get_biggest_binding_index(requestInfo->pipeline, requestInfo->set));
     VkDescriptorImageInfo imageInfos[SE_VK_RENDER_PIPELINE_MAX_BINDINGS_IN_DESCRIPTOR_SET] = {0};
     VkDescriptorBufferInfo bufferInfos[SE_VK_RENDER_PIPELINE_MAX_BINDINGS_IN_DESCRIPTOR_SET] = {0};
     VkWriteDescriptorSet writes[SE_VK_RENDER_PIPELINE_MAX_BINDINGS_IN_DESCRIPTOR_SET] = {0};
     size_t imageInfosIt = 0;
     size_t bufferInfosIt = 0;
-    for (size_t it = 0; it < createInfo->numBindings; it++)
+    for (size_t it = 0; it < requestInfo->numBindings; it++)
     {
-        SeVkDescriptorSetBindingInfo bindingInfo = se_vk_render_pipeline_get_binding_info(createInfo->pipeline, createInfo->set, it);
-        SeRenderObject* boundObject = createInfo->bindings[it];
+        SeVkDescriptorSetBindingInfo bindingInfo = se_vk_render_pipeline_get_binding_info(requestInfo->pipeline, requestInfo->set, it);
+        SeRenderObject* boundObject = requestInfo->bindings[it];
         resourceSet->boundObjects[it] = boundObject;
         VkWriteDescriptorSet write = (VkWriteDescriptorSet)
         {
@@ -96,7 +100,8 @@ SeRenderObject* se_vk_resource_set_create(SeResourceSetCreateInfo* createInfo)
         else se_assert(!"Unsupported binding type");
         writes[it] = write;
     }
-    vkUpdateDescriptorSets(logicalHandle, (uint32_t)createInfo->numBindings, writes, 0, NULL);
+    vkUpdateDescriptorSets(logicalHandle, (uint32_t)requestInfo->numBindings, writes, 0, NULL);
+    se_vk_in_flight_manager_register_resource_set(inFlightManager, (SeRenderObject*)resourceSet);
     return (SeRenderObject*)resourceSet;
 }
 
@@ -106,9 +111,6 @@ void se_vk_resource_set_destroy(SeRenderObject* _set)
     SeVkResourceSet* set = (SeVkResourceSet*)_set;
     SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(set->device);
     SeAllocatorBindings* persistentAllocator = memoryManager->cpu_persistentAllocator;
-    //
-    //
-    //
     persistentAllocator->dealloc(persistentAllocator->allocator, set, sizeof(SeVkResourceSet));
     // @NOTE : VkDescriptorSet is handled by SeVkInFlightManager
 }

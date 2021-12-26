@@ -7,7 +7,6 @@ struct SeRenderObject;
 
 struct SeRenderObject*  se_vk_command_buffer_request(struct SeCommandBufferRequestInfo* requestInfo);
 void                    se_vk_command_buffer_submit(struct SeRenderObject* buffer);
-void                    se_vk_command_buffer_submit_for_deffered_destruction(struct SeRenderObject* buffer);
 void                    se_vk_command_buffer_destroy(struct SeRenderObject* buffer);
 void                    se_vk_command_buffer_bind_pipeline(struct SeRenderObject* buffer, struct SeCommandBindPipelineInfo* commandInfo);
 void                    se_vk_command_buffer_draw(struct SeRenderObject* buffer, struct SeCommandDrawInfo* commandInfo);

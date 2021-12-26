@@ -36,33 +36,44 @@ SeRenderObject* se_vk_texture_create(SeTextureCreateInfo* createInfo)
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
     VkDevice logicalHandle = se_vk_device_get_logical_handle(createInfo->device);
     //
-    // Basic info
+    // Base info
     //
     SeVkTexture* texture = allocator->alloc(allocator->allocator, sizeof(SeVkTexture), se_default_alignment, se_alloc_tag);
-    texture->object.handleType = SE_RENDER_HANDLE_TYPE_TEXTURE;
-    texture->object.destroy = se_vk_texture_submit_for_deffered_destruction;
-    texture->device = createInfo->device;
-    texture->extent = (VkExtent3D){ .width = createInfo->width, .height = createInfo->height, .depth = 1, };
-    texture->format = createInfo->format == SE_TEXTURE_FORMAT_DEPTH_STENCIL ? se_vk_device_get_depth_stencil_format(createInfo->device) : se_vk_utils_to_vk_format(createInfo->format);
-    const VkImageAspectFlags aspect = createInfo->format == SE_TEXTURE_FORMAT_DEPTH_STENCIL 
+    const VkImageAspectFlags aspect = createInfo->format == SE_TEXTURE_FORMAT_DEPTH_STENCIL
         ? (se_vk_device_is_stencil_supported(createInfo->device) ? VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT : VK_IMAGE_ASPECT_DEPTH_BIT)
         : VK_IMAGE_ASPECT_COLOR_BIT;
-    texture->fullSubresourceRange = (VkImageSubresourceRange)
+    *texture = (SeVkTexture)
     {
-        .aspectMask     = aspect,
-        .baseMipLevel   = 0,
-        .levelCount     = VK_REMAINING_MIP_LEVELS,
-        .baseArrayLayer = 0,
-        .layerCount     = VK_REMAINING_ARRAY_LAYERS,
+        .object             = (SeRenderObject)
+        {
+            .handleType     = SE_RENDER_HANDLE_TYPE_TEXTURE,
+            .destroy        = se_vk_texture_submit_for_deffered_destruction,
+        },
+        .device             = createInfo->device,
+        .extent             = (VkExtent3D){ .width = createInfo->width, .height = createInfo->height, .depth = 1, },
+        .format             = createInfo->format == SE_TEXTURE_FORMAT_DEPTH_STENCIL ? se_vk_device_get_depth_stencil_format(createInfo->device) : se_vk_utils_to_vk_format(createInfo->format),
+        .fullSubresourceRange = (VkImageSubresourceRange)
+        {
+            .aspectMask     = aspect,
+            .baseMipLevel   = 0,
+            .levelCount     = VK_REMAINING_MIP_LEVELS,
+            .baseArrayLayer = 0,
+            .layerCount     = VK_REMAINING_ARRAY_LAYERS,
+        },
+        .currentLayout      = VK_IMAGE_LAYOUT_UNDEFINED,
+        .handle             = VK_NULL_HANDLE,
+        .memory             = {0},
+        .imageView          = VK_NULL_HANDLE,
+        .defaultSampler     = VK_NULL_HANDLE,
+        .flags              = 0,
     };
-    texture->currentLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     //
     // Create VkImage
     //
     VkImageUsageFlags usage = 0;
     if (createInfo->usage & SE_TEXTURE_USAGE_RENDER_PASS_ATTACHMENT)
     {
-        usage |= createInfo->format == SE_TEXTURE_FORMAT_DEPTH_STENCIL 
+        usage |= createInfo->format == SE_TEXTURE_FORMAT_DEPTH_STENCIL
             ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT
             : VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
     }
@@ -173,10 +184,6 @@ SeRenderObject* se_vk_texture_create(SeTextureCreateInfo* createInfo)
         };
         se_vk_check(vkCreateSampler(logicalHandle, &samplerCreateInfo, callbacks, &texture->defaultSampler));
     }
-    else
-    {
-        texture->defaultSampler = VK_NULL_HANDLE;
-    }
     return (SeRenderObject*)texture;
 }
 
@@ -185,9 +192,6 @@ SeRenderObject* se_vk_texture_create_from_external_resources(SeRenderObject* dev
     se_vk_expect_handle(device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't create texture from external resources");
     SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(device);
     SeAllocatorBindings* allocator = memoryManager->cpu_persistentAllocator;
-    //
-    //
-    //
     SeVkTexture* texture = allocator->alloc(allocator->allocator, sizeof(SeVkTexture), se_default_alignment, se_alloc_tag);
     *texture = (SeVkTexture)
     {
@@ -197,6 +201,8 @@ SeRenderObject* se_vk_texture_create_from_external_resources(SeRenderObject* dev
             .destroy        = se_vk_texture_submit_for_deffered_destruction,
         },
         .device             = device,
+        .extent             = (VkExtent3D) { extent->width, extent->height, 1 },
+        .format             = format,
         .fullSubresourceRange = (VkImageSubresourceRange)
         {
             .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -205,11 +211,11 @@ SeRenderObject* se_vk_texture_create_from_external_resources(SeRenderObject* dev
             .baseArrayLayer = 0,
             .layerCount     = VK_REMAINING_ARRAY_LAYERS,
         },
-        .extent             = (VkExtent3D) { extent->width, extent->height, 1 },
-        .handle             = image,
-        .imageView          = view,
-        .format             = format,
         .currentLayout      = VK_IMAGE_LAYOUT_UNDEFINED,
+        .handle             = image,
+        .memory             = {0},
+        .imageView          = view,
+        .defaultSampler     = VK_NULL_HANDLE,
         .flags              = SE_VK_TEXTURE_FROM_EXTERNAL_RESOURCES,
     };
     return (SeRenderObject*)texture;

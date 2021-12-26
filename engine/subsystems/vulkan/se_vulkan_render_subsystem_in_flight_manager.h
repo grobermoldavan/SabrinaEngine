@@ -53,7 +53,8 @@ typedef struct SeVkDefferedDestruction
 typedef struct SeVkInFlightData
 {
     se_sbuffer(SeVkDefferedDestruction) defferedDestructions;
-    se_sbuffer(struct SeRenderObject*) submittedCommandBuffers;
+    se_sbuffer(struct SeRenderObject*) frameResourceSets;
+    se_sbuffer(struct SeRenderObject*) frameCommandBuffers;
     se_sbuffer(SeVkRenderPipelinePools) renderPipelinePools;
     VkSemaphore imageAvailableSemaphore;
 } SeVkInFlightData;
@@ -69,7 +70,7 @@ typedef struct SeVkInFlightData
             - user requests resource set of some render pipeline and set
             - system retrieves pipeline's index from registeredPipelines array
             - system gets current SeVkInFlightData object from inFlightDatas
-            - using index from registeredPipelines array, system gets corrent 
+            - using index from registeredPipelines array, system gets corrent
               SeVkRenderPipelinePools object from renderPipelinePools array
             - system gets correct pool and allocates new descriptor set
     swapChainImageToInFlightFrameMap maps swap chain image index to the index
@@ -97,10 +98,11 @@ void                    se_vk_in_flight_manager_destroy(SeVkInFlightManager* man
 void                    se_vk_in_flight_manager_advance_frame(SeVkInFlightManager* manager);
 void                    se_vk_in_flight_manager_register_pipeline(SeVkInFlightManager* manager, struct SeRenderObject* pipeline);
 void                    se_vk_in_flight_manager_unregister_pipeline(SeVkInFlightManager* manager, struct SeRenderObject* pipeline);
+void                    se_vk_in_flight_manager_register_resource_set(SeVkInFlightManager* manager, struct SeRenderObject* resourceSet);
+void                    se_vk_in_flight_manager_register_command_buffer(SeVkInFlightManager* manager, struct SeRenderObject* commandBuffer);
 
-void                    se_vk_in_flight_manager_submit_command_buffer(SeVkInFlightManager* manager, struct SeRenderObject* commandBuffer);
 void                    se_vk_in_flight_manager_submit_deffered_destruction(SeVkInFlightManager* manager, SeVkDefferedDestruction destruction);
-struct SeRenderObject*  se_vk_in_flight_manager_get_last_submitted_command_buffer(SeVkInFlightManager* manager);
+struct SeRenderObject*  se_vk_in_flight_manager_get_last_command_buffer(SeVkInFlightManager* manager);
 VkSemaphore             se_vk_in_flight_manager_get_image_available_semaphore(SeVkInFlightManager* manager);
 uint32_t                se_vk_in_flight_manager_get_current_swap_chain_image_index(SeVkInFlightManager* manager);
 VkDescriptorSet         se_vk_in_flight_manager_create_descriptor_set(SeVkInFlightManager* manager, struct SeRenderObject* pipeline, size_t set);
