@@ -9,39 +9,25 @@
 #include "se_vulkan_render_subsystem_in_flight_manager.h"
 #include "engine/libs/ssr/simple_spirv_reflection.h"
 #include "engine/allocator_bindings.h"
-#include "engine/render_abstraction_interface.h"
 #include "engine/containers.h"
 
-#define SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SET_LAYOUTS 8
 #define SE_VK_RENDER_PIPELINE_NUMBER_OF_SETS_IN_POOL 32
-
-typedef struct SeVkDescriptorSetLayout
-{
-    SeVkDescriptorSetBindingInfo bindingInfos[SE_VK_RENDER_PIPELINE_MAX_BINDINGS_IN_DESCRIPTOR_SET];
-    VkDescriptorPoolSize poolSizes[SE_VK_RENDER_PIPELINE_MAX_BINDINGS_IN_DESCRIPTOR_SET];
-    size_t numPoolSizes;
-    size_t numBindings;
-    VkDescriptorPoolCreateInfo poolCreateInfo;
-    VkDescriptorSetLayout handle;
-} SeVkDescriptorSetLayout;
-
-typedef struct SeVkRenderPipeline
-{
-    SeRenderObject object;
-    SeRenderObject* device;
-    SeRenderObject* renderPass;
-    VkPipeline handle;
-    VkPipelineLayout layout;
-    VkPipelineBindPoint bindPoint;
-    SeVkDescriptorSetLayout descriptorSetLayouts[SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SET_LAYOUTS];
-    size_t numDescriptorSetLayouts;
-} SeVkRenderPipeline;
 
 typedef struct SeVkDescriptorSetLayoutCreateInfos
 {
     se_sbuffer(VkDescriptorSetLayoutCreateInfo) createInfos;
     se_sbuffer(VkDescriptorSetLayoutBinding) bindings;
 } SeVkDescriptorSetLayoutCreateInfos;
+
+static SeRenderObject* se_vk_render_pipeline_get_device(SeVkRenderPipeline* pipeline)
+{
+    switch(pipeline->bindPoint)
+    {
+        case VK_PIPELINE_BIND_POINT_GRAPHICS: return pipeline->createInfo.graphics.device;
+        default: se_assert(false);
+    }
+    return NULL;
+}
 
 static bool se_vk_render_pipeline_has_vertex_input(const SimpleSpirvReflection* reflection)
 {
@@ -55,7 +41,7 @@ static bool se_vk_render_pipeline_has_vertex_input(const SimpleSpirvReflection* 
 
 static SeVkDescriptorSetLayoutCreateInfos se_vk_render_pipeline_get_discriptor_set_layout_create_infos(SeAllocatorBindings* allocator, const SimpleSpirvReflection** programReflections, size_t numProgramReflections)
 {
-    uint32_t setBindingMasks[32] = {0};
+    SeVkGeneralBitmask setBindingMasks[SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS] = {0};
     //
     // Fill binding masks
     //
@@ -65,13 +51,13 @@ static SeVkDescriptorSetLayoutCreateInfos se_vk_render_pipeline_get_discriptor_s
         for (size_t uniformIt = 0; uniformIt < reflection->numUniforms; uniformIt++)
         {
             const SsrUniform* uniform = &reflection->uniforms[uniformIt];
-            se_assert(uniform->set < 32);
-            se_assert(uniform->binding < 32);
+            se_assert(uniform->set < SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS);
+            se_assert(uniform->binding < SE_VK_GENERAL_BITMASK_WIDTH);
             setBindingMasks[uniform->set] |= 1 << uniform->binding;
         }
     }
     bool isEmptySetFound = false;
-    for (size_t it = 0; it < se_array_size(setBindingMasks); it++)
+    for (size_t it = 0; it < SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS; it++)
     {
         se_assert((!isEmptySetFound || !setBindingMasks[it]) && "Empty descriptor sets in between of non-empty ones are not supported");
         isEmptySetFound = isEmptySetFound || !setBindingMasks[it];
@@ -81,11 +67,11 @@ static SeVkDescriptorSetLayoutCreateInfos se_vk_render_pipeline_get_discriptor_s
     //
     size_t numLayouts = 0;
     size_t numBindings = 0;
-    for (size_t it = 0; it < se_array_size(setBindingMasks); it++)
+    for (size_t it = 0; it < SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS; it++)
     {
         if (!setBindingMasks[it]) continue;
         numLayouts += 1;
-        for (size_t maskIt = 0; maskIt < 32; maskIt++)
+        for (size_t maskIt = 0; maskIt < SE_VK_GENERAL_BITMASK_WIDTH; maskIt++)
         {
             if (setBindingMasks[it] & (1 << maskIt)) numBindings += 1;
         }
@@ -93,7 +79,7 @@ static SeVkDescriptorSetLayoutCreateInfos se_vk_render_pipeline_get_discriptor_s
     se_sbuffer(VkDescriptorSetLayoutCreateInfo) layoutCreateInfos = NULL;
     se_sbuffer(VkDescriptorSetLayoutBinding) bindings = NULL;
     se_sbuffer_construct(layoutCreateInfos, numLayouts, allocator);
-    se_sbuffer_construct(bindings, numBindings, allocator);
+    se_sbuffer_construct_zeroed(bindings, numBindings, allocator);
     se_sbuffer_set_size(layoutCreateInfos, numLayouts);
     se_sbuffer_set_size(bindings, numBindings);
     // ~((uint32_t)0) is an unused binding
@@ -104,7 +90,7 @@ static SeVkDescriptorSetLayoutCreateInfos se_vk_render_pipeline_get_discriptor_s
     {
         size_t layoutCreateInfosIt = 0;
         size_t layoutBindingsIt = 0;
-        for (size_t it = 0; it < se_array_size(setBindingMasks); it++)
+        for (size_t it = 0; it < SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS; it++)
         {
             if (!setBindingMasks[it]) continue;
             uint32_t numBindingsInSet = 0;
@@ -214,26 +200,18 @@ static VkStencilOpState se_vk_render_pipeline_stencil_op_state(SeStencilOpState*
     };
 }
 
-SeRenderObject* se_vk_render_pipeline_graphics_create(SeGraphicsRenderPipelineCreateInfo* createInfo)
+static void se_vk_render_pipeline_graphics_recreate_inplace(SeVkRenderPipeline* pipeline)
 {
-    se_vk_expect_handle(createInfo->device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't create graphics render pipeline");
-    se_vk_expect_handle(createInfo->renderPass, SE_RENDER_HANDLE_TYPE_PASS, "Can't create graphics render pipeline");
-    se_vk_expect_handle(createInfo->vertexProgram, SE_RENDER_HANDLE_TYPE_PROGRAM, "Can't create graphics render pipeline");
-    se_vk_expect_handle(createInfo->fragmentProgram, SE_RENDER_HANDLE_TYPE_PROGRAM, "Can't create graphics render pipeline");
-    SeVkInFlightManager* inFlightManager = se_vk_device_get_in_flight_manager(createInfo->device);
-    SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(createInfo->device);
+    SeRenderObject* device = se_vk_render_pipeline_get_device(pipeline);
+    VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
+    SeVkInFlightManager* inFlightManager = se_vk_device_get_in_flight_manager(device);
+    SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(device);
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    SeAllocatorBindings* allocator = memoryManager->cpu_persistentAllocator;
-    VkDevice logicalHandle = se_vk_device_get_logical_handle(createInfo->device);
+    SeGraphicsRenderPipelineCreateInfo* createInfo = &pipeline->createInfo.graphics;
     //
     // Initial setup
     //
-    SeVkRenderPipeline* pipeline = allocator->alloc(allocator->allocator, sizeof(SeVkRenderPipeline), se_default_alignment, se_alloc_tag);
-    pipeline->object.handleType = SE_RENDER_HANDLE_TYPE_PIPELINE;
-    pipeline->object.destroy = se_vk_render_pipeline_submit_for_deffered_destruction;
-    pipeline->device = createInfo->device;
-    pipeline->renderPass = createInfo->renderPass;
-    pipeline->bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    memset(__SE_VK_RENDER_PIPELINE_RECREATE_ZEROING_OFFSET(pipeline), 0, __SE_VK_RENDER_PIPELINE_RECREATE_ZEROING_SIZE);
     //
     // Basic info and validation
     //
@@ -251,10 +229,9 @@ SeRenderObject* se_vk_render_pipeline_graphics_create(SeGraphicsRenderPipelineCr
     //
     {
         const SimpleSpirvReflection* reflections[] = { vertexReflection, fragmentReflection };
-        SeVkDescriptorSetLayoutCreateInfos layoutCreateInfos = se_vk_render_pipeline_get_discriptor_set_layout_create_infos(allocator, reflections, 2);
+        SeVkDescriptorSetLayoutCreateInfos layoutCreateInfos = se_vk_render_pipeline_get_discriptor_set_layout_create_infos(memoryManager->cpu_frameAllocator, reflections, 2);
         pipeline->numDescriptorSetLayouts = se_sbuffer_size(layoutCreateInfos.createInfos);
-        se_assert(pipeline->numDescriptorSetLayouts < se_array_size(pipeline->descriptorSetLayouts));
-        for (size_t it = 0; it < se_sbuffer_size(layoutCreateInfos.createInfos); it++)
+        for (size_t it = 0; it < pipeline->numDescriptorSetLayouts; it++)
         {
             VkDescriptorSetLayoutCreateInfo* layoutCreateInfo = &layoutCreateInfos.createInfos[it];
             SeVkDescriptorSetLayout* layout = &pipeline->descriptorSetLayouts[it];
@@ -328,7 +305,7 @@ SeRenderObject* se_vk_render_pipeline_graphics_create(SeGraphicsRenderPipelineCr
     // Pipeline layout
     //
     {
-        VkDescriptorSetLayout descriptorSetLayoutHandles[SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SET_LAYOUTS] = {0};
+        VkDescriptorSetLayout descriptorSetLayoutHandles[SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS] = {0};
         for (size_t it = 0; it < pipeline->numDescriptorSetLayouts; it++)
         {
             descriptorSetLayoutHandles[it] = pipeline->descriptorSetLayouts[it].handle;
@@ -417,23 +394,102 @@ SeRenderObject* se_vk_render_pipeline_graphics_create(SeGraphicsRenderPipelineCr
     // Register pipeline
     //
     se_vk_in_flight_manager_register_pipeline(inFlightManager, (SeRenderObject*)pipeline);
+    //
+    // Add external dependencies
+    //
+    se_vk_add_external_resource_dependency(createInfo->device);
+    se_vk_add_external_resource_dependency(createInfo->vertexProgram);
+    se_vk_add_external_resource_dependency(createInfo->fragmentProgram);
+    se_vk_add_external_resource_dependency(createInfo->renderPass);
+}
+
+SeRenderObject* se_vk_render_pipeline_graphics_create(SeGraphicsRenderPipelineCreateInfo* createInfo)
+{
+    se_vk_expect_handle(createInfo->device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't create graphics render pipeline");
+    se_vk_expect_handle(createInfo->renderPass, SE_RENDER_HANDLE_TYPE_PASS, "Can't create graphics render pipeline");
+    se_vk_expect_handle(createInfo->vertexProgram, SE_RENDER_HANDLE_TYPE_PROGRAM, "Can't create graphics render pipeline");
+    se_vk_expect_handle(createInfo->fragmentProgram, SE_RENDER_HANDLE_TYPE_PROGRAM, "Can't create graphics render pipeline");
+    SeVkInFlightManager* inFlightManager = se_vk_device_get_in_flight_manager(createInfo->device);
+    SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(createInfo->device);
+    SeAllocatorBindings* allocator = memoryManager->cpu_persistentAllocator;
+    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
+    VkDevice logicalHandle = se_vk_device_get_logical_handle(createInfo->device);
+    //
+    // Initial setup
+    //
+    SeVkRenderPipeline* pipeline = se_object_pool_take(SeVkRenderPipeline, se_vk_memory_manager_get_pool(memoryManager, SE_RENDER_HANDLE_TYPE_PIPELINE));
+    memset(pipeline, 0, sizeof(SeVkRenderPipeline));
+    pipeline->object = se_vk_render_object(SE_RENDER_HANDLE_TYPE_PIPELINE, se_vk_render_pipeline_submit_for_deffered_destruction);
+    pipeline->createInfo.graphics = *createInfo;
+    if (createInfo->frontStencilOpState)
+    {
+        pipeline->createInfo.graphics.frontStencilOpState = allocator->alloc(allocator->allocator, sizeof(SeStencilOpState), se_default_alignment, se_alloc_tag);
+        memcpy(pipeline->createInfo.graphics.frontStencilOpState, createInfo->frontStencilOpState, sizeof(SeStencilOpState));
+    }
+    if (createInfo->backStencilOpState)
+    {
+        pipeline->createInfo.graphics.backStencilOpState = allocator->alloc(allocator->allocator, sizeof(SeStencilOpState), se_default_alignment, se_alloc_tag);
+        memcpy(pipeline->createInfo.graphics.backStencilOpState, createInfo->backStencilOpState, sizeof(SeStencilOpState));
+    }
+    if (createInfo->depthTestState)
+    {
+        pipeline->createInfo.graphics.depthTestState = allocator->alloc(allocator->allocator, sizeof(SeDepthTestState), se_default_alignment, se_alloc_tag);
+        memcpy(pipeline->createInfo.graphics.depthTestState, createInfo->depthTestState, sizeof(SeDepthTestState));
+    }
+    pipeline->bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    //
+    //
+    //
+    se_vk_render_pipeline_recreate_inplace((SeRenderObject*)pipeline);
+    //
+    //
+    //
     return (SeRenderObject*)pipeline;
 }
 
 void se_vk_render_pipeline_submit_for_deffered_destruction(SeRenderObject* _pipeline)
 {
     se_vk_expect_handle(_pipeline, SE_RENDER_HANDLE_TYPE_PIPELINE, "Can't submit render pipeline for deffered destruction");
-    SeVkInFlightManager* inFlightManager = se_vk_device_get_in_flight_manager(((SeVkRenderPipeline*)_pipeline)->device);
+    SeVkRenderPipeline* pipeline = (SeVkRenderPipeline*)_pipeline;
+    SeVkInFlightManager* inFlightManager = se_vk_device_get_in_flight_manager(se_vk_render_pipeline_get_device(pipeline));
+    //
+    //
+    //
     se_vk_in_flight_manager_submit_deffered_destruction(inFlightManager, (SeVkDefferedDestruction) { _pipeline, se_vk_render_pipeline_destroy });
 }
 
 void se_vk_render_pipeline_destroy(SeRenderObject* _pipeline)
 {
-    se_vk_expect_handle(_pipeline, SE_RENDER_HANDLE_TYPE_PIPELINE, "Can't destroy render pipeline");
+    se_vk_render_pipeline_destroy_inplace(_pipeline);
     SeVkRenderPipeline* pipeline = (SeVkRenderPipeline*)_pipeline;
-    VkDevice logicalHandle = se_vk_device_get_logical_handle(pipeline->device);
-    SeVkInFlightManager* inFlightManager = se_vk_device_get_in_flight_manager(pipeline->device);
-    SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(pipeline->device);
+    SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(se_vk_render_pipeline_get_device(pipeline));
+    SeAllocatorBindings* allocator = memoryManager->cpu_persistentAllocator;
+    //
+    //
+    //
+    if (pipeline->bindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS)
+    {
+        SeGraphicsRenderPipelineCreateInfo* createInfo = &pipeline->createInfo.graphics;
+        if (createInfo->frontStencilOpState)    allocator->dealloc(allocator->allocator, createInfo->frontStencilOpState, sizeof(SeStencilOpState));
+        if (createInfo->backStencilOpState)     allocator->dealloc(allocator->allocator, createInfo->backStencilOpState, sizeof(SeStencilOpState));
+        if (createInfo->depthTestState)         allocator->dealloc(allocator->allocator, createInfo->depthTestState, sizeof(SeDepthTestState));
+    }
+    else
+    {
+        se_assert(false);
+    }
+    se_object_pool_return(SeVkRenderPipeline, se_vk_memory_manager_get_pool(memoryManager, SE_RENDER_HANDLE_TYPE_PIPELINE), pipeline);
+}
+
+void se_vk_render_pipeline_destroy_inplace(SeRenderObject* _pipeline)
+{
+    se_vk_expect_handle(_pipeline, SE_RENDER_HANDLE_TYPE_PIPELINE, "Can't destroy render pipeline");
+    se_vk_check_external_resource_dependencies(_pipeline);
+    SeVkRenderPipeline* pipeline = (SeVkRenderPipeline*)_pipeline;
+    SeRenderObject* device = se_vk_render_pipeline_get_device(pipeline);
+    VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
+    SeVkInFlightManager* inFlightManager = se_vk_device_get_in_flight_manager(device);
+    SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(device);
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
     //
     //
@@ -446,14 +502,39 @@ void se_vk_render_pipeline_destroy(SeRenderObject* _pipeline)
     }
     vkDestroyPipeline(logicalHandle, pipeline->handle, callbacks);
     vkDestroyPipelineLayout(logicalHandle, pipeline->layout, callbacks);
-    memoryManager->cpu_persistentAllocator->dealloc(memoryManager->cpu_persistentAllocator->allocator, pipeline, sizeof(SeVkRenderPipeline));
+    //
+    // Remove external dependencies
+    //
+    se_vk_remove_external_resource_dependency(device);
+    if (pipeline->bindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS)
+    {
+        se_vk_remove_external_resource_dependency(pipeline->createInfo.graphics.vertexProgram);
+        se_vk_remove_external_resource_dependency(pipeline->createInfo.graphics.fragmentProgram);
+        se_vk_remove_external_resource_dependency(pipeline->createInfo.graphics.renderPass);
+    }
+    else
+    {
+        se_assert(false);
+    }
+}
+
+void se_vk_render_pipeline_recreate_inplace(SeRenderObject* _pipeline)
+{
+    se_vk_expect_handle(_pipeline, SE_RENDER_HANDLE_TYPE_PIPELINE, "Can't get pipeline render pass");
+    SeVkRenderPipeline* pipeline = (SeVkRenderPipeline*)_pipeline;
+    switch (pipeline->bindPoint)
+    {
+        case VK_PIPELINE_BIND_POINT_GRAPHICS: se_vk_render_pipeline_graphics_recreate_inplace(pipeline); break;
+        default: se_assert(false);
+    }
 }
 
 SeRenderObject* se_vk_render_pipeline_get_render_pass(SeRenderObject* _pipeline)
 {
     se_vk_expect_handle(_pipeline, SE_RENDER_HANDLE_TYPE_PIPELINE, "Can't get pipeline render pass");
     SeVkRenderPipeline* pipeline = (SeVkRenderPipeline*)_pipeline;
-    return pipeline->renderPass;
+    se_assert(pipeline->bindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS);
+    return pipeline->createInfo.graphics.renderPass;
 }
 
 VkPipelineBindPoint se_vk_render_pipeline_get_bind_point(SeRenderObject* _pipeline)
@@ -474,9 +555,13 @@ VkDescriptorPool se_vk_render_pipeline_create_descriptor_pool(SeRenderObject* _p
 {
     se_vk_expect_handle(_pipeline, SE_RENDER_HANDLE_TYPE_PIPELINE, "Can't create pipeline descriptor pool");
     SeVkRenderPipeline* pipeline = (SeVkRenderPipeline*)_pipeline;
-    SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(pipeline->device);
+    SeRenderObject* device = se_vk_render_pipeline_get_device(pipeline);
+    SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(device);
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    VkDevice logicalHandle = se_vk_device_get_logical_handle(pipeline->device);
+    VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
+    //
+    //
+    //
     VkDescriptorPool pool = VK_NULL_HANDLE;
     se_vk_check(vkCreateDescriptorPool(logicalHandle, &pipeline->descriptorSetLayouts[set].poolCreateInfo, callbacks, &pool));
     return pool;
@@ -515,4 +600,11 @@ VkPipelineLayout se_vk_render_pipeline_get_layout(SeRenderObject* _pipeline)
     se_vk_expect_handle(_pipeline, SE_RENDER_HANDLE_TYPE_PIPELINE, "Can't get pipeline layout");
     SeVkRenderPipeline* pipeline = (SeVkRenderPipeline*)_pipeline;
     return pipeline->layout;
+}
+
+bool se_vk_render_pipeline_is_dependent_on_swap_chain(SeRenderObject* _pipeline)
+{
+    se_vk_expect_handle(_pipeline, SE_RENDER_HANDLE_TYPE_PIPELINE, "Can't get pipeline layout");
+    SeVkRenderPipeline* pipeline = (SeVkRenderPipeline*)_pipeline;
+    return pipeline->bindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS && se_vk_render_pass_is_dependent_on_swap_chain(pipeline->createInfo.graphics.renderPass);
 }

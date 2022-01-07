@@ -3,14 +3,15 @@
 #include "se_vulkan_render_subsystem_base.h"
 #include "se_vulkan_render_subsystem_memory.h"
 #include "se_vulkan_render_subsystem_utils.h"
+#include "se_vulkan_render_subsystem_render_pass.h"
+#include "se_vulkan_render_subsystem_render_pipeline.h"
+#include "se_vulkan_render_subsystem_framebuffer.h"
 #include "se_vulkan_render_subsystem_texture.h"
 #include "se_vulkan_render_subsystem_command_buffer.h"
 #include "se_vulkan_render_subsystem_in_flight_manager.h"
 #include "engine/subsystems/se_window_subsystem.h"
 #include "engine/platform.h"
 #include "engine/allocator_bindings.h"
-
-#define SE_DEBUG_IMPL
 #include "engine/debug.h"
 
 extern SeWindowSubsystemInterface* g_windowIface;
@@ -25,23 +26,23 @@ typedef enum SeVkGpuFlags
 
 typedef struct SeVkCommandQueue
 {
-    VkQueue handle;
-    uint32_t queueFamilyIndex;
-    SeVkCommandQueueFlags flags;
-    VkCommandPool commandPoolHandle;
+    VkQueue                 handle;
+    uint32_t                queueFamilyIndex;
+    SeVkCommandQueueFlags   flags;
+    VkCommandPool           commandPoolHandle;
 } SeVkCommandQueue;
 
 typedef struct SeVkGpu
 {
-    VkPhysicalDeviceProperties deviceProperties_10;
-    VkPhysicalDeviceVulkan11Properties deviceProperties_11;
-    VkPhysicalDeviceVulkan12Properties deviceProperties_12;
-    VkPhysicalDeviceMemoryProperties memoryProperties;
-    SeVkCommandQueue commandQueues[SE_VK_MAX_UNIQUE_COMMAND_QUEUES];
-    VkPhysicalDevice physicalHandle;
-    VkDevice logicalHandle;
-    VkFormat depthStencilFormat;
-    uint32_t flags;
+    VkPhysicalDeviceProperties          deviceProperties_10;
+    VkPhysicalDeviceVulkan11Properties  deviceProperties_11;
+    VkPhysicalDeviceVulkan12Properties  deviceProperties_12;
+    VkPhysicalDeviceMemoryProperties    memoryProperties;
+    SeVkCommandQueue                    commandQueues[SE_VK_MAX_UNIQUE_COMMAND_QUEUES];
+    VkPhysicalDevice                    physicalHandle;
+    VkDevice                            logicalHandle;
+    VkFormat                            depthStencilFormat;
+    uint32_t                            flags;
 } SeVkGpu;
 
 typedef enum SeVkRenderDeviceFlags
@@ -57,25 +58,26 @@ typedef struct SeVkSwapChainImage
 
 typedef struct SeVkSwapChain
 {
-    VkSwapchainKHR handle;
-    VkSurfaceFormatKHR surfaceFormat;
-    VkExtent2D extent;
-    SeVkSwapChainImage images[SE_VK_MAX_SWAP_CHAIN_IMAGES];
-    SeRenderObject* textures[SE_VK_MAX_SWAP_CHAIN_IMAGES];
-    size_t numTextures;
+    VkSwapchainKHR      handle;
+    VkSurfaceFormatKHR  surfaceFormat;
+    VkExtent2D          extent;
+    SeVkSwapChainImage  images[SE_VK_MAX_SWAP_CHAIN_IMAGES];
+    SeRenderObject*     textures[SE_VK_MAX_SWAP_CHAIN_IMAGES];
+    size_t              numTextures;
 } SeVkSwapChain;
 
 typedef struct SeVkRenderDevice
 {
-    SeRenderObject handle;
-    SeVkMemoryManager memoryManager;
-    VkInstance instance;
-    VkDebugUtilsMessengerEXT debugMessenger;
-    VkSurfaceKHR surface;
-    SeVkGpu gpu;
-    SeVkSwapChain swapChain;
-    SeVkInFlightManager inFlightManager;
-    uint64_t flags;
+    SeVkRenderObject                object;
+    SeVkMemoryManager               memoryManager;
+    VkInstance                      instance;
+    VkDebugUtilsMessengerEXT        debugMessenger;
+    VkSurfaceKHR                    surface;
+    SeVkGpu                         gpu;
+    SeVkSwapChain                   swapChain;
+    SeVkInFlightManager             inFlightManager;
+    uint64_t                        flags;
+    SeWindowResizeCallbackHandle    resizeCallbackHandle;
 } SeVkRenderDevice;
 
 static void se_vk_gpu_fill_required_physical_deivce_features(VkPhysicalDeviceFeatures* features)
@@ -141,6 +143,204 @@ static VkPhysicalDevice se_vk_gpu_pick_physical_device(VkInstance instance, VkSu
     return VK_NULL_HANDLE;
 }
 
+static void se_vk_device_swap_chain_create(SeVkRenderDevice* device, SeWindowHandle window, bool allocateNewTextures)
+{
+    SeVkMemoryManager* memoryManager = &device->memoryManager;
+    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
+    {
+        const uint32_t windowWidth = g_windowIface->get_width(window);
+        const uint32_t windowHeight = g_windowIface->get_height(window);;
+        SeVkSwapChainSupportDetails supportDetails = se_vk_utils_create_swap_chain_support_details(device->surface, device->gpu.physicalHandle, memoryManager->cpu_frameAllocator);
+        VkSurfaceFormatKHR  surfaceFormat   = se_vk_utils_choose_swap_chain_surface_format(supportDetails.formats);
+        VkPresentModeKHR    presentMode     = se_vk_utils_choose_swap_chain_surface_present_mode(supportDetails.presentModes);
+        VkExtent2D          extent          = se_vk_utils_choose_swap_chain_extent(windowWidth, windowHeight, &supportDetails.capabilities);
+        // @NOTE :  supportDetails.capabilities.maxImageCount == 0 means unlimited amount of images in swapchain
+        uint32_t imageCount = supportDetails.capabilities.minImageCount + 1;
+        if (supportDetails.capabilities.maxImageCount != 0 && imageCount > supportDetails.capabilities.maxImageCount)
+        {
+            imageCount = supportDetails.capabilities.maxImageCount;
+        }
+        uint32_t queueFamiliesIndices[SE_VK_MAX_UNIQUE_COMMAND_QUEUES] = {0};
+        VkSwapchainCreateInfoKHR swapChainCreateInfo = (VkSwapchainCreateInfoKHR)
+        {
+            .sType                  = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+            .pNext                  = NULL,
+            .flags                  = 0,
+            .surface                = device->surface,
+            .minImageCount          = imageCount,
+            .imageFormat            = surfaceFormat.format,
+            .imageColorSpace        = surfaceFormat.colorSpace,
+            .imageExtent            = extent,
+            .imageArrayLayers       = 1,
+            .imageUsage             = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+            .imageSharingMode       = VK_SHARING_MODE_EXCLUSIVE,
+            .queueFamilyIndexCount  = 0,
+            .pQueueFamilyIndices    = queueFamiliesIndices,
+            .preTransform           = supportDetails.capabilities.currentTransform, // Allows to apply transform to images (rotate etc)
+            .compositeAlpha         = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+            .presentMode            = presentMode,
+            .clipped                = VK_TRUE,
+            .oldSwapchain           = VK_NULL_HANDLE,
+        };
+        //
+        // Fill sharing mode
+        //
+        {
+            SeVkCommandQueue* graphicsQueue = se_vk_gpu_get_command_queue(&device->gpu, SE_VK_CMD_QUEUE_GRAPHICS);
+            SeVkCommandQueue* presentQueue = se_vk_gpu_get_command_queue(&device->gpu, SE_VK_CMD_QUEUE_PRESENT);
+            if (graphicsQueue->queueFamilyIndex == presentQueue->queueFamilyIndex)
+            {
+                swapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+                swapChainCreateInfo.queueFamilyIndexCount = 0;
+            }
+            else
+            {
+                swapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+                swapChainCreateInfo.queueFamilyIndexCount = 2;
+                queueFamiliesIndices[0] = graphicsQueue->queueFamilyIndex;
+                queueFamiliesIndices[1] = presentQueue->queueFamilyIndex;
+            }
+        }
+        se_vk_check(vkCreateSwapchainKHR(device->gpu.logicalHandle, &swapChainCreateInfo, callbacks, &device->swapChain.handle));
+        device->swapChain.surfaceFormat = surfaceFormat;
+        device->swapChain.extent = extent;
+        se_vk_utils_destroy_swap_chain_support_details(&supportDetails);
+    }
+    {
+        uint32_t swapChainImageCount;
+        se_vk_check(vkGetSwapchainImagesKHR(device->gpu.logicalHandle, device->swapChain.handle, &swapChainImageCount, NULL));
+        se_assert(swapChainImageCount < SE_VK_MAX_SWAP_CHAIN_IMAGES);
+        se_assert(allocateNewTextures || swapChainImageCount == device->swapChain.numTextures);
+        se_sbuffer(VkImage) swapChainImageHandles = {0};
+        se_sbuffer_construct(swapChainImageHandles, swapChainImageCount, memoryManager->cpu_frameAllocator);
+        se_sbuffer_set_size(swapChainImageHandles, swapChainImageCount);
+        // It seems like this vkGetSwapchainImagesKHR call leaks memory
+        se_vk_check(vkGetSwapchainImagesKHR(device->gpu.logicalHandle, device->swapChain.handle, &swapChainImageCount, swapChainImageHandles));
+        for (uint32_t it = 0; it < swapChainImageCount; it++)
+        {
+            VkImageView view = VK_NULL_HANDLE;
+            VkImageViewCreateInfo imageViewCreateInfo = (VkImageViewCreateInfo)
+            {
+                .sType              = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                .pNext              = NULL,
+                .flags              = 0,
+                .image              = swapChainImageHandles[it],
+                .viewType           = VK_IMAGE_VIEW_TYPE_2D,
+                .format             = device->swapChain.surfaceFormat.format,
+                .components         = (VkComponentMapping)
+                {
+                    .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                    .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                    .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                    .a = VK_COMPONENT_SWIZZLE_IDENTITY
+                },
+                .subresourceRange   = (VkImageSubresourceRange)
+                {
+                    .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .baseMipLevel   = 0,
+                    .levelCount     = 1,
+                    .baseArrayLayer = 0,
+                    .layerCount     = 1
+                }
+            };
+            se_vk_check(vkCreateImageView(device->gpu.logicalHandle, &imageViewCreateInfo, callbacks, &view));
+            device->swapChain.images[it] = (SeVkSwapChainImage)
+            {
+                .handle = swapChainImageHandles[it],
+                .view = view,
+            };
+        }
+        device->swapChain.numTextures = swapChainImageCount;
+        se_sbuffer_destroy(swapChainImageHandles);
+    }
+    {
+        for (size_t it = 0; it < device->swapChain.numTextures; it++)
+        {
+            if (!device->swapChain.images->handle) break;
+            SeVkSwapChainImage* image = &device->swapChain.images[it];
+            if (allocateNewTextures)
+                device->swapChain.textures[it] = se_vk_texture_create_from_swap_chain((SeRenderObject*)device, &device->swapChain.extent, image->handle, image->view, device->swapChain.surfaceFormat.format);
+            else
+                se_vk_texture_recreate_inplace_from_swap_chain(device->swapChain.textures[it], &device->swapChain.extent, image->handle, image->view, device->swapChain.surfaceFormat.format);
+            se_vk_add_external_resource_dependency(device->swapChain.textures[it]);
+        }
+    }
+}
+
+static void se_vk_device_swap_chain_destroy(SeVkRenderDevice* device, bool deallocateTextures)
+{
+    for (size_t it = 0; it < device->swapChain.numTextures; it++)
+    {
+        se_vk_remove_external_resource_dependency(device->swapChain.textures[it]);
+        if (deallocateTextures)
+            se_vk_texture_destroy(device->swapChain.textures[it]);
+        else
+            se_vk_texture_destroy_inplace(device->swapChain.textures[it]);
+    }
+    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(&device->memoryManager);
+    for (size_t it = 0; it < device->swapChain.numTextures; it++)
+        vkDestroyImageView(device->gpu.logicalHandle, device->swapChain.images[it].view, callbacks);
+    vkDestroySwapchainKHR(device->gpu.logicalHandle, device->swapChain.handle, callbacks);
+}
+
+static void se_vk_device_handle_window_resized(SeWindowHandle window, void* userData)
+{
+    SeVkRenderDevice* device = (SeVkRenderDevice*)userData;
+    SeVkMemoryManager* memoryManager = &device->memoryManager;
+    //
+    //
+    //
+    SeObjectPool* framebufferPool = se_vk_memory_manager_get_pool(memoryManager, SE_RENDER_HANDLE_TYPE_FRAMEBUFFER);
+    SeObjectPool* texturePool = se_vk_memory_manager_get_pool(memoryManager, SE_RENDER_HANDLE_TYPE_TEXTURE);
+    SeObjectPool* renderPipelinePool = se_vk_memory_manager_get_pool(memoryManager, SE_RENDER_HANDLE_TYPE_PIPELINE);
+    SeObjectPool* renderPassPool = se_vk_memory_manager_get_pool(memoryManager, SE_RENDER_HANDLE_TYPE_PASS);
+    //
+    //
+    //
+    vkDeviceWaitIdle(device->gpu.logicalHandle);
+    se_vk_in_flight_manager_handle_swap_chain_recreate(&device->inFlightManager);
+    se_object_pool_for(framebufferPool, framebuffer,
+        if (se_vk_framebuffer_is_dependent_on_swap_chain((SeRenderObject*)framebuffer))
+            se_vk_framebuffer_destroy_inplace((SeRenderObject*)framebuffer);
+    );
+    se_object_pool_for(texturePool, texture,
+        if (se_vk_texture_is_dependent_on_swap_chain((SeRenderObject*)texture))
+            se_vk_texture_destroy_inplace((SeRenderObject*)texture);
+    );
+    se_object_pool_for(renderPipelinePool, pipeline,
+        if (se_vk_render_pipeline_is_dependent_on_swap_chain((SeRenderObject*)pipeline))
+            se_vk_render_pipeline_destroy_inplace((SeRenderObject*)pipeline);
+    );
+    se_object_pool_for(renderPassPool, pass,
+        if (se_vk_render_pass_is_dependent_on_swap_chain((SeRenderObject*)pass))
+            se_vk_render_pass_destroy_inplace((SeRenderObject*)pass);
+    );
+    //
+    //
+    //
+    se_vk_device_swap_chain_destroy(device, false);
+    se_vk_device_swap_chain_create(device, window, false);
+    //
+    //
+    //
+    se_object_pool_for(renderPassPool, pass,
+        if (se_vk_render_pass_is_dependent_on_swap_chain((SeRenderObject*)pass))
+            se_vk_render_pass_recreate_inplace((SeRenderObject*)pass);
+    );
+    se_object_pool_for(renderPipelinePool, pipeline,
+        if (se_vk_render_pipeline_is_dependent_on_swap_chain((SeRenderObject*)pipeline))
+            se_vk_render_pipeline_recreate_inplace((SeRenderObject*)pipeline);
+    );
+    se_object_pool_for(texturePool, texture,
+        if (se_vk_texture_is_dependent_on_swap_chain((SeRenderObject*)texture))
+            se_vk_texture_recreate_inplace((SeRenderObject*)texture);
+    );
+    se_object_pool_for(framebufferPool, framebuffer,
+        if (se_vk_framebuffer_is_dependent_on_swap_chain((SeRenderObject*)framebuffer))
+            se_vk_framebuffer_recreate_inplace((SeRenderObject*)framebuffer);
+    );
+}
+
 VKAPI_ATTR VkBool32 VKAPI_CALL se_vk_debug_callback(
                                             VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
                                             VkDebugUtilsMessageTypeFlagsEXT messageType,
@@ -153,10 +353,10 @@ VKAPI_ATTR VkBool32 VKAPI_CALL se_vk_debug_callback(
 
 SeRenderObject* se_vk_device_create(SeRenderDeviceCreateInfo* deviceCreateInfo)
 {
+    const size_t numImagesInFlight = 3;
     SeAllocatorBindings* allocator = deviceCreateInfo->persistentAllocator;
     SeVkRenderDevice* device = allocator->alloc(allocator->allocator, sizeof(SeVkRenderDevice), se_default_alignment, se_alloc_tag);
-    device->handle.handleType = SE_RENDER_HANDLE_TYPE_DEVICE;
-    device->handle.destroy = se_vk_device_destroy;
+    device->object = se_vk_render_object(SE_RENDER_HANDLE_TYPE_DEVICE, se_vk_device_destroy);
     //
     // Memory manager
     //
@@ -165,6 +365,8 @@ SeRenderObject* se_vk_device_create(SeRenderDeviceCreateInfo* deviceCreateInfo)
         {
             .persistentAllocator = deviceCreateInfo->persistentAllocator,
             .frameAllocator = deviceCreateInfo->frameAllocator,
+            .platform = deviceCreateInfo->platform,
+            .numImagesInFlight = numImagesInFlight,
         };
         se_vk_memory_manager_construct(&device->memoryManager, &createInfo);
     }
@@ -373,122 +575,7 @@ SeRenderObject* se_vk_device_create(SeRenderDeviceCreateInfo* deviceCreateInfo)
     //
     // Swap chain
     //
-    {
-        {
-            uint32_t windowWidth = g_windowIface->get_width(*deviceCreateInfo->window);
-            uint32_t windowHeight = g_windowIface->get_height(*deviceCreateInfo->window);;
-            SeVkSwapChainSupportDetails supportDetails = se_vk_utils_create_swap_chain_support_details(device->surface, device->gpu.physicalHandle, deviceCreateInfo->frameAllocator);
-            VkSurfaceFormatKHR  surfaceFormat   = se_vk_utils_choose_swap_chain_surface_format(supportDetails.formats);
-            VkPresentModeKHR    presentMode     = se_vk_utils_choose_swap_chain_surface_present_mode(supportDetails.presentModes);
-            VkExtent2D          extent          = se_vk_utils_choose_swap_chain_extent(windowWidth, windowHeight, &supportDetails.capabilities);
-            // @NOTE :  supportDetails.capabilities.maxImageCount == 0 means unlimited amount of images in swapchain
-            uint32_t imageCount = supportDetails.capabilities.minImageCount + 1;
-            if (supportDetails.capabilities.maxImageCount != 0 && imageCount > supportDetails.capabilities.maxImageCount)
-            {
-                imageCount = supportDetails.capabilities.maxImageCount;
-            }
-            uint32_t queueFamiliesIndices[SE_VK_MAX_UNIQUE_COMMAND_QUEUES] = {0};
-            VkSwapchainCreateInfoKHR swapChainCreateInfo = (VkSwapchainCreateInfoKHR)
-            {
-                .sType                  = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-                .pNext                  = NULL,
-                .flags                  = 0,
-                .surface                = device->surface,
-                .minImageCount          = imageCount,
-                .imageFormat            = surfaceFormat.format,
-                .imageColorSpace        = surfaceFormat.colorSpace,
-                .imageExtent            = extent,
-                .imageArrayLayers       = 1,
-                .imageUsage             = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-                .imageSharingMode       = VK_SHARING_MODE_EXCLUSIVE,
-                .queueFamilyIndexCount  = 0,
-                .pQueueFamilyIndices    = queueFamiliesIndices,
-                .preTransform           = supportDetails.capabilities.currentTransform, // Allows to apply transform to images (rotate etc)
-                .compositeAlpha         = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-                .presentMode            = presentMode,
-                .clipped                = VK_TRUE,
-                .oldSwapchain           = VK_NULL_HANDLE,
-            };
-            //
-            // Fill sharing mode
-            //
-            {
-                SeVkCommandQueue* graphicsQueue = se_vk_gpu_get_command_queue(&device->gpu, SE_VK_CMD_QUEUE_GRAPHICS);
-                SeVkCommandQueue* presentQueue = se_vk_gpu_get_command_queue(&device->gpu, SE_VK_CMD_QUEUE_PRESENT);
-                if (graphicsQueue->queueFamilyIndex == presentQueue->queueFamilyIndex)
-                {
-                    swapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-                    swapChainCreateInfo.queueFamilyIndexCount = 0;
-                }
-                else
-                {
-                    swapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-                    swapChainCreateInfo.queueFamilyIndexCount = 2;
-                    queueFamiliesIndices[0] = graphicsQueue->queueFamilyIndex;
-                    queueFamiliesIndices[1] = presentQueue->queueFamilyIndex;
-                }
-            }
-            se_vk_check(vkCreateSwapchainKHR(device->gpu.logicalHandle, &swapChainCreateInfo, callbacks, &device->swapChain.handle));
-            device->swapChain.surfaceFormat = surfaceFormat;
-            device->swapChain.extent = extent;
-            se_vk_utils_destroy_swap_chain_support_details(&supportDetails);
-        }
-        {
-            uint32_t swapChainImageCount;
-            se_vk_check(vkGetSwapchainImagesKHR(device->gpu.logicalHandle, device->swapChain.handle, &swapChainImageCount, NULL));
-            se_assert(swapChainImageCount < SE_VK_MAX_SWAP_CHAIN_IMAGES);
-            se_sbuffer(VkImage) swapChainImageHandles = {0};
-            se_sbuffer_construct(swapChainImageHandles, swapChainImageCount, deviceCreateInfo->frameAllocator);
-            se_sbuffer_set_size(swapChainImageHandles, swapChainImageCount);
-            // It seems like this vkGetSwapchainImagesKHR call leaks memory
-            se_vk_check(vkGetSwapchainImagesKHR(device->gpu.logicalHandle, device->swapChain.handle, &swapChainImageCount, swapChainImageHandles));
-            for (uint32_t it = 0; it < swapChainImageCount; it++)
-            {
-                VkImageView view = VK_NULL_HANDLE;
-                VkImageViewCreateInfo imageViewCreateInfo = (VkImageViewCreateInfo)
-                {
-                    .sType              = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                    .pNext              = NULL,
-                    .flags              = 0,
-                    .image              = swapChainImageHandles[it],
-                    .viewType           = VK_IMAGE_VIEW_TYPE_2D,
-                    .format             = device->swapChain.surfaceFormat.format,
-                    .components         = (VkComponentMapping)
-                    {
-                        .r = VK_COMPONENT_SWIZZLE_IDENTITY,
-                        .g = VK_COMPONENT_SWIZZLE_IDENTITY,
-                        .b = VK_COMPONENT_SWIZZLE_IDENTITY,
-                        .a = VK_COMPONENT_SWIZZLE_IDENTITY
-                    },
-                    .subresourceRange   = (VkImageSubresourceRange)
-                    {
-                        .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-                        .baseMipLevel   = 0,
-                        .levelCount     = 1,
-                        .baseArrayLayer = 0,
-                        .layerCount     = 1
-                    }
-                };
-                se_vk_check(vkCreateImageView(device->gpu.logicalHandle, &imageViewCreateInfo, callbacks, &view));
-                device->swapChain.images[it] = (SeVkSwapChainImage)
-                {
-                    .handle = swapChainImageHandles[it],
-                    .view = view,
-                };
-            }
-            device->swapChain.numTextures = swapChainImageCount;
-            se_sbuffer_destroy(swapChainImageHandles);
-        }
-        {
-            for (size_t it = 0; it < device->swapChain.numTextures; it++)
-            {
-                if (!device->swapChain.images->handle) break;
-                SeVkSwapChainImage* image = &device->swapChain.images[it];
-                SeRenderObject* tex = se_vk_texture_create_from_external_resources((SeRenderObject*)device, &device->swapChain.extent, image->handle, image->view, device->swapChain.surfaceFormat.format);
-                device->swapChain.textures[it] = tex;
-            }
-        }
-    }
+    se_vk_device_swap_chain_create(device, *deviceCreateInfo->window, true);
     //
     // In flight manager
     //
@@ -497,9 +584,21 @@ SeRenderObject* se_vk_device_create(SeRenderDeviceCreateInfo* deviceCreateInfo)
         {
             .device = (SeRenderObject*)device,
             .numSwapChainImages = device->swapChain.numTextures,
-            .numImagesInFlight = 3,
+            .numImagesInFlight = numImagesInFlight,
         };
         se_vk_in_flight_manager_construct(&device->inFlightManager, &inFlightManagerCreateInfo);
+    }
+    //
+    // Subscribe on window resize
+    //
+    {
+        SeWindowResizeCallbackInfo callback = (SeWindowResizeCallbackInfo)
+        {
+            .userData = device,
+            .callback = se_vk_device_handle_window_resized,
+            .priority = SE_WINDOW_RESIZE_CALLBACK_PRIORITY_INTERNAL_SYSTEM,
+        };
+        device->resizeCallbackHandle = g_windowIface->add_resize_callback(*deviceCreateInfo->window, &callback);
     }
     return (SeRenderObject*)device;
 }
@@ -510,17 +609,17 @@ void se_vk_device_destroy(SeRenderObject* _device)
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(&device->memoryManager);
     //
-    // Submit swap chain texture objects to destruction and destroy in flight manager
+    // In flight manager
     //
-    for (size_t it = 0; it < device->swapChain.numTextures; it++)
-        se_vk_texture_submit_for_deffered_destruction(device->swapChain.textures[it]);
     se_vk_in_flight_manager_destroy(&device->inFlightManager);
     //
     // Swap Chain
     //
-    for (size_t it = 0; it < device->swapChain.numTextures; it++)
-        vkDestroyImageView(device->gpu.logicalHandle, device->swapChain.images[it].view, callbacks);
-    vkDestroySwapchainKHR(device->gpu.logicalHandle, device->swapChain.handle, callbacks);
+    se_vk_device_swap_chain_destroy(device, true);
+    //
+    // Check that all resources are destroyed
+    //
+    se_vk_check_external_resource_dependencies(device);
     //
     // Gpu
     //

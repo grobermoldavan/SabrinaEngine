@@ -2,7 +2,6 @@
 #include <string.h>
 
 #include "se_vulkan_render_subsystem_utils.h"
-#include "engine/render_abstraction_interface.h"
 #include "engine/se_math.h"
 #include "engine/containers.h"
 #include "engine/debug.h"

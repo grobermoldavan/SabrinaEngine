@@ -6,16 +6,6 @@
 #include "se_vulkan_render_subsystem_utils.h"
 #include "se_vulkan_render_subsystem_in_flight_manager.h"
 #include "engine/allocator_bindings.h"
-#include "engine/render_abstraction_interface.h"
-#include "engine/libs/ssr/simple_spirv_reflection.h"
-
-typedef struct
-{
-    SeRenderObject object;
-    SeRenderObject* device;
-    VkShaderModule handle;
-    SimpleSpirvReflection reflection;
-} SeVkRenderProgram;
 
 static void* se_vk_ssr_alloc(void* userData, size_t size)
 {
@@ -34,30 +24,45 @@ SeRenderObject* se_vk_render_program_create(SeRenderProgramCreateInfo* createInf
     se_vk_expect_handle(createInfo->device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't create program");
     SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(createInfo->device);
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    SeAllocatorBindings* allocator = memoryManager->cpu_persistentAllocator;
     VkDevice logicalHandle = se_vk_device_get_logical_handle(createInfo->device);
     //
+    // Create program and reflection
     //
-    //
-    SeVkRenderProgram* program = allocator->alloc(allocator->allocator, sizeof(SeVkRenderProgram), se_default_alignment, se_alloc_tag);
-    program->object.handleType = SE_RENDER_HANDLE_TYPE_PROGRAM;
-    program->object.destroy = se_vk_render_program_submit_for_deffered_destruction;
-    program->device = createInfo->device;
-    program->handle = se_vk_utils_create_shader_module(logicalHandle, createInfo->bytecode, createInfo->codeSizeBytes, callbacks);
-    SsrAllocator ssrAllocator = (SsrAllocator)
+    SeVkRenderProgram* program = se_object_pool_take(SeVkRenderProgram, se_vk_memory_manager_get_pool(memoryManager, SE_RENDER_HANDLE_TYPE_PROGRAM));
+    *program = (SeVkRenderProgram)
     {
-        .userData   = allocator,
+        .object     = se_vk_render_object(SE_RENDER_HANDLE_TYPE_PROGRAM, se_vk_render_program_submit_for_deffered_destruction),
+        .device     = createInfo->device,
+        .handle     = se_vk_utils_create_shader_module(logicalHandle, createInfo->bytecode, createInfo->codeSizeBytes, callbacks),
+        .reflection = {0},
+    };
+    SsrAllocator ssrPersistentAllocator = (SsrAllocator)
+    {
+        .userData   = memoryManager->cpu_persistentAllocator,
+        .alloc      = se_vk_ssr_alloc,
+        .free       = se_vk_ssr_free,
+    };
+    SsrAllocator ssrFrameAllocator = (SsrAllocator)
+    {
+        .userData   = memoryManager->cpu_frameAllocator,
         .alloc      = se_vk_ssr_alloc,
         .free       = se_vk_ssr_free,
     };
     SsrCreateInfo reflectionCreateInfo = (SsrCreateInfo)
     {
-        .persistentAllocator    = &ssrAllocator,
-        .nonPersistentAllocator = &ssrAllocator, // @TODO : use frame allocator
+        .persistentAllocator    = &ssrPersistentAllocator,
+        .nonPersistentAllocator = &ssrFrameAllocator,
         .bytecode               = (SsrSpirvWord*)createInfo->bytecode,
         .bytecodeNumWords       = createInfo->codeSizeBytes / 4,
     };
     ssr_construct(&program->reflection, &reflectionCreateInfo);
+    //
+    // Add external dependencies
+    //
+    se_vk_add_external_resource_dependency(program->device);
+    //
+    //
+    //
     return (SeRenderObject*)program;
 }
 
@@ -71,13 +76,24 @@ void se_vk_render_program_submit_for_deffered_destruction(SeRenderObject* _progr
 void se_vk_render_program_destroy(SeRenderObject* _program)
 {
     se_vk_expect_handle(_program, SE_RENDER_HANDLE_TYPE_PROGRAM, "Can't destroy program");
+    se_vk_check_external_resource_dependencies(_program);
     SeVkRenderProgram* program = (SeVkRenderProgram*)_program;
     SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(program->device);
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
     VkDevice logicalHandle = se_vk_device_get_logical_handle(program->device);
+    //
+    // Destroy reflection and vk handles
+    //
     ssr_destroy(&program->reflection);
     se_vk_utils_destroy_shader_module(logicalHandle, program->handle, callbacks);
-    memoryManager->cpu_persistentAllocator->dealloc(memoryManager->cpu_persistentAllocator->allocator, program, sizeof(SeVkRenderProgram));
+    //
+    // Remove external dependencies
+    //
+    se_vk_remove_external_resource_dependency(program->device);
+    //
+    //
+    //
+    se_object_pool_return(SeVkRenderProgram, se_vk_memory_manager_get_pool(memoryManager, SE_RENDER_HANDLE_TYPE_PROGRAM), program);
 }
 
 SimpleSpirvReflection* se_vk_render_program_get_reflection(SeRenderObject* _program)

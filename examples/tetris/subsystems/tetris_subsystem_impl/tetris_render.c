@@ -54,6 +54,7 @@ void tetris_render_init(TetrisRenderInitInfo* initInfo)
     renderState->allocatorsInterface = (SeApplicationAllocatorsSubsystemInterface*)initInfo->engine->find_subsystem_interface(initInfo->engine, SE_APPLICATION_ALLOCATORS_SUBSYSTEM_NAME);
     renderState->windowInterface = (SeWindowSubsystemInterface*)initInfo->engine->find_subsystem_interface(initInfo->engine, SE_WINDOW_SUBSYSTEM_NAME);
     renderState->platformInterface = &initInfo->engine->platformIface;
+    renderState->window = initInfo->window;
     //
     // Create render device
     //
@@ -63,6 +64,7 @@ void tetris_render_init(TetrisRenderInitInfo* initInfo)
             .window                 = initInfo->window,
             .persistentAllocator    = renderState->allocatorsInterface->persistentAllocator,
             .frameAllocator         = renderState->allocatorsInterface->frameAllocator,
+            .platform               = renderState->platformInterface,
         };
         renderState->renderDevice = renderState->renderInterface->device_create(&createInfo);
     }
@@ -77,8 +79,8 @@ void tetris_render_init(TetrisRenderInitInfo* initInfo)
             SeTextureCreateInfo createInfo = (SeTextureCreateInfo)
             {
                 .device = renderState->renderDevice,
-                .width  = renderState->renderInterface->texture_get_width(swapChainTexture),
-                .height = renderState->renderInterface->texture_get_height(swapChainTexture),
+                .width  = (SeSizeParamater) { .type = SE_SIZE_PARAMETER_DYNAMIC, .dynamicSize = se_size_parameter_dynamic_default_width },
+                .height = (SeSizeParamater) { .type = SE_SIZE_PARAMETER_DYNAMIC, .dynamicSize = se_size_parameter_dynamic_default_height },
                 .usage  = SE_TEXTURE_USAGE_RENDER_PASS_ATTACHMENT | SE_TEXTURE_USAGE_TEXTURE,
                 .format = SE_TEXTURE_FORMAT_RGBA_8,
             };
@@ -88,8 +90,8 @@ void tetris_render_init(TetrisRenderInitInfo* initInfo)
             SeTextureCreateInfo createInfo = (SeTextureCreateInfo)
             {
                 .device = renderState->renderDevice,
-                .width  = renderState->renderInterface->texture_get_width(swapChainTexture),
-                .height = renderState->renderInterface->texture_get_height(swapChainTexture),
+                .width  = (SeSizeParamater) { .type = SE_SIZE_PARAMETER_DYNAMIC, .dynamicSize = se_size_parameter_dynamic_default_width },
+                .height = (SeSizeParamater) { .type = SE_SIZE_PARAMETER_DYNAMIC, .dynamicSize = se_size_parameter_dynamic_default_height },
                 .usage  = SE_TEXTURE_USAGE_RENDER_PASS_ATTACHMENT,
                 .format = SE_TEXTURE_FORMAT_DEPTH_STENCIL,
             };
@@ -269,27 +271,6 @@ void tetris_render_init(TetrisRenderInitInfo* initInfo)
                 .visibility = SE_MEMORY_BUFFER_VISIBILITY_GPU_AND_CPU,
             };
             renderState->frameDataBuffer = renderState->renderInterface->memory_buffer_create(&memoryBufferCreateInfo);
-            SeFloat4x4 view = se_f4x4_mul_f4x4
-            (
-                se_f4x4_translation((SeFloat3){ (float)TETRIS_FIELD_WIDTH / 2.0f, -3, -20 }),
-                se_f4x4_rotation((SeFloat3){ -30, 0, 0 })
-            );
-            SeFloat4x4 projection;
-            renderState->renderInterface->perspective_projection_matrix
-            (
-                &projection,
-                60,
-                ((float)renderState->windowInterface->get_width(*initInfo->window)) / ((float)renderState->windowInterface->get_height(*initInfo->window)),
-                0.1f,
-                100.0f
-            );
-            SeFloat4x4 vp = se_f4x4_transposed(se_f4x4_mul_f4x4
-            (
-                projection,
-                se_f4x4_inverted(view)
-            ));
-            void* addr = renderState->renderInterface->memory_buffer_get_mapped_address(renderState->frameDataBuffer);
-            memcpy(addr, &vp, sizeof(vp));
         }
         //
         // Cube vertices (filled ones at init)
@@ -530,6 +511,32 @@ void tetris_render_update(TetrisRenderState* renderState, TetrisState* state, co
                 };
             }
     renderState->renderInterface->begin_frame(renderState->renderDevice);
+    //
+    // Fill frame data buffer
+    //
+    {
+        SeFloat4x4 view = se_f4x4_mul_f4x4
+        (
+            se_f4x4_translation((SeFloat3){ (float)TETRIS_FIELD_WIDTH / 2.0f, -3, -20 }),
+            se_f4x4_rotation((SeFloat3){ -30, 0, 0 })
+        );
+        SeFloat4x4 projection;
+        renderState->renderInterface->perspective_projection_matrix
+        (
+            &projection,
+            60,
+            ((float)renderState->windowInterface->get_width(*renderState->window)) / ((float)renderState->windowInterface->get_height(*renderState->window)),
+            0.1f,
+            100.0f
+        );
+        SeFloat4x4 vp = se_f4x4_transposed(se_f4x4_mul_f4x4
+        (
+            projection,
+            se_f4x4_inverted(view)
+        ));
+        void* addr = renderState->renderInterface->memory_buffer_get_mapped_address(renderState->frameDataBuffer);
+        memcpy(addr, &vp, sizeof(vp));
+    }
     //
     // Draw pass
     //

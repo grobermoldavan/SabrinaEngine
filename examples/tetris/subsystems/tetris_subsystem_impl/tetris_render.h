@@ -17,6 +17,8 @@ typedef struct TetrisRenderState
     struct SeApplicationAllocatorsSubsystemInterface* allocatorsInterface;
     struct SeWindowSubsystemInterface* windowInterface;
 
+    struct SeWindowHandle* window;
+
     struct SeRenderObject* renderDevice;
 
     struct SeRenderObject* frameDataBuffer;

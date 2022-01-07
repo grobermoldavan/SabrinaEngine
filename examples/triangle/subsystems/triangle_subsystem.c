@@ -84,7 +84,10 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
     {
         SeRenderDeviceCreateInfo createInfo = (SeRenderDeviceCreateInfo)
         {
-            .window = &windowHandle, .persistentAllocator = allocatorsInterface->persistentAllocator, .frameAllocator = allocatorsInterface->frameAllocator,
+            .window                 = &windowHandle,
+            .persistentAllocator    = allocatorsInterface->persistentAllocator,
+            .frameAllocator         = allocatorsInterface->frameAllocator,
+            .platform               = platformInterface,
         };
         renderDevice = renderInterface->device_create(&createInfo);
     }

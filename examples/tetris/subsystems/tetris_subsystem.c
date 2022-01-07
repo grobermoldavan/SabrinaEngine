@@ -14,9 +14,9 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
     windowInterface = (SeWindowSubsystemInterface*)engine->find_subsystem_interface(engine, SE_WINDOW_SUBSYSTEM_NAME);
     SeWindowSubsystemCreateInfo createInfo = (SeWindowSubsystemCreateInfo)
     {
-        .name           = "Sabrina engine - offscreen render example",
-        .isFullscreen   = true,
-        .isResizable    = false,
+        .name           = "Sabrina engine - tetris example",
+        .isFullscreen   = false,
+        .isResizable    = true,
         .width          = 640,
         .height         = 480,
     };

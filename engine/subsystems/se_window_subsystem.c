@@ -35,15 +35,28 @@ SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
 #include <Windowsx.h>
 #include <string.h>
 
+typedef struct SeWindowResizeCallbackWin32
+{
+    void* userData;
+    void (*callback)(SeWindowHandle handle, void* userData);
+} SeWindowResizeCallbackWin32;
+
+typedef struct SeWindowResizeCallbackContainerWin32
+{
+    SeWindowResizeCallbackWin32 callbacks[32];
+    size_t numCallbacks;
+} SeWindowResizeCallbackContainerWin32;
+
 typedef struct SeWindowWin32
 {
+    SeWindowResizeCallbackContainerWin32 resizeCallbacks[__SE_WINDOW_RESIZE_CALLBACK_PRIORITY_COUNT];
     SeWindowSubsystemInput input;
     HWND handle;
     uint32_t width;
     uint32_t height;
 } SeWindowWin32;
 
-SeWindowWin32 WINDOW_POOL[16] = {0};
+SeWindowWin32 g_windowPool[4] = {0};
 
 static SeWindowHandle                   win32_window_create(SeWindowSubsystemCreateInfo* createInfo);
 static void                             win32_window_destroy(SeWindowHandle handle);
@@ -51,6 +64,8 @@ static const SeWindowSubsystemInput*    win32_window_get_input(SeWindowHandle ha
 static uint32_t                         win32_window_get_width(SeWindowHandle handle);
 static uint32_t                         win32_window_get_height(SeWindowHandle handle);
 static void*                            win32_window_get_native_handle(SeWindowHandle handle);
+static SeWindowResizeCallbackHandle     win32_window_add_resize_callback(SeWindowHandle handle, SeWindowResizeCallbackInfo* callbackInfo);
+static void                             win32_window_remove_resize_callback(SeWindowHandle handle, SeWindowResizeCallbackHandle cbHandle);
 static void                             win32_window_process(SeWindowWin32* window);
 static LRESULT                          win32_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 static bool                             win32_window_process_mouse_input(SeWindowWin32* window, UINT message, WPARAM wParam, LPARAM lParam);
@@ -58,51 +73,45 @@ static bool                             win32_window_process_keyboard_input(SeWi
 
 static void fill_iface(SeWindowSubsystemInterface* iface)
 {
-    iface->create = win32_window_create;
-    iface->destroy = win32_window_destroy;
-    iface->get_input = win32_window_get_input;
-    iface->get_width = win32_window_get_width;
-    iface->get_height = win32_window_get_height;
-    iface->get_native_handle = win32_window_get_native_handle;
+    *iface = (SeWindowSubsystemInterface)
+    {
+        .create = win32_window_create,
+        .destroy = win32_window_destroy,
+        .get_input = win32_window_get_input,
+        .get_width = win32_window_get_width,
+        .get_height = win32_window_get_height,
+        .get_native_handle = win32_window_get_native_handle,
+        .add_resize_callback = win32_window_add_resize_callback,
+        .remove_resize_callback = win32_window_remove_resize_callback,
+    };
 }
 
 static void process_windows()
 {
-    for (size_t i = 0; i < se_array_size(WINDOW_POOL); i++)
-    {
-        if (WINDOW_POOL[i].handle != NULL)
-        {
-            win32_window_process(&WINDOW_POOL[i]);
-        }
-    }
+    for (size_t i = 0; i < se_array_size(g_windowPool); i++)
+        if (g_windowPool[i].handle)
+            win32_window_process(&g_windowPool[i]);
 }
 
 static void destroy_windows()
 {
-    for (size_t i = 0; i < se_array_size(WINDOW_POOL); i++)
-    {
-        if (WINDOW_POOL[i].handle != NULL)
-        {
-            win32_window_destroy((SeWindowHandle){ &WINDOW_POOL[i] });
-        }
-    }
+    for (size_t i = 0; i < se_array_size(g_windowPool); i++)
+        if (g_windowPool[i].handle)
+            win32_window_destroy((SeWindowHandle){ &g_windowPool[i] });
 }
 
 static SeWindowWin32* win32_get_new_window()
 {
-    for (size_t i = 0; i < se_array_size(WINDOW_POOL); i++)
-    {
-        if (WINDOW_POOL[i].handle == NULL)
-        {
-            return &WINDOW_POOL[i];
-        }
-    }
+    for (size_t i = 0; i < se_array_size(g_windowPool); i++)
+        if (g_windowPool[i].handle == NULL)
+            return &g_windowPool[i];
     return NULL;
 }
 
 static SeWindowHandle win32_window_create(SeWindowSubsystemCreateInfo* createInfo)
 {
     SeWindowWin32* window = win32_get_new_window();
+    memset(window, 0, sizeof(SeWindowWin32));
 
     HMODULE moduleHandle = GetModuleHandle(NULL);
 
@@ -214,15 +223,54 @@ static void* win32_window_get_native_handle(SeWindowHandle handle)
     return window->handle;
 }
 
+static SeWindowResizeCallbackHandle win32_window_add_resize_callback(SeWindowHandle handle, SeWindowResizeCallbackInfo* callbackInfo)
+{
+    se_assert(callbackInfo->priority < __SE_WINDOW_RESIZE_CALLBACK_PRIORITY_COUNT);
+    se_assert(callbackInfo->priority > __SE_WINDOW_RESIZE_CALLBACK_PRIORITY_UNDEFINED);
+    SeWindowWin32* window = (SeWindowWin32*)handle.ptr;
+    SeWindowResizeCallbackContainerWin32* callbackContainer = &window->resizeCallbacks[callbackInfo->priority];
+    se_assert(callbackContainer->numCallbacks != se_array_size(callbackContainer->callbacks));
+    callbackContainer->callbacks[callbackContainer->numCallbacks] = (SeWindowResizeCallbackWin32) { callbackInfo->userData, callbackInfo->callback, };
+    return (SeWindowResizeCallbackHandle)(callbackContainer->callbacks + (callbackContainer->numCallbacks++));
+}
+
+static void win32_window_remove_resize_callback(SeWindowHandle handle, SeWindowResizeCallbackHandle cbHandle)
+{
+    SeWindowWin32* window = (SeWindowWin32*)handle.ptr;
+    SeWindowResizeCallbackWin32* callback = (SeWindowResizeCallbackWin32*)cbHandle;
+    for (size_t it = 0; it < __SE_WINDOW_RESIZE_CALLBACK_PRIORITY_COUNT; it++)
+    {
+        SeWindowResizeCallbackContainerWin32* callbackContainer = &window->resizeCallbacks[it];
+        const ptrdiff_t offset = callback - callbackContainer->callbacks;
+        if (offset < se_array_size(callbackContainer->callbacks))
+        {
+            se_assert(callbackContainer->numCallbacks != 0);
+            callbackContainer->callbacks[offset] = callbackContainer->callbacks[callbackContainer->numCallbacks - 1];
+            callbackContainer->numCallbacks -= 1;
+            return;
+        }
+    }
+    se_assert_msg(false, "Trying to remove wrong resize callback");
+}
+
 static void win32_window_process(SeWindowWin32* window)
 {
     memcpy(window->input.keyboardButtonsPrevious, window->input.keyboardButtonsCurrent, sizeof(window->input.keyboardButtonsPrevious));
+    const uint32_t prevWidth = window->width;
+    const uint32_t prevHeight = window->height;
     MSG msg = {0};
     while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
     {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
+    if (window->width != prevWidth || window->height != prevHeight)
+        for (SeWindowResizeCallbackPriority priority = __SE_WINDOW_RESIZE_CALLBACK_PRIORITY_UNDEFINED + 1; priority < __SE_WINDOW_RESIZE_CALLBACK_PRIORITY_COUNT; priority++)
+            for (size_t it = 0; it < window->resizeCallbacks[priority].numCallbacks; it++)
+            {
+                SeWindowResizeCallbackWin32* callback = &window->resizeCallbacks[priority].callbacks[it];
+                callback->callback((SeWindowHandle){ window }, callback->userData);
+            }
 }
 
 static LRESULT win32_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)

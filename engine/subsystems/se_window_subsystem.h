@@ -18,6 +18,14 @@ typedef enum SeMouseInput
     SE_MMB,
 } SeMouseInput;
 
+typedef enum SeWindowResizeCallbackPriority
+{
+    __SE_WINDOW_RESIZE_CALLBACK_PRIORITY_UNDEFINED,
+    SE_WINDOW_RESIZE_CALLBACK_PRIORITY_INTERNAL_SYSTEM,
+    SE_WINDOW_RESIZE_CALLBACK_PRIORITY_USER_SYSTEM,
+    __SE_WINDOW_RESIZE_CALLBACK_PRIORITY_COUNT,
+} SeWindowResizeCallbackPriority;
+
 typedef enum SeKeyboardInput
 {
     SE_NONE,
@@ -77,6 +85,15 @@ typedef struct SeWindowHandle
     void* ptr;
 } SeWindowHandle;
 
+typedef struct SeWindowResizeCallbackInfo
+{
+    void* userData;
+    void (*callback)(SeWindowHandle handle, void* userData);
+    SeWindowResizeCallbackPriority priority;
+} SeWindowResizeCallbackInfo;
+
+typedef void* SeWindowResizeCallbackHandle;
+
 typedef struct SeWindowSubsystemInterface
 {
     SeWindowHandle                  (*create)(SeWindowSubsystemCreateInfo* createInfo);
@@ -85,6 +102,8 @@ typedef struct SeWindowSubsystemInterface
     uint32_t                        (*get_width)(SeWindowHandle handle);
     uint32_t                        (*get_height)(SeWindowHandle handle);
     void*                           (*get_native_handle)(SeWindowHandle handle);
+    SeWindowResizeCallbackHandle    (*add_resize_callback)(SeWindowHandle handle, SeWindowResizeCallbackInfo* callbackInfo);
+    void                            (*remove_resize_callback)(SeWindowHandle handle, SeWindowResizeCallbackHandle cbHandle);
 } SeWindowSubsystemInterface;
 
 #endif

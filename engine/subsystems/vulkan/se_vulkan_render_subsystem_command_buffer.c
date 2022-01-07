@@ -7,7 +7,6 @@
 #include "se_vulkan_render_subsystem_framebuffer.h"
 #include "se_vulkan_render_subsystem_render_pass.h"
 #include "se_vulkan_render_subsystem_in_flight_manager.h"
-#include "engine/render_abstraction_interface.h"
 #include "engine/allocator_bindings.h"
 
 enum SeVkCommandBufferFlagBits
@@ -15,19 +14,6 @@ enum SeVkCommandBufferFlagBits
     SE_VK_COMMAND_BUFFER_HAS_SUBMITTED_COMMANDS = 0x00000001,
     SE_VK_COMMAND_BUFFER_HAS_STARTED_RENDER_PASS = 0x00000002,
 };
-typedef uint32_t SeVkCommandBufferFlags;
-
-typedef struct SeVkCommandBuffer
-{
-    SeRenderObject renderObject;
-    SeRenderObject* device;
-    SeCommandBufferUsage usage;
-    SeVkCommandBufferFlags flags;
-    SeVkCommandQueueFlags queueFlags;
-    VkCommandBuffer handle;
-    VkSemaphore executionFinishedSemaphore;
-    VkFence executionFence;
-} SeVkCommandBuffer;
 
 static void se_vk_command_buffer_assert_no_manual_destroy_call(SeRenderObject* _)
 {
@@ -41,20 +27,26 @@ SeRenderObject* se_vk_command_buffer_request(SeCommandBufferRequestInfo* request
     SeAllocatorBindings* allocator = memoryManager->cpu_persistentAllocator;
     VkDevice logicalHandle = se_vk_device_get_logical_handle(requestInfo->device);
     //
+    // Allocate and set initial info
     //
+    SeVkCommandBuffer* buffer = se_object_pool_take(SeVkCommandBuffer, se_vk_memory_manager_get_pool(memoryManager, SE_RENDER_HANDLE_TYPE_COMMAND_BUFFER));
+    *buffer = (SeVkCommandBuffer)
+    {
+        .object                     = se_vk_render_object(SE_RENDER_HANDLE_TYPE_COMMAND_BUFFER, se_vk_command_buffer_assert_no_manual_destroy_call),
+        .device                     = requestInfo->device,
+        .handle                     = VK_NULL_HANDLE,
+        .usage                      = requestInfo->usage,
+        .queueFlags                 =
+            requestInfo->usage == SE_COMMAND_BUFFER_USAGE_GRAPHICS ? SE_VK_CMD_QUEUE_GRAPHICS :
+            requestInfo->usage == SE_COMMAND_BUFFER_USAGE_TRANSFER ? SE_VK_CMD_QUEUE_TRANSFER :
+            0,
+        .executionFinishedSemaphore = VK_NULL_HANDLE,
+        .executionFence             = VK_NULL_HANDLE,
+        .flags                      = 0,
+    };
+    se_assert_msg(buffer->queueFlags, "Unsupported command buffer usage");
     //
-    SeVkCommandBuffer* buffer = allocator->alloc(allocator->allocator, sizeof(SeVkCommandBuffer), se_default_alignment, se_alloc_tag);
-    buffer->renderObject.handleType = SE_RENDER_HANDLE_TYPE_COMMAND_BUFFER;
-    buffer->renderObject.destroy = se_vk_command_buffer_assert_no_manual_destroy_call;
-    buffer->device = requestInfo->device;
-    buffer->usage = requestInfo->usage;
-    buffer->flags = 0;
-    buffer->queueFlags =
-        requestInfo->usage == SE_COMMAND_BUFFER_USAGE_GRAPHICS ? SE_VK_CMD_QUEUE_GRAPHICS :
-        requestInfo->usage == SE_COMMAND_BUFFER_USAGE_TRANSFER ? SE_VK_CMD_QUEUE_TRANSFER :
-        0;
-    //
-    //
+    // Create vk handles and begin command buffer
     //
     se_assert(requestInfo->usage == SE_COMMAND_BUFFER_USAGE_GRAPHICS || requestInfo->usage == SE_COMMAND_BUFFER_USAGE_TRANSFER);
     VkCommandBufferAllocateInfo allocateInfo = (VkCommandBufferAllocateInfo)
@@ -88,6 +80,13 @@ SeRenderObject* se_vk_command_buffer_request(SeCommandBufferRequestInfo* request
         .pInheritanceInfo = NULL,
     };
     se_vk_check(vkBeginCommandBuffer(buffer->handle, &beginInfo));
+    //
+    // Add external dependencies
+    //
+    se_vk_add_external_resource_dependency(buffer->device);
+    //
+    //
+    //
     return (SeRenderObject*)buffer;
 }
 
@@ -97,7 +96,7 @@ void se_vk_command_buffer_submit(SeRenderObject* _buffer)
     SeVkCommandBuffer* buffer = (SeVkCommandBuffer*)_buffer;
     SeVkInFlightManager* inFlightManager = se_vk_device_get_in_flight_manager(buffer->device);
     //
-    //
+    //  End command buffer
     //
     se_assert(buffer->flags & SE_VK_COMMAND_BUFFER_HAS_SUBMITTED_COMMANDS && "Can't submit command buffer - no commands were provided");
     if (buffer->flags & SE_VK_COMMAND_BUFFER_HAS_STARTED_RENDER_PASS)
@@ -106,7 +105,7 @@ void se_vk_command_buffer_submit(SeRenderObject* _buffer)
     }
     se_vk_check(vkEndCommandBuffer(buffer->handle));
     //
-    //
+    // Submit
     //
     SeVkCommandBuffer* waitBuffer = (SeVkCommandBuffer*)se_vk_in_flight_manager_get_last_command_buffer(inFlightManager);
     VkSemaphore waitSemaphores[] = { waitBuffer ? waitBuffer->executionFinishedSemaphore : VK_NULL_HANDLE };
@@ -130,18 +129,21 @@ void se_vk_command_buffer_submit(SeRenderObject* _buffer)
 void se_vk_command_buffer_destroy(SeRenderObject* _buffer)
 {
     se_vk_expect_handle(_buffer, SE_RENDER_HANDLE_TYPE_COMMAND_BUFFER, "Can't destroy command buffer");
+    se_vk_check_external_resource_dependencies(_buffer);
     SeVkCommandBuffer* buffer = (SeVkCommandBuffer*)_buffer;
-    SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(buffer->device);
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    SeAllocatorBindings* allocator = memoryManager->cpu_persistentAllocator;
+    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(se_vk_device_get_memory_manager(buffer->device));
     VkDevice logicalHandle = se_vk_device_get_logical_handle(buffer->device);
     //
-    //
+    // Destroy vk handles
     //
     vkDestroySemaphore(logicalHandle, buffer->executionFinishedSemaphore, callbacks);
     vkDestroyFence(logicalHandle, buffer->executionFence, callbacks);
     vkFreeCommandBuffers(logicalHandle, se_vk_device_get_command_pool(buffer->device, buffer->queueFlags), 1, &buffer->handle);
-    allocator->dealloc(allocator->allocator, buffer, sizeof(SeVkCommandBuffer));
+    //
+    // Remove external dependencies
+    //
+    se_vk_remove_external_resource_dependency(buffer->device);
+    // @NOTE : Object memory is handled by SeVkInFlightManager and SeVkMemoryManager
 }
 
 void se_vk_command_buffer_bind_pipeline(SeRenderObject* _buffer, SeCommandBindPipelineInfo* commandInfo)

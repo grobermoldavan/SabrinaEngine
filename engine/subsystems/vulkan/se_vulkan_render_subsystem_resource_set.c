@@ -1,27 +1,13 @@
 
 #include "se_vulkan_render_subsystem_resource_set.h"
-#include "se_vulkan_render_subsystem_base.h"
 #include "se_vulkan_render_subsystem_device.h"
 #include "se_vulkan_render_subsystem_memory.h"
 #include "se_vulkan_render_subsystem_utils.h"
 #include "se_vulkan_render_subsystem_in_flight_manager.h"
-#include "se_vulkan_render_subsystem_render_pipeline.h"
 #include "se_vulkan_render_subsystem_memory_buffer.h"
 #include "se_vulkan_render_subsystem_texture.h"
 #include "se_vulkan_render_subsystem_command_buffer.h"
 #include "engine/allocator_bindings.h"
-#include "engine/render_abstraction_interface.h"
-
-typedef struct SeVkResourceSet
-{
-    SeRenderObject object;
-    SeRenderObject* device;
-    SeRenderObject* pipeline;
-    VkDescriptorSet handle;
-    uint32_t set;
-    SeRenderObject* boundObjects[SE_VK_RENDER_PIPELINE_MAX_BINDINGS_IN_DESCRIPTOR_SET];
-    uint32_t numBindings;
-} SeVkResourceSet;
 
 static void se_vk_resource_set_assert_no_manual_destroy_call(SeRenderObject* _)
 {
@@ -40,21 +26,24 @@ SeRenderObject* se_vk_resource_set_request(SeResourceSetRequestInfo* requestInfo
     //
     // Base info
     //
-    SeVkResourceSet* resourceSet = persistentAllocator->alloc(persistentAllocator->allocator, sizeof(SeVkResourceSet), se_default_alignment, se_alloc_tag);
-    resourceSet->object.handleType = SE_RENDER_HANDLE_TYPE_RESOURCE_SET;
-    resourceSet->object.destroy = se_vk_resource_set_assert_no_manual_destroy_call;
-    resourceSet->device = requestInfo->device;
-    resourceSet->pipeline = requestInfo->pipeline;
-    resourceSet->handle = se_vk_in_flight_manager_create_descriptor_set(se_vk_device_get_in_flight_manager(requestInfo->device), requestInfo->pipeline, requestInfo->set);
-    resourceSet->set = (uint32_t)requestInfo->set; // @TODO : safe cast
-    resourceSet->numBindings = (uint32_t)requestInfo->numBindings; // @TODO : safe cast
+    SeVkResourceSet* resourceSet = se_object_pool_take(SeVkResourceSet, se_vk_memory_manager_get_pool(memoryManager, SE_RENDER_HANDLE_TYPE_RESOURCE_SET));
+    *resourceSet = (SeVkResourceSet)
+    {
+        .object         = se_vk_render_object(SE_RENDER_HANDLE_TYPE_RESOURCE_SET, se_vk_resource_set_assert_no_manual_destroy_call),
+        .device         = requestInfo->device,
+        .pipeline       = requestInfo->pipeline,
+        .handle         = se_vk_in_flight_manager_create_descriptor_set(se_vk_device_get_in_flight_manager(requestInfo->device), requestInfo->pipeline, requestInfo->set),
+        .set            = (uint32_t)requestInfo->set, // @TODO : safe cast
+        .boundObjects   = {0},
+        .numBindings    = (uint32_t)requestInfo->numBindings, // @TODO : safe cast
+    };
     //
     // Write descriptor sets
     //
     se_assert(requestInfo->numBindings == se_vk_render_pipeline_get_biggest_binding_index(requestInfo->pipeline, requestInfo->set));
-    VkDescriptorImageInfo imageInfos[SE_VK_RENDER_PIPELINE_MAX_BINDINGS_IN_DESCRIPTOR_SET] = {0};
-    VkDescriptorBufferInfo bufferInfos[SE_VK_RENDER_PIPELINE_MAX_BINDINGS_IN_DESCRIPTOR_SET] = {0};
-    VkWriteDescriptorSet writes[SE_VK_RENDER_PIPELINE_MAX_BINDINGS_IN_DESCRIPTOR_SET] = {0};
+    VkDescriptorImageInfo imageInfos[SE_VK_GENERAL_BITMASK_WIDTH] = {0};
+    VkDescriptorBufferInfo bufferInfos[SE_VK_GENERAL_BITMASK_WIDTH] = {0};
+    VkWriteDescriptorSet writes[SE_VK_GENERAL_BITMASK_WIDTH] = {0};
     size_t imageInfosIt = 0;
     size_t bufferInfosIt = 0;
     for (size_t it = 0; it < requestInfo->numBindings; it++)
@@ -102,17 +91,35 @@ SeRenderObject* se_vk_resource_set_request(SeResourceSetRequestInfo* requestInfo
     }
     vkUpdateDescriptorSets(logicalHandle, (uint32_t)requestInfo->numBindings, writes, 0, NULL);
     se_vk_in_flight_manager_register_resource_set(inFlightManager, (SeRenderObject*)resourceSet);
+    //
+    // Add external dependencies
+    //
+    se_vk_add_external_resource_dependency(resourceSet->device);
+    for (size_t it = 0; it < resourceSet->numBindings; it++)
+    {
+        se_vk_add_external_resource_dependency(resourceSet->boundObjects[it]);
+    }
+    //
+    //
+    //
     return (SeRenderObject*)resourceSet;
 }
 
 void se_vk_resource_set_destroy(SeRenderObject* _set)
 {
     se_vk_expect_handle(_set, SE_RENDER_HANDLE_TYPE_RESOURCE_SET, "Can't destroy resource set");
+    se_vk_check_external_resource_dependencies(_set);
     SeVkResourceSet* set = (SeVkResourceSet*)_set;
     SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(set->device);
-    SeAllocatorBindings* persistentAllocator = memoryManager->cpu_persistentAllocator;
-    persistentAllocator->dealloc(persistentAllocator->allocator, set, sizeof(SeVkResourceSet));
-    // @NOTE : VkDescriptorSet is handled by SeVkInFlightManager
+    //
+    // Remove external dependencies
+    //
+    se_vk_remove_external_resource_dependency(set->device);
+    for (size_t it = 0; it < set->numBindings; it++)
+    {
+        se_vk_remove_external_resource_dependency(set->boundObjects[it]);
+    }
+    // @NOTE : Object cpu memory and VkDescriptorSet are handled by SeVkMemoryManager and SeVkInFlightManager
 }
 
 SeRenderObject* se_vk_resource_set_get_pipeline(SeRenderObject* _set)

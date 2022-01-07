@@ -5,7 +5,8 @@
 #include <stdlib.h>
 
 #include "allocator_bindings.h"
-#include "engine/common_includes.h"
+#include "common_includes.h"
+#include "platform.h"
 
 /*
    sbuffer
@@ -44,7 +45,7 @@
 
 #define se_sbuffer(type) type*
 
-void  __se_sbuffer_construct(void** arr, size_t entrySize, size_t capacity, struct SeAllocatorBindings* bindings);
+void  __se_sbuffer_construct(void** arr, size_t entrySize, size_t capacity, struct SeAllocatorBindings* bindings, bool zero);
 void  __se_sbuffer_destruct(void** arr, size_t entrySize);
 void  __se_sbuffer_realloc(void** arr, size_t entrySize, size_t newCapacity);
 void* __se_memcpy(void* dst, void* src, size_t size);
@@ -59,8 +60,9 @@ void* __se_memset(void* dst, int val, size_t size);
 #define __se_remove_idx(arr, idx)               __se_memcpy((void*)&(arr)[idx], (void*)&(arr)[__se_param(arr, 1) - 1], sizeof((arr)[0])), __se_param(arr, 1) -= 1
 #define __se_get_elem_idx(arr, valPtr)          ((valPtr) - (arr))
 
-#define se_sbuffer_construct(arr, capacity, allocatorPtr)   __se_sbuffer_construct((void**)&(arr), sizeof((arr)[0]), capacity, allocatorPtr)
-#define se_sbuffer_destroy(arr)                             __se_sbuffer_destruct((void**)&(arr), sizeof((arr)[0]))
+#define se_sbuffer_construct(arr, capacity, allocatorPtr)           __se_sbuffer_construct((void**)&(arr), sizeof((arr)[0]), capacity, allocatorPtr, false)
+#define se_sbuffer_construct_zeroed(arr, capacity, allocatorPtr)    __se_sbuffer_construct((void**)&(arr), sizeof((arr)[0]), capacity, allocatorPtr, true)
+#define se_sbuffer_destroy(arr)                                     __se_sbuffer_destruct((void**)&(arr), sizeof((arr)[0]))
 
 #define se_sbuffer_set_size(arr, size)              (*__se_param_ptr(arr, 1) = size)
 #define se_sbuffer_size(arr)                        ((arr) ? __se_param(arr, 1) : 0)
@@ -73,7 +75,7 @@ void* __se_memset(void* dst, int val, size_t size);
 
 typedef void* SeAnyPtr;
 
-void __se_sbuffer_construct(void** arr, size_t entrySize, size_t capacity, struct SeAllocatorBindings* allocator)
+void __se_sbuffer_construct(void** arr, size_t entrySize, size_t capacity, struct SeAllocatorBindings* allocator, bool zero)
 {
     SeAnyPtr* mem = (SeAnyPtr*)allocator->alloc(allocator->allocator, __se_info_size + entrySize * capacity, se_default_alignment, se_alloc_tag);
     __se_memcpy(mem, allocator, sizeof(struct SeAllocatorBindings));
@@ -81,6 +83,8 @@ void __se_sbuffer_construct(void** arr, size_t entrySize, size_t capacity, struc
     params[0] = capacity;
     params[1] = 0; // size
     *arr = ((char*)mem) + __se_info_size;
+    if (zero)
+        __se_memset(*arr, 0, entrySize * capacity);
 }
 
 void __se_sbuffer_destruct(void** arr, size_t entrySize)
@@ -122,5 +126,163 @@ void* __se_memset(void* dst, int val, size_t size)
 {
     return memset(dst, val, size);
 }
+
+/*
+    Expandable virtual memory.
+
+    Basically a stack that uses OS virtual memory system and commits memory pages on demand.
+*/
+
+typedef struct SeExpandableVirtualMemory
+{
+    SePlatformInterface* platform;
+    void* base;
+    size_t reserved;
+    size_t commited;
+    size_t used;
+} SeExpandableVirtualMemory;
+
+void se_expandable_virtual_memory_construct(SeExpandableVirtualMemory* memory, SePlatformInterface* platform, size_t size)
+{
+    *memory = (SeExpandableVirtualMemory)
+    {
+        .platform   = platform,
+        .base       = platform->mem_reserve(size),
+        .reserved   = size,
+        .commited   = 0,
+        .used       = 0,
+    };
+}
+
+void se_expandable_virtual_memory_destroy(SeExpandableVirtualMemory* memory)
+{
+    memory->platform->mem_release(memory->base, memory->reserved);
+}
+
+void se_expandable_virtual_memory_add(SeExpandableVirtualMemory* memory, size_t addition)
+{
+    memory->used += addition;
+    se_assert(memory->used <= memory->reserved);
+    if (memory->used > memory->commited)
+    {
+        const size_t memPageSize = memory->platform->get_mem_page_size();
+        const size_t requredToCommit = memory->used - memory->commited;
+        const size_t numPagesToCommit = 1 + ((requredToCommit - 1) / memPageSize);
+        const size_t memoryToCommit = numPagesToCommit * memPageSize;
+        memory->platform->mem_commit(((uint8_t*)memory->base) + memory->commited, memoryToCommit);
+        memory->commited += memoryToCommit;
+    }
+}
+
+/*
+    Object pool.
+
+    Container for an objects of the same size.
+*/
+
+typedef struct SeObjectPool
+{
+    SeExpandableVirtualMemory ledger;
+    SeExpandableVirtualMemory objectMemory;
+    size_t objectSize;
+    size_t currentCapacity;
+} SeObjectPool;
+
+typedef struct SeObjectPoolCreateInfo
+{
+    SePlatformInterface* platform;
+    size_t objectSize;
+} SeObjectPoolCreateInfo;
+
+void se_object_pool_construct(SeObjectPool* pool, SeObjectPoolCreateInfo* createInfo)
+{
+    __se_memset(pool, 0, sizeof(SeObjectPool));
+    se_expandable_virtual_memory_construct(&pool->ledger, createInfo->platform, se_gigabytes(16));
+    se_expandable_virtual_memory_construct(&pool->objectMemory, createInfo->platform, se_gigabytes(16));
+    pool->objectSize = createInfo->objectSize;
+    pool->currentCapacity = 0;
+
+}
+
+void se_object_pool_destroy(SeObjectPool* pool)
+{
+    se_expandable_virtual_memory_destroy(&pool->ledger);
+    se_expandable_virtual_memory_destroy(&pool->objectMemory);
+}
+
+void se_object_pool_reset(SeObjectPool* pool)
+{
+    memset(pool->ledger.base, 0, pool->ledger.used);
+}
+
+#ifdef SE_DEBUG
+#define se_object_pool_take(type, poolPtr) ((type*)__se_object_pool_take(poolPtr, sizeof(type)))
+void* __se_object_pool_take(SeObjectPool* pool, size_t objectSize)
+{
+    se_assert(objectSize == pool->objectSize);
+#else
+#define se_object_pool_take(type, poolPtr) ((type*)__se_object_pool_take(poolPtr))
+void* __se_object_pool_take(SeObjectPool* pool)
+{
+#endif
+    for (size_t it = 0; it < pool->ledger.used; it++)
+    {
+        uint8_t* byte = ((uint8_t*)pool->ledger.base) + it;
+        if (*byte == 255) continue;
+        for (uint8_t byteIt = 0; byteIt < 8; byteIt++)
+        {
+            if ((*byte & (1 << byteIt)) == 0)
+            {
+                const size_t ledgerOffset = it * 8 + byteIt;
+                const size_t memoryOffset = ledgerOffset * pool->objectSize;
+                *byte |= (1 << byteIt);
+                return ((uint8_t*)pool->objectMemory.base) + memoryOffset;
+            }
+        }
+        se_assert_msg(false, "Invalid code path");
+    }
+    const size_t ledgerUsed = pool->ledger.used;
+    const size_t ledgerOffset = ledgerUsed * 8;
+    const size_t memoryOffset = ledgerOffset * pool->objectSize;
+    se_expandable_virtual_memory_add(&pool->ledger, 1);
+    se_expandable_virtual_memory_add(&pool->objectMemory, pool->objectSize * 8);
+    uint8_t* byte = ((uint8_t*)pool->ledger.base) + ledgerUsed;
+    *byte |= 1;
+    return ((uint8_t*)pool->objectMemory.base) + memoryOffset;
+}
+
+#ifdef SE_DEBUG
+#define se_object_pool_return(type, poolPtr, objPtr) __se_object_pool_return(poolPtr, objPtr, sizeof(type))
+void __se_object_pool_return(SeObjectPool* pool, void* object, size_t objectSize)
+{
+    se_assert(objectSize == pool->objectSize);
+#else
+#define se_object_pool_return(type, poolPtr, objPtr) __se_object_pool_return(poolPtr, objPtr)
+void __se_object_pool_return(SeObjectPool* pool, void* object)
+{
+#endif
+    const intptr_t base = (intptr_t)pool->objectMemory.base;
+    const intptr_t end = base + pool->objectMemory.used;
+    const intptr_t candidate = (intptr_t)object;
+    se_assert_msg(candidate >= base && candidate < end, "Can't return object to the pool : pointer is not in the pool range");
+    const size_t memoryOffset = candidate - base;
+    se_assert_msg((memoryOffset % pool->objectSize) == 0, "Can't return object to the pool : wrong pointer provided");
+    const size_t ledgerOffset = memoryOffset / pool->objectSize;
+    uint8_t* byte = ((uint8_t*)pool->ledger.base) + (ledgerOffset / 8);
+    se_assert_msg(*byte & (1 << (ledgerOffset % 8)), "Can't return object to the pool : object is already returned");
+    *byte &= ~(1 << (ledgerOffset % 8));
+}
+
+#define se_object_pool_is_taken(poolPtr, index) (*(((uint8_t*)poolPtr->ledger.base) + (index / 8)) & (1 << (index % 8)))
+
+#define se_object_pool_access_by_index(poolPtr, index) (((uint8_t*)poolPtr->objectMemory.base) + (index * poolPtr->objectSize))
+
+#define se_object_pool_for(poolPtr, objName, code)                          \
+    for (size_t __it = 0; __it < poolPtr->ledger.used * 8; __it++)          \
+        if (se_object_pool_is_taken(poolPtr, __it))                         \
+        {                                                                   \
+            void* objName = se_object_pool_access_by_index(poolPtr, __it); \
+            code;                                                           \
+        }
 
 #endif

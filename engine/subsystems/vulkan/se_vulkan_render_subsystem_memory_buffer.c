@@ -1,34 +1,27 @@
 
 #include "se_vulkan_render_subsystem_memory_buffer.h"
 #include "se_vulkan_render_subsystem_base.h"
-#include "se_vulkan_render_subsystem_memory.h"
 #include "se_vulkan_render_subsystem_device.h"
 #include "se_vulkan_render_subsystem_in_flight_manager.h"
-#include "engine/render_abstraction_interface.h"
 #include "engine/allocator_bindings.h"
-
-typedef struct SeVkMemoryBuffer
-{
-    SeRenderObject object;
-    SeRenderObject* device;
-    VkBuffer handle;
-    SeVkMemory memory;
-} SeVkMemoryBuffer;
 
 SeRenderObject* se_vk_memory_buffer_create(SeMemoryBufferCreateInfo* createInfo)
 {
     se_vk_expect_handle(createInfo->device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't create memory buffer");
     SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(createInfo->device);
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    SeAllocatorBindings* allocator = memoryManager->cpu_persistentAllocator;
     VkDevice logicalHandle = se_vk_device_get_logical_handle(createInfo->device);
     //
     // Initial setup
     //
-    SeVkMemoryBuffer* buffer = allocator->alloc(allocator->allocator, sizeof(SeVkMemoryBuffer), se_default_alignment, se_alloc_tag);
-    buffer->object.handleType = SE_RENDER_HANDLE_TYPE_MEMORY_BUFFER;
-    buffer->object.destroy = se_vk_memory_buffer_submit_for_deffered_destruction;
-    buffer->device = createInfo->device;
+    SeVkMemoryBuffer* buffer = se_object_pool_take(SeVkMemoryBuffer, se_vk_memory_manager_get_pool(memoryManager, SE_RENDER_HANDLE_TYPE_MEMORY_BUFFER));
+    *buffer = (SeVkMemoryBuffer)
+    {
+        .object = se_vk_render_object(SE_RENDER_HANDLE_TYPE_MEMORY_BUFFER, se_vk_memory_buffer_submit_for_deffered_destruction),
+        .device = createInfo->device,
+        .handle = VK_NULL_HANDLE,
+        .memory = {0},
+    };
     //
     // Create buffer handle
     //
@@ -41,8 +34,8 @@ SeRenderObject* se_vk_memory_buffer_create(SeMemoryBufferCreateInfo* createInfo)
     VkSharingMode sharingMode = 0;
     uint32_t queueFamilyIndexCount = 0;
     {
-        uint32_t graphicsQueueFamilyIndex = se_vk_device_get_command_queue_family_index(createInfo->device, SE_VK_CMD_QUEUE_GRAPHICS);
-        uint32_t transferQueueFamilyIndex = se_vk_device_get_command_queue_family_index(createInfo->device, SE_VK_CMD_QUEUE_TRANSFER);
+        const uint32_t graphicsQueueFamilyIndex = se_vk_device_get_command_queue_family_index(createInfo->device, SE_VK_CMD_QUEUE_GRAPHICS);
+        const uint32_t transferQueueFamilyIndex = se_vk_device_get_command_queue_family_index(createInfo->device, SE_VK_CMD_QUEUE_TRANSFER);
         if (graphicsQueueFamilyIndex == transferQueueFamilyIndex)
         {
             sharingMode = VK_SHARING_MODE_EXCLUSIVE;
@@ -89,6 +82,13 @@ SeRenderObject* se_vk_memory_buffer_create(SeMemoryBufferCreateInfo* createInfo)
     // Bind memory
     //
     vkBindBufferMemory(logicalHandle, buffer->handle, buffer->memory.memory, buffer->memory.offsetBytes);
+    //
+    // Add external dependencies
+    //
+    se_vk_add_external_resource_dependency(buffer->device);
+    //
+    //
+    //
     return (SeRenderObject*)buffer;
 }
 
@@ -102,17 +102,24 @@ void se_vk_memory_buffer_submit_for_deffered_destruction(SeRenderObject* _buffer
 void se_vk_memory_buffer_destroy(SeRenderObject* _buffer)
 {
     se_vk_expect_handle(_buffer, SE_RENDER_HANDLE_TYPE_MEMORY_BUFFER, "Can't destroy memory buffer");
+    se_vk_check_external_resource_dependencies(_buffer);
     SeVkMemoryBuffer* buffer = (SeVkMemoryBuffer*)_buffer;
     SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(buffer->device);
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    SeAllocatorBindings* allocator = memoryManager->cpu_persistentAllocator;
     VkDevice logicalHandle = se_vk_device_get_logical_handle(buffer->device);
     //
-    //
+    // Destroy vk handles and free gpu memory
     //
     vkDestroyBuffer(logicalHandle, buffer->handle, callbacks);
     se_vk_gpu_deallocate(memoryManager, buffer->memory);
-    allocator->dealloc(allocator->allocator, buffer, sizeof(SeVkMemoryBuffer));
+    //
+    // Remove external dependencies
+    //
+    se_vk_remove_external_resource_dependency(buffer->device);
+    //
+    //
+    //
+    se_object_pool_return(SeVkMemoryBuffer, se_vk_memory_manager_get_pool(memoryManager, SE_RENDER_HANDLE_TYPE_MEMORY_BUFFER), buffer);
 }
 
 void* se_vk_memory_buffer_get_mapped_address(SeRenderObject* _buffer)

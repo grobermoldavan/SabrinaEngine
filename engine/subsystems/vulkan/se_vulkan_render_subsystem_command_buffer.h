@@ -3,17 +3,27 @@
 
 #include "se_vulkan_render_subsystem_base.h"
 
-struct SeRenderObject;
+typedef struct SeVkCommandBuffer
+{
+    SeVkRenderObject        object;
+    SeRenderObject*         device;
+    VkCommandBuffer         handle;
+    SeCommandBufferUsage    usage;
+    SeVkCommandQueueFlags   queueFlags;
+    VkSemaphore             executionFinishedSemaphore;
+    VkFence                 executionFence;
+    uint64_t                flags;
+} SeVkCommandBuffer;
 
-struct SeRenderObject*  se_vk_command_buffer_request(struct SeCommandBufferRequestInfo* requestInfo);
-void                    se_vk_command_buffer_submit(struct SeRenderObject* buffer);
-void                    se_vk_command_buffer_destroy(struct SeRenderObject* buffer);
-void                    se_vk_command_buffer_bind_pipeline(struct SeRenderObject* buffer, struct SeCommandBindPipelineInfo* commandInfo);
-void                    se_vk_command_buffer_draw(struct SeRenderObject* buffer, struct SeCommandDrawInfo* commandInfo);
-void                    se_vk_command_bind_resource_set(struct SeRenderObject* cmdBuffer, struct SeCommandBindResourceSetInfo* commandInfo);
+SeRenderObject* se_vk_command_buffer_request(SeCommandBufferRequestInfo* requestInfo);
+void            se_vk_command_buffer_submit(SeRenderObject* buffer);
+void            se_vk_command_buffer_destroy(SeRenderObject* buffer);
+void            se_vk_command_buffer_bind_pipeline(SeRenderObject* buffer, SeCommandBindPipelineInfo* commandInfo);
+void            se_vk_command_buffer_draw(SeRenderObject* buffer, SeCommandDrawInfo* commandInfo);
+void            se_vk_command_bind_resource_set(SeRenderObject* cmdBuffer, SeCommandBindResourceSetInfo* commandInfo);
 
-VkFence     se_vk_command_buffer_get_fence(struct SeRenderObject* buffer);
-VkSemaphore se_vk_command_buffer_get_semaphore(struct SeRenderObject* buffer);
-void        se_vk_command_buffer_transition_image_layout(struct SeRenderObject* buffer, struct SeRenderObject* texture, VkImageLayout targetLayout);
+VkFence     se_vk_command_buffer_get_fence(SeRenderObject* buffer);
+VkSemaphore se_vk_command_buffer_get_semaphore(SeRenderObject* buffer);
+void        se_vk_command_buffer_transition_image_layout(SeRenderObject* buffer, SeRenderObject* texture, VkImageLayout targetLayout);
 
 #endif

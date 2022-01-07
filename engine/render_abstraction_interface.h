@@ -143,11 +143,27 @@ typedef enum SeMemoryBufferVisibility
     SE_MEMORY_BUFFER_VISIBILITY_GPU_AND_CPU,
 } SeMemoryBufferVisibility;
 
+typedef enum SeSizeParameterType
+{
+    SE_SIZE_PARAMETER_CONSTANT,
+    SE_SIZE_PARAMETER_DYNAMIC,
+} SeSizeParameterType;
+
+typedef struct SeSizeParamater
+{
+    SeSizeParameterType type;
+    union
+    {
+        size_t size;
+        size_t (*dynamicSize)(size_t width, size_t height);
+    };
+} SeSizeParamater;
+
 typedef void (*SeDestroyHandleFunc)(struct SeRenderObject* handle);
 
 typedef struct SeRenderObject
 {
-    uint64_t handleType;
+    SeRenderHandleType handleType;
     SeDestroyHandleFunc destroy;
 } SeRenderObject;
 
@@ -156,6 +172,7 @@ typedef struct SeRenderDeviceCreateInfo
     struct SeWindowHandle* window;
     struct SeAllocatorBindings* persistentAllocator;
     struct SeAllocatorBindings* frameAllocator;
+    struct SePlatformInterface* platform;
 } SeRenderDeviceCreateInfo;
 
 typedef struct SeRenderProgramCreateInfo
@@ -168,8 +185,8 @@ typedef struct SeRenderProgramCreateInfo
 typedef struct SeTextureCreateInfo
 {
     SeRenderObject* device;
-    uint32_t width;
-    uint32_t height;
+    SeSizeParamater width;
+    SeSizeParamater height;
     SeTextureUsage usage;
     SeTextureFormat format;
 } SeTextureCreateInfo;
@@ -190,7 +207,7 @@ typedef struct SeRenderPassSubpass
     size_t numInputRefs;
     uint32_t* resolveRefs;      // each value references colorAttachments array
     size_t numResolveRefs;
-    SeDepthOp depthOp;     // SE_DEPTH_NOTHING means depth attachment is not used in subpass
+    SeDepthOp depthOp;          // SE_DEPTH_OP_NOTHING means depth attachment is not used in subpass
 } SeRenderPassSubpass;
 
 typedef struct SeRenderPassCreateInfo
@@ -311,5 +328,21 @@ typedef struct SeRenderAbstractionSubsystemInterface
     void            (*command_bind_resource_set)            (SeRenderObject* cmdBuffer, SeCommandBindResourceSetInfo* commandInfo);
     void            (*perspective_projection_matrix)        (struct SeFloat4x4* result, float fovDeg, float aspect, float nearPlane, float farPlane);
 } SeRenderAbstractionSubsystemInterface;
+
+size_t se_size_parameter_dynamic_default_width(size_t windowWidth, size_t windowHeight)
+{
+    return windowWidth;
+}
+
+size_t se_size_parameter_dynamic_default_height(size_t windowWidth, size_t windowHeight)
+{
+    return windowHeight;
+}
+
+size_t se_size_parameter_get(SeSizeParamater* parameter, size_t width, size_t height)
+{
+    if (parameter->type == SE_SIZE_PARAMETER_CONSTANT) return parameter->size;
+    else return parameter->dynamicSize(width, height);
+}
 
 #endif

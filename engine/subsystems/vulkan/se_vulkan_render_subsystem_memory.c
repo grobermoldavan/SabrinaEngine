@@ -1,9 +1,16 @@
 
 #include <string.h>
-#include <stdbool.h>
 #include "se_vulkan_render_subsystem_memory.h"
 #include "se_vulkan_render_subsystem_device.h"
-#include "engine/render_abstraction_interface.h"
+#include "se_vulkan_render_subsystem_texture.h"
+#include "se_vulkan_render_subsystem_render_pass.h"
+#include "se_vulkan_render_subsystem_render_pipeline.h"
+#include "se_vulkan_render_subsystem_framebuffer.h"
+#include "se_vulkan_render_subsystem_render_program.h"
+#include "se_vulkan_render_subsystem_memory_buffer.h"
+#include "se_vulkan_render_subsystem_command_buffer.h"
+#include "se_vulkan_render_subsystem_resource_set.h"
+#include "se_vulkan_render_subsystem_in_flight_manager.h"
 #include "engine/allocator_bindings.h"
 #include "engine/common_includes.h"
 
@@ -147,6 +154,20 @@ void se_vk_memory_manager_construct(SeVkMemoryManager* memoryManager, SeVkMemory
         .pfnInternalFree         = NULL,
     };
     se_sbuffer_construct(memoryManager->cpu_allocations, 4096, memoryManager->cpu_persistentAllocator);
+    se_object_pool_construct(&memoryManager->cpu_texturePool        , &((SeObjectPoolCreateInfo){ createInfo->platform, sizeof(SeVkTexture) }));
+    se_object_pool_construct(&memoryManager->cpu_renderPassPool     , &((SeObjectPoolCreateInfo){ createInfo->platform, sizeof(SeVkRenderPass) }));
+    se_object_pool_construct(&memoryManager->cpu_renderPipelinePool , &((SeObjectPoolCreateInfo){ createInfo->platform, sizeof(SeVkRenderPipeline) }));
+    se_object_pool_construct(&memoryManager->cpu_framebufferPool    , &((SeObjectPoolCreateInfo){ createInfo->platform, sizeof(SeVkFramebuffer) }));
+    se_object_pool_construct(&memoryManager->cpu_renderProgramPool  , &((SeObjectPoolCreateInfo){ createInfo->platform, sizeof(SeVkRenderProgram) }));
+    se_object_pool_construct(&memoryManager->cpu_memoryBufferPool   , &((SeObjectPoolCreateInfo){ createInfo->platform, sizeof(SeVkMemoryBuffer) }));
+    se_sbuffer_construct(memoryManager->cpu_commandBufferPools, createInfo->numImagesInFlight, memoryManager->cpu_persistentAllocator);
+    se_sbuffer_set_size(memoryManager->cpu_commandBufferPools, createInfo->numImagesInFlight);
+    for (size_t it = 0; it < createInfo->numImagesInFlight; it++)
+        se_object_pool_construct(&memoryManager->cpu_commandBufferPools[it], &((SeObjectPoolCreateInfo){ createInfo->platform, sizeof(SeVkCommandBuffer) }));
+    se_sbuffer_construct(memoryManager->cpu_resourceSetPools, createInfo->numImagesInFlight, memoryManager->cpu_persistentAllocator);
+    se_sbuffer_set_size(memoryManager->cpu_resourceSetPools, createInfo->numImagesInFlight);
+    for (size_t it = 0; it < createInfo->numImagesInFlight; it++)
+        se_object_pool_construct(&memoryManager->cpu_resourceSetPools[it], &((SeObjectPoolCreateInfo){ createInfo->platform, sizeof(SeVkResourceSet) }));
     se_sbuffer_construct(memoryManager->gpu_chunks, 64, memoryManager->cpu_persistentAllocator);
 }
 
@@ -170,6 +191,20 @@ void se_vk_memory_manager_free_cpu_memory(SeVkMemoryManager* memoryManager)
     for (size_t it = 0; it < numAllocations; it++)
         allocator->dealloc(allocator->allocator, memoryManager->cpu_allocations[it].ptr, memoryManager->cpu_allocations[it].size);
     se_sbuffer_destroy(memoryManager->cpu_allocations);
+    se_object_pool_destroy(&memoryManager->cpu_texturePool);
+    se_object_pool_destroy(&memoryManager->cpu_renderPassPool);
+    se_object_pool_destroy(&memoryManager->cpu_renderPipelinePool);
+    se_object_pool_destroy(&memoryManager->cpu_framebufferPool);
+    se_object_pool_destroy(&memoryManager->cpu_renderProgramPool);
+    se_object_pool_destroy(&memoryManager->cpu_memoryBufferPool);
+    const size_t numCommandBufferPools = se_sbuffer_size(memoryManager->cpu_commandBufferPools);
+    for (size_t it = 0; it < numCommandBufferPools; it++)
+        se_object_pool_destroy(&memoryManager->cpu_commandBufferPools[it]);
+    se_sbuffer_destroy(memoryManager->cpu_commandBufferPools);
+    const size_t numResourceSetPools = se_sbuffer_size(memoryManager->cpu_resourceSetPools);
+    for (size_t it = 0; it < numResourceSetPools; it++)
+        se_object_pool_destroy(&memoryManager->cpu_resourceSetPools[it]);
+    se_sbuffer_destroy(memoryManager->cpu_resourceSetPools);
 }
 
 void se_vk_memory_manager_set_device(SeVkMemoryManager* memoryManager, SeRenderObject* device)
@@ -177,6 +212,35 @@ void se_vk_memory_manager_set_device(SeVkMemoryManager* memoryManager, SeRenderO
     se_vk_expect_handle(device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't set device to memory manager");
     memoryManager->device = device;
     memoryManager->memoryProperties = se_vk_device_get_memory_properties(device);
+}
+
+SeObjectPool* se_vk_memory_manager_get_pool(SeVkMemoryManager* memoryManager, SeRenderHandleType type)
+{
+    SeVkInFlightManager* inFlightManager = se_vk_device_get_in_flight_manager(memoryManager->device);
+    switch (type)
+    {
+        case SE_RENDER_HANDLE_TYPE_PROGRAM:         return &memoryManager->cpu_renderProgramPool;
+        case SE_RENDER_HANDLE_TYPE_TEXTURE:         return &memoryManager->cpu_texturePool;
+        case SE_RENDER_HANDLE_TYPE_PASS:            return &memoryManager->cpu_renderPassPool;
+        case SE_RENDER_HANDLE_TYPE_PIPELINE:        return &memoryManager->cpu_renderPipelinePool;
+        case SE_RENDER_HANDLE_TYPE_FRAMEBUFFER:     return &memoryManager->cpu_framebufferPool;
+        case SE_RENDER_HANDLE_TYPE_RESOURCE_SET:    return &memoryManager->cpu_resourceSetPools[inFlightManager->currentImageInFlight];
+        case SE_RENDER_HANDLE_TYPE_MEMORY_BUFFER:   return &memoryManager->cpu_memoryBufferPool;
+        case SE_RENDER_HANDLE_TYPE_COMMAND_BUFFER:  return &memoryManager->cpu_commandBufferPools[inFlightManager->currentImageInFlight];
+        default: se_assert(false);
+    }
+    return NULL;
+}
+
+SeObjectPool* se_vk_memory_manager_get_pool_manually(SeVkMemoryManager* memoryManager, SeRenderHandleType type, size_t poolIndex)
+{
+    switch (type)
+    {
+        case SE_RENDER_HANDLE_TYPE_RESOURCE_SET:    se_assert(poolIndex < se_sbuffer_size(memoryManager->cpu_resourceSetPools)); return &memoryManager->cpu_resourceSetPools[poolIndex];
+        case SE_RENDER_HANDLE_TYPE_COMMAND_BUFFER:  se_assert(poolIndex < se_sbuffer_size(memoryManager->cpu_commandBufferPools)); return &memoryManager->cpu_commandBufferPools[poolIndex];
+        default: se_assert(false);
+    }
+    return NULL;
 }
 
 bool se_vk_gpu_is_valid_memory(SeVkMemory memory)
