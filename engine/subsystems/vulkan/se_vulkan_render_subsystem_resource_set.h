@@ -6,13 +6,13 @@
 
 typedef struct SeVkResourceSet
 {
-    SeVkRenderObject    object;
-    SeRenderObject*     device;
-    SeRenderObject*     pipeline;
-    VkDescriptorSet     handle;
-    uint32_t            set;
-    SeRenderObject*     boundObjects[SE_VK_GENERAL_BITMASK_WIDTH];
-    uint32_t            numBindings;
+    SeVkRenderObject        object;
+    SeRenderObject*         device;
+    SeRenderObject*         pipeline;
+    VkDescriptorSet         handle;
+    uint32_t                set;
+    SeResourceSetBinding    bindings[SE_VK_GENERAL_BITMASK_WIDTH];
+    uint32_t                numBindings;
 } SeVkResourceSet;
 
 SeRenderObject* se_vk_resource_set_request(SeResourceSetRequestInfo* requestInfo);

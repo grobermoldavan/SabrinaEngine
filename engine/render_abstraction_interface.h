@@ -13,6 +13,7 @@ typedef enum SeRenderHandleType
     SE_RENDER_HANDLE_TYPE_DEVICE,
     SE_RENDER_HANDLE_TYPE_PROGRAM,
     SE_RENDER_HANDLE_TYPE_TEXTURE,
+    SE_RENDER_HANDLE_TYPE_SAMPLER,
     SE_RENDER_HANDLE_TYPE_PASS,
     SE_RENDER_HANDLE_TYPE_PIPELINE,
     SE_RENDER_HANDLE_TYPE_FRAMEBUFFER,
@@ -149,6 +150,26 @@ typedef enum SeSizeParameterType
     SE_SIZE_PARAMETER_DYNAMIC,
 } SeSizeParameterType;
 
+typedef enum SeSamplerFilter
+{
+    SE_SAMPLER_FILTER_NEAREST,
+    SE_SAMPLER_FILTER_LINEAR,
+} SeSamplerFilter;
+
+typedef enum SeSamplerAddressMode
+{
+    SE_SAMPLER_ADDRESS_MODE_REPEAT,
+    SE_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT,
+    SE_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+    SE_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+} SeSamplerAddressMode;
+
+typedef enum SeSamplerMipmapMode
+{
+    SE_SAMPLER_MIPMAP_MODE_NEAREST,
+    SE_SAMPLER_MIPMAP_MODE_LINEAR,
+} SeSamplerMipmapMode;
+
 typedef struct SeSizeParamater
 {
     SeSizeParameterType type;
@@ -190,6 +211,24 @@ typedef struct SeTextureCreateInfo
     SeTextureUsage usage;
     SeTextureFormat format;
 } SeTextureCreateInfo;
+
+typedef struct SeSamplerCreateInfo
+{
+    SeRenderObject* device;
+    SeSamplerFilter magFilter;
+    SeSamplerFilter minFilter;
+    SeSamplerAddressMode addressModeU;
+    SeSamplerAddressMode addressModeV;
+    SeSamplerAddressMode addressModeW;
+    SeSamplerMipmapMode mipmapMode;
+    float mipLodBias;
+    float minLod;
+    float maxLod;
+    bool anisotropyEnable;
+    float maxAnisotropy;
+    bool compareEnable;
+    SeCompareOp compareOp;
+} SeSamplerCreateInfo;
 
 typedef struct SeRenderPassAttachment
 {
@@ -269,12 +308,18 @@ typedef struct SeMemoryBufferCreateInfo
     SeMemoryBufferVisibility visibility;
 } SeMemoryBufferCreateInfo;
 
+typedef struct SeResourceSetBinding
+{
+    SeRenderObject* object;
+    SeRenderObject* sampler;
+} SeResourceSetBinding;
+
 typedef struct SeResourceSetRequestInfo
 {
     SeRenderObject* device;
     SeRenderObject* pipeline;
     size_t set;
-    SeRenderObject** bindings;
+    SeResourceSetBinding* bindings;
     size_t numBindings;
 } SeResourceSetRequestInfo;
 
@@ -315,6 +360,7 @@ typedef struct SeRenderAbstractionSubsystemInterface
     SeRenderObject* (*texture_create)                       (SeTextureCreateInfo* createInfo);
     uint32_t        (*texture_get_width)                    (SeRenderObject* texture);
     uint32_t        (*texture_get_height)                   (SeRenderObject* texture);
+    SeRenderObject* (*sampler_create)                       (SeSamplerCreateInfo* createInfo);
     SeRenderObject* (*render_pass_create)                   (SeRenderPassCreateInfo* createInfo);
     SeRenderObject* (*render_pipeline_graphics_create)      (SeGraphicsRenderPipelineCreateInfo* createInfo);
     SeRenderObject* (*framebuffer_create)                   (SeFramebufferCreateInfo* createInfo);

@@ -6,6 +6,7 @@
 #include "vulkan/se_vulkan_render_subsystem_in_flight_manager.h"
 #include "vulkan/se_vulkan_render_subsystem_device.h"
 #include "vulkan/se_vulkan_render_subsystem_texture.h"
+#include "vulkan/se_vulkan_render_subsystem_sampler.h"
 #include "vulkan/se_vulkan_render_subsystem_command_buffer.h"
 #include "vulkan/se_vulkan_render_subsystem_render_pass.h"
 #include "vulkan/se_vulkan_render_subsystem_render_program.h"
@@ -57,6 +58,7 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
         .texture_create                         = se_vk_texture_create,
         .texture_get_width                      = se_vk_texture_get_width,
         .texture_get_height                     = se_vk_texture_get_height,
+        .sampler_create                         = se_vk_sampler_create,
         .render_pass_create                     = se_vk_render_pass_create,
         .render_pipeline_graphics_create        = se_vk_render_pipeline_graphics_create,
         .framebuffer_create                     = se_vk_framebuffer_create,
@@ -95,6 +97,7 @@ SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
 #include "vulkan/se_vulkan_render_subsystem_in_flight_manager.c"
 #include "vulkan/se_vulkan_render_subsystem_device.c"
 #include "vulkan/se_vulkan_render_subsystem_texture.c"
+#include "vulkan/se_vulkan_render_subsystem_sampler.c"
 #include "vulkan/se_vulkan_render_subsystem_command_buffer.c"
 #include "vulkan/se_vulkan_render_subsystem_render_pass.c"
 #include "vulkan/se_vulkan_render_subsystem_render_program.c"

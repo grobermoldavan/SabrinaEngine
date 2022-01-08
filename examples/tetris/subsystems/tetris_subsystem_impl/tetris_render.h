@@ -43,6 +43,7 @@ typedef struct TetrisRenderState
     struct SeRenderObject* presentFs;
     struct SeRenderObject* presentRenderPipeline;
     se_sbuffer(struct SeRenderObject*) presentFramebuffers;
+    struct SeRenderObject* sampler;
 } TetrisRenderState;
 
 void tetris_render_init(TetrisRenderInitInfo* initInfo);

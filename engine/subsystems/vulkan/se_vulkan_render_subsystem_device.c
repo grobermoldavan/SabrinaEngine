@@ -18,6 +18,7 @@ extern SeWindowSubsystemInterface* g_windowIface;
 
 #define SE_VK_MAX_SWAP_CHAIN_IMAGES     16
 #define SE_VK_UNUSED_IN_FLIGHT_DATA_REF ~((uint32_t)0)
+#define SE_VK_INVALID_DEVICE_RATING     -1.0f
 
 typedef enum SeVkGpuFlags
 {
@@ -34,6 +35,7 @@ typedef struct SeVkCommandQueue
 
 typedef struct SeVkGpu
 {
+    VkPhysicalDeviceFeatures            enabledFeatures;
     VkPhysicalDeviceProperties          deviceProperties_10;
     VkPhysicalDeviceVulkan11Properties  deviceProperties_11;
     VkPhysicalDeviceVulkan12Properties  deviceProperties_12;
@@ -82,32 +84,63 @@ typedef struct SeVkRenderDevice
 
 static void se_vk_gpu_fill_required_physical_deivce_features(VkPhysicalDeviceFeatures* features)
 {
-    // nothing
+    features->samplerAnisotropy = VK_TRUE;
 }
 
-static bool se_vk_gpu_is_device_suitable(VkPhysicalDevice device, VkSurfaceKHR surface, SeAllocatorBindings* bindings)
+static float se_vk_gpu_get_device_rating(VkPhysicalDevice device, VkSurfaceKHR surface, SeAllocatorBindings* bindings, VkPhysicalDeviceFeatures* featuresToEnable)
 {
+    //
+    // Get queues
+    //
     se_sbuffer(VkQueueFamilyProperties) familyProperties = se_vk_utils_get_physical_device_queue_family_properties(device, bindings);
-    uint32_t graphicsQueue = se_vk_utils_pick_graphics_queue(familyProperties);
-    uint32_t presentQueue = se_vk_utils_pick_present_queue(familyProperties, device, surface);
-    uint32_t transferQueue = se_vk_utils_pick_transfer_queue(familyProperties);
+    const uint32_t graphicsQueue = se_vk_utils_pick_graphics_queue(familyProperties);
+    const uint32_t presentQueue = se_vk_utils_pick_present_queue(familyProperties, device, surface);
+    const uint32_t transferQueue = se_vk_utils_pick_transfer_queue(familyProperties);
     se_sbuffer_destroy(familyProperties);
+    if ((graphicsQueue == SE_VK_INVALID_QUEUE) || (presentQueue == SE_VK_INVALID_QUEUE) || (transferQueue == SE_VK_INVALID_QUEUE))
+    {
+        return SE_VK_INVALID_DEVICE_RATING;
+    }
+    //
+    // Check extensions support
+    //
     size_t numExtensions;
     const char** extensions = se_vk_utils_get_required_device_extensions(&numExtensions);
-    bool isRequiredExtensionsSupported = se_vk_utils_does_physical_device_supports_required_extensions(device, extensions, numExtensions, bindings);
-    bool isSwapChainSuppoted = false;
-    if (isRequiredExtensionsSupported)
+    const bool isRequiredExtensionsSupported = se_vk_utils_does_physical_device_supports_required_extensions(device, extensions, numExtensions, bindings);
+    if (!isRequiredExtensionsSupported)
     {
-        SeVkSwapChainSupportDetails supportDetails = se_vk_utils_create_swap_chain_support_details(surface, device, bindings);
-        isSwapChainSuppoted = se_sbuffer_size(supportDetails.formats) && se_sbuffer_size(supportDetails.presentModes);
-        se_vk_utils_destroy_swap_chain_support_details(&supportDetails);
+        return SE_VK_INVALID_DEVICE_RATING;
     }
+    //
+    // Check swap chain support
+    //
+    SeVkSwapChainSupportDetails supportDetails = se_vk_utils_create_swap_chain_support_details(surface, device, bindings);
+    const bool isSwapChainSuppoted = se_sbuffer_size(supportDetails.formats) && se_sbuffer_size(supportDetails.presentModes);
+    se_vk_utils_destroy_swap_chain_support_details(&supportDetails);
+    if (!isSwapChainSuppoted)
+    {
+        return SE_VK_INVALID_DEVICE_RATING;
+    }
+    //
+    // Get device feature rating
+    //
     VkPhysicalDeviceFeatures requiredFeatures = {0};
+    VkPhysicalDeviceFeatures supportedFeatures = {0};
     se_vk_gpu_fill_required_physical_deivce_features(&requiredFeatures);
-    bool isRequiredFeaturesSupported = se_vk_utils_does_physical_device_supports_required_features(device, &requiredFeatures);
-    return
-        (graphicsQueue != SE_VK_INVALID_QUEUE) && (presentQueue != SE_VK_INVALID_QUEUE) && (transferQueue != SE_VK_INVALID_QUEUE) &&
-        isRequiredExtensionsSupported && isSwapChainSuppoted && isRequiredFeaturesSupported;
+    vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
+    const VkBool32* requiredArray = (VkBool32*)&requiredFeatures;
+    const VkBool32* supportedArray = (VkBool32*)&supportedFeatures;
+    VkBool32* featuresToEnableArray = (VkBool32*)featuresToEnable;
+    const size_t featuresArraySize = sizeof(VkPhysicalDeviceFeatures) / sizeof(VkBool32);
+    size_t numRequiredFeatures = 0;
+    size_t numSupportedFeatures = 0;
+    for (size_t it = 0; it < featuresArraySize; it++)
+    {
+        if (requiredArray[it]) numRequiredFeatures += 1;
+        if (supportedArray[it]) numSupportedFeatures += 1;
+        if (requiredArray[it] && supportedArray[it]) featuresToEnableArray[it] = VK_TRUE;
+    }
+    return numRequiredFeatures == 0 ? 1.0f : ((float)numSupportedFeatures) / ((float)numRequiredFeatures);
 };
 
 static SeVkCommandQueue* se_vk_gpu_get_command_queue(SeVkGpu* gpu, SeVkCommandQueueFlags flags)
@@ -123,24 +156,36 @@ static SeVkCommandQueue* se_vk_gpu_get_command_queue(SeVkGpu* gpu, SeVkCommandQu
     return NULL;
 }
 
-static VkPhysicalDevice se_vk_gpu_pick_physical_device(VkInstance instance, VkSurfaceKHR surface, SeAllocatorBindings* bindings)
+static VkPhysicalDevice se_vk_gpu_pick_physical_device(VkInstance instance, VkSurfaceKHR surface, SeAllocatorBindings* bindings, VkPhysicalDeviceFeatures* featuresToEnable)
 {
     se_sbuffer(VkPhysicalDevice) available = se_vk_utils_get_available_physical_devices(instance, bindings);
-    for (size_t it = 0; it < se_sbuffer_size(available); it++)
+    const size_t numAvailableDevices = se_sbuffer_size(available);
+    se_sbuffer(float) ratings = NULL;
+    se_sbuffer(VkPhysicalDeviceFeatures) features = NULL;
+    se_sbuffer_construct(ratings, numAvailableDevices, bindings);
+    se_sbuffer_construct_zeroed(features, numAvailableDevices, bindings);
+    for (size_t it = 0; it < numAvailableDevices; it++)
     {
-        if (se_vk_gpu_is_device_suitable(available[it], surface, bindings))
+        const float rating = se_vk_gpu_get_device_rating(available[it], surface, bindings, &features[it]);
+        se_sbuffer_push(ratings, rating);
+    }
+    float bestRating = SE_VK_INVALID_DEVICE_RATING;
+    size_t bestDeviceIndex = 0;
+    for (size_t it = 0; it < numAvailableDevices; it++)
+    {
+        if (ratings[it] > bestRating)
         {
-            // @TODO :  log device name and shit
-            // VkPhysicalDeviceProperties deviceProperties;
-            // vkGetPhysicalDeviceProperties(chosenPhysicalDevice, &deviceProperties);
-            VkPhysicalDevice result = available[it];
-            se_sbuffer_destroy(available);
-            return result;
+            bestRating = ratings[it];
+            bestDeviceIndex = it;
         }
     }
+    se_assert_msg(bestRating != SE_VK_INVALID_DEVICE_RATING, "Unable to pick physical device");
+    VkPhysicalDevice device = available[bestDeviceIndex];
+    *featuresToEnable = features[bestDeviceIndex];
+    se_sbuffer_destroy(features);
+    se_sbuffer_destroy(ratings);
     se_sbuffer_destroy(available);
-    se_assert_msg(false, "Unable to pick physical device");
-    return VK_NULL_HANDLE;
+    return device;
 }
 
 static void se_vk_device_swap_chain_create(SeVkRenderDevice* device, SeWindowHandle window, bool allocateNewTextures)
@@ -492,7 +537,9 @@ SeRenderObject* se_vk_device_create(SeRenderDeviceCreateInfo* deviceCreateInfo)
     // GPU
     //
     {
-        device->gpu.physicalHandle = se_vk_gpu_pick_physical_device(device->instance, device->surface, deviceCreateInfo->frameAllocator);
+        VkPhysicalDeviceFeatures featuresToEnable = {0};
+        device->gpu.physicalHandle = se_vk_gpu_pick_physical_device(device->instance, device->surface, deviceCreateInfo->frameAllocator, &featuresToEnable);
+        device->gpu.enabledFeatures = featuresToEnable;
         //
         // Get command queue infos
         //
@@ -507,8 +554,6 @@ SeRenderObject* se_vk_device_create(SeRenderDeviceCreateInfo* deviceCreateInfo)
         //
         // Create logical device
         //
-        VkPhysicalDeviceFeatures deviceFeatures = {0};
-        se_vk_gpu_fill_required_physical_deivce_features(&deviceFeatures);
         size_t numValidationLayers;
         const char** requiredValidationLayers = se_vk_utils_get_required_validation_layers(&numValidationLayers);
         size_t numDeviceExtensions;
@@ -524,10 +569,9 @@ SeRenderObject* se_vk_device_create(SeRenderDeviceCreateInfo* deviceCreateInfo)
             .ppEnabledLayerNames        = requiredValidationLayers,
             .enabledExtensionCount      = (uint32_t)numDeviceExtensions,
             .ppEnabledExtensionNames    = requiredDeviceExtensions,
-            .pEnabledFeatures           = &deviceFeatures
+            .pEnabledFeatures           = &featuresToEnable
         };
-        VkResult res = vkCreateDevice(device->gpu.physicalHandle, &logicalDeviceCreateInfo, callbacks, &device->gpu.logicalHandle);
-        se_vk_check(res);
+        se_vk_check(vkCreateDevice(device->gpu.physicalHandle, &logicalDeviceCreateInfo, callbacks, &device->gpu.logicalHandle));
         //
         // Create queues
         //
@@ -846,4 +890,16 @@ SeVkInFlightManager* se_vk_device_get_in_flight_manager(SeRenderObject* _device)
 {
     se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't get in flight manager");
     return &((SeVkRenderDevice*)_device)->inFlightManager;
+}
+
+const VkPhysicalDeviceFeatures* se_vk_device_get_physical_device_features(SeRenderObject* _device)
+{
+    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't get physical device features");
+    return &((SeVkRenderDevice*)_device)->gpu.enabledFeatures;
+}
+
+const VkPhysicalDeviceProperties* se_vk_device_get_physical_device_properties(SeRenderObject* _device)
+{
+    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't get physical device properties");
+    return &((SeVkRenderDevice*)_device)->gpu.deviceProperties_10;
 }

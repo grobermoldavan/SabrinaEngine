@@ -43,7 +43,6 @@ bool                                    se_vk_utils_pick_depth_stencil_format(Vk
 se_sbuffer(VkPhysicalDevice)            se_vk_utils_get_available_physical_devices(VkInstance instance, struct SeAllocatorBindings* allocator);
 se_sbuffer(VkQueueFamilyProperties)     se_vk_utils_get_physical_device_queue_family_properties(VkPhysicalDevice physicalDevice, struct SeAllocatorBindings* allocator);
 bool                                    se_vk_utils_does_physical_device_supports_required_extensions(VkPhysicalDevice device, const char** extensions, size_t numExtensions, struct SeAllocatorBindings* allocator);
-bool                                    se_vk_utils_does_physical_device_supports_required_features(VkPhysicalDevice device, VkPhysicalDeviceFeatures* requiredFeatures);
 VkImageType                             se_vk_utils_pick_image_type(VkExtent3D imageExtent);
 VkCommandBuffer                         se_vk_utils_create_command_buffer(VkDevice device, VkCommandPool pool, VkCommandBufferLevel level);
 VkShaderModule                          se_vk_utils_create_shader_module(VkDevice device, uint32_t* bytecode, size_t bytecodeSIze, VkAllocationCallbacks* allocationCb);

@@ -3,6 +3,7 @@
 #include "se_vulkan_render_subsystem_memory.h"
 #include "se_vulkan_render_subsystem_device.h"
 #include "se_vulkan_render_subsystem_texture.h"
+#include "se_vulkan_render_subsystem_sampler.h"
 #include "se_vulkan_render_subsystem_render_pass.h"
 #include "se_vulkan_render_subsystem_render_pipeline.h"
 #include "se_vulkan_render_subsystem_framebuffer.h"
@@ -155,6 +156,7 @@ void se_vk_memory_manager_construct(SeVkMemoryManager* memoryManager, SeVkMemory
     };
     se_sbuffer_construct(memoryManager->cpu_allocations, 4096, memoryManager->cpu_persistentAllocator);
     se_object_pool_construct(&memoryManager->cpu_texturePool        , &((SeObjectPoolCreateInfo){ createInfo->platform, sizeof(SeVkTexture) }));
+    se_object_pool_construct(&memoryManager->cpu_samplerPool        , &((SeObjectPoolCreateInfo){ createInfo->platform, sizeof(SeVkSampler) }));
     se_object_pool_construct(&memoryManager->cpu_renderPassPool     , &((SeObjectPoolCreateInfo){ createInfo->platform, sizeof(SeVkRenderPass) }));
     se_object_pool_construct(&memoryManager->cpu_renderPipelinePool , &((SeObjectPoolCreateInfo){ createInfo->platform, sizeof(SeVkRenderPipeline) }));
     se_object_pool_construct(&memoryManager->cpu_framebufferPool    , &((SeObjectPoolCreateInfo){ createInfo->platform, sizeof(SeVkFramebuffer) }));
@@ -192,6 +194,7 @@ void se_vk_memory_manager_free_cpu_memory(SeVkMemoryManager* memoryManager)
         allocator->dealloc(allocator->allocator, memoryManager->cpu_allocations[it].ptr, memoryManager->cpu_allocations[it].size);
     se_sbuffer_destroy(memoryManager->cpu_allocations);
     se_object_pool_destroy(&memoryManager->cpu_texturePool);
+    se_object_pool_destroy(&memoryManager->cpu_samplerPool);
     se_object_pool_destroy(&memoryManager->cpu_renderPassPool);
     se_object_pool_destroy(&memoryManager->cpu_renderPipelinePool);
     se_object_pool_destroy(&memoryManager->cpu_framebufferPool);
@@ -221,6 +224,7 @@ SeObjectPool* se_vk_memory_manager_get_pool(SeVkMemoryManager* memoryManager, Se
     {
         case SE_RENDER_HANDLE_TYPE_PROGRAM:         return &memoryManager->cpu_renderProgramPool;
         case SE_RENDER_HANDLE_TYPE_TEXTURE:         return &memoryManager->cpu_texturePool;
+        case SE_RENDER_HANDLE_TYPE_SAMPLER:         return &memoryManager->cpu_samplerPool;
         case SE_RENDER_HANDLE_TYPE_PASS:            return &memoryManager->cpu_renderPassPool;
         case SE_RENDER_HANDLE_TYPE_PIPELINE:        return &memoryManager->cpu_renderPipelinePool;
         case SE_RENDER_HANDLE_TYPE_FRAMEBUFFER:     return &memoryManager->cpu_framebufferPool;

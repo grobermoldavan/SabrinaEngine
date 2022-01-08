@@ -24,19 +24,21 @@ SeRenderObject*         se_vk_device_get_swap_chain_texture(SeRenderObject* devi
 size_t                  se_vk_device_get_active_swap_chain_texture_index(SeRenderObject* device);
 SeSamplingFlags         se_vk_device_get_supported_sampling_types(SeRenderObject* device);
 
-struct SeVkMemoryManager*           se_vk_device_get_memory_manager(SeRenderObject* device);
-VkCommandPool                       se_vk_device_get_command_pool(SeRenderObject* device, SeVkCommandQueueFlags flags);
-VkQueue                             se_vk_device_get_command_queue(SeRenderObject* device, SeVkCommandQueueFlags flags);
-uint32_t                            se_vk_device_get_command_queue_family_index(SeRenderObject* device, SeVkCommandQueueFlags flags);
-VkDevice                            se_vk_device_get_logical_handle(SeRenderObject* device);
-bool                                se_vk_device_is_stencil_supported(SeRenderObject* device);
-VkSampleCountFlags                  se_vk_device_get_supported_framebuffer_multisample_types(SeRenderObject* device);
-VkSampleCountFlags                  se_vk_device_get_supported_image_multisample_types(SeRenderObject* device);
-VkFormat                            se_vk_device_get_depth_stencil_format(SeRenderObject* device);
-VkFormat                            se_vk_device_get_swap_chain_format(SeRenderObject* device);
-VkExtent2D                          se_vk_device_get_swap_chain_extent(SeRenderObject* device);
-VkPhysicalDeviceMemoryProperties*   se_vk_device_get_memory_properties(SeRenderObject* device);
-VkSwapchainKHR                      se_vk_device_get_swap_chain_handle(SeRenderObject* device);
-struct SeVkInFlightManager*         se_vk_device_get_in_flight_manager(SeRenderObject* device);
+struct SeVkMemoryManager*                   se_vk_device_get_memory_manager(SeRenderObject* device);
+VkCommandPool                               se_vk_device_get_command_pool(SeRenderObject* device, SeVkCommandQueueFlags flags);
+VkQueue                                     se_vk_device_get_command_queue(SeRenderObject* device, SeVkCommandQueueFlags flags);
+uint32_t                                    se_vk_device_get_command_queue_family_index(SeRenderObject* device, SeVkCommandQueueFlags flags);
+VkDevice                                    se_vk_device_get_logical_handle(SeRenderObject* device);
+bool                                        se_vk_device_is_stencil_supported(SeRenderObject* device);
+VkSampleCountFlags                          se_vk_device_get_supported_framebuffer_multisample_types(SeRenderObject* device);
+VkSampleCountFlags                          se_vk_device_get_supported_image_multisample_types(SeRenderObject* device);
+VkFormat                                    se_vk_device_get_depth_stencil_format(SeRenderObject* device);
+VkFormat                                    se_vk_device_get_swap_chain_format(SeRenderObject* device);
+VkExtent2D                                  se_vk_device_get_swap_chain_extent(SeRenderObject* device);
+VkPhysicalDeviceMemoryProperties*           se_vk_device_get_memory_properties(SeRenderObject* device);
+VkSwapchainKHR                              se_vk_device_get_swap_chain_handle(SeRenderObject* device);
+struct SeVkInFlightManager*                 se_vk_device_get_in_flight_manager(SeRenderObject* device);
+const struct VkPhysicalDeviceFeatures*      se_vk_device_get_physical_device_features(SeRenderObject* device);
+const struct VkPhysicalDeviceProperties*    se_vk_device_get_physical_device_properties(SeRenderObject* device);
 
 #endif

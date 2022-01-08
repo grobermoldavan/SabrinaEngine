@@ -191,35 +191,6 @@ void se_vk_texture_recreate_inplace(SeRenderObject* _texture)
         se_vk_check(vkCreateImageView(logicalHandle, &viewCreateInfo, callbacks, &texture->view));
     }
     //
-    // Create sampler
-    //
-    if (texture->flags & SE_VK_TEXTURE_HAS_SAMPLER)
-    {
-        // @TODO : many of this create info parameters should be in the texture settings (SeTextureCreateInfo)...
-        VkSamplerCreateInfo samplerCreateInfo = (VkSamplerCreateInfo)
-        {
-            .sType                      = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-            .pNext                      = NULL,
-            .flags                      = 0,
-            .magFilter                  = VK_FILTER_LINEAR,
-            .minFilter                  = VK_FILTER_LINEAR,
-            .mipmapMode                 = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-            .addressModeU               = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-            .addressModeV               = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-            .addressModeW               = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-            .mipLodBias                 = 0.0f,
-            .anisotropyEnable           = VK_FALSE, // todo
-            .maxAnisotropy              = 0.0f,     // todo
-            .compareEnable              = VK_FALSE,
-            .compareOp                  = VK_COMPARE_OP_ALWAYS,
-            .minLod                     = 0.0f,
-            .maxLod                     = 0.0f,
-            .borderColor                = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
-            .unnormalizedCoordinates    = VK_FALSE,
-        };
-        se_vk_check(vkCreateSampler(logicalHandle, &samplerCreateInfo, callbacks, &texture->sampler));
-    }
-    //
     //
     //
     se_vk_add_external_resource_dependency(texture->createInfo.device);
@@ -289,7 +260,6 @@ void se_vk_texture_destroy_inplace(SeRenderObject* _texture)
         vkDestroyImage(logicalHandle, texture->image, callbacks);
         se_vk_gpu_deallocate(memoryManager, texture->memory);
     }
-    if (texture->sampler) vkDestroySampler(logicalHandle, texture->sampler, callbacks);
     //
     //
     //
@@ -371,16 +341,9 @@ VkImageLayout se_vk_texture_get_current_layout(SeRenderObject* _texture)
     return texture->currentLayout;
 }
 
-VkSampler se_vk_texture_get_default_sampler(SeRenderObject* _texture)
-{
-    se_vk_expect_handle(_texture, SE_RENDER_HANDLE_TYPE_TEXTURE, "Can't get texture default sampler");
-    SeVkTexture* texture = (SeVkTexture*)_texture;
-    return texture->sampler;
-}
-
 bool se_vk_texture_is_dependent_on_swap_chain(SeRenderObject* _texture)
 {
-    se_vk_expect_handle(_texture, SE_RENDER_HANDLE_TYPE_TEXTURE, "Can't get texture default sampler");
+    se_vk_expect_handle(_texture, SE_RENDER_HANDLE_TYPE_TEXTURE, "Can't check if texture is dependent on swap chain");
     SeVkTexture* texture = (SeVkTexture*)_texture;
     return texture->flags & SE_VK_TEXTURE_DEPENDS_ON_SWAP_CHAIN_FROMAT || texture->flags & SE_VK_TEXTURE_DEPENDS_ON_SWAP_CHAIN_EXTENT;
 }

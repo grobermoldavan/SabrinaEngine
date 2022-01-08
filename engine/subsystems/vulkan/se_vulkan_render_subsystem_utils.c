@@ -351,23 +351,6 @@ bool se_vk_utils_does_physical_device_supports_required_extensions(VkPhysicalDev
     return result;
 };
 
-bool se_vk_utils_does_physical_device_supports_required_features(VkPhysicalDevice device, VkPhysicalDeviceFeatures* requiredFeatures)
-{
-    // VkPhysicalDeviceFeatures is just a collection of VkBool32 values, so we can iterate over it like an array
-    VkPhysicalDeviceFeatures supportedFeatures = {0};
-    vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
-    VkBool32* requiredArray = (VkBool32*)requiredFeatures;
-    VkBool32* supportedArray = (VkBool32*)&supportedFeatures;
-    for (size_t it = 0; it < sizeof(VkPhysicalDeviceFeatures) / sizeof(VkBool32); it++)
-    {
-        if (!(!requiredArray[it] || supportedArray[it]))
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
 VkImageType se_vk_utils_pick_image_type(VkExtent3D imageExtent)
 {
     // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkImageCreateInfo.html

@@ -22,6 +22,8 @@
 #define se_is_equal_float(value1, value2) ((value1 > value2 ? value1 - value2 : value2 - value1) < SE_EPSILON)
 
 #define se_clamp(val, min, max) (val < min ? min : (val > max ? max : val))
+#define se_min(a, b) (a < b ? a : b)
+#define se_max(a, b) (a > b ? a : b)
 
 typedef struct SeFloat2
 {

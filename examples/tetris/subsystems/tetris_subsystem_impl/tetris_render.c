@@ -254,6 +254,26 @@ void tetris_render_init(TetrisRenderInitInfo* initInfo)
                 se_sbuffer_push(renderState->presentFramebuffers, fb);
             }
         }
+        {
+            SeSamplerCreateInfo createInfo = (SeSamplerCreateInfo)
+            {
+                .device             = renderState->renderDevice,
+                .magFilter          = SE_SAMPLER_FILTER_LINEAR,
+                .minFilter          = SE_SAMPLER_FILTER_LINEAR,
+                .addressModeU       = SE_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                .addressModeV       = SE_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                .addressModeW       = SE_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                .mipmapMode         = SE_SAMPLER_MIPMAP_MODE_LINEAR,
+                .mipLodBias         = 0.0f,
+                .minLod             = 0.0f,
+                .maxLod             = 0.0f,
+                .anisotropyEnable   = false,
+                .maxAnisotropy      = 0.0f,
+                .compareEnable      = false,
+                .compareOp          = SE_COMPARE_OP_ALWAYS,
+            };
+            renderState->sampler = renderState->renderInterface->sampler_create(&createInfo);
+        }
     }
     //
     // Fill buffers
@@ -476,6 +496,7 @@ void tetris_render_terminate(TetrisRenderState* renderState)
     renderState->drawVs->destroy(renderState->drawVs);
     renderState->drawRenderPass->destroy(renderState->drawRenderPass);
 
+    renderState->sampler->destroy(renderState->sampler);
     for (size_t it = 0; it < se_sbuffer_size(renderState->presentFramebuffers); it++)
         renderState->presentFramebuffers[it]->destroy(renderState->presentFramebuffers[it]);
     se_sbuffer_destroy(renderState->presentFramebuffers);
@@ -541,7 +562,7 @@ void tetris_render_update(TetrisRenderState* renderState, TetrisState* state, co
     // Draw pass
     //
     {
-        SeRenderObject* bindingsSet0[] = { renderState->frameDataBuffer, };
+        SeResourceSetBinding bindingsSet0[] = { { renderState->frameDataBuffer }, };
         SeResourceSetRequestInfo set0RequestInfo = (SeResourceSetRequestInfo)
         {
             .device         = renderState->renderDevice,
@@ -551,7 +572,7 @@ void tetris_render_update(TetrisRenderState* renderState, TetrisState* state, co
             .numBindings    = se_array_size(bindingsSet0),
         };
         SeRenderObject* resourceSet0 = renderState->renderInterface->resource_set_request(&set0RequestInfo);
-        SeRenderObject* bindingsSet1[] = { renderState->cubeVerticesBuffer, renderState->cubeIndicesBuffer, cubeInstanceBuffer };
+        SeResourceSetBinding bindingsSet1[] = { { renderState->cubeVerticesBuffer }, { renderState->cubeIndicesBuffer }, { cubeInstanceBuffer } };
         SeResourceSetRequestInfo set1RequestInfo = (SeResourceSetRequestInfo)
         {
             .device         = renderState->renderDevice,
@@ -561,7 +582,7 @@ void tetris_render_update(TetrisRenderState* renderState, TetrisState* state, co
             .numBindings    = se_array_size(bindingsSet1),
         };
         SeRenderObject* resourceSet1 = renderState->renderInterface->resource_set_request(&set1RequestInfo);
-        SeRenderObject* bindingsSet2[] = { renderState->gridVerticesBuffer, renderState->gridIndicesBuffer, renderState->gridInstanceBuffer };
+        SeResourceSetBinding bindingsSet2[] = { { renderState->gridVerticesBuffer }, { renderState->gridIndicesBuffer }, { renderState->gridInstanceBuffer } };
         SeResourceSetRequestInfo set2RequestInfo = (SeResourceSetRequestInfo)
         {
             .device         = renderState->renderDevice,
@@ -593,7 +614,7 @@ void tetris_render_update(TetrisRenderState* renderState, TetrisState* state, co
     // Present pass
     //
     {
-        SeRenderObject* bindingsSet0[] = { renderState->drawColorTexture, };
+        SeResourceSetBinding bindingsSet0[] = { { renderState->drawColorTexture, renderState->sampler }, };
         SeResourceSetRequestInfo set0RequestInfo = (SeResourceSetRequestInfo)
         {
             .device         = renderState->renderDevice,

@@ -53,6 +53,7 @@ typedef struct SeVkMemoryManager
     struct SeAllocatorBindings*     cpu_persistentAllocator;
     struct SeAllocatorBindings*     cpu_frameAllocator;
     SeObjectPool                    cpu_texturePool;
+    SeObjectPool                    cpu_samplerPool;
     SeObjectPool                    cpu_renderPassPool;
     SeObjectPool                    cpu_renderPipelinePool;
     SeObjectPool                    cpu_framebufferPool;

@@ -6,6 +6,7 @@
 #include "se_vulkan_render_subsystem_in_flight_manager.h"
 #include "se_vulkan_render_subsystem_memory_buffer.h"
 #include "se_vulkan_render_subsystem_texture.h"
+#include "se_vulkan_render_subsystem_sampler.h"
 #include "se_vulkan_render_subsystem_command_buffer.h"
 #include "engine/allocator_bindings.h"
 
@@ -34,7 +35,7 @@ SeRenderObject* se_vk_resource_set_request(SeResourceSetRequestInfo* requestInfo
         .pipeline       = requestInfo->pipeline,
         .handle         = se_vk_in_flight_manager_create_descriptor_set(se_vk_device_get_in_flight_manager(requestInfo->device), requestInfo->pipeline, requestInfo->set),
         .set            = (uint32_t)requestInfo->set, // @TODO : safe cast
-        .boundObjects   = {0},
+        .bindings       = {0},
         .numBindings    = (uint32_t)requestInfo->numBindings, // @TODO : safe cast
     };
     //
@@ -49,8 +50,8 @@ SeRenderObject* se_vk_resource_set_request(SeResourceSetRequestInfo* requestInfo
     for (size_t it = 0; it < requestInfo->numBindings; it++)
     {
         SeVkDescriptorSetBindingInfo bindingInfo = se_vk_render_pipeline_get_binding_info(requestInfo->pipeline, requestInfo->set, it);
-        SeRenderObject* boundObject = requestInfo->bindings[it];
-        resourceSet->boundObjects[it] = boundObject;
+        SeResourceSetBinding binding = requestInfo->bindings[it];
+        resourceSet->bindings[it] = binding;
         VkWriteDescriptorSet write = (VkWriteDescriptorSet)
         {
             .sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -64,29 +65,30 @@ SeRenderObject* se_vk_resource_set_request(SeResourceSetRequestInfo* requestInfo
             .pBufferInfo        = NULL,
             .pTexelBufferView   = NULL,
         };
-        if (boundObject->handleType == SE_RENDER_HANDLE_TYPE_MEMORY_BUFFER)
+        if (binding.object->handleType == SE_RENDER_HANDLE_TYPE_MEMORY_BUFFER)
         {
             VkDescriptorBufferInfo* bufferInfo = &bufferInfos[bufferInfosIt++];
             *bufferInfo = (VkDescriptorBufferInfo)
             {
-                .buffer = se_vk_memory_buffer_get_handle(boundObject),
+                .buffer = se_vk_memory_buffer_get_handle(binding.object),
                 .offset = 0,
                 .range  = VK_WHOLE_SIZE,
             };
             write.pBufferInfo = bufferInfo;
         }
-        else if (boundObject->handleType == SE_RENDER_HANDLE_TYPE_TEXTURE)
+        else if (binding.object->handleType == SE_RENDER_HANDLE_TYPE_TEXTURE)
         {
+            se_assert(binding.sampler);
             VkDescriptorImageInfo* imageInfo = &imageInfos[imageInfosIt++];
             *imageInfo = (VkDescriptorImageInfo)
             {
-                .sampler        = se_vk_texture_get_default_sampler(boundObject),
-                .imageView      = se_vk_texture_get_view(boundObject),
+                .sampler        = se_vk_sampler_get_handle(binding.sampler),
+                .imageView      = se_vk_texture_get_view(binding.object),
                 .imageLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, // ?????
             };
             write.pImageInfo = imageInfo;
         }
-        else se_assert(!"Unsupported binding type");
+        else { se_assert(!"Unsupported binding type"); }
         writes[it] = write;
     }
     vkUpdateDescriptorSets(logicalHandle, (uint32_t)requestInfo->numBindings, writes, 0, NULL);
@@ -97,7 +99,8 @@ SeRenderObject* se_vk_resource_set_request(SeResourceSetRequestInfo* requestInfo
     se_vk_add_external_resource_dependency(resourceSet->device);
     for (size_t it = 0; it < resourceSet->numBindings; it++)
     {
-        se_vk_add_external_resource_dependency(resourceSet->boundObjects[it]);
+        se_vk_add_external_resource_dependency(resourceSet->bindings[it].object);
+        if (resourceSet->bindings[it].sampler) { se_vk_add_external_resource_dependency(resourceSet->bindings[it].sampler); }
     }
     //
     //
@@ -117,7 +120,8 @@ void se_vk_resource_set_destroy(SeRenderObject* _set)
     se_vk_remove_external_resource_dependency(set->device);
     for (size_t it = 0; it < set->numBindings; it++)
     {
-        se_vk_remove_external_resource_dependency(set->boundObjects[it]);
+        se_vk_remove_external_resource_dependency(set->bindings[it].object);
+        if (set->bindings[it].sampler) { se_vk_remove_external_resource_dependency(set->bindings[it].sampler); }
     }
     // @NOTE : Object cpu memory and VkDescriptorSet are handled by SeVkMemoryManager and SeVkInFlightManager
 }
@@ -147,11 +151,11 @@ void se_vk_resource_set_prepare(SeRenderObject* _set)
     SeRenderObject* cmd = NULL;
     for (size_t it = 0; it < set->numBindings; it++)
     {
-        SeRenderObject* obj = set->boundObjects[it];
-        if (obj->handleType == SE_RENDER_HANDLE_TYPE_TEXTURE && se_vk_texture_get_current_layout(obj) != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+        SeResourceSetBinding binding = set->bindings[it];
+        if (binding.object->handleType == SE_RENDER_HANDLE_TYPE_TEXTURE && se_vk_texture_get_current_layout(binding.object) != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
         {
             if (!cmd) cmd = se_vk_command_buffer_request(&((SeCommandBufferRequestInfo) { .device = set->device, .usage = SE_COMMAND_BUFFER_USAGE_TRANSFER }));
-            se_vk_command_buffer_transition_image_layout(cmd, obj, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            se_vk_command_buffer_transition_image_layout(cmd, binding.object, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         }
     }
     if (cmd) se_vk_command_buffer_submit(cmd);
