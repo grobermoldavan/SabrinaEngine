@@ -16,7 +16,7 @@
 #include "engine/common_includes.h"
 
 #define SE_VK_GPU_MEMORY_BLOCK_SIZE_BYTES   64ull
-#define SE_VK_GPU_DEFAULT_CHUNK_SIZE_BYTES  (64ull * 1024ull * 1024ull)
+#define SE_VK_GPU_DEFAULT_CHUNK_SIZE_BYTES  (32ull * 1024ull * 1024ull)
 
 static void* se_vk_memory_manager_alloc(void* pUserData, size_t size, size_t alignment, VkSystemAllocationScope allocationScope)
 {
@@ -286,7 +286,9 @@ SeVkMemory se_vk_gpu_allocate(SeVkMemoryManager* memoryManager, SeVkGpuAllocatio
         SeVkGpuMemoryChunk newChunk = {0};
         VkDevice logicalHandle = se_vk_device_get_logical_handle(memoryManager->device);
         // chunkNumberOfBlocks is aligned to 8 because each ledger byte can store info about 8 blocks
-        const size_t chunkNumberOfBlocks = requiredNumberOfBlocks + (8 - (requiredNumberOfBlocks % 8));
+        const size_t chunkNumberOfBlocks = request.sizeBytes > SE_VK_GPU_DEFAULT_CHUNK_SIZE_BYTES
+            ? requiredNumberOfBlocks + (8 - (requiredNumberOfBlocks % 8))
+            : SE_VK_GPU_DEFAULT_CHUNK_SIZE_BYTES / SE_VK_GPU_MEMORY_BLOCK_SIZE_BYTES;
         const size_t chunkMemorySize = request.sizeBytes > SE_VK_GPU_DEFAULT_CHUNK_SIZE_BYTES
             ? chunkNumberOfBlocks * SE_VK_GPU_MEMORY_BLOCK_SIZE_BYTES
             : SE_VK_GPU_DEFAULT_CHUNK_SIZE_BYTES;
