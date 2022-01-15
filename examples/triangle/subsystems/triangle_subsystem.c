@@ -143,8 +143,8 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
         {
             .device                 = renderDevice,
             .renderPass             = renderPass,
-            .vertexProgram          = vs,
-            .fragmentProgram        = fs,
+            .vertexProgram          = (SePipelineProgram){ vs },
+            .fragmentProgram        = (SePipelineProgram){ fs },
             .frontStencilOpState    = NULL,
             .backStencilOpState     = NULL,
             .depthTestState         = NULL,

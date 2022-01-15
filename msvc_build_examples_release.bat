@@ -46,6 +46,10 @@ for /r %%f in (\*.frag) do (
     glslangValidator %%f -o %%f.spv -V -S frag
     del %%f
 )
+for /r %%f in (\*.comp) do (
+    glslangValidator %%f -o %%f.spv -V -S comp
+    del %%f
+)
 
 EXIT /B %ERRORLEVEL%
 

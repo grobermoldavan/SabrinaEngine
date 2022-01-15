@@ -17,6 +17,6 @@ void            se_vk_render_program_submit_for_deffered_destruction(SeRenderObj
 void            se_vk_render_program_destroy(SeRenderObject* program);
 
 SimpleSpirvReflection*          se_vk_render_program_get_reflection(SeRenderObject* program);
-VkPipelineShaderStageCreateInfo se_vk_render_program_get_shader_stage_create_info(SeRenderObject* program);
+VkPipelineShaderStageCreateInfo se_vk_render_program_get_shader_stage_create_info(SePipelineProgram* pipelineProgram);
 
 #endif

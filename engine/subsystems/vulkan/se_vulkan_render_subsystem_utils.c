@@ -566,14 +566,6 @@ VkBool32 se_vk_utils_to_vk_bool(bool value)
     return value ? VK_TRUE : VK_FALSE;
 }
 
-VkShaderStageFlags se_vk_utils_to_vk_stage_flags(SeProgramStageFlags stages)
-{
-    return
-        (VkShaderStageFlags)(stages & (uint32_t)SE_PROGRAM_STAGE_VERTEX     ? VK_SHADER_STAGE_VERTEX_BIT    : 0) |
-        (VkShaderStageFlags)(stages & (uint32_t)SE_PROGRAM_STAGE_FRAGMENT   ? VK_SHADER_STAGE_FRAGMENT_BIT  : 0) |
-        (VkShaderStageFlags)(stages & (uint32_t)SE_PROGRAM_STAGE_COMPUTE    ? VK_SHADER_STAGE_COMPUTE_BIT   : 0);
-}
-
 VkPipelineVertexInputStateCreateInfo se_vk_utils_vertex_input_state_create_info(uint32_t bindingsCount, const VkVertexInputBindingDescription* bindingDescs, uint32_t attrCount, const VkVertexInputAttributeDescription* attrDescs)
 {
     return (VkPipelineVertexInputStateCreateInfo)

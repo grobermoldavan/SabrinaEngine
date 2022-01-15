@@ -23,6 +23,7 @@ typedef struct SeVkDescriptorSetLayout
 typedef union SeVkRenderPipelineCreateInfos
 {
     SeGraphicsRenderPipelineCreateInfo graphics;
+    SeComputeRenderPipelineCreateInfo compute;
 } SeVkRenderPipelineCreateInfos;
 
 typedef struct SeVkRenderPipeline
@@ -46,6 +47,7 @@ typedef struct SeVkRenderPipeline
 #define __SE_VK_RENDER_PIPELINE_RECREATE_ZEROING_OFFSET(pipelinePtr) &(pipelinePtr)->handle
 
 SeRenderObject*                 se_vk_render_pipeline_graphics_create(SeGraphicsRenderPipelineCreateInfo* createInfo);
+SeRenderObject*                 se_vk_render_pipeline_compute_create(SeComputeRenderPipelineCreateInfo* createInfo);
 void                            se_vk_render_pipeline_submit_for_deffered_destruction(SeRenderObject* pipeline);
 void                            se_vk_render_pipeline_destroy(SeRenderObject* pipeline);
 void                            se_vk_render_pipeline_destroy_inplace(SeRenderObject* pipeline);

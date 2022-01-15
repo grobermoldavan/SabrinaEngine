@@ -121,14 +121,6 @@ typedef enum SeCommandBufferUsage
     SE_COMMAND_BUFFER_USAGE_TRANSFER,
 } SeCommandBufferUsage;
 
-typedef enum SeProgramStageFlags
-{
-    SE_PROGRAM_STAGE_VERTEX   = 0x00000001,
-    SE_PROGRAM_STAGE_FRAGMENT = 0x00000002,
-    SE_PROGRAM_STAGE_COMPUTE  = 0x00000004,
-} SeProgramStageFlags;
-typedef uint32_t SeProgramStages;
-
 typedef enum SeMemoryBufferUsageFlags
 {
     SE_MEMORY_BUFFER_USAGE_TRANSFER_SRC     = 0x00000001,
@@ -276,12 +268,31 @@ typedef struct SeDepthTestState
     bool isWriteEnabled;
 } SeDepthTestState;
 
+typedef struct SeSpecializationConstant
+{
+    uint32_t constantId;
+    union
+    {
+        int32_t asInt;
+        uint32_t asUint;
+        float asFloat;
+        bool asBool;
+    };
+} SeSpecializationConstant;
+
+typedef struct SePipelineProgram
+{
+    SeRenderObject* program;
+    SeSpecializationConstant* specializationConstants;
+    size_t numSpecializationConstants;
+} SePipelineProgram;
+
 typedef struct SeGraphicsRenderPipelineCreateInfo
 {
     SeRenderObject* device;
     SeRenderObject* renderPass;
-    SeRenderObject* vertexProgram;
-    SeRenderObject* fragmentProgram;
+    SePipelineProgram vertexProgram;
+    SePipelineProgram fragmentProgram;
     SeStencilOpState* frontStencilOpState;
     SeStencilOpState* backStencilOpState;
     SeDepthTestState* depthTestState;
@@ -291,6 +302,12 @@ typedef struct SeGraphicsRenderPipelineCreateInfo
     SePipelineFrontFace frontFace;
     SeSamplingType samplingType;
 } SeGraphicsRenderPipelineCreateInfo;
+
+typedef struct SeComputeRenderPipelineCreateInfo
+{
+    SeRenderObject* device;
+    SePipelineProgram program;
+} SeComputeRenderPipelineCreateInfo;
 
 typedef struct SeFramebufferCreateInfo
 {
@@ -363,6 +380,7 @@ typedef struct SeRenderAbstractionSubsystemInterface
     SeRenderObject* (*sampler_create)                       (SeSamplerCreateInfo* createInfo);
     SeRenderObject* (*render_pass_create)                   (SeRenderPassCreateInfo* createInfo);
     SeRenderObject* (*render_pipeline_graphics_create)      (SeGraphicsRenderPipelineCreateInfo* createInfo);
+    SeRenderObject* (*render_pipeline_compute_create)       (SeComputeRenderPipelineCreateInfo* createInfo);
     SeRenderObject* (*framebuffer_create)                   (SeFramebufferCreateInfo* createInfo);
     SeRenderObject* (*resource_set_request)                 (SeResourceSetRequestInfo* requestInfo);
     SeRenderObject* (*memory_buffer_create)                 (SeMemoryBufferCreateInfo* createInfo);

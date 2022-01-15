@@ -148,8 +148,8 @@ void tetris_render_init(TetrisRenderInitInfo* initInfo)
             {
                 .device                 = renderState->renderDevice,
                 .renderPass             = renderState->drawRenderPass,
-                .vertexProgram          = renderState->drawVs,
-                .fragmentProgram        = renderState->drawFs,
+                .vertexProgram          = (SePipelineProgram){ renderState->drawVs },
+                .fragmentProgram        = (SePipelineProgram){ renderState->drawFs },
                 .frontStencilOpState    = NULL,
                 .backStencilOpState     = NULL,
                 .depthTestState         = &depthTest,
@@ -224,8 +224,8 @@ void tetris_render_init(TetrisRenderInitInfo* initInfo)
             {
                 .device                 = renderState->renderDevice,
                 .renderPass             = renderState->presentRenderPass,
-                .vertexProgram          = renderState->presentVs,
-                .fragmentProgram        = renderState->presentFs,
+                .vertexProgram          = (SePipelineProgram) { renderState->presentVs },
+                .fragmentProgram        = (SePipelineProgram) { renderState->presentFs },
                 .frontStencilOpState    = NULL,
                 .backStencilOpState     = NULL,
                 .depthTestState         = &depthTest,

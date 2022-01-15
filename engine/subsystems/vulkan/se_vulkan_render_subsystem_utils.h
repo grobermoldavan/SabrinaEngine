@@ -60,7 +60,6 @@ VkSampleCountFlagBits                   se_vk_utils_pick_sample_count(VkSampleCo
 VkStencilOp                             se_vk_utils_to_vk_stencil_op(enum SeStencilOp op);
 VkCompareOp                             se_vk_utils_to_vk_compare_op(enum SeCompareOp op);
 VkBool32                                se_vk_utils_to_vk_bool(bool value);
-VkShaderStageFlags                      se_vk_utils_to_vk_stage_flags(enum SeProgramStageFlags stages);
 VkPipelineVertexInputStateCreateInfo    se_vk_utils_vertex_input_state_create_info(uint32_t bindingsCount, const VkVertexInputBindingDescription* bindingDescs, uint32_t attrCount, const VkVertexInputAttributeDescription* attrDescs);
 VkPipelineInputAssemblyStateCreateInfo  se_vk_utils_input_assembly_state_create_info(VkPrimitiveTopology topology, VkBool32 primitiveRestartEnable);
 SeVkViewportScissor                     se_vk_utils_default_viewport_scissor(uint32_t width, uint32_t height);

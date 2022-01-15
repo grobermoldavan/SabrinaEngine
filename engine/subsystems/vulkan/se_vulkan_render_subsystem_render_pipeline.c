@@ -19,6 +19,18 @@ typedef struct SeVkDescriptorSetLayoutCreateInfos
     se_sbuffer(VkDescriptorSetLayoutBinding) bindings;
 } SeVkDescriptorSetLayoutCreateInfos;
 
+static const SePipelineProgram* se_vk_render_pipeline_save_pipeline_program(const SePipelineProgram* program, SeAllocatorBindings* allocator)
+{
+    // @TODO
+    // @TODO
+    // @TODO
+    // @TODO
+    // @TODO
+    // @TODO
+    // @TODO
+
+}
+
 static SeRenderObject* se_vk_render_pipeline_get_device(SeVkRenderPipeline* pipeline)
 {
     switch(pipeline->bindPoint)
@@ -115,10 +127,10 @@ static SeVkDescriptorSetLayoutCreateInfos se_vk_render_pipeline_get_discriptor_s
     for (size_t it = 0; it < numProgramReflections; it++)
     {
         const SimpleSpirvReflection* reflection = programReflections[it];
-        se_assert(reflection->type == SSR_SHADER_VERTEX || reflection->type == SSR_SHADER_FRAGMENT);
         const VkShaderStageFlags programStage =
-            reflection->type == SSR_SHADER_VERTEX ? VK_SHADER_STAGE_VERTEX_BIT :
-            reflection->type == SSR_SHADER_FRAGMENT ? VK_SHADER_STAGE_FRAGMENT_BIT :
+            reflection->shaderType == SSR_SHADER_TYPE_VERTEX ? VK_SHADER_STAGE_VERTEX_BIT :
+            reflection->shaderType == SSR_SHADER_TYPE_FRAGMENT ? VK_SHADER_STAGE_FRAGMENT_BIT :
+            reflection->shaderType == SSR_SHADER_TYPE_COMPUTE ? VK_SHADER_STAGE_COMPUTE_BIT :
             0;
         for (size_t uniformIt = 0; uniformIt < reflection->numUniforms; uniformIt++)
         {
@@ -150,10 +162,10 @@ static SeVkDescriptorSetLayoutCreateInfos se_vk_render_pipeline_get_discriptor_s
             }
             se_assert(binding);
             const uint32_t uniformDescriptorCount =
-                uniform->type->type == SSR_TYPE_ARRAY &&
-                !uniform->type->info.array.isRuntimeArray
+                ssr_is_array(uniform->type) && ssr_get_array_size_kind(uniform->type) == SSR_ARRAY_SIZE_CONSTANT
                 ? (uint32_t)(uniform->type->info.array.size) // @TODO : safe cast
                 : 1;
+            se_assert_msg(ssr_get_array_size_kind(uniform->type) != SSR_ARRAY_SIZE_SPECIALIZATION_CONSTANT_BASED, "todo : specialization constants support");
             if (binding->binding != ~((uint32_t)0))
             {
                 se_assert
@@ -200,36 +212,18 @@ static VkStencilOpState se_vk_render_pipeline_stencil_op_state(SeStencilOpState*
     };
 }
 
-static void se_vk_render_pipeline_graphics_recreate_inplace(SeVkRenderPipeline* pipeline)
+static void se_vk_render_pipeline_create_descriptor_sets_and_layout(SeVkRenderPipeline* pipeline, const SimpleSpirvReflection** reflections, size_t numReflections)
 {
     SeRenderObject* device = se_vk_render_pipeline_get_device(pipeline);
     VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
-    SeVkInFlightManager* inFlightManager = se_vk_device_get_in_flight_manager(device);
     SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(device);
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
     SeGraphicsRenderPipelineCreateInfo* createInfo = &pipeline->createInfo.graphics;
     //
-    // Initial setup
-    //
-    memset(__SE_VK_RENDER_PIPELINE_RECREATE_ZEROING_OFFSET(pipeline), 0, __SE_VK_RENDER_PIPELINE_RECREATE_ZEROING_SIZE);
-    //
-    // Basic info and validation
-    //
-    const SimpleSpirvReflection* vertexReflection = se_vk_render_program_get_reflection(createInfo->vertexProgram);
-    const SimpleSpirvReflection* fragmentReflection = se_vk_render_program_get_reflection(createInfo->fragmentProgram);
-    const bool isStencilSupported = se_vk_device_is_stencil_supported(createInfo->device);
-    const bool hasVertexInput = se_vk_render_pipeline_has_vertex_input(vertexReflection);
-    se_assert(!hasVertexInput && "Vertex shader inputs are not supported");
-    se_assert(!vertexReflection->pushConstantType && "Push constants are not supported");
-    se_assert(!fragmentReflection->pushConstantType && "Push constants are not supported");
-    se_assert((createInfo->subpassIndex < se_vk_render_pass_get_num_subpasses(createInfo->renderPass)) && "Incorrect pipeline subpass index");
-    se_vk_render_pass_validate_fragment_program_setup(createInfo->renderPass, createInfo->fragmentProgram, createInfo->subpassIndex);
-    //
     // Descriptor set layouts and pools
     //
     {
-        const SimpleSpirvReflection* reflections[] = { vertexReflection, fragmentReflection };
-        SeVkDescriptorSetLayoutCreateInfos layoutCreateInfos = se_vk_render_pipeline_get_discriptor_set_layout_create_infos(memoryManager->cpu_frameAllocator, reflections, 2);
+        SeVkDescriptorSetLayoutCreateInfos layoutCreateInfos = se_vk_render_pipeline_get_discriptor_set_layout_create_infos(memoryManager->cpu_frameAllocator, reflections, numReflections);
         pipeline->numDescriptorSetLayouts = se_sbuffer_size(layoutCreateInfos.createInfos);
         for (size_t it = 0; it < pipeline->numDescriptorSetLayouts; it++)
         {
@@ -322,14 +316,45 @@ static void se_vk_render_pipeline_graphics_recreate_inplace(SeVkRenderPipeline* 
         };
         se_vk_check(vkCreatePipelineLayout(logicalHandle, &pipelineLayoutInfo, callbacks, &pipeline->layout));
     }
+}
+
+static void se_vk_render_pipeline_graphics_recreate_inplace(SeVkRenderPipeline* pipeline)
+{
+    SeRenderObject* device = se_vk_render_pipeline_get_device(pipeline);
+    VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
+    SeVkInFlightManager* inFlightManager = se_vk_device_get_in_flight_manager(device);
+    SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(device);
+    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
+    SeGraphicsRenderPipelineCreateInfo* createInfo = &pipeline->createInfo.graphics;
+    //
+    // Initial setup
+    //
+    memset(__SE_VK_RENDER_PIPELINE_RECREATE_ZEROING_OFFSET(pipeline), 0, __SE_VK_RENDER_PIPELINE_RECREATE_ZEROING_SIZE);
+    //
+    // Basic info and validation
+    //
+    const SimpleSpirvReflection* vertexReflection = se_vk_render_program_get_reflection(createInfo->vertexProgram.program);
+    const SimpleSpirvReflection* fragmentReflection = se_vk_render_program_get_reflection(createInfo->fragmentProgram.program);
+    const bool isStencilSupported = se_vk_device_is_stencil_supported(createInfo->device);
+    const bool hasVertexInput = se_vk_render_pipeline_has_vertex_input(vertexReflection);
+    se_assert(!hasVertexInput && "Vertex shader inputs are not supported");
+    se_assert(!vertexReflection->pushConstantType && "Push constants are not supported");
+    se_assert(!fragmentReflection->pushConstantType && "Push constants are not supported");
+    se_assert((createInfo->subpassIndex < se_vk_render_pass_get_num_subpasses(createInfo->renderPass)) && "Incorrect pipeline subpass index");
+    se_vk_render_pass_validate_fragment_program_setup(createInfo->renderPass, createInfo->fragmentProgram.program, createInfo->subpassIndex);
+    //
+    // Descriptor sets and layout
+    //
+    const SimpleSpirvReflection* reflections[] = { vertexReflection, fragmentReflection };
+    se_vk_render_pipeline_create_descriptor_sets_and_layout(pipeline, reflections, se_array_size(reflections));
     //
     // Render pipeline
     //
     {
         VkPipelineShaderStageCreateInfo shaderStages[] =
         {
-            se_vk_render_program_get_shader_stage_create_info(createInfo->vertexProgram),
-            se_vk_render_program_get_shader_stage_create_info(createInfo->fragmentProgram),
+            se_vk_render_program_get_shader_stage_create_info(&createInfo->vertexProgram),
+            se_vk_render_program_get_shader_stage_create_info(&createInfo->fragmentProgram),
         };
         VkExtent2D swapChainExtent = se_vk_device_get_swap_chain_extent(createInfo->device);
         VkPipelineVertexInputStateCreateInfo vertexInputInfo = se_vk_utils_vertex_input_state_create_info(0, NULL, 0, NULL);
@@ -398,17 +423,65 @@ static void se_vk_render_pipeline_graphics_recreate_inplace(SeVkRenderPipeline* 
     // Add external dependencies
     //
     se_vk_add_external_resource_dependency(createInfo->device);
-    se_vk_add_external_resource_dependency(createInfo->vertexProgram);
-    se_vk_add_external_resource_dependency(createInfo->fragmentProgram);
+    se_vk_add_external_resource_dependency(createInfo->vertexProgram.program);
+    se_vk_add_external_resource_dependency(createInfo->fragmentProgram.program);
     se_vk_add_external_resource_dependency(createInfo->renderPass);
+}
+
+static void se_vk_render_pipeline_compute_recreate_inplace(SeVkRenderPipeline* pipeline)
+{
+    SeRenderObject* device = se_vk_render_pipeline_get_device(pipeline);
+    VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
+    SeVkInFlightManager* inFlightManager = se_vk_device_get_in_flight_manager(device);
+    SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(device);
+    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
+    SeComputeRenderPipelineCreateInfo* createInfo = &pipeline->createInfo.compute;
+    //
+    // Initial setup
+    //
+    memset(__SE_VK_RENDER_PIPELINE_RECREATE_ZEROING_OFFSET(pipeline), 0, __SE_VK_RENDER_PIPELINE_RECREATE_ZEROING_SIZE);
+    //
+    // Basic info and validation
+    //
+    const SimpleSpirvReflection* reflection = se_vk_render_program_get_reflection(createInfo->program.program);
+    se_assert(!reflection->pushConstantType && "Push constants are not supported");
+    //
+    // Descriptor sets and layout
+    //
+    se_vk_render_pipeline_create_descriptor_sets_and_layout(pipeline, &reflection, 1);
+    //
+    // Render pipeline
+    //
+    {
+        VkComputePipelineCreateInfo pipelineCreateInfo = (VkComputePipelineCreateInfo)
+        {
+            .sType              = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+            .pNext              = NULL,
+            .flags              = 0,
+            .stage              = se_vk_render_program_get_shader_stage_create_info(&createInfo->program),
+            .layout             = pipeline->layout,
+            .basePipelineHandle = VK_NULL_HANDLE,
+            .basePipelineIndex  = -1,
+        };
+        se_vk_check(vkCreateComputePipelines(logicalHandle, VK_NULL_HANDLE, 1, &pipelineCreateInfo, callbacks, &pipeline->handle));
+    }
+    //
+    // Register pipeline
+    //
+    se_vk_in_flight_manager_register_pipeline(inFlightManager, (SeRenderObject*)pipeline);
+    //
+    // Add external dependencies
+    //
+    se_vk_add_external_resource_dependency(createInfo->device);
+    se_vk_add_external_resource_dependency(createInfo->program.program);
 }
 
 SeRenderObject* se_vk_render_pipeline_graphics_create(SeGraphicsRenderPipelineCreateInfo* createInfo)
 {
     se_vk_expect_handle(createInfo->device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't create graphics render pipeline");
     se_vk_expect_handle(createInfo->renderPass, SE_RENDER_HANDLE_TYPE_PASS, "Can't create graphics render pipeline");
-    se_vk_expect_handle(createInfo->vertexProgram, SE_RENDER_HANDLE_TYPE_PROGRAM, "Can't create graphics render pipeline");
-    se_vk_expect_handle(createInfo->fragmentProgram, SE_RENDER_HANDLE_TYPE_PROGRAM, "Can't create graphics render pipeline");
+    se_vk_expect_handle(createInfo->vertexProgram.program, SE_RENDER_HANDLE_TYPE_PROGRAM, "Can't create graphics render pipeline");
+    se_vk_expect_handle(createInfo->fragmentProgram.program, SE_RENDER_HANDLE_TYPE_PROGRAM, "Can't create graphics render pipeline");
     SeVkInFlightManager* inFlightManager = se_vk_device_get_in_flight_manager(createInfo->device);
     SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(createInfo->device);
     SeAllocatorBindings* allocator = memoryManager->cpu_persistentAllocator;
@@ -447,6 +520,33 @@ SeRenderObject* se_vk_render_pipeline_graphics_create(SeGraphicsRenderPipelineCr
     return (SeRenderObject*)pipeline;
 }
 
+SeRenderObject* se_vk_render_pipeline_compute_create(SeComputeRenderPipelineCreateInfo* createInfo)
+{
+    se_vk_expect_handle(createInfo->device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't create compute render pipeline");
+    se_vk_expect_handle(createInfo->program.program, SE_RENDER_HANDLE_TYPE_PROGRAM, "Can't create compute render pipeline");
+    SeVkInFlightManager* inFlightManager = se_vk_device_get_in_flight_manager(createInfo->device);
+    SeVkMemoryManager* memoryManager = se_vk_device_get_memory_manager(createInfo->device);
+    SeAllocatorBindings* allocator = memoryManager->cpu_persistentAllocator;
+    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
+    VkDevice logicalHandle = se_vk_device_get_logical_handle(createInfo->device);
+    //
+    // Initial setup
+    //
+    SeVkRenderPipeline* pipeline = se_object_pool_take(SeVkRenderPipeline, se_vk_memory_manager_get_pool(memoryManager, SE_RENDER_HANDLE_TYPE_PIPELINE));
+    memset(pipeline, 0, sizeof(SeVkRenderPipeline));
+    pipeline->object = se_vk_render_object(SE_RENDER_HANDLE_TYPE_PIPELINE, se_vk_render_pipeline_submit_for_deffered_destruction);
+    pipeline->createInfo.compute = *createInfo;
+    pipeline->bindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
+    //
+    //
+    //
+    se_vk_render_pipeline_recreate_inplace((SeRenderObject*)pipeline);
+    //
+    //
+    //
+    return (SeRenderObject*)pipeline;
+}
+
 void se_vk_render_pipeline_submit_for_deffered_destruction(SeRenderObject* _pipeline)
 {
     se_vk_expect_handle(_pipeline, SE_RENDER_HANDLE_TYPE_PIPELINE, "Can't submit render pipeline for deffered destruction");
@@ -473,6 +573,10 @@ void se_vk_render_pipeline_destroy(SeRenderObject* _pipeline)
         if (createInfo->frontStencilOpState)    allocator->dealloc(allocator->allocator, createInfo->frontStencilOpState, sizeof(SeStencilOpState));
         if (createInfo->backStencilOpState)     allocator->dealloc(allocator->allocator, createInfo->backStencilOpState, sizeof(SeStencilOpState));
         if (createInfo->depthTestState)         allocator->dealloc(allocator->allocator, createInfo->depthTestState, sizeof(SeDepthTestState));
+    }
+    else if (pipeline->bindPoint == VK_PIPELINE_BIND_POINT_COMPUTE)
+    {
+        // Nothing ?
     }
     else
     {
@@ -508,9 +612,13 @@ void se_vk_render_pipeline_destroy_inplace(SeRenderObject* _pipeline)
     se_vk_remove_external_resource_dependency(device);
     if (pipeline->bindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS)
     {
-        se_vk_remove_external_resource_dependency(pipeline->createInfo.graphics.vertexProgram);
-        se_vk_remove_external_resource_dependency(pipeline->createInfo.graphics.fragmentProgram);
+        se_vk_remove_external_resource_dependency(pipeline->createInfo.graphics.vertexProgram.program);
+        se_vk_remove_external_resource_dependency(pipeline->createInfo.graphics.fragmentProgram.program);
         se_vk_remove_external_resource_dependency(pipeline->createInfo.graphics.renderPass);
+    }
+    else if (pipeline->bindPoint == VK_PIPELINE_BIND_POINT_COMPUTE)
+    {
+        se_vk_remove_external_resource_dependency(pipeline->createInfo.compute.program.program);
     }
     else
     {
@@ -525,6 +633,7 @@ void se_vk_render_pipeline_recreate_inplace(SeRenderObject* _pipeline)
     switch (pipeline->bindPoint)
     {
         case VK_PIPELINE_BIND_POINT_GRAPHICS: se_vk_render_pipeline_graphics_recreate_inplace(pipeline); break;
+        case VK_PIPELINE_BIND_POINT_COMPUTE: se_vk_render_pipeline_compute_recreate_inplace(pipeline); break;
         default: se_assert(false);
     }
 }

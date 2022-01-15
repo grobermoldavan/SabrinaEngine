@@ -7,6 +7,8 @@
 #include "se_vulkan_render_subsystem_in_flight_manager.h"
 #include "engine/allocator_bindings.h"
 
+#define SE_VK_RENDER_PROGRAM_MAX_SPECIALIZAION_ENTRIES 16
+
 static void* se_vk_ssr_alloc(void* userData, size_t size)
 {
     SeAllocatorBindings* allocator = (SeAllocatorBindings*)userData;
@@ -103,14 +105,54 @@ SimpleSpirvReflection* se_vk_render_program_get_reflection(SeRenderObject* _prog
     return &program->reflection;
 }
 
-VkPipelineShaderStageCreateInfo se_vk_render_program_get_shader_stage_create_info(SeRenderObject* _program)
+VkPipelineShaderStageCreateInfo se_vk_render_program_get_shader_stage_create_info(SePipelineProgram* pipelineProgram)
 {
-    se_vk_expect_handle(_program, SE_RENDER_HANDLE_TYPE_PROGRAM, "Can't get program shader stage create info");
-    SeVkRenderProgram* program = (SeVkRenderProgram*)_program;
+    se_vk_expect_handle(pipelineProgram->program, SE_RENDER_HANDLE_TYPE_PROGRAM, "Can't get program shader stage create info");
+    const SeVkRenderProgram* program = (SeVkRenderProgram*)pipelineProgram->program;
+    const SimpleSpirvReflection* reflection = &program->reflection;
     const VkShaderStageFlagBits stage =
-        program->reflection.type == SSR_SHADER_VERTEX ? VK_SHADER_STAGE_VERTEX_BIT :
-        program->reflection.type == SSR_SHADER_FRAGMENT ? VK_SHADER_STAGE_FRAGMENT_BIT :
+        reflection->shaderType == SSR_SHADER_TYPE_VERTEX ? VK_SHADER_STAGE_VERTEX_BIT :
+        reflection->shaderType == SSR_SHADER_TYPE_FRAGMENT ? VK_SHADER_STAGE_FRAGMENT_BIT :
+        reflection->shaderType == SSR_SHADER_TYPE_COMPUTE ? VK_SHADER_STAGE_COMPUTE_BIT :
         0;
+    se_assert(pipelineProgram->numSpecializationConstants < SE_VK_RENDER_PROGRAM_MAX_SPECIALIZAION_ENTRIES);
+    //
+    // Fill specialization constants info
+    //
+    VkSpecializationMapEntry specializationEntries[SE_VK_RENDER_PROGRAM_MAX_SPECIALIZAION_ENTRIES];
+    char data[SE_VK_RENDER_PROGRAM_MAX_SPECIALIZAION_ENTRIES * 4] = {0};
+    const VkSpecializationInfo specializationInfo = (VkSpecializationInfo)
+    {
+        .mapEntryCount  = (uint32_t)pipelineProgram->numSpecializationConstants, // @TODO : safe cast
+        .pMapEntries    = specializationEntries,
+        .dataSize       = (uint32_t)pipelineProgram->numSpecializationConstants * 4, // @TODO : safe cast
+        .pData          = data,
+    };
+    for (uint32_t it = 0; it < pipelineProgram->numSpecializationConstants; it++)
+    {
+        const SeSpecializationConstant* constantDesc = &pipelineProgram->specializationConstants[it];
+        SsrSpecializationConstant* reflectionConstant = NULL;
+        for (size_t scIt = 0; scIt < reflection->numSpecializationConstants; scIt++)
+        {
+            SsrSpecializationConstant* candidate = &reflection->specializationConstants[scIt];
+            if (candidate->constantId == constantDesc->constantId)
+            {
+                reflectionConstant = candidate;
+                break;
+            }
+        }
+        se_assert(reflectionConstant);
+        specializationEntries[it] = (VkSpecializationMapEntry)
+        {
+            .constantID = constantDesc->constantId,
+            .offset     = it * 4,
+            .size       = ssr_is_bool(reflectionConstant->type) ? 1 : 4,
+        };
+        memcpy(&data[it * 4], &constantDesc->asInt, 4);
+    }
+    //
+    //
+    //
     return (VkPipelineShaderStageCreateInfo)
     {
         .sType                  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -119,6 +161,6 @@ VkPipelineShaderStageCreateInfo se_vk_render_program_get_shader_stage_create_inf
         .stage                  = stage,
         .module                 = program->handle,
         .pName                  = program->reflection.entryPointName,
-        .pSpecializationInfo    = NULL,
+        .pSpecializationInfo    = &specializationInfo,
     };
 }

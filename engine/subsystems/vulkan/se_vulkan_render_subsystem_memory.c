@@ -12,6 +12,7 @@
 #include "se_vulkan_render_subsystem_command_buffer.h"
 #include "se_vulkan_render_subsystem_resource_set.h"
 #include "se_vulkan_render_subsystem_in_flight_manager.h"
+#include "se_vulkan_render_subsystem_utils.h"
 #include "engine/allocator_bindings.h"
 #include "engine/common_includes.h"
 

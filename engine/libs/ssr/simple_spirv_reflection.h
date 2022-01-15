@@ -12,14 +12,16 @@ extern "C" {
 
 typedef uint32_t SsrSpirvWord;
 
-typedef enum SsrShader
+typedef enum SsrShaderType
 {
-    SSR_SHADER_VERTEX,
-    SSR_SHADER_FRAGMENT,
-} SsrShader;
+    SSR_SHADER_TYPE_VERTEX,
+    SSR_SHADER_TYPE_FRAGMENT,
+    SSR_SHADER_TYPE_COMPUTE,
+} SsrShaderType;
 
 typedef enum SsrType
 {
+    SSR_TYPE_BOOL,
     SSR_TYPE_SCALAR,
     SSR_TYPE_VECTOR,
     SSR_TYPE_MATRIX,
@@ -54,12 +56,23 @@ typedef enum SsrImageSampleParameters
     SSR_IMAGE_NOT_USED_WITH_SAMPLER,
 } SsrImageSampleParameters;
 
+typedef enum SsrArraySizeKind
+{
+    SSR_ARRAY_SIZE_CONSTANT,
+    SSR_ARRAY_SIZE_RUNTIME,
+    SSR_ARRAY_SIZE_SPECIALIZATION_CONSTANT_BASED,
+} SsrArraySizeKind;
+
 typedef struct SsrTypeInfo
 {
     SsrType type;
     struct SsrTypeInfo* next;
     union
     {
+        struct
+        {
+            int dummy;  // Nothing ??
+        } boolean;
         struct
         {
             size_t bitWidth;
@@ -100,8 +113,8 @@ typedef struct SsrTypeInfo
         struct
         {
             struct SsrTypeInfo* entryType;
+            SsrArraySizeKind sizeKind;
             size_t size;
-            bool isRuntimeArray;
         } array;
     } info;
 } SsrTypeInfo;
@@ -138,6 +151,20 @@ typedef struct SsrUniform
     uint32_t inputAttachmentIndex;
 } SsrUniform;
 
+typedef struct SsrSpecializationConstant
+{
+    const char* name;
+    SsrTypeInfo* type;
+    uint32_t constantId;
+    union
+    {
+        uint32_t asUint;
+        int32_t asInt;
+        float asFloat;
+        bool asBool;
+    };
+} SsrSpecializationConstant;
+
 typedef struct SsrAllocator
 {
     void* userData;
@@ -156,43 +183,81 @@ typedef struct SsrMemoryBlock
 typedef struct SimpleSpirvReflection
 {
     SsrAllocator allocator;
-    
-    SsrShader type;
+
+    SsrShaderType shaderType;
     const char* entryPointName;
-    
+
     SsrTypeInfo* typeInfos;
-    
+
     SsrTypeInfo* pushConstantType;
     const char* pushConstantName;
-    
+
     SsrShaderIO* inputs;
     size_t numInputs;
-    
+
     SsrShaderIO* outputs;
     size_t numOutputs;
-    
+
     SsrUniform* uniforms;
     size_t numUniforms;
 
+    SsrSpecializationConstant* specializationConstants;
+    size_t numSpecializationConstants;
+
+    uint32_t computeWorkGroupSizeX;
+    uint32_t computeWorkGroupSizeY;
+    uint32_t computeWorkGroupSizeZ;
+
     SsrMemoryBlock* memory;
-    
+
 } SimpleSpirvReflection;
 
 typedef struct SsrCreateInfo
 {
-    SsrAllocator* persistentAllocator;
-    SsrAllocator* nonPersistentAllocator;
-    SsrSpirvWord* bytecode;
+    const SsrAllocator* persistentAllocator;
+    const SsrAllocator* nonPersistentAllocator;
+    const SsrSpirvWord* bytecode;
     size_t bytecodeNumWords;
 } SsrCreateInfo;
 
-void ssr_construct(SimpleSpirvReflection* reflection, SsrCreateInfo* createInfo);
+void ssr_construct(SimpleSpirvReflection* reflection, const SsrCreateInfo* createInfo);
 void ssr_destroy(SimpleSpirvReflection* reflection);
 
-size_t ssr_get_type_size(SsrTypeInfo* typeInfo);
-const char* ssr_shader_type_to_str(SsrShader shader);
+size_t ssr_get_type_size(const SsrTypeInfo* typeInfo);
+const char* ssr_shader_type_to_str(SsrShaderType shader);
 const char* ssr_type_to_str(SsrType type);
 const char* ssr_uniform_kind_to_str(SsrUniformKind kind);
+
+#define ssr_is_bool(typePtr)    (typePtr->type == SSR_TYPE_BOOL)
+#define ssr_is_int(typePtr)     ((typePtr->type == SSR_TYPE_SCALAR) && typePtr->info.scalar.isInteger && typePtr->info.scalar.isSigned)
+#define ssr_is_uint(typePtr)    ((typePtr->type == SSR_TYPE_SCALAR) && typePtr->info.scalar.isInteger && !typePtr->info.scalar.isSigned)
+#define ssr_is_float(typePtr)   ((typePtr->type == SSR_TYPE_SCALAR) && !typePtr->info.scalar.isInteger)
+#define ssr_is_vector(typePtr)  (typePtr->type == SSR_TYPE_VECTOR)
+#define ssr_is_matrix(typePtr)  (typePtr->type == SSR_TYPE_MATRIX)
+#define ssr_is_struct(typePtr)  (typePtr->type == SSR_TYPE_STRUCT)
+#define ssr_is_sampler(typePtr) (typePtr->type == SSR_TYPE_SAMPLER)
+#define ssr_is_image(typePtr)   (typePtr->type == SSR_TYPE_IMAGE)
+#define ssr_is_array(typePtr)   (typePtr->type == SSR_TYPE_ARRAY)
+
+#define ssr_get_vector_components_num(typePtr)      (typePtr->info.vector.numComponents)
+#define ssr_get_vector_component_type(typePtr)      (typePtr->info.vector.componentType)
+#define ssr_get_matrix_columns_num(typePtr)         (typePtr->info.matrix.numColumns)
+#define ssr_get_matrix_rows_num(typePtr)            (ssr_get_vector_components_num(typePtr->info.matrix.columnType))
+#define ssr_get_matrix_columns_type(typePtr)        (typePtr->info.matrix.columnType)
+#define ssr_get_struct_type_name(typePtr)           (typePtr->info.structure.typeName)
+#define ssr_get_struct_members_num(typePtr)         (typePtr->info.structure.numMembers)
+#define ssr_get_struct_member_type(typePtr, id)     (typePtr->info.structure.members[id])
+#define ssr_get_struct_member_name(typePtr, id)     (typePtr->info.structure.memberNames[id])
+#define ssr_get_image_dim(typePtr)                  (typePtr->info.image.dim)
+#define ssr_get_image_depth_parameters(typePtr)     (typePtr->info.image.depthParameters)
+#define ssr_get_image_sample_parameters(typePtr)    (typePtr->info.image.sampleParameters)
+#define ssr_is_image_arrayed(typePtr)               (typePtr->info.image.isArrayed)
+#define ssr_is_image_sampled(typePtr)               (typePtr->info.image.isSampled)
+#define ssr_is_image_multisampled(typePtr)          (typePtr->info.image.isMultisampled)
+#define ssr_get_array_entry_type(typePtr)           (typePtr->info.array.entryType)
+#define ssr_get_array_size_kind(typePtr)            (typePtr->info.array.sizeKind)
+#define ssr_get_array_size(typePtr)                 (typePtr->info.array.size)
+
 
 #ifdef __cplusplus
 }
@@ -266,17 +331,19 @@ typedef enum SsrDecoration
     SSR_DECORATION_BINDING      = 0x00000020,
     SSR_DECORATION_SET          = 0x00000040,
     SSR_DECORATION_BUILT_IN     = 0x00000080,
+    SSR_DECORATION_SPEC_ID      = 0x00000100,
 } SsrDecoration;
 
 typedef struct SsrSpirvId
 {
-    SsrSpirvWord* declarationLocation;
+    const SsrSpirvWord* declarationLocation;
     const char* name;
     SsrSpirvWord storageClass;
     uint32_t decorations;
     uint32_t location;
     uint32_t binding;
     uint32_t set;
+    uint32_t specId;
     uint32_t inputAttachmentIndex;
 } SsrSpirvId;
 
@@ -303,9 +370,13 @@ SsrMemoryBlock* __ssr_alloc_single_block(size_t size, SsrAllocator* allocator)
     const size_t memoryBlockCapacity = (size <= DEFAULT_BLOCK_SIZE ? DEFAULT_BLOCK_SIZE : size);
     const size_t allocationSize = sizeof(SsrMemoryBlock) + memoryBlockCapacity;
     SsrMemoryBlock* block = allocator->alloc(allocator->userData, allocationSize);
-    ssr_clear_mem(block, allocationSize);
-    block->base = ((char*)block) + sizeof(SsrMemoryBlock);
-    block->capacity = memoryBlockCapacity;
+    *block = (SsrMemoryBlock)
+    {
+        .base       = ((char*)block) + sizeof(SsrMemoryBlock),
+        .capacity   = memoryBlockCapacity,
+        .size       = 0,
+        .next       = NULL,
+    };
     return block;
 }
 
@@ -357,6 +428,7 @@ SsrTypeInfo* __ssr_save_or_get_type_from_reflection(SsrSpirvStruct* structs, siz
     uint16_t spvType = ssr_opcode(id->declarationLocation[0]);
     switch (spvType)
     {
+        case SpvOpTypeBool:         resultType.type = SSR_TYPE_BOOL; break;
         case SpvOpTypeFloat:        resultType.type = SSR_TYPE_SCALAR; break;
         case SpvOpTypeInt:          resultType.type = SSR_TYPE_SCALAR; break;
         case SpvOpTypeVector:       resultType.type = SSR_TYPE_VECTOR; break;
@@ -367,16 +439,29 @@ SsrTypeInfo* __ssr_save_or_get_type_from_reflection(SsrSpirvStruct* structs, siz
         case SpvOpTypeImage:        resultType.type = SSR_TYPE_IMAGE; break;
         case SpvOpTypeRuntimeArray: resultType.type = SSR_TYPE_ARRAY; break;
         case SpvOpTypeArray:        resultType.type = SSR_TYPE_ARRAY; break;
-        default:
-        {
-            ssr_assert(!"Unsupported OpType");
-        } break;
+        default: { ssr_assert(!"Unsupported OpType"); }
     }
     //
     // 2. Process result type based on it's kind
     //
     switch(resultType.type)
     {
+        case SSR_TYPE_BOOL:
+        {
+            //
+            // Try match bool
+            //
+            SsrTypeInfo* alreadySavedValue = reflection->typeInfos;
+            while (alreadySavedValue)
+            {
+                if (alreadySavedValue->type == SSR_TYPE_BOOL)
+                {
+                    matchedType = alreadySavedValue;
+                    break;
+                }
+                alreadySavedValue = alreadySavedValue->next;
+            }
+        } break;
         case SSR_TYPE_SCALAR:
         {
             //
@@ -396,7 +481,7 @@ SsrTypeInfo* __ssr_save_or_get_type_from_reflection(SsrSpirvStruct* structs, siz
                     resultType.info.scalar.isSigned = id->declarationLocation[3] == 1;
                     resultType.info.scalar.bitWidth = id->declarationLocation[2];
                 } break;
-                default: ssr_assert(!"Unsupported scalar value type (bool?)");
+                default: { ssr_assert(!"Unsupported scalar value type (bool?)"); }
             }
             //
             // Try to find scalar type with same properties in type list
@@ -511,7 +596,19 @@ SsrTypeInfo* __ssr_save_or_get_type_from_reflection(SsrSpirvStruct* structs, siz
         } break;
         case SSR_TYPE_SAMPLER:
         {
-            // Nothing (?)
+            //
+            // Try match sampler
+            //
+            SsrTypeInfo* alreadySavedValue = reflection->typeInfos;
+            while (alreadySavedValue)
+            {
+                if (alreadySavedValue->type == SSR_TYPE_SAMPLER)
+                {
+                    matchedType = alreadySavedValue;
+                    break;
+                }
+                alreadySavedValue = alreadySavedValue->next;
+            }
         } break;
         case SSR_TYPE_IMAGE:
         {
@@ -569,21 +666,21 @@ SsrTypeInfo* __ssr_save_or_get_type_from_reflection(SsrSpirvStruct* structs, siz
                 case SpvDimRect: resultType.info.image.dim = SSR_IMAGE_RECT; break;
                 case SpvDimBuffer: resultType.info.image.dim = SSR_IMAGE_BUFFER; break;
                 case SpvDimSubpassData: resultType.info.image.dim = SSR_IMAGE_SUBPASS_DATA; break;
-                default: ssr_assert(!"Unknown SpvDim value");
+                default: { ssr_assert(!"Unknown SpvDim value"); }
             }
             switch (imageDepth)
             {
                 case 0: resultType.info.image.depthParameters = SSR_IMAGE_NOT_DEPTH; break;
                 case 1: resultType.info.image.depthParameters = SSR_IMAGE_DEPTH; break;
                 case 2: resultType.info.image.depthParameters = SSR_IMAGE_PARAM_UNKNOWN; break;
-                default: ssr_assert(!"Unknown OpTypeImage depth value");
+                default: { ssr_assert(!"Unknown OpTypeImage depth value"); }
             }
             switch (imageSampledInfo)
             {
                 case 0: resultType.info.image.sampleParameters = SSR_IMAGE_PARAM_UNKNOWN; break;
                 case 1: resultType.info.image.sampleParameters = SSR_IMAGE_USED_WITH_SAMPLER; break;
                 case 2: resultType.info.image.sampleParameters = SSR_IMAGE_NOT_USED_WITH_SAMPLER; break;
-                default: ssr_assert(!"Unknown OpTypeImage sample value");
+                default: { ssr_assert(!"Unknown OpTypeImage sample value"); }
             }
             resultType.info.image.isArrayed = isArrayed != 0;
             resultType.info.image.isMultisampled = isMultisampled != 0;
@@ -617,26 +714,35 @@ SsrTypeInfo* __ssr_save_or_get_type_from_reflection(SsrSpirvStruct* structs, siz
             {
                 case SpvOpTypeRuntimeArray:
                 {
-                    resultType.info.array.isRuntimeArray = true;
+                    resultType.info.array.sizeKind = SSR_ARRAY_SIZE_RUNTIME;
                     resultType.info.array.size = 0;
                 } break;
                 case SpvOpTypeArray:
                 {
-                    resultType.info.array.isRuntimeArray = false;
-                    // Go to OpConstant describing array length
                     SsrSpirvId* arrayLength = &ids[id->declarationLocation[3]];
-                    // Check that constant type is integer
-                    SsrSpirvId* arrayLengthType = &ids[arrayLength->declarationLocation[1]];
-                    ssr_assert(ssr_opcode(arrayLengthType->declarationLocation[0]) == SpvOpTypeInt);
-                    // Check constant bit width and save array size
-                    SsrSpirvWord arrayLengthTypeBitWidth = arrayLengthType->declarationLocation[2];
-                    switch (arrayLengthTypeBitWidth)
+                    if (ssr_opcode(arrayLength->declarationLocation[0]) == SpvOpSpecConstantOp)
                     {
-                        case 32: resultType.info.array.size = *((uint64_t*)&arrayLength->declarationLocation[3]); break;
-                        default: ssr_assert(!"Unsupported array size constat bit width");
-                    };
+                        resultType.info.array.sizeKind = SSR_ARRAY_SIZE_SPECIALIZATION_CONSTANT_BASED;
+                        resultType.info.array.size = 0;
+                    }
+                    else
+                    {
+                        // Go to OpConstant describing array length
+                        ssr_assert(ssr_opcode(arrayLength->declarationLocation[0]) == SpvOpConstant);
+                        resultType.info.array.sizeKind = SSR_ARRAY_SIZE_CONSTANT;
+                        // Check that constant type is integer
+                        SsrSpirvId* arrayLengthType = &ids[arrayLength->declarationLocation[1]];
+                        ssr_assert(ssr_opcode(arrayLengthType->declarationLocation[0]) == SpvOpTypeInt);
+                        // Check constant bit width and save array size
+                        SsrSpirvWord arrayLengthTypeBitWidth = arrayLengthType->declarationLocation[2];
+                        switch (arrayLengthTypeBitWidth)
+                        {
+                            case 32: resultType.info.array.size = *((uint32_t*)&arrayLength->declarationLocation[3]); break;
+                            default: { ssr_assert(!"Unsupported array size constat bit width"); }
+                        };
+                    }
                 } break;
-                default: ssr_assert(!"Unknown array type");
+                default: { ssr_assert(!"Unknown array type"); }
             }
             resultType.info.array.entryType = __ssr_save_or_get_type_from_reflection(structs, numStructs, ids, &ids[id->declarationLocation[2]], reflection);
             //
@@ -646,7 +752,7 @@ SsrTypeInfo* __ssr_save_or_get_type_from_reflection(SsrSpirvStruct* structs, siz
             while (alreadySavedValue)
             {
                 if (alreadySavedValue->type == SSR_TYPE_ARRAY &&
-                    alreadySavedValue->info.array.isRuntimeArray == resultType.info.array.isRuntimeArray &&
+                    alreadySavedValue->info.array.sizeKind == resultType.info.array.sizeKind &&
                     alreadySavedValue->info.array.size == resultType.info.array.size &&
                     alreadySavedValue->info.array.entryType == resultType.info.array.entryType)
                 {
@@ -656,7 +762,7 @@ SsrTypeInfo* __ssr_save_or_get_type_from_reflection(SsrSpirvStruct* structs, siz
                 alreadySavedValue = alreadySavedValue->next;
             }
         } break;
-        default: ssr_assert(!"Unsupported SSR_TYPE_* value");
+        default: { ssr_assert(!"Unsupported SSR_TYPE_* value"); }
     }
     //
     // 3. If type is not yet saved in reflection, save it
@@ -668,7 +774,10 @@ SsrTypeInfo* __ssr_save_or_get_type_from_reflection(SsrSpirvStruct* structs, siz
         if (reflection->typeInfos)
         {
             SsrTypeInfo* lastTypeInfo = reflection->typeInfos;
-            while (lastTypeInfo->next) lastTypeInfo = lastTypeInfo->next;
+            while (lastTypeInfo->next)
+            {
+                lastTypeInfo = lastTypeInfo->next;
+            }
             lastTypeInfo->next = matchedType;
         }
         else
@@ -702,7 +811,7 @@ void __ssr_process_shader_uniform(SsrSpirvStruct* structs, size_t numStructs, Ss
     //
     // Start from variable declaration
     //
-    SsrSpirvWord* opVariable = uniformIdOpVariable->declarationLocation;
+    const SsrSpirvWord* opVariable = uniformIdOpVariable->declarationLocation;
     ssr_assert(ssr_opcode(opVariable[0]) == SpvOpVariable);
     ssr_assert(uniformIdOpVariable->name);
     ssr_assert(uniformIdOpVariable->decorations & SSR_DECORATION_SET);
@@ -718,10 +827,10 @@ void __ssr_process_shader_uniform(SsrSpirvStruct* structs, size_t numStructs, Ss
     //
     // Go to OpTypePointer describing this variable
     //
-    SsrSpirvWord* opTypePointer = ids[opVariable[1]].declarationLocation;
+    const SsrSpirvWord* opTypePointer = ids[opVariable[1]].declarationLocation;
     ssr_assert(ssr_opcode(opTypePointer[0]) == SpvOpTypePointer);
     SsrSpirvId* uniformIdOpType = &ids[opTypePointer[3]];
-    uniform->type = __ssr_save_or_get_type_from_reflection(structs, numStructs, ids, &ids[uniformIdOpType->declarationLocation[1]], reflection);
+    uniform->type = __ssr_save_or_get_type_from_reflection(structs, numStructs, ids, uniformIdOpType, reflection);
     uint16_t opType = ssr_opcode(uniformIdOpType->declarationLocation[0]);
     SpvStorageClass storageClass = opTypePointer[2];
     if (opType == SpvOpTypeArray)
@@ -739,7 +848,7 @@ void __ssr_process_shader_uniform(SsrSpirvStruct* structs, size_t numStructs, Ss
             if      (isBlock)       uniform->kind = SSR_UNIFORM_UNIFORM_BUFFER;
             else if (isBufferBlock) uniform->kind = SSR_UNIFORM_STORAGE_BUFFER;
         }
-        else ssr_assert(!"Uniform with StorageClassUniform has unsupported OpType");
+        else { ssr_assert(!"Uniform with StorageClassUniform has unsupported OpType"); }
     }
     else if (storageClass == SpvStorageClassUniformConstant)
     {
@@ -750,7 +859,7 @@ void __ssr_process_shader_uniform(SsrSpirvStruct* structs, size_t numStructs, Ss
             if (sampled == 1)
             {
                 if      (dim == SpvDimBuffer)       uniform->kind = SSR_UNIFORM_UNIFORM_TEXEL_BUFFER;
-                else if (dim == SpvDimSubpassData)  ssr_assert(!"Unsupported uniform type");
+                else if (dim == SpvDimSubpassData)  { ssr_assert(!"Unsupported uniform type"); }
                 else                                uniform->kind = SSR_UNIFORM_SAMPLED_IMAGE;
             }
             else if (sampled == 2)
@@ -759,37 +868,37 @@ void __ssr_process_shader_uniform(SsrSpirvStruct* structs, size_t numStructs, Ss
                 else if (dim == SpvDimSubpassData)  uniform->kind = SSR_UNIFORM_INPUT_ATTACHMENT;
                 else                                uniform->kind = SSR_UNIFORM_STORAGE_IMAGE;
             }
-            else ssr_assert(!"Unsupported \"Sampled\" parameter for OpTypeImage");
+            else { ssr_assert(!"Unsupported \"Sampled\" parameter for OpTypeImage"); }
         }
         else if (opType == SpvOpTypeSampler)                    uniform->kind = SSR_UNIFORM_SAMPLER;
         else if (opType == SpvOpTypeSampledImage)               uniform->kind = SSR_UNIFORM_COMBINED_IMAGE_SAMPLER;
         else if (opType == SpvOpTypeAccelerationStructureKHR)   uniform->kind = SSR_UNIFORM_ACCELERATION_STRUCTURE;
-        else ssr_assert(!"Uniform with StorageClassUniformConstant has unsupported OpType");
+        else { ssr_assert(!"Uniform with StorageClassUniformConstant has unsupported OpType"); }
     }
     else if (storageClass == SpvStorageClassStorageBuffer)
     {
         if (opType == SpvOpTypeStruct) uniform->kind = SSR_UNIFORM_STORAGE_BUFFER;
-        else ssr_assert(!"Uniform with StorageClassStorageBuffer has unsupported OpType");
+        else { ssr_assert(!"Uniform with StorageClassStorageBuffer has unsupported OpType"); }
     }
-    else ssr_assert(!"Unsupported uniform SpvStorageClass");
+    else { ssr_assert(!"Unsupported uniform SpvStorageClass"); }
 }
 
-void ssr_construct(SimpleSpirvReflection* reflection, SsrCreateInfo* createInfo)
+void ssr_construct(SimpleSpirvReflection* reflection, const SsrCreateInfo* createInfo)
 {
-#define ssr_save_decl_location(index) { SsrSpirvWord id = instruction[index]; ssr_assert(id < bound); ids[id].declarationLocation = instruction; }
-    
+#define ssr_save_decl_location(index) { const SsrSpirvWord id = instruction[index]; ssr_assert(id < bound); ids[id].declarationLocation = instruction; }
+
     ssr_clear_mem(reflection, sizeof(SimpleSpirvReflection));
     reflection->allocator = *createInfo->persistentAllocator;
-    SsrAllocator* persistenAllocator = createInfo->persistentAllocator;
-    SsrAllocator* nonPersistentAllocator = createInfo->nonPersistentAllocator;
-    SsrSpirvWord* bytecode = createInfo->bytecode;
-    size_t wordCount = createInfo->bytecodeNumWords;
+    const SsrAllocator* persistenAllocator = createInfo->persistentAllocator;
+    const SsrAllocator* nonPersistentAllocator = createInfo->nonPersistentAllocator;
+    const SsrSpirvWord* bytecode = createInfo->bytecode;
+    const size_t wordCount = createInfo->bytecodeNumWords;
     //
     // Basic header validation + retrieving number of unique ids (bound) used in bytecode
     //
     ssr_assert(bytecode[0] == SpvMagicNumber);
     size_t bound = bytecode[3];
-    SsrSpirvWord* instruction = NULL;
+    const SsrSpirvWord* instruction = NULL;
     //
     // Allocate SsrSpirvId array which will hold all neccessary information about shader identifiers
     //
@@ -801,21 +910,23 @@ void ssr_construct(SimpleSpirvReflection* reflection, SsrCreateInfo* createInfo)
     size_t inputsCount = 0;
     size_t outputsCount = 0;
     size_t uniformsCount = 0;
+    size_t specializationConstantsCount = 0;
     for (instruction = bytecode + 5; instruction < (bytecode + wordCount);)
     {
-        uint16_t instructionOpCode = ssr_opcode(instruction[0]);
-        uint16_t instructionWordCount = (uint16_t)(instruction[0] >> 16);
+        const uint16_t instructionOpCode = ssr_opcode(instruction[0]);
+        const uint16_t instructionWordCount = (uint16_t)(instruction[0] >> 16);
         switch (instructionOpCode)
         {
             case SpvOpEntryPoint:
             {
                 ssr_assert(instructionWordCount >= 4);
                 if (instruction[1] == SpvExecutionModelVertex)
-                    reflection->type = SSR_SHADER_VERTEX;
+                    reflection->shaderType = SSR_SHADER_TYPE_VERTEX;
                 else if (instruction[1] == SpvExecutionModelFragment)
-                    reflection->type = SSR_SHADER_FRAGMENT;
-                else
-                    ssr_assert(!"Only vertex and fragment shaders are supported");
+                    reflection->shaderType = SSR_SHADER_TYPE_FRAGMENT;
+                else if (instruction[1] == SpvExecutionModelGLCompute)
+                    reflection->shaderType = SSR_SHADER_TYPE_COMPUTE;
+                else { ssr_assert(!"Only vertex, fragment and compute shaders are supported"); }
                 reflection->entryPointName = __ssr_save_string((char*)&instruction[3], reflection);
             } break;
             case SpvOpName:
@@ -825,10 +936,15 @@ void ssr_construct(SimpleSpirvReflection* reflection, SsrCreateInfo* createInfo)
             } break;
             case SpvOpConstant:
             {
-                ssr_assert(instructionWordCount >= 3);
+                ssr_assert(instructionWordCount >= 4);
                 ssr_save_decl_location(2);
             } break;
             case SpvOpTypeVoid:
+            {
+                ssr_assert(instructionWordCount == 2);
+                ssr_save_decl_location(1);
+            } break;
+            case SpvOpTypeBool:
             {
                 ssr_assert(instructionWordCount == 2);
                 ssr_save_decl_location(1);
@@ -893,8 +1009,8 @@ void ssr_construct(SimpleSpirvReflection* reflection, SsrCreateInfo* createInfo)
             {
                 ssr_assert(instructionWordCount >= 4);
                 ssr_save_decl_location(2);
-                SsrSpirvWord storageClass = instruction[3];
-                SsrSpirvWord resultId = instruction[2];
+                const SsrSpirvWord storageClass = instruction[3];
+                const SsrSpirvWord resultId = instruction[2];
                 ids[resultId].storageClass = storageClass;
                 if      (storageClass == SpvStorageClassInput) inputsCount += 1;
                 else if (storageClass == SpvStorageClassOutput) outputsCount += 1;
@@ -905,7 +1021,7 @@ void ssr_construct(SimpleSpirvReflection* reflection, SsrCreateInfo* createInfo)
             case SpvOpMemberDecorate:
             {
                 ssr_assert(instructionWordCount >= 4);
-                SpvDecoration decoration = (SpvDecoration)instruction[3];
+                const SpvDecoration decoration = (SpvDecoration)instruction[3];
                 switch (decoration)
                 {
                     case SpvDecorationBuiltIn:
@@ -921,27 +1037,27 @@ void ssr_construct(SimpleSpirvReflection* reflection, SsrCreateInfo* createInfo)
             } break;
             case SpvOpDecorate:
             {
-                SpvDecoration decoration = (SpvDecoration)instruction[2];
+                const SpvDecoration decoration = (SpvDecoration)instruction[2];
                 switch (decoration)
                 {
                     case SpvDecorationBlock:
                     {
                         ssr_assert(instructionWordCount == 3);
-                        SsrSpirvWord id = instruction[1];
+                        const SsrSpirvWord id = instruction[1];
                         ssr_assert(id < bound);
                         ids[id].decorations |= SSR_DECORATION_BLOCK;
                     } break;
                     case SpvDecorationBufferBlock:
                     {
                         ssr_assert(instructionWordCount == 3);
-                        SsrSpirvWord id = instruction[1];
+                        const SsrSpirvWord id = instruction[1];
                         ssr_assert(id < bound);
                         ids[id].decorations |= SSR_DECORATION_BUFFER_BLOCK;
                     } break;
                     case SpvDecorationBuiltIn:
                     {
                         ssr_assert(instructionWordCount == 4);
-                        SsrSpirvWord id = instruction[1];
+                        const SsrSpirvWord id = instruction[1];
                         ssr_assert(id < bound);
                         ids[id].decorations |= SSR_DECORATION_BUILT_IN;
                     } break;
@@ -956,7 +1072,7 @@ void ssr_construct(SimpleSpirvReflection* reflection, SsrCreateInfo* createInfo)
                     case SpvDecorationBinding:
                     {
                         ssr_assert(instructionWordCount == 4);
-                        SsrSpirvWord id = instruction[1];
+                        const SsrSpirvWord id = instruction[1];
                         ssr_assert(id < bound);
                         ids[id].binding = instruction[3];
                         ids[id].decorations |= SSR_DECORATION_BINDING;
@@ -964,7 +1080,7 @@ void ssr_construct(SimpleSpirvReflection* reflection, SsrCreateInfo* createInfo)
                     case SpvDecorationDescriptorSet:
                     {
                         ssr_assert(instructionWordCount == 4);
-                        SsrSpirvWord id = instruction[1];
+                        const SsrSpirvWord id = instruction[1];
                         ssr_assert(id < bound);
                         ids[id].set = instruction[3];
                         ids[id].decorations |= SSR_DECORATION_SET;
@@ -972,19 +1088,63 @@ void ssr_construct(SimpleSpirvReflection* reflection, SsrCreateInfo* createInfo)
                     case SpvDecorationInputAttachmentIndex:
                     {
                         ssr_assert(instructionWordCount == 4);
-                        SsrSpirvWord id = instruction[1];
+                        const SsrSpirvWord id = instruction[1];
                         ssr_assert(id < bound);
                         ids[id].inputAttachmentIndex = instruction[3];
                         ids[id].decorations |= SSR_DECORATION_INPUT_ATTACHMENT_INDEX;
                     } break;
+                    case SpvDecorationSpecId:
+                    {
+                        ssr_assert(instructionWordCount == 4);
+                        const SsrSpirvWord id = instruction[1];
+                        ssr_assert(id < bound);
+                        ids[id].specId = instruction[3];
+                        ids[id].decorations |= SSR_DECORATION_SPEC_ID;
+                    } break;
                 }
             }
+            case SpvOpExecutionMode:
+            {
+                ssr_assert(instructionWordCount >= 3);
+                const SsrSpirvWord executionMode = instruction[2];
+                if (executionMode == SpvExecutionModeLocalSize)
+                {
+                    ssr_assert(instructionWordCount == 6);
+                    reflection->computeWorkGroupSizeX = instruction[3];
+                    reflection->computeWorkGroupSizeY = instruction[4];
+                    reflection->computeWorkGroupSizeZ = instruction[5];
+                }
+            } break;
+            case SpvOpSpecConstant:
+            {
+                ssr_assert(instructionWordCount >= 4);
+                ssr_save_decl_location(2);
+                specializationConstantsCount += 1;
+            } break;
+            case SpvOpSpecConstantFalse:
+            {
+                ssr_assert(instructionWordCount == 3);
+                ssr_save_decl_location(2);
+                specializationConstantsCount += 1;
+            } break;
+            case SpvOpSpecConstantTrue:
+            {
+                ssr_assert(instructionWordCount == 3);
+                ssr_save_decl_location(2);
+                specializationConstantsCount += 1;
+            } break;
+            case SpvOpSpecConstantOp:
+            {
+                ssr_assert(instructionWordCount >= 4);
+                ssr_save_decl_location(2);
+            } break;
         }
         instruction += instructionWordCount;
     }
     reflection->inputs = __ssr_alloc(sizeof(SsrShaderIO) * inputsCount, reflection);
     reflection->outputs = __ssr_alloc(sizeof(SsrShaderIO) * outputsCount, reflection);
     reflection->uniforms = __ssr_alloc(sizeof(SsrUniform) * uniformsCount, reflection);
+    reflection->specializationConstants = __ssr_alloc(sizeof(SsrSpecializationConstant) * specializationConstantsCount, reflection);
     //
     // Step 2. Retrieving information about shader structs
     //
@@ -995,8 +1155,8 @@ void ssr_construct(SimpleSpirvReflection* reflection, SsrCreateInfo* createInfo)
     size_t numStructMembers = 0;
     for (instruction = bytecode + 5; instruction < (bytecode + wordCount);)
     {
-        uint16_t instructionOpCode = ssr_opcode(instruction[0]);
-        uint16_t instructionWordCount = (uint16_t)(instruction[0] >> 16);
+        const uint16_t instructionOpCode = ssr_opcode(instruction[0]);
+        const uint16_t instructionWordCount = (uint16_t)(instruction[0] >> 16);
         switch (instructionOpCode)
         {
             case SpvOpTypeStruct:
@@ -1021,8 +1181,8 @@ void ssr_construct(SimpleSpirvReflection* reflection, SsrCreateInfo* createInfo)
     size_t memberCounter = 0;
     for (instruction = bytecode + 5; instruction < (bytecode + wordCount);)
     {
-        uint16_t instructionOpCode = ssr_opcode(instruction[0]);
-        uint16_t instructionWordCount = (uint16_t)(instruction[0] >> 16);
+        const uint16_t instructionOpCode = ssr_opcode(instruction[0]);
+        const uint16_t instructionWordCount = (uint16_t)(instruction[0] >> 16);
         switch (instructionOpCode)
         {
             case SpvOpTypeStruct:
@@ -1042,6 +1202,35 @@ void ssr_construct(SimpleSpirvReflection* reflection, SsrCreateInfo* createInfo)
         instruction += instructionWordCount;
     }
     //
+    // Step 2.4. Save struct member names
+    //
+    for (instruction = bytecode + 5; instruction < (bytecode + wordCount);)
+    {
+        const uint16_t instructionOpCode = ssr_opcode(instruction[0]);
+        const uint16_t instructionWordCount = (uint16_t)(instruction[0] >> 16);
+        switch (instructionOpCode)
+        {
+            case SpvOpMemberName:
+            {
+                ssr_assert(instructionWordCount >= 4);
+                const SsrSpirvWord memberIndex = instruction[2];
+                SsrSpirvId* structId = &ids[instruction[1]];
+                SsrSpirvStruct* structure = NULL;
+                for (size_t it = 0; it < numStructs; it++)
+                {
+                    if (structs[it].id == structId)
+                    {
+                        structure = &structs[it];
+                        break;
+                    }
+                }
+                ssr_assert(structure);
+                structure->members[memberIndex].name = (const char*)&instruction[3];
+            } break;
+        }
+        instruction += instructionWordCount;
+    }
+    //
     // Step 3. Process all input, ouptut variables, push constants and buffers
     //
     for (size_t it = 0; it < bound; it++)
@@ -1049,7 +1238,7 @@ void ssr_construct(SimpleSpirvReflection* reflection, SsrCreateInfo* createInfo)
         SsrSpirvId* id = &ids[it];
         if (id->declarationLocation && ssr_opcode(id->declarationLocation[0]) == SpvOpVariable)
         {
-            SpvStorageClass storageClass = (SpvStorageClass)ids[id->declarationLocation[2]].storageClass;
+            const SpvStorageClass storageClass = (SpvStorageClass)ids[id->declarationLocation[2]].storageClass;
             if (storageClass == SpvStorageClassInput)
             {
                 SsrShaderIO* inputVariable = &reflection->inputs[reflection->numInputs++];
@@ -1086,6 +1275,46 @@ void ssr_construct(SimpleSpirvReflection* reflection, SsrCreateInfo* createInfo)
                 __ssr_process_shader_uniform(structs, numStructs, ids, id, reflection);
             }
         }
+        else if (id->declarationLocation &&
+                    (ssr_opcode(id->declarationLocation[0]) == SpvOpSpecConstant        ||
+                     ssr_opcode(id->declarationLocation[0]) == SpvOpSpecConstantFalse   ||
+                     ssr_opcode(id->declarationLocation[0]) == SpvOpSpecConstantTrue    ))
+        {
+            SsrSpecializationConstant* constant = &reflection->specializationConstants[reflection->numSpecializationConstants++];
+            ssr_assert(id->decorations & SSR_DECORATION_SPEC_ID);
+            SsrSpirvId* typeId = &ids[id->declarationLocation[1]];
+            constant->name = __ssr_save_string(id->name, reflection);
+            constant->constantId = id->specId;
+            constant->type = __ssr_save_or_get_type_from_reflection(structs, numStructs, ids, typeId, reflection);
+            switch (constant->type->type)
+            {
+                case SSR_TYPE_SCALAR:
+                {
+                    if (constant->type->info.scalar.isInteger)
+                    {
+                        ssr_assert(constant->type->info.scalar.bitWidth == 32 && "Only 32 bit integers are supported for specialization constants");
+                        if (constant->type->info.scalar.isSigned)
+                        {
+                            constant->asUint = *((uint32_t*)&id->declarationLocation[3]);
+                        }
+                        else
+                        {
+                            constant->asInt = *((int32_t*)&id->declarationLocation[3]);
+                        }
+                    }
+                    else
+                    {
+                        ssr_assert(constant->type->info.scalar.bitWidth == 32 && "Only 32 bit float is supported for specialization constants");
+                        constant->asFloat = *((float*)&id->declarationLocation[3]);
+                    }
+                } break;
+                case SSR_TYPE_BOOL:
+                {
+                    constant->asBool = ssr_opcode(id->declarationLocation[0]) == SpvOpSpecConstantTrue;
+                } break;
+                default: { ssr_assert("Unsupported specialization constant type"); }
+            }
+        }
     }
     //
     // Cleanup
@@ -1107,10 +1336,14 @@ void ssr_destroy(SimpleSpirvReflection* reflection)
     }
 }
 
-size_t ssr_get_type_size(SsrTypeInfo* typeInfo)
+size_t ssr_get_type_size(const SsrTypeInfo* typeInfo)
 {
     switch(typeInfo->type)
     {
+        case SSR_TYPE_BOOL:
+        {
+            return 1;
+        } break;
         case SSR_TYPE_SCALAR:
         {
             return typeInfo->info.scalar.bitWidth / 8;
@@ -1144,12 +1377,12 @@ size_t ssr_get_type_size(SsrTypeInfo* typeInfo)
         {
             return typeInfo->info.array.size * ssr_get_type_size(typeInfo->info.array.entryType);
         } break;
-        default: ssr_assert(!"Unknown SSR_TYPE_*");
+        default: { ssr_assert(!"Unknown SSR_TYPE_*"); }
     }
     return 0;
 }
 
-const char* ssr_shader_type_to_str(SsrShader shader)
+const char* ssr_shader_type_to_str(SsrShaderType shader)
 {
     static const char* types[] =
     {
@@ -1163,6 +1396,7 @@ const char* ssr_type_to_str(SsrType type)
 {
     static const char* types[] =
     {
+        "bool",
         "scalar",
         "vector",
         "matrix",
