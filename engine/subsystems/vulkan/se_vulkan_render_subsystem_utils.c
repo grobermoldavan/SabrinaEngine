@@ -38,7 +38,7 @@ const char** se_vk_utils_get_required_device_extensions(size_t* outNum)
     return DEVICE_EXTENSIONS;
 }
 
-se_sbuffer(VkLayerProperties) se_vk_utils_get_available_validation_layers(struct SeAllocatorBindings* allocator)
+se_sbuffer(VkLayerProperties) se_vk_utils_get_available_validation_layers(SeAllocatorBindings* allocator)
 {
     uint32_t count;
     se_sbuffer(VkLayerProperties) result = {0};
@@ -49,7 +49,7 @@ se_sbuffer(VkLayerProperties) se_vk_utils_get_available_validation_layers(struct
     return result;
 }
 
-se_sbuffer(VkExtensionProperties) se_vk_utils_get_available_instance_extensions(struct SeAllocatorBindings* allocator)
+se_sbuffer(VkExtensionProperties) se_vk_utils_get_available_instance_extensions(SeAllocatorBindings* allocator)
 {
     uint32_t count;
     se_sbuffer(VkExtensionProperties) result = {0};
@@ -109,7 +109,7 @@ void se_vk_utils_destroy_command_pool(VkCommandPool pool, VkDevice device, VkAll
     vkDestroyCommandPool(device, pool, callbacks);
 }
 
-SeVkSwapChainSupportDetails se_vk_utils_create_swap_chain_support_details(VkSurfaceKHR surface, VkPhysicalDevice device, struct SeAllocatorBindings* allocator)
+SeVkSwapChainSupportDetails se_vk_utils_create_swap_chain_support_details(VkSurfaceKHR surface, VkPhysicalDevice device, SeAllocatorBindings* allocator)
 {
     SeVkSwapChainSupportDetails result = {0};
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &result.capabilities);
@@ -215,7 +215,19 @@ uint32_t se_vk_utils_pick_transfer_queue(se_sbuffer(VkQueueFamilyProperties) fam
     return SE_VK_INVALID_QUEUE;
 }
 
-se_sbuffer(VkDeviceQueueCreateInfo) se_vk_utils_get_queue_create_infos(uint32_t* queues, size_t numQueues, struct SeAllocatorBindings* allocator)
+uint32_t se_vk_utils_pick_compute_queue(se_sbuffer(VkQueueFamilyProperties) familyProperties)
+{
+    for (size_t it = 0; it < se_sbuffer_size(familyProperties); it++)
+    {
+        if (familyProperties[it].queueFlags & VK_QUEUE_COMPUTE_BIT)
+        {
+            return it;
+        }
+    }
+    return SE_VK_INVALID_QUEUE;
+}
+
+se_sbuffer(VkDeviceQueueCreateInfo) se_vk_utils_get_queue_create_infos(uint32_t* queues, size_t numQueues, SeAllocatorBindings* allocator)
 {
     // @NOTE :  this is possible that queue family might support more than one of the required features,
     //          so we have to remove duplicates from queueFamiliesInfo and create VkDeviceQueueCreateInfos
@@ -296,7 +308,7 @@ bool se_vk_utils_pick_depth_stencil_format(VkPhysicalDevice physicalDevice, VkFo
     return false;
 }
 
-se_sbuffer(VkPhysicalDevice) se_vk_utils_get_available_physical_devices(VkInstance instance, struct SeAllocatorBindings* allocator)
+se_sbuffer(VkPhysicalDevice) se_vk_utils_get_available_physical_devices(VkInstance instance, SeAllocatorBindings* allocator)
 {
     uint32_t count;
     se_sbuffer(VkPhysicalDevice) result = {0};
@@ -307,7 +319,7 @@ se_sbuffer(VkPhysicalDevice) se_vk_utils_get_available_physical_devices(VkInstan
     return result;
 };
 
-se_sbuffer(VkQueueFamilyProperties) se_vk_utils_get_physical_device_queue_family_properties(VkPhysicalDevice physicalDevice, struct SeAllocatorBindings* allocator)
+se_sbuffer(VkQueueFamilyProperties) se_vk_utils_get_physical_device_queue_family_properties(VkPhysicalDevice physicalDevice, SeAllocatorBindings* allocator)
 {
     uint32_t count;
     se_sbuffer(VkQueueFamilyProperties) familyProperties;
@@ -318,7 +330,7 @@ se_sbuffer(VkQueueFamilyProperties) se_vk_utils_get_physical_device_queue_family
     return familyProperties;
 }
 
-bool se_vk_utils_does_physical_device_supports_required_extensions(VkPhysicalDevice device, const char** extensions, size_t numExtensions, struct SeAllocatorBindings* allocator)
+bool se_vk_utils_does_physical_device_supports_required_extensions(VkPhysicalDevice device, const char** extensions, size_t numExtensions, SeAllocatorBindings* allocator)
 {
     uint32_t count;
     VkPhysicalDeviceFeatures feat = {0};
@@ -382,7 +394,7 @@ VkCommandBuffer se_vk_utils_create_command_buffer(VkDevice device, VkCommandPool
     return buffer;
 };
 
-VkShaderModule se_vk_utils_create_shader_module(VkDevice device, uint32_t* bytecode, size_t bytecodeSIze, VkAllocationCallbacks* allocationCb)
+VkShaderModule se_vk_utils_create_shader_module(VkDevice device, const uint32_t* bytecode, size_t bytecodeSIze, VkAllocationCallbacks* allocationCb)
 {
     VkShaderModuleCreateInfo createInfo = (VkShaderModuleCreateInfo)
     {

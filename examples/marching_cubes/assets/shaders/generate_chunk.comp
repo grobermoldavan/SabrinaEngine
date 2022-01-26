@@ -6,11 +6,11 @@ layout (constant_id = 0) const uint CHUNK_BOUNDS_X = 8;
 layout (constant_id = 1) const uint CHUNK_BOUNDS_Y = 8;
 layout (constant_id = 2) const uint CHUNK_BOUNDS_Z = 8;
 
-layout (set = 0, binding = 0) uniform FrameData
+layout (std140, set = 0, binding = 0) uniform FrameData
 {
     mat4 viewProjection;
     float time;
-    float isoLevel;
+    float surfaceLevel;
 };
 
 //
@@ -28,6 +28,29 @@ layout (set = 0, binding = 0) uniform FrameData
 layout (set = 1, binding = 0) buffer ChunkGrid
 {
     float gridValues[];
+};
+
+struct Vertex
+{
+    vec4 position;
+    vec4 normal;
+};
+
+layout (set = 1, binding = 1) buffer ChunkGeometry
+{
+    Vertex geometry[];
+    // One cube is 5 triangles - 5 * 3 vertices.
+    // Full chunk consists of (CHUNK_BOUNDS_X - 1) * (CHUNK_BOUNDS_Y - 1) * (CHUNK_BOUNDS_Z - 1) * 5 * 3 vertices.
+};
+
+layout (std430, set = 1, binding = 2) readonly buffer EdgeTable
+{
+    int edgeTable[];
+};
+
+layout (std430, set = 1, binding = 3) readonly buffer TriangleTable
+{
+    int triangleTable[];
 };
 
 // =================================================================================================
@@ -117,9 +140,20 @@ void main()
     const uint x = gl_GlobalInvocationID.x;
     const uint y = gl_GlobalInvocationID.y;
     const uint z = gl_GlobalInvocationID.z;
-    if(x >= CHUNK_BOUNDS_X || y >= CHUNK_BOUNDS_Y || z >= CHUNK_BOUNDS_Z)
+    if ((x >= CHUNK_BOUNDS_X) || (y >= CHUNK_BOUNDS_Y) || (z >= CHUNK_BOUNDS_Z))
         return;
+
     const float timeModified = time * 0.1f;
-    const vec3 position = vec3(float(x) * 0.02f + timeModified, float(y) * 0.02f + timeModified, float(z) * 0.02f + timeModified);
-    gridValues[map_3d_index_to_1d(uvec3(x, y , z))] = snoise(position);
+    const vec3 position = vec3(float(x) * 0.01f + timeModified, float(y) * 0.01f, float(z) * 0.01f);
+    gridValues[map_3d_index_to_1d(uvec3(x, y, z))] = clamp(snoise(position) + mix(-1, 1.2, float(y) / float(CHUNK_BOUNDS_Y)), 0, 1);
+
+    //
+    // Debug sphere
+    //
+    // const float radius = 20;
+    // const vec3 origin = vec3(32, 32, 32);
+    // const vec3 position = vec3(x, y, z);
+    // const float dist = distance(origin, position);
+    // const float val = clamp(dist / radius, 0, 1);
+    // gridValues[map_3d_index_to_1d(uvec3(x, y, z))] = val;
 }

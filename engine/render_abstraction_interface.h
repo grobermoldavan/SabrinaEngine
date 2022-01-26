@@ -123,12 +123,16 @@ typedef enum SeCommandBufferUsage
 
 typedef enum SeMemoryBufferUsageFlags
 {
-    SE_MEMORY_BUFFER_USAGE_TRANSFER_SRC     = 0x00000001,
-    SE_MEMORY_BUFFER_USAGE_TRANSFER_DST     = 0x00000002,
-    SE_MEMORY_BUFFER_USAGE_UNIFORM_BUFFER   = 0x00000004,
-    SE_MEMORY_BUFFER_USAGE_STORAGE_BUFFER   = 0x00000008,
+    SE_MEMORY_BUFFER_USAGE_UNIFORM_BUFFER   = 0x00000001,
+    SE_MEMORY_BUFFER_USAGE_STORAGE_BUFFER   = 0x00000002,
 } SeMemoryBufferUsageFlags;
 typedef uint32_t SeMemoryBufferUsage;
+
+typedef enum SeMemoryBufferCopyType
+{
+    SE_MEMORY_BUFFER_COPY_TYPE_FROM_CPU,
+    SE_MEMORY_BUFFER_COPY_TYPE_FROM_BUFFER,
+} SeMemoryBufferCopyType;
 
 typedef enum SeMemoryBufferVisibility
 {
@@ -188,12 +192,26 @@ typedef struct SeRenderDeviceCreateInfo
     struct SePlatformInterface* platform;
 } SeRenderDeviceCreateInfo;
 
+typedef struct SeComputeDispatchLimits
+{
+    uint32_t maxWorkgroupCountX;
+    uint32_t maxWorkgroupCountY;
+    uint32_t maxWorkgroupCountZ;
+} SeComputeDispatchLimits;
+
 typedef struct SeRenderProgramCreateInfo
 {
     SeRenderObject* device;
-    uint32_t* bytecode;
+    const uint32_t* bytecode;
     size_t codeSizeBytes;
 } SeRenderProgramCreateInfo;
+
+typedef struct SeRenderProgramComputeWorkGroupSize
+{
+    uint32_t x;
+    uint32_t y;
+    uint32_t z;
+} SeRenderProgramComputeWorkGroupSize;
 
 typedef struct SeTextureCreateInfo
 {
@@ -232,13 +250,13 @@ typedef struct SeRenderPassAttachment
 
 typedef struct SeRenderPassSubpass
 {
-    uint32_t* colorRefs;        // each value references colorAttachments array
+    uint32_t* colorRefs;    // each value references colorAttachments array
     size_t numColorRefs;
-    uint32_t* inputRefs;        // each value references colorAttachments array
+    uint32_t* inputRefs;    // each value references colorAttachments array
     size_t numInputRefs;
-    uint32_t* resolveRefs;      // each value references colorAttachments array
+    uint32_t* resolveRefs;  // each value references colorAttachments array
     size_t numResolveRefs;
-    SeDepthOp depthOp;          // SE_DEPTH_OP_NOTHING means depth attachment is not used in subpass
+    SeDepthOp depthOp;      // SE_DEPTH_OP_NOTHING means depth attachment is not used in subpass
 } SeRenderPassSubpass;
 
 typedef struct SeRenderPassCreateInfo
@@ -280,19 +298,19 @@ typedef struct SeSpecializationConstant
     };
 } SeSpecializationConstant;
 
-typedef struct SePipelineProgram
+typedef struct SeProgramWithConstants
 {
     SeRenderObject* program;
     SeSpecializationConstant* specializationConstants;
     size_t numSpecializationConstants;
-} SePipelineProgram;
+} SeProgramWithConstants;
 
 typedef struct SeGraphicsRenderPipelineCreateInfo
 {
     SeRenderObject* device;
     SeRenderObject* renderPass;
-    SePipelineProgram vertexProgram;
-    SePipelineProgram fragmentProgram;
+    SeProgramWithConstants vertexProgram;
+    SeProgramWithConstants fragmentProgram;
     SeStencilOpState* frontStencilOpState;
     SeStencilOpState* backStencilOpState;
     SeDepthTestState* depthTestState;
@@ -306,7 +324,7 @@ typedef struct SeGraphicsRenderPipelineCreateInfo
 typedef struct SeComputeRenderPipelineCreateInfo
 {
     SeRenderObject* device;
-    SePipelineProgram program;
+    SeProgramWithConstants program;
 } SeComputeRenderPipelineCreateInfo;
 
 typedef struct SeFramebufferCreateInfo
@@ -324,6 +342,15 @@ typedef struct SeMemoryBufferCreateInfo
     SeMemoryBufferUsage usage;
     SeMemoryBufferVisibility visibility;
 } SeMemoryBufferCreateInfo;
+
+typedef struct SeMemoryBufferCopyInfo
+{
+    SeMemoryBufferCopyType type;
+    const void* source;
+    size_t srcOffset;
+    size_t dstOffset;
+    size_t size;
+} SeMemoryBufferCopyInfo;
 
 typedef struct SeResourceSetBinding
 {
@@ -358,6 +385,13 @@ typedef struct SeCommandDrawInfo
     uint32_t numInstances;
 } SeCommandDrawInfo;
 
+typedef struct SeCommandDispatchInfo
+{
+    uint32_t groupCountX;
+    uint32_t groupCountY;
+    uint32_t groupCountZ;
+} SeCommandDispatchInfo;
+
 typedef struct SeCommandBindResourceSetInfo
 {
     SeRenderObject* resourceSet;
@@ -365,32 +399,36 @@ typedef struct SeCommandBindResourceSetInfo
 
 typedef struct SeRenderAbstractionSubsystemInterface
 {
-    SeRenderObject* (*device_create)                        (SeRenderDeviceCreateInfo* createInfo);
-    void            (*device_wait)                          (SeRenderObject* device);
-    size_t          (*get_swap_chain_textures_num)          (SeRenderObject* device);
-    SeRenderObject* (*get_swap_chain_texture)               (SeRenderObject* device, size_t textureIndex);
-    size_t          (*get_active_swap_chain_texture_index)  (SeRenderObject* device);
-    SeSamplingFlags (*get_supported_sampling_types)         (SeRenderObject* device);
-    void            (*begin_frame)                          (SeRenderObject* device);
-    void            (*end_frame)                            (SeRenderObject* device);
-    SeRenderObject* (*program_create)                       (SeRenderProgramCreateInfo* createInfo);
-    SeRenderObject* (*texture_create)                       (SeTextureCreateInfo* createInfo);
-    uint32_t        (*texture_get_width)                    (SeRenderObject* texture);
-    uint32_t        (*texture_get_height)                   (SeRenderObject* texture);
-    SeRenderObject* (*sampler_create)                       (SeSamplerCreateInfo* createInfo);
-    SeRenderObject* (*render_pass_create)                   (SeRenderPassCreateInfo* createInfo);
-    SeRenderObject* (*render_pipeline_graphics_create)      (SeGraphicsRenderPipelineCreateInfo* createInfo);
-    SeRenderObject* (*render_pipeline_compute_create)       (SeComputeRenderPipelineCreateInfo* createInfo);
-    SeRenderObject* (*framebuffer_create)                   (SeFramebufferCreateInfo* createInfo);
-    SeRenderObject* (*resource_set_request)                 (SeResourceSetRequestInfo* requestInfo);
-    SeRenderObject* (*memory_buffer_create)                 (SeMemoryBufferCreateInfo* createInfo);
-    void*           (*memory_buffer_get_mapped_address)     (SeRenderObject* buffer);
-    SeRenderObject* (*command_buffer_request)               (SeCommandBufferRequestInfo* requestInfo);
-    void            (*command_buffer_submit)                (SeRenderObject* cmdBuffer);
-    void            (*command_bind_pipeline)                (SeRenderObject* cmdBuffer, SeCommandBindPipelineInfo* commandInfo);
-    void            (*command_draw)                         (SeRenderObject* cmdBuffer, SeCommandDrawInfo* commandInfo);
-    void            (*command_bind_resource_set)            (SeRenderObject* cmdBuffer, SeCommandBindResourceSetInfo* commandInfo);
-    void            (*perspective_projection_matrix)        (struct SeFloat4x4* result, float fovDeg, float aspect, float nearPlane, float farPlane);
+    SeRenderObject*                     (*device_create)                        (SeRenderDeviceCreateInfo* createInfo);
+    void                                (*device_wait)                          (SeRenderObject* device);
+    size_t                              (*get_swap_chain_textures_num)          (SeRenderObject* device);
+    SeRenderObject*                     (*get_swap_chain_texture)               (SeRenderObject* device, size_t textureIndex);
+    size_t                              (*get_active_swap_chain_texture_index)  (SeRenderObject* device);
+    SeSamplingFlags                     (*get_supported_sampling_types)         (SeRenderObject* device);
+    SeComputeDispatchLimits             (*get_dispatch_limits)                  (SeRenderObject* device);
+    void                                (*begin_frame)                          (SeRenderObject* device);
+    void                                (*end_frame)                            (SeRenderObject* device);
+    SeRenderObject*                     (*program_create)                       (SeRenderProgramCreateInfo* createInfo);
+    SeRenderProgramComputeWorkGroupSize (*program_get_compute_work_group_size)  (SeRenderObject* program);
+    SeRenderObject*                     (*texture_create)                       (SeTextureCreateInfo* createInfo);
+    uint32_t                            (*texture_get_width)                    (SeRenderObject* texture);
+    uint32_t                            (*texture_get_height)                   (SeRenderObject* texture);
+    SeRenderObject*                     (*sampler_create)                       (SeSamplerCreateInfo* createInfo);
+    SeRenderObject*                     (*render_pass_create)                   (SeRenderPassCreateInfo* createInfo);
+    SeRenderObject*                     (*render_pipeline_graphics_create)      (SeGraphicsRenderPipelineCreateInfo* createInfo);
+    SeRenderObject*                     (*render_pipeline_compute_create)       (SeComputeRenderPipelineCreateInfo* createInfo);
+    SeRenderObject*                     (*framebuffer_create)                   (SeFramebufferCreateInfo* createInfo);
+    SeRenderObject*                     (*resource_set_request)                 (SeResourceSetRequestInfo* requestInfo);
+    SeRenderObject*                     (*memory_buffer_create)                 (SeMemoryBufferCreateInfo* createInfo);
+    void*                               (*memory_buffer_get_mapped_address)     (SeRenderObject* buffer);
+    void                                (*memory_buffer_copy_from)              (SeRenderObject* buffer, SeMemoryBufferCopyInfo* info);
+    SeRenderObject*                     (*command_buffer_request)               (SeCommandBufferRequestInfo* requestInfo);
+    void                                (*command_buffer_submit)                (SeRenderObject* cmdBuffer);
+    void                                (*command_bind_pipeline)                (SeRenderObject* cmdBuffer, SeCommandBindPipelineInfo* commandInfo);
+    void                                (*command_draw)                         (SeRenderObject* cmdBuffer, SeCommandDrawInfo* commandInfo);
+    void                                (*command_dispatch)                     (SeRenderObject* cmdBuffer, SeCommandDispatchInfo* dispatchInfo);
+    void                                (*command_bind_resource_set)            (SeRenderObject* cmdBuffer, SeCommandBindResourceSetInfo* commandInfo);
+    void                                (*perspective_projection_matrix)        (struct SeFloat4x4* result, float fovDeg, float aspect, float nearPlane, float farPlane);
 } SeRenderAbstractionSubsystemInterface;
 
 size_t se_size_parameter_dynamic_default_width(size_t windowWidth, size_t windowHeight)

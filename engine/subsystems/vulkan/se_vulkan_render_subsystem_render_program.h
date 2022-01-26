@@ -12,11 +12,12 @@ typedef struct SeVkRenderProgram
     SimpleSpirvReflection   reflection;
 } SeVkRenderProgram;
 
-SeRenderObject* se_vk_render_program_create(SeRenderProgramCreateInfo* createInfo);
-void            se_vk_render_program_submit_for_deffered_destruction(SeRenderObject* program);
-void            se_vk_render_program_destroy(SeRenderObject* program);
+SeRenderObject*                     se_vk_render_program_create(SeRenderProgramCreateInfo* createInfo);
+void                                se_vk_render_program_submit_for_deffered_destruction(SeRenderObject* program);
+void                                se_vk_render_program_destroy(SeRenderObject* program);
+SeRenderProgramComputeWorkGroupSize se_vk_render_program_get_compute_work_group_size(SeRenderObject* program);
 
 SimpleSpirvReflection*          se_vk_render_program_get_reflection(SeRenderObject* program);
-VkPipelineShaderStageCreateInfo se_vk_render_program_get_shader_stage_create_info(SePipelineProgram* pipelineProgram);
+VkPipelineShaderStageCreateInfo se_vk_render_program_get_shader_stage_create_info(SeProgramWithConstants* pipelineProgram, SeAllocatorBindings* allocator);
 
 #endif

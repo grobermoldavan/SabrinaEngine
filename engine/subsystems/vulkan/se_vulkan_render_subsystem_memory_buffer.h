@@ -16,6 +16,7 @@ SeRenderObject* se_vk_memory_buffer_create(SeMemoryBufferCreateInfo* createInfo)
 void            se_vk_memory_buffer_submit_for_deffered_destruction(SeRenderObject* buffer);
 void            se_vk_memory_buffer_destroy(SeRenderObject* buffer);
 void*           se_vk_memory_buffer_get_mapped_address(SeRenderObject* buffer);
+void            se_vk_memory_buffer_copy_from(SeRenderObject* buffer, SeMemoryBufferCopyInfo* info);
 
 VkBuffer        se_vk_memory_buffer_get_handle(SeRenderObject* buffer);
 

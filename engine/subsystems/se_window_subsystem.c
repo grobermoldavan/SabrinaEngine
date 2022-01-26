@@ -258,6 +258,7 @@ static void win32_window_process(SeWindowWin32* window)
     memcpy(window->input.keyboardButtonsPrevious, window->input.keyboardButtonsCurrent, sizeof(window->input.keyboardButtonsPrevious));
     const uint32_t prevWidth = window->width;
     const uint32_t prevHeight = window->height;
+    window->input.mouseWheel = 0;
     MSG msg = {0};
     while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
     {
@@ -366,7 +367,7 @@ static bool win32_window_process_mouse_input(SeWindowWin32* window, UINT message
         }
         case WM_MOUSEWHEEL:
         {
-            window->input.mouseWheel += GET_WHEEL_DELTA_WPARAM(wParam);
+            window->input.mouseWheel += GET_WHEEL_DELTA_WPARAM(wParam) / WHEEL_DELTA;
             LOGMSG(WM_MOUSEWHEEL, " ", GET_WHEEL_DELTA_WPARAM(wParam))
             break;
         }

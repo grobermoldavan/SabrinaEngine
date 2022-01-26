@@ -37,6 +37,7 @@ VkExtent2D                              se_vk_utils_choose_swap_chain_extent(uin
 uint32_t                                se_vk_utils_pick_graphics_queue(se_sbuffer(VkQueueFamilyProperties) familyProperties);
 uint32_t                                se_vk_utils_pick_present_queue(se_sbuffer(VkQueueFamilyProperties) familyProperties, VkPhysicalDevice device, VkSurfaceKHR surface);
 uint32_t                                se_vk_utils_pick_transfer_queue(se_sbuffer(VkQueueFamilyProperties) familyProperties);
+uint32_t                                se_vk_utils_pick_compute_queue(se_sbuffer(VkQueueFamilyProperties) familyProperties);
 se_sbuffer(VkDeviceQueueCreateInfo)     se_vk_utils_get_queue_create_infos(uint32_t* queues, size_t numQueues, struct SeAllocatorBindings* allocator);
 VkCommandPoolCreateInfo                 se_vk_utils_command_pool_create_info(uint32_t queueFamilyIndex, VkCommandPoolCreateFlags flags);
 bool                                    se_vk_utils_pick_depth_stencil_format(VkPhysicalDevice physicalDevice, VkFormat* result);
@@ -45,7 +46,7 @@ se_sbuffer(VkQueueFamilyProperties)     se_vk_utils_get_physical_device_queue_fa
 bool                                    se_vk_utils_does_physical_device_supports_required_extensions(VkPhysicalDevice device, const char** extensions, size_t numExtensions, struct SeAllocatorBindings* allocator);
 VkImageType                             se_vk_utils_pick_image_type(VkExtent3D imageExtent);
 VkCommandBuffer                         se_vk_utils_create_command_buffer(VkDevice device, VkCommandPool pool, VkCommandBufferLevel level);
-VkShaderModule                          se_vk_utils_create_shader_module(VkDevice device, uint32_t* bytecode, size_t bytecodeSIze, VkAllocationCallbacks* allocationCb);
+VkShaderModule                          se_vk_utils_create_shader_module(VkDevice device, const uint32_t* bytecode, size_t bytecodeSIze, VkAllocationCallbacks* allocationCb);
 void                                    se_vk_utils_destroy_shader_module(VkDevice device, VkShaderModule module, VkAllocationCallbacks* allocationCb);
 bool                                    se_vk_utils_get_memory_type_index(VkPhysicalDeviceMemoryProperties* props, uint32_t typeBits, VkMemoryPropertyFlags properties, uint32_t* result);
 enum SeTextureFormat                    se_vk_utils_to_texture_format(enum VkFormat vkFormat);

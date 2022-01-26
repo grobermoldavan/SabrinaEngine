@@ -1,0 +1,72 @@
+#version 450
+
+layout (local_size_x = 4, local_size_y = 4, local_size_z = 4) in;
+
+layout (constant_id = 0) const uint CHUNK_BOUNDS_X = 8;
+layout (constant_id = 1) const uint CHUNK_BOUNDS_Y = 8;
+layout (constant_id = 2) const uint CHUNK_BOUNDS_Z = 8;
+
+layout (std140, set = 0, binding = 0) uniform FrameData
+{
+    mat4 viewProjection;
+    float time;
+    float surfaceLevel;
+};
+
+//
+//  Grid values are stored as follows :
+//
+//    y ^
+//      |
+//      |  / z
+//      | /
+//      |/
+//      +----------> x
+//  0,0,0
+//
+
+layout (set = 1, binding = 0) buffer ChunkGrid
+{
+    float gridValues[];
+};
+
+struct Vertex
+{
+    vec4 position;
+    vec4 normal;
+};
+
+layout (set = 1, binding = 1) buffer ChunkGeometry
+{
+    Vertex geometry[];
+    // One cube is 5 triangles - 5 * 3 vertices.
+    // Full chunk consists of (CHUNK_BOUNDS_X - 1) * (CHUNK_BOUNDS_Y - 1) * (CHUNK_BOUNDS_Z - 1) * 5 * 3 vertices.
+};
+
+layout (std430, set = 1, binding = 2) readonly buffer EdgeTable
+{
+    int edgeTable[];
+};
+
+layout (std430, set = 1, binding = 3) readonly buffer TriangleTable
+{
+    int triangleTable[];
+};
+
+uint map_3d_index_to_geom_1d(uvec3 index)
+{
+    return index.x + index.y * (CHUNK_BOUNDS_X - 1) + index.z * (CHUNK_BOUNDS_X - 1) * (CHUNK_BOUNDS_Y - 1);
+}
+
+void main()
+{
+    const uint x = gl_GlobalInvocationID.x;
+    const uint y = gl_GlobalInvocationID.y;
+    const uint z = gl_GlobalInvocationID.z;
+    if ((x >= (CHUNK_BOUNDS_X - 1)) || (y >= (CHUNK_BOUNDS_Y - 1)) || (z >= (CHUNK_BOUNDS_Z - 1)))
+        return;
+
+    const uint index = map_3d_index_to_geom_1d(gl_GlobalInvocationID) * 15;
+    for (int i = 0; i < 15; i++)
+        geometry[index + i].position = vec4(0);
+}

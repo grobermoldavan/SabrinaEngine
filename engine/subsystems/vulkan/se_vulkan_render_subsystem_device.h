@@ -3,7 +3,7 @@
 
 #include "se_vulkan_render_subsystem_base.h"
 
-#define SE_VK_MAX_UNIQUE_COMMAND_QUEUES 3
+#define SE_VK_MAX_UNIQUE_COMMAND_QUEUES 4
 #define SE_VK_NUM_IMAGES_IN_FLIGHT      3
 
 typedef enum SeVkCommandQueueFlagBits
@@ -11,6 +11,7 @@ typedef enum SeVkCommandQueueFlagBits
     SE_VK_CMD_QUEUE_GRAPHICS    = 0x00000001,
     SE_VK_CMD_QUEUE_PRESENT     = 0x00000002,
     SE_VK_CMD_QUEUE_TRANSFER    = 0x00000004,
+    SE_VK_CMD_QUEUE_COMPUTE     = 0x00000008,
 } SeVkCommandQueueFlagBits;
 typedef uint32_t SeVkCommandQueueFlags;
 
@@ -23,6 +24,7 @@ size_t                  se_vk_device_get_swap_chain_textures_num(SeRenderObject*
 SeRenderObject*         se_vk_device_get_swap_chain_texture(SeRenderObject* device, size_t index);
 size_t                  se_vk_device_get_active_swap_chain_texture_index(SeRenderObject* device);
 SeSamplingFlags         se_vk_device_get_supported_sampling_types(SeRenderObject* device);
+SeComputeDispatchLimits se_vk_device_get_dispatch_limits(SeRenderObject* device);
 
 struct SeVkMemoryManager*                   se_vk_device_get_memory_manager(SeRenderObject* device);
 VkCommandPool                               se_vk_device_get_command_pool(SeRenderObject* device, SeVkCommandQueueFlags flags);
@@ -40,5 +42,6 @@ VkSwapchainKHR                              se_vk_device_get_swap_chain_handle(S
 struct SeVkInFlightManager*                 se_vk_device_get_in_flight_manager(SeRenderObject* device);
 const struct VkPhysicalDeviceFeatures*      se_vk_device_get_physical_device_features(SeRenderObject* device);
 const struct VkPhysicalDeviceProperties*    se_vk_device_get_physical_device_properties(SeRenderObject* device);
+void                                        se_vk_device_fill_sharing_mode(SeRenderObject* device, SeVkCommandQueueFlags flags, uint32_t* numQueues, uint32_t* queueFamilyIndices, VkSharingMode* sharingMode);
 
 #endif

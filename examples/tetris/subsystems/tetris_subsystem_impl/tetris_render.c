@@ -148,8 +148,8 @@ void tetris_render_init(TetrisRenderInitInfo* initInfo)
             {
                 .device                 = renderState->renderDevice,
                 .renderPass             = renderState->drawRenderPass,
-                .vertexProgram          = (SePipelineProgram){ renderState->drawVs },
-                .fragmentProgram        = (SePipelineProgram){ renderState->drawFs },
+                .vertexProgram          = (SeProgramWithConstants){ renderState->drawVs },
+                .fragmentProgram        = (SeProgramWithConstants){ renderState->drawFs },
                 .frontStencilOpState    = NULL,
                 .backStencilOpState     = NULL,
                 .depthTestState         = &depthTest,
@@ -224,8 +224,8 @@ void tetris_render_init(TetrisRenderInitInfo* initInfo)
             {
                 .device                 = renderState->renderDevice,
                 .renderPass             = renderState->presentRenderPass,
-                .vertexProgram          = (SePipelineProgram) { renderState->presentVs },
-                .fragmentProgram        = (SePipelineProgram) { renderState->presentFs },
+                .vertexProgram          = (SeProgramWithConstants) { renderState->presentVs },
+                .fragmentProgram        = (SeProgramWithConstants) { renderState->presentFs },
                 .frontStencilOpState    = NULL,
                 .backStencilOpState     = NULL,
                 .depthTestState         = &depthTest,
@@ -287,7 +287,7 @@ void tetris_render_init(TetrisRenderInitInfo* initInfo)
             {
                 .device     = renderState->renderDevice,
                 .size       = sizeof(FrameData),
-                .usage      = SE_MEMORY_BUFFER_USAGE_TRANSFER_DST | SE_MEMORY_BUFFER_USAGE_UNIFORM_BUFFER,
+                .usage      = SE_MEMORY_BUFFER_USAGE_UNIFORM_BUFFER,
                 .visibility = SE_MEMORY_BUFFER_VISIBILITY_GPU_AND_CPU,
             };
             renderState->frameDataBuffer = renderState->renderInterface->memory_buffer_create(&memoryBufferCreateInfo);
@@ -333,7 +333,7 @@ void tetris_render_init(TetrisRenderInitInfo* initInfo)
             {
                 .device     = renderState->renderDevice,
                 .size       = sizeof(verts),
-                .usage      = SE_MEMORY_BUFFER_USAGE_TRANSFER_DST | SE_MEMORY_BUFFER_USAGE_STORAGE_BUFFER,
+                .usage      = SE_MEMORY_BUFFER_USAGE_STORAGE_BUFFER,
                 .visibility = SE_MEMORY_BUFFER_VISIBILITY_GPU_AND_CPU,
             };
             renderState->cubeVerticesBuffer = renderState->renderInterface->memory_buffer_create(&memoryBufferCreateInfo);
@@ -357,7 +357,7 @@ void tetris_render_init(TetrisRenderInitInfo* initInfo)
             {
                 .device     = renderState->renderDevice,
                 .size       = sizeof(indices),
-                .usage      = SE_MEMORY_BUFFER_USAGE_TRANSFER_DST | SE_MEMORY_BUFFER_USAGE_STORAGE_BUFFER,
+                .usage      = SE_MEMORY_BUFFER_USAGE_STORAGE_BUFFER,
                 .visibility = SE_MEMORY_BUFFER_VISIBILITY_GPU_AND_CPU,
             };
             renderState->cubeIndicesBuffer = renderState->renderInterface->memory_buffer_create(&memoryBufferCreateInfo);
@@ -372,7 +372,7 @@ void tetris_render_init(TetrisRenderInitInfo* initInfo)
             {
                 .device     = renderState->renderDevice,
                 .size       = TETRIS_FIELD_WIDTH * TETRIS_FIELD_HEIGHT * sizeof(InputInstance),
-                .usage      = SE_MEMORY_BUFFER_USAGE_TRANSFER_DST | SE_MEMORY_BUFFER_USAGE_STORAGE_BUFFER,
+                .usage      = SE_MEMORY_BUFFER_USAGE_STORAGE_BUFFER,
                 .visibility = SE_MEMORY_BUFFER_VISIBILITY_GPU_AND_CPU,
             };
             const size_t numSwapChainTextures = renderState->renderInterface->get_swap_chain_textures_num(renderState->renderDevice);
@@ -412,7 +412,7 @@ void tetris_render_init(TetrisRenderInitInfo* initInfo)
             {
                 .device     = renderState->renderDevice,
                 .size       = sizeof(verts),
-                .usage      = SE_MEMORY_BUFFER_USAGE_TRANSFER_DST | SE_MEMORY_BUFFER_USAGE_STORAGE_BUFFER,
+                .usage      = SE_MEMORY_BUFFER_USAGE_STORAGE_BUFFER,
                 .visibility = SE_MEMORY_BUFFER_VISIBILITY_GPU_AND_CPU,
             };
             renderState->gridVerticesBuffer = renderState->renderInterface->memory_buffer_create(&memoryBufferCreateInfo);
@@ -434,7 +434,7 @@ void tetris_render_init(TetrisRenderInitInfo* initInfo)
             {
                 .device     = renderState->renderDevice,
                 .size       = sizeof(indices),
-                .usage      = SE_MEMORY_BUFFER_USAGE_TRANSFER_DST | SE_MEMORY_BUFFER_USAGE_STORAGE_BUFFER,
+                .usage      = SE_MEMORY_BUFFER_USAGE_STORAGE_BUFFER,
                 .visibility = SE_MEMORY_BUFFER_VISIBILITY_GPU_AND_CPU,
             };
             renderState->gridIndicesBuffer = renderState->renderInterface->memory_buffer_create(&memoryBufferCreateInfo);
@@ -449,7 +449,7 @@ void tetris_render_init(TetrisRenderInitInfo* initInfo)
             {
                 .device     = renderState->renderDevice,
                 .size       = TETRIS_FIELD_WIDTH * TETRIS_FIELD_HEIGHT * sizeof(InputInstance),
-                .usage      = SE_MEMORY_BUFFER_USAGE_TRANSFER_DST | SE_MEMORY_BUFFER_USAGE_STORAGE_BUFFER,
+                .usage      = SE_MEMORY_BUFFER_USAGE_STORAGE_BUFFER,
                 .visibility = SE_MEMORY_BUFFER_VISIBILITY_GPU_AND_CPU,
             };
             renderState->gridInstanceBuffer = renderState->renderInterface->memory_buffer_create(&memoryBufferCreateInfo);
@@ -458,11 +458,10 @@ void tetris_render_init(TetrisRenderInitInfo* initInfo)
             for (int x = 0; x < TETRIS_FIELD_WIDTH; x++)
                 for (int y = 0; y < TETRIS_FIELD_HEIGHT; y++)
                 {
-                    SeTransform trf = SE_T_IDENTITY;
-                    se_t_set_position(&trf, (SeFloat3){ x, y, 0 });
+                    const SeFloat4x4 trf = se_f4x4_from_position((SeFloat3){ x, y, 0 });
                     InputInstance instance = (InputInstance)
                     {
-                        .trfWS = se_f4x4_transposed(trf.matrix),
+                        .trfWS = se_f4x4_transposed(trf),
                         .tint = (SeFloat4){ 0, 1, 1, 1 },
                     };
                     se_sbuffer_push(instances, instance);
@@ -475,36 +474,6 @@ void tetris_render_init(TetrisRenderInitInfo* initInfo)
 
 void tetris_render_terminate(TetrisRenderState* renderState)
 {
-    renderState->renderInterface->device_wait(renderState->renderDevice);
-
-    for (size_t it = 0; it < se_sbuffer_size(renderState->cubeInstanceBuffers); it++)
-        renderState->cubeInstanceBuffers[it]->destroy(renderState->cubeInstanceBuffers[it]);
-    se_sbuffer_destroy(renderState->cubeInstanceBuffers);
-    renderState->cubeIndicesBuffer->destroy(renderState->cubeIndicesBuffer);
-    renderState->cubeVerticesBuffer->destroy(renderState->cubeVerticesBuffer);
-    renderState->frameDataBuffer->destroy(renderState->frameDataBuffer);
-
-    renderState->gridInstanceBuffer->destroy(renderState->gridInstanceBuffer);
-    renderState->gridIndicesBuffer->destroy(renderState->gridIndicesBuffer);
-    renderState->gridVerticesBuffer->destroy(renderState->gridVerticesBuffer);
-
-    renderState->drawFramebuffer->destroy(renderState->drawFramebuffer);
-    renderState->drawDepthTexture->destroy(renderState->drawDepthTexture);
-    renderState->drawColorTexture->destroy(renderState->drawColorTexture);
-    renderState->drawRenderPipeline->destroy(renderState->drawRenderPipeline);
-    renderState->drawFs->destroy(renderState->drawFs);
-    renderState->drawVs->destroy(renderState->drawVs);
-    renderState->drawRenderPass->destroy(renderState->drawRenderPass);
-
-    renderState->sampler->destroy(renderState->sampler);
-    for (size_t it = 0; it < se_sbuffer_size(renderState->presentFramebuffers); it++)
-        renderState->presentFramebuffers[it]->destroy(renderState->presentFramebuffers[it]);
-    se_sbuffer_destroy(renderState->presentFramebuffers);
-    renderState->presentRenderPipeline->destroy(renderState->presentRenderPipeline);
-    renderState->presentFs->destroy(renderState->presentFs);
-    renderState->presentVs->destroy(renderState->presentVs);
-    renderState->presentRenderPass->destroy(renderState->presentRenderPass);
-
     renderState->renderDevice->destroy(renderState->renderDevice);
 }
 
@@ -521,11 +490,10 @@ void tetris_render_update(TetrisRenderState* renderState, TetrisState* state, co
         for (int y = 0; y < TETRIS_FIELD_HEIGHT; y++)
             if (state->field[x][y])
             {
-                SeTransform trf = SE_T_IDENTITY;
-                se_t_set_position(&trf, (SeFloat3){ x, y, 0 });
+                SeFloat4x4 trf = se_f4x4_from_position((SeFloat3){ x, y, 0 });
                 instancesPtr[numCubeInstances++] = (InputInstance)
                 {
-                    .trfWS = se_f4x4_transposed(trf.matrix),
+                    .trfWS = se_f4x4_transposed(trf),
                     .tint = state->field[x][y] == TETRIS_FILLED_ACTIVE_FIGURE_SQUARE
                         ? (SeFloat4){ 0, 1, 1, 1 }
                         : (SeFloat4){ 1, 1, 1, 1 },
@@ -538,8 +506,8 @@ void tetris_render_update(TetrisRenderState* renderState, TetrisState* state, co
     {
         SeFloat4x4 view = se_f4x4_mul_f4x4
         (
-            se_f4x4_translation((SeFloat3){ (float)TETRIS_FIELD_WIDTH / 2.0f, -3, -20 }),
-            se_f4x4_rotation((SeFloat3){ -30, 0, 0 })
+            se_f4x4_from_position((SeFloat3){ (float)TETRIS_FIELD_WIDTH / 2.0f, -3, -20 }),
+            se_f4x4_from_rotation((SeFloat3){ -30, 0, 0 })
         );
         SeFloat4x4 projection;
         renderState->renderInterface->perspective_projection_matrix

@@ -48,7 +48,6 @@ uint32_t        se_vk_texture_get_height(SeRenderObject* texture);
 VkFormat        se_vk_texture_get_format(SeRenderObject* texture);
 VkImageView     se_vk_texture_get_view(SeRenderObject* texture);
 VkExtent3D      se_vk_texture_get_extent(SeRenderObject* texture);
-void            se_vk_texture_transition_image_layout(SeRenderObject* texture, VkCommandBuffer commandBuffer, VkImageLayout targetLayout);
 VkImageLayout   se_vk_texture_get_current_layout(SeRenderObject* texture);
 bool            se_vk_texture_is_dependent_on_swap_chain(SeRenderObject* texture);
 

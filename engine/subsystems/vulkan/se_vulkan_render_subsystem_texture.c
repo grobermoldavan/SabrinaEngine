@@ -100,26 +100,6 @@ void se_vk_texture_recreate_inplace(SeRenderObject* _texture)
     // Create VkImage
     //
     {
-        uint32_t queueFamilyIndices[SE_VK_MAX_UNIQUE_COMMAND_QUEUES] = {0};
-        VkSharingMode sharingMode = 0;
-        uint32_t queueFamilyIndexCount = 0;
-        {
-            const uint32_t graphicsQueueFamilyIndex = se_vk_device_get_command_queue_family_index(texture->createInfo.device, SE_VK_CMD_QUEUE_GRAPHICS);
-            const uint32_t transferQueueFamilyIndex = se_vk_device_get_command_queue_family_index(texture->createInfo.device, SE_VK_CMD_QUEUE_TRANSFER);
-            if (graphicsQueueFamilyIndex == transferQueueFamilyIndex)
-            {
-                sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-                queueFamilyIndices[0] = graphicsQueueFamilyIndex;
-                queueFamilyIndexCount = 1;
-            }
-            else
-            {
-                sharingMode = VK_SHARING_MODE_CONCURRENT;
-                queueFamilyIndices[0] = graphicsQueueFamilyIndex;
-                queueFamilyIndices[1] = transferQueueFamilyIndex;
-                queueFamilyIndexCount = 2;
-            }
-        }
         VkImageUsageFlags usage = 0;
         if (texture->createInfo.usage & SE_TEXTURE_USAGE_RENDER_PASS_ATTACHMENT)
         {
@@ -131,6 +111,7 @@ void se_vk_texture_recreate_inplace(SeRenderObject* _texture)
         {
             usage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
         }
+        uint32_t queueFamilyIndices[SE_VK_MAX_UNIQUE_COMMAND_QUEUES] = {0};
         VkImageCreateInfo imageCreateInfo = (VkImageCreateInfo)
         {
             .sType                  = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -144,11 +125,19 @@ void se_vk_texture_recreate_inplace(SeRenderObject* _texture)
             .samples                = VK_SAMPLE_COUNT_1_BIT,
             .tiling                 = VK_IMAGE_TILING_OPTIMAL,
             .usage                  = usage,
-            .sharingMode            = sharingMode,
-            .queueFamilyIndexCount  = queueFamilyIndexCount,
+            .sharingMode            = VK_SHARING_MODE_EXCLUSIVE,
+            .queueFamilyIndexCount  = 0,
             .pQueueFamilyIndices    = queueFamilyIndices,
             .initialLayout          = texture->currentLayout,
         };
+        se_vk_device_fill_sharing_mode
+        (
+            texture->createInfo.device,
+            SE_VK_CMD_QUEUE_GRAPHICS | SE_VK_CMD_QUEUE_TRANSFER | SE_VK_CMD_QUEUE_COMPUTE,
+            &imageCreateInfo.queueFamilyIndexCount,
+            queueFamilyIndices,
+            &imageCreateInfo.sharingMode
+        );
         se_vk_check(vkCreateImage(logicalHandle, &imageCreateInfo, callbacks, &texture->image));
     }
     //
@@ -299,39 +288,6 @@ VkExtent3D se_vk_texture_get_extent(SeRenderObject* _texture)
     se_vk_expect_handle(_texture, SE_RENDER_HANDLE_TYPE_TEXTURE, "Can't get texture extent");
     SeVkTexture* texture = (SeVkTexture*)_texture;
     return texture->extent;
-}
-
-void se_vk_texture_transition_image_layout(SeRenderObject* _texture, VkCommandBuffer commandBuffer, VkImageLayout targetLayout)
-{
-    se_vk_expect_handle(_texture, SE_RENDER_HANDLE_TYPE_TEXTURE, "Can't transition texture image layout");
-    SeVkTexture* texture = (SeVkTexture*)_texture;
-    VkImageMemoryBarrier imageBarrier = (VkImageMemoryBarrier)
-    {
-        .sType                  = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .pNext                  = NULL,
-        .srcAccessMask          = se_vk_utils_image_layout_to_access_flags(texture->currentLayout),
-        .dstAccessMask          = se_vk_utils_image_layout_to_access_flags(targetLayout),
-        .oldLayout              = texture->currentLayout,
-        .newLayout              = targetLayout,
-        .srcQueueFamilyIndex    = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex    = VK_QUEUE_FAMILY_IGNORED,
-        .image                  = texture->image,
-        .subresourceRange       = texture->fullSubresourceRange,
-    };
-    vkCmdPipelineBarrier
-    (
-        commandBuffer,
-        se_vk_utils_image_layout_to_pipeline_stage_flags(texture->currentLayout),
-        se_vk_utils_image_layout_to_pipeline_stage_flags(targetLayout),
-        0,
-        0,
-        NULL,
-        0,
-        NULL,
-        1,
-        &imageBarrier
-    );
-    texture->currentLayout = targetLayout;
 }
 
 VkImageLayout se_vk_texture_get_current_layout(SeRenderObject* _texture)

@@ -145,9 +145,21 @@ SeFloat4    se_f4x4_mul_f4(SeFloat4x4 mat, SeFloat4 value);
 SeFloat4x4  se_f4x4_transposed(SeFloat4x4 mat);
 float       se_f4x4_det(SeFloat4x4 mat);
 SeFloat4x4  se_f4x4_inverted(SeFloat4x4 mat);
-SeFloat4x4  se_f4x4_translation(SeFloat3 position);
-SeFloat4x4  se_f4x4_rotation(SeFloat3 eulerAngles);
-SeFloat4x4  se_f4x4_scale(SeFloat3 scale);
+
+SeFloat4x4  se_f4x4_from_position(SeFloat3 position);
+SeFloat4x4  se_f4x4_from_rotation(SeFloat3 eulerAngles);
+SeFloat4x4  se_f4x4_from_scale(SeFloat3 scale);
+
+SeFloat3    se_f4x4_get_position(SeFloat4x4 trf);
+SeFloat3    se_f4x4_get_rotation(SeFloat4x4 trf);
+SeFloat3    se_f4x4_get_scale(SeFloat4x4 trf);
+SeFloat3    se_f4x4_get_inverted_scale(SeFloat4x4 trf);
+
+SeFloat3    se_f4x4_get_forward(SeFloat4x4 trf);
+SeFloat3    se_f4x4_get_right(SeFloat4x4 trf);
+SeFloat3    se_f4x4_get_up(SeFloat4x4 trf);
+
+SeFloat4x4  se_look_at(SeFloat3 from, SeFloat3 to, SeFloat3 up);
 
 //
 // Quaternion conversions are taken from www.euclideanspace.com
@@ -200,36 +212,6 @@ SeQuaternion    se_q_div_f(SeQuaternion quat, float scalar);
 float           se_q_len(SeQuaternion quat);
 float           se_q_len2(SeQuaternion quat);
 SeQuaternion    se_q_normalized(SeQuaternion quat);
-
-typedef struct SeTransform
-{
-    SeFloat4x4 matrix;
-} SeTransform;
-
-const SeTransform SE_T_IDENTITY =
-{
-    {
-        1, 0, 0, 0,
-        0, 1, 0, 0,
-        0, 0, 1, 0,
-        0, 0, 0, 1
-    },
-};
-
-SeFloat3    se_t_get_position(SeTransform* trf);
-SeFloat3    se_t_get_rotation(SeTransform* trf);
-SeFloat3    se_t_get_scale(SeTransform* trf);
-SeFloat3    se_t_get_forward(SeTransform* trf);
-SeFloat3    se_t_get_right(SeTransform* trf);
-SeFloat3    se_t_get_up(SeTransform* trf);
-SeFloat3    se_t_get_inverted_scale(SeTransform* trf);
-void        se_t_set_position(SeTransform* trf, SeFloat3 position);
-void        se_t_set_rotation(SeTransform* trf, SeFloat3 eulerAngles);
-void        se_t_set_scale(SeTransform* trf, SeFloat3 scale);
-void        se_t_look_at(SeTransform* trf, SeFloat3 from, SeFloat3 to, SeFloat3 up);
-
-SeFloat4x4 se_perspective_projection(float fovDeg, float aspect, float near, float far);
-SeFloat4x4 se_look_at(SeFloat3 from, SeFloat3 to, SeFloat3 up);
 
 // =================================================================================================================
 //
@@ -389,7 +371,7 @@ SeFloat4x4 se_f4x4_inverted(SeFloat4x4 mat)
     };
 }
 
-SeFloat4x4 se_f4x4_translation(SeFloat3 position)
+SeFloat4x4 se_f4x4_from_position(SeFloat3 position)
 {
     return (SeFloat4x4)
     {
@@ -400,7 +382,7 @@ SeFloat4x4 se_f4x4_translation(SeFloat3 position)
     };
 }
 
-SeFloat4x4 se_f4x4_rotation(SeFloat3 eulerAngles)
+SeFloat4x4 se_f4x4_from_rotation(SeFloat3 eulerAngles)
 {
     const float cosPitch = (float)(cosf(se_to_radians(eulerAngles.x)));
     const float sinPitch = (float)(sinf(se_to_radians(eulerAngles.x)));
@@ -432,7 +414,7 @@ SeFloat4x4 se_f4x4_rotation(SeFloat3 eulerAngles)
     return se_f4x4_mul_f4x4(yaw, se_f4x4_mul_f4x4(roll, pitch));
 }
 
-SeFloat4x4 se_f4x4_scale(SeFloat3 scale)
+SeFloat4x4 se_f4x4_from_scale(SeFloat3 scale)
 {
     return (SeFloat4x4)
     {
@@ -443,6 +425,69 @@ SeFloat4x4 se_f4x4_scale(SeFloat3 scale)
     };
 }
 
+SeFloat3 se_f4x4_get_position(SeFloat4x4 trf)
+{
+    return (SeFloat3){ trf._03, trf._13, trf._23 };
+}
+
+SeFloat3 se_f4x4_get_rotation(SeFloat4x4 trf)
+{
+    return se_q_to_euler_angles(se_q_from_mat(trf));
+}
+
+SeFloat3 se_f4x4_get_scale(SeFloat4x4 trf)
+{
+    return (SeFloat3)
+    {
+        se_f3_len((SeFloat3){ trf._00, trf._01, trf._02 }),
+        se_f3_len((SeFloat3){ trf._10, trf._11, trf._12 }),
+        se_f3_len((SeFloat3){ trf._20, trf._21, trf._22 })
+    };
+}
+
+SeFloat3 se_f4x4_get_inverted_scale(SeFloat4x4 trf)
+{
+    SeFloat3 scale = se_f4x4_get_scale(trf);
+    return (SeFloat3)
+    {
+        se_is_equal_float(scale.x, 0.0f) ? SE_MAX_FLOAT : 1.0f / scale.x,
+        se_is_equal_float(scale.y, 0.0f) ? SE_MAX_FLOAT : 1.0f / scale.y,
+        se_is_equal_float(scale.z, 0.0f) ? SE_MAX_FLOAT : 1.0f / scale.z
+    };
+}
+
+SeFloat3 se_f4x4_get_forward(SeFloat4x4 trf)
+{
+    return se_f3_normalized((SeFloat3){ trf.m[0][2], trf.m[1][2], trf.m[2][2] });
+}
+
+SeFloat3 se_f4x4_get_right(SeFloat4x4 trf)
+{
+    return se_f3_normalized((SeFloat3){ trf.m[0][0], trf.m[1][0], trf.m[2][0] });
+}
+
+SeFloat3 se_f4x4_get_up(SeFloat4x4 trf)
+{
+    return se_f3_normalized((SeFloat3){ trf.m[0][1], trf.m[1][1], trf.m[2][1] });
+}
+
+SeFloat4x4 se_look_at(SeFloat3 from, SeFloat3 to, SeFloat3 up)
+{
+    SeFloat3 forward        = se_f3_normalized(se_f3_sub(to, from));
+    SeFloat3 right          = se_f3_normalized(se_f3_cross(up, forward));
+    SeFloat3 correctedUp    = se_f3_normalized(se_f3_cross(forward, right));
+    SeFloat4x4 rotation     = SE_F4X4_IDENTITY;
+    rotation.m[0][0] = right.x;
+    rotation.m[0][1] = correctedUp.x;
+    rotation.m[0][2] = forward.x;
+    rotation.m[1][0] = right.y;
+    rotation.m[1][1] = correctedUp.y;
+    rotation.m[1][2] = forward.y;
+    rotation.m[2][0] = right.z;
+    rotation.m[2][1] = correctedUp.z;
+    rotation.m[2][2] = forward.z;
+    return rotation;
+}
 
 SeQuaternion se_q_conjugate(SeQuaternion quat) // inverted
 {
@@ -715,101 +760,6 @@ SeQuaternion se_q_normalized(SeQuaternion quat)
         quat.real / length,
         se_f3_div(quat.imaginary, length)
     };
-}
-
-SeFloat3 se_t_get_position(SeTransform* trf)
-{
-    return (SeFloat3){ trf->matrix._03, trf->matrix._13, trf->matrix._23 };
-}
-
-SeFloat3 se_t_get_rotation(SeTransform* trf)
-{
-    return se_q_to_euler_angles(se_q_from_mat(trf->matrix));
-}
-
-SeFloat3 se_t_get_scale(SeTransform* trf)
-{
-    return (SeFloat3)
-    {
-        se_f3_len((SeFloat3){ trf->matrix._00, trf->matrix._01, trf->matrix._02 }),
-        se_f3_len((SeFloat3){ trf->matrix._10, trf->matrix._11, trf->matrix._12 }),
-        se_f3_len((SeFloat3){ trf->matrix._20, trf->matrix._21, trf->matrix._22 })
-    };
-}
-
-SeFloat3 se_t_get_forward(SeTransform* trf)
-{
-    return se_f3_normalized((SeFloat3){ trf->matrix.m[0][2], trf->matrix.m[1][2], trf->matrix.m[2][2] });
-}
-
-SeFloat3 se_t_get_right(SeTransform* trf)
-{
-    return se_f3_normalized((SeFloat3){ trf->matrix.m[0][0], trf->matrix.m[1][0], trf->matrix.m[2][0] });
-}
-
-SeFloat3 se_t_get_up(SeTransform* trf)
-{
-    return se_f3_normalized((SeFloat3){ trf->matrix.m[0][1], trf->matrix.m[1][1], trf->matrix.m[2][1] });
-}
-
-SeFloat3 se_t_get_inverted_scale(SeTransform* trf)
-{
-    SeFloat3 scale = se_t_get_scale(trf);
-    return (SeFloat3)
-    {
-        se_is_equal_float(scale.x, 0.0f) ? SE_MAX_FLOAT : 1.0f / scale.x,
-        se_is_equal_float(scale.y, 0.0f) ? SE_MAX_FLOAT : 1.0f / scale.y,
-        se_is_equal_float(scale.z, 0.0f) ? SE_MAX_FLOAT : 1.0f / scale.z
-    };
-}
-
-void se_t_set_position(SeTransform* trf, SeFloat3 position)
-{
-    trf->matrix._03 = position.x;
-    trf->matrix._13 = position.y;
-    trf->matrix._23 = position.z;
-}
-
-void se_t_set_rotation(SeTransform* trf, SeFloat3 eulerAngles)
-{
-    SeFloat4x4 tr = se_f4x4_translation(se_t_get_position(trf));
-    SeFloat4x4 rt = se_f4x4_rotation(eulerAngles);
-    SeFloat4x4 sc = se_f4x4_scale(se_t_get_scale(trf));
-    trf->matrix = se_f4x4_mul_f4x4(tr, se_f4x4_mul_f4x4(rt, sc));
-}
-
-void se_t_set_scale(SeTransform* trf, SeFloat3 scale)
-{
-    SeFloat4x4 tr = se_f4x4_translation(se_t_get_position(trf));
-    SeFloat4x4 rt = se_f4x4_rotation(se_t_get_rotation(trf));
-    SeFloat4x4 sc = se_f4x4_scale(scale);
-    trf->matrix = se_f4x4_mul_f4x4(tr, se_f4x4_mul_f4x4(rt, sc));
-}
-
-void se_t_look_at(SeTransform* trf, SeFloat3 from, SeFloat3 to, SeFloat3 up)
-{
-    SeFloat4x4 tr = se_f4x4_translation(se_t_get_position(trf));
-    SeFloat4x4 rt = se_look_at(from, to, up);
-    SeFloat4x4 sc = se_f4x4_scale(se_t_get_scale(trf));
-    trf->matrix = se_f4x4_mul_f4x4(tr, se_f4x4_mul_f4x4(rt, sc));
-}
-
-SeFloat4x4 se_look_at(SeFloat3 from, SeFloat3 to, SeFloat3 up)
-{
-    SeFloat3 forward        = se_f3_normalized(se_f3_sub(to, from));
-    SeFloat3 right          = se_f3_normalized(se_f3_cross(forward, up));
-    SeFloat3 correctedUp    = se_f3_normalized(se_f3_cross(right, forward));
-    SeFloat4x4 rotation     = SE_F4X4_IDENTITY;
-    rotation.m[0][0] = right.x;
-    rotation.m[0][1] = correctedUp.x;
-    rotation.m[0][2] = forward.x;
-    rotation.m[1][0] = right.y;
-    rotation.m[1][1] = correctedUp.y;
-    rotation.m[1][2] = forward.y;
-    rotation.m[2][0] = right.z;
-    rotation.m[2][1] = correctedUp.z;
-    rotation.m[2][2] = forward.z;
-    return rotation;
 }
 
 #endif

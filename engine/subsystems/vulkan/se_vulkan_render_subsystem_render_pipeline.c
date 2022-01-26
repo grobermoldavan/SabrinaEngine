@@ -19,16 +19,22 @@ typedef struct SeVkDescriptorSetLayoutCreateInfos
     se_sbuffer(VkDescriptorSetLayoutBinding) bindings;
 } SeVkDescriptorSetLayoutCreateInfos;
 
-static const SePipelineProgram* se_vk_render_pipeline_save_pipeline_program(const SePipelineProgram* program, SeAllocatorBindings* allocator)
+static SeProgramWithConstants se_vk_render_pipeline_save_program_with_constants(const SeProgramWithConstants* program, SeAllocatorBindings* allocator)
 {
-    // @TODO
-    // @TODO
-    // @TODO
-    // @TODO
-    // @TODO
-    // @TODO
-    // @TODO
+    SeProgramWithConstants result = *program;
+    if (result.numSpecializationConstants)
+    {
+        result.specializationConstants = (SeSpecializationConstant*)
+            allocator->alloc(allocator->allocator, sizeof(SeSpecializationConstant) * result.numSpecializationConstants, se_default_alignment, se_alloc_tag);
+        memcpy(result.specializationConstants, program->specializationConstants, sizeof(SeSpecializationConstant) * result.numSpecializationConstants);
+    }
+    return result;
+}
 
+static void se_vk_render_pipeline_destroy_program_with_constants(SeProgramWithConstants* program, SeAllocatorBindings* allocator)
+{
+    if (program->numSpecializationConstants)
+        allocator->dealloc(allocator->allocator, program->specializationConstants, sizeof(SeSpecializationConstant) * program->numSpecializationConstants);
 }
 
 static SeRenderObject* se_vk_render_pipeline_get_device(SeVkRenderPipeline* pipeline)
@@ -36,7 +42,8 @@ static SeRenderObject* se_vk_render_pipeline_get_device(SeVkRenderPipeline* pipe
     switch(pipeline->bindPoint)
     {
         case VK_PIPELINE_BIND_POINT_GRAPHICS: return pipeline->createInfo.graphics.device;
-        default: se_assert(false);
+        case VK_PIPELINE_BIND_POINT_COMPUTE: return pipeline->createInfo.compute.device;
+        default: { se_assert(false); }
     }
     return NULL;
 }
@@ -165,7 +172,7 @@ static SeVkDescriptorSetLayoutCreateInfos se_vk_render_pipeline_get_discriptor_s
                 ssr_is_array(uniform->type) && ssr_get_array_size_kind(uniform->type) == SSR_ARRAY_SIZE_CONSTANT
                 ? (uint32_t)(uniform->type->info.array.size) // @TODO : safe cast
                 : 1;
-            se_assert_msg(ssr_get_array_size_kind(uniform->type) != SSR_ARRAY_SIZE_SPECIALIZATION_CONSTANT_BASED, "todo : specialization constants support");
+            se_assert_msg(ssr_get_array_size_kind(uniform->type) != SSR_ARRAY_SIZE_SPECIALIZATION_CONSTANT_BASED, "todo : specialization constants support for arrays");
             if (binding->binding != ~((uint32_t)0))
             {
                 se_assert
@@ -353,8 +360,8 @@ static void se_vk_render_pipeline_graphics_recreate_inplace(SeVkRenderPipeline* 
     {
         VkPipelineShaderStageCreateInfo shaderStages[] =
         {
-            se_vk_render_program_get_shader_stage_create_info(&createInfo->vertexProgram),
-            se_vk_render_program_get_shader_stage_create_info(&createInfo->fragmentProgram),
+            se_vk_render_program_get_shader_stage_create_info(&createInfo->vertexProgram, memoryManager->cpu_frameAllocator),
+            se_vk_render_program_get_shader_stage_create_info(&createInfo->fragmentProgram, memoryManager->cpu_frameAllocator),
         };
         VkExtent2D swapChainExtent = se_vk_device_get_swap_chain_extent(createInfo->device);
         VkPipelineVertexInputStateCreateInfo vertexInputInfo = se_vk_utils_vertex_input_state_create_info(0, NULL, 0, NULL);
@@ -458,7 +465,7 @@ static void se_vk_render_pipeline_compute_recreate_inplace(SeVkRenderPipeline* p
             .sType              = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
             .pNext              = NULL,
             .flags              = 0,
-            .stage              = se_vk_render_program_get_shader_stage_create_info(&createInfo->program),
+            .stage              = se_vk_render_program_get_shader_stage_create_info(&createInfo->program, memoryManager->cpu_frameAllocator),
             .layout             = pipeline->layout,
             .basePipelineHandle = VK_NULL_HANDLE,
             .basePipelineIndex  = -1,
@@ -509,6 +516,8 @@ SeRenderObject* se_vk_render_pipeline_graphics_create(SeGraphicsRenderPipelineCr
         pipeline->createInfo.graphics.depthTestState = allocator->alloc(allocator->allocator, sizeof(SeDepthTestState), se_default_alignment, se_alloc_tag);
         memcpy(pipeline->createInfo.graphics.depthTestState, createInfo->depthTestState, sizeof(SeDepthTestState));
     }
+    pipeline->createInfo.graphics.vertexProgram = se_vk_render_pipeline_save_program_with_constants(&createInfo->vertexProgram, allocator);
+    pipeline->createInfo.graphics.fragmentProgram = se_vk_render_pipeline_save_program_with_constants(&createInfo->fragmentProgram, allocator);
     pipeline->bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     //
     //
@@ -536,6 +545,7 @@ SeRenderObject* se_vk_render_pipeline_compute_create(SeComputeRenderPipelineCrea
     memset(pipeline, 0, sizeof(SeVkRenderPipeline));
     pipeline->object = se_vk_render_object(SE_RENDER_HANDLE_TYPE_PIPELINE, se_vk_render_pipeline_submit_for_deffered_destruction);
     pipeline->createInfo.compute = *createInfo;
+    pipeline->createInfo.compute.program = se_vk_render_pipeline_save_program_with_constants(&createInfo->program, allocator);
     pipeline->bindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
     //
     //
@@ -573,10 +583,13 @@ void se_vk_render_pipeline_destroy(SeRenderObject* _pipeline)
         if (createInfo->frontStencilOpState)    allocator->dealloc(allocator->allocator, createInfo->frontStencilOpState, sizeof(SeStencilOpState));
         if (createInfo->backStencilOpState)     allocator->dealloc(allocator->allocator, createInfo->backStencilOpState, sizeof(SeStencilOpState));
         if (createInfo->depthTestState)         allocator->dealloc(allocator->allocator, createInfo->depthTestState, sizeof(SeDepthTestState));
+        se_vk_render_pipeline_destroy_program_with_constants(&createInfo->vertexProgram, allocator);
+        se_vk_render_pipeline_destroy_program_with_constants(&createInfo->fragmentProgram, allocator);
     }
     else if (pipeline->bindPoint == VK_PIPELINE_BIND_POINT_COMPUTE)
     {
-        // Nothing ?
+        SeComputeRenderPipelineCreateInfo* createInfo = &pipeline->createInfo.compute;
+        se_vk_render_pipeline_destroy_program_with_constants(&createInfo->program, allocator);
     }
     else
     {

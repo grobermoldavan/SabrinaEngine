@@ -16,14 +16,17 @@ typedef struct SeVkCommandBuffer
 } SeVkCommandBuffer;
 
 SeRenderObject* se_vk_command_buffer_request(SeCommandBufferRequestInfo* requestInfo);
-void            se_vk_command_buffer_submit(SeRenderObject* buffer);
-void            se_vk_command_buffer_destroy(SeRenderObject* buffer);
-void            se_vk_command_buffer_bind_pipeline(SeRenderObject* buffer, SeCommandBindPipelineInfo* commandInfo);
-void            se_vk_command_buffer_draw(SeRenderObject* buffer, SeCommandDrawInfo* commandInfo);
+void            se_vk_command_buffer_submit(SeRenderObject* cmd);
+void            se_vk_command_buffer_destroy(SeRenderObject* cmd);
+void            se_vk_command_buffer_bind_pipeline(SeRenderObject* cmd, SeCommandBindPipelineInfo* commandInfo);
+void            se_vk_command_buffer_draw(SeRenderObject* cmd, SeCommandDrawInfo* commandInfo);
+void            se_vk_command_buffer_dispatch(SeRenderObject* cmd, SeCommandDispatchInfo* commandInfo);
 void            se_vk_command_bind_resource_set(SeRenderObject* cmdBuffer, SeCommandBindResourceSetInfo* commandInfo);
 
-VkFence     se_vk_command_buffer_get_fence(SeRenderObject* buffer);
-VkSemaphore se_vk_command_buffer_get_semaphore(SeRenderObject* buffer);
-void        se_vk_command_buffer_transition_image_layout(SeRenderObject* buffer, SeRenderObject* texture, VkImageLayout targetLayout);
+VkFence     se_vk_command_buffer_get_fence(SeRenderObject* cmd);
+VkSemaphore se_vk_command_buffer_get_semaphore(SeRenderObject* cmd);
+void        se_vk_command_buffer_transition_image_layout(SeRenderObject* cmd, SeRenderObject* texture, VkImageLayout targetLayout);
+void        se_vk_command_buffer_copy_buffer(SeRenderObject* cmd, SeRenderObject* dst, SeRenderObject* src, size_t srcOffset, size_t dstOffset, size_t size);
+
 
 #endif

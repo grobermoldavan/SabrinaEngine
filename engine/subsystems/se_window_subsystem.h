@@ -64,10 +64,10 @@ typedef struct SeWindowSubsystemInput
 {
     uint64_t keyboardButtonsCurrent[2];     // flags
     uint64_t keyboardButtonsPrevious[2];    // flags
-    uint32_t mouseButtons;          // flags
-    int64_t mouseX;                 // position
-    int64_t mouseY;                 // position
-    uint32_t mouseWheel;            // wheel input
+    uint32_t mouseButtons;                  // flags
+    int64_t mouseX;                         // position
+    int64_t mouseY;                         // position
+    int32_t mouseWheel;                     // wheel input
     bool isCloseButtonPressed;
 } SeWindowSubsystemInput;
 

@@ -8,6 +8,7 @@
 #include "se_vulkan_render_subsystem_framebuffer.h"
 #include "se_vulkan_render_subsystem_texture.h"
 #include "se_vulkan_render_subsystem_command_buffer.h"
+#include "se_vulkan_render_subsystem_memory_buffer.h"
 #include "se_vulkan_render_subsystem_in_flight_manager.h"
 #include "engine/subsystems/se_window_subsystem.h"
 #include "engine/platform.h"
@@ -227,25 +228,14 @@ static void se_vk_device_swap_chain_create(SeVkRenderDevice* device, SeWindowHan
             .clipped                = VK_TRUE,
             .oldSwapchain           = VK_NULL_HANDLE,
         };
-        //
-        // Fill sharing mode
-        //
-        {
-            SeVkCommandQueue* graphicsQueue = se_vk_gpu_get_command_queue(&device->gpu, SE_VK_CMD_QUEUE_GRAPHICS);
-            SeVkCommandQueue* presentQueue = se_vk_gpu_get_command_queue(&device->gpu, SE_VK_CMD_QUEUE_PRESENT);
-            if (graphicsQueue->queueFamilyIndex == presentQueue->queueFamilyIndex)
-            {
-                swapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-                swapChainCreateInfo.queueFamilyIndexCount = 0;
-            }
-            else
-            {
-                swapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-                swapChainCreateInfo.queueFamilyIndexCount = 2;
-                queueFamiliesIndices[0] = graphicsQueue->queueFamilyIndex;
-                queueFamiliesIndices[1] = presentQueue->queueFamilyIndex;
-            }
-        }
+        se_vk_device_fill_sharing_mode
+        (
+            (SeRenderObject*)device,
+            SE_VK_CMD_QUEUE_GRAPHICS | SE_VK_CMD_QUEUE_PRESENT,
+            &swapChainCreateInfo.queueFamilyIndexCount,
+            queueFamiliesIndices,
+            &swapChainCreateInfo.imageSharingMode
+        );
         se_vk_check(vkCreateSwapchainKHR(device->gpu.logicalHandle, &swapChainCreateInfo, callbacks, &device->swapChain.handle));
         device->swapChain.surfaceFormat = surfaceFormat;
         device->swapChain.extent = extent;
@@ -549,6 +539,7 @@ SeRenderObject* se_vk_device_create(SeRenderDeviceCreateInfo* deviceCreateInfo)
             se_vk_utils_pick_graphics_queue(familyProperties),
             se_vk_utils_pick_present_queue(familyProperties, device->gpu.physicalHandle, device->surface),
             se_vk_utils_pick_transfer_queue(familyProperties),
+            se_vk_utils_pick_compute_queue(familyProperties),
         };
         se_sbuffer(VkDeviceQueueCreateInfo) queueCreateInfos = se_vk_utils_get_queue_create_infos(queuesFamilyIndices, se_array_size(queuesFamilyIndices), deviceCreateInfo->frameAllocator);
         //
@@ -582,6 +573,7 @@ SeRenderObject* se_vk_device_create(SeRenderDeviceCreateInfo* deviceCreateInfo)
             if (queuesFamilyIndices[0] == queue->queueFamilyIndex) queue->flags |= SE_VK_CMD_QUEUE_GRAPHICS;
             if (queuesFamilyIndices[1] == queue->queueFamilyIndex) queue->flags |= SE_VK_CMD_QUEUE_PRESENT;
             if (queuesFamilyIndices[2] == queue->queueFamilyIndex) queue->flags |= SE_VK_CMD_QUEUE_TRANSFER;
+            if (queuesFamilyIndices[3] == queue->queueFamilyIndex) queue->flags |= SE_VK_CMD_QUEUE_COMPUTE;
             vkGetDeviceQueue(device->gpu.logicalHandle, queue->queueFamilyIndex, 0, &queue->handle);
             VkCommandPoolCreateInfo poolCreateInfo = se_vk_utils_command_pool_create_info(queue->queueFamilyIndex, VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
             se_vk_check(vkCreateCommandPool(device->gpu.logicalHandle, &poolCreateInfo, callbacks, &queue->commandPoolHandle));
@@ -652,6 +644,41 @@ void se_vk_device_destroy(SeRenderObject* _device)
     se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't destroy device");
     SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(&device->memoryManager);
+    vkDeviceWaitIdle(device->gpu.logicalHandle);
+    //
+    // Submit all resources to destroy
+    //
+    {
+        SeObjectPool* pool = se_vk_memory_manager_get_pool(&device->memoryManager, SE_RENDER_HANDLE_TYPE_SAMPLER);
+        se_object_pool_for(pool, obj, ((SeRenderObject*)obj)->destroy((SeRenderObject*)obj); );
+    }
+    {
+        SeObjectPool* pool = se_vk_memory_manager_get_pool(&device->memoryManager, SE_RENDER_HANDLE_TYPE_MEMORY_BUFFER);
+        se_object_pool_for(pool, obj, ((SeRenderObject*)obj)->destroy((SeRenderObject*)obj); );
+    }
+    {
+        SeObjectPool* pool = se_vk_memory_manager_get_pool(&device->memoryManager, SE_RENDER_HANDLE_TYPE_FRAMEBUFFER);
+        se_object_pool_for(pool, obj, ((SeRenderObject*)obj)->destroy((SeRenderObject*)obj); );
+    }
+    {
+        SeObjectPool* pool = se_vk_memory_manager_get_pool(&device->memoryManager, SE_RENDER_HANDLE_TYPE_TEXTURE);
+        se_object_pool_for(pool, obj,
+            if (!(((SeVkTexture*)obj)->flags & SE_VK_TEXTURE_FROM_SWAP_CHAIN))
+                ((SeRenderObject*)obj)->destroy((SeRenderObject*)obj);
+        );
+    }
+    {
+        SeObjectPool* pool = se_vk_memory_manager_get_pool(&device->memoryManager, SE_RENDER_HANDLE_TYPE_PIPELINE);
+        se_object_pool_for(pool, obj, ((SeRenderObject*)obj)->destroy((SeRenderObject*)obj); );
+    }
+    {
+        SeObjectPool* pool = se_vk_memory_manager_get_pool(&device->memoryManager, SE_RENDER_HANDLE_TYPE_PROGRAM);
+        se_object_pool_for(pool, obj, ((SeRenderObject*)obj)->destroy((SeRenderObject*)obj); );
+    }
+    {
+        SeObjectPool* pool = se_vk_memory_manager_get_pool(&device->memoryManager, SE_RENDER_HANDLE_TYPE_PASS);
+        se_object_pool_for(pool, obj, ((SeRenderObject*)obj)->destroy((SeRenderObject*)obj); );
+    }
     //
     // In flight manager
     //
@@ -782,6 +809,18 @@ SeSamplingFlags se_vk_device_get_supported_sampling_types(SeRenderObject* _devic
     return (SeSamplingFlags)vkSampleFlags;
 }
 
+SeComputeDispatchLimits se_vk_device_get_dispatch_limits(SeRenderObject* _device)
+{
+    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't get active swap chain texture index");
+    SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
+    return (SeComputeDispatchLimits)
+    {
+        device->gpu.deviceProperties_10.limits.maxComputeWorkGroupCount[0],
+        device->gpu.deviceProperties_10.limits.maxComputeWorkGroupCount[1],
+        device->gpu.deviceProperties_10.limits.maxComputeWorkGroupCount[2],
+    };
+}
+
 SeVkMemoryManager* se_vk_device_get_memory_manager(SeRenderObject* _device)
 {
     se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't get memory manager");
@@ -902,4 +941,46 @@ const VkPhysicalDeviceProperties* se_vk_device_get_physical_device_properties(Se
 {
     se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't get physical device properties");
     return &((SeVkRenderDevice*)_device)->gpu.deviceProperties_10;
+}
+
+void se_vk_device_fill_sharing_mode(SeRenderObject* _device, SeVkCommandQueueFlags flags, uint32_t* numQueues, uint32_t* queueFamilyIndices, VkSharingMode* sharingMode)
+{
+    se_vk_expect_handle(_device, SE_RENDER_HANDLE_TYPE_DEVICE, "Can't fill sharing mode");
+    SeVkRenderDevice* device = (SeVkRenderDevice*)_device;
+    const uint32_t queueIndices[] =
+    {
+        se_vk_gpu_get_command_queue(&device->gpu, SE_VK_CMD_QUEUE_GRAPHICS)->queueFamilyIndex,
+        se_vk_gpu_get_command_queue(&device->gpu, SE_VK_CMD_QUEUE_PRESENT)->queueFamilyIndex,
+        se_vk_gpu_get_command_queue(&device->gpu, SE_VK_CMD_QUEUE_TRANSFER)->queueFamilyIndex,
+        se_vk_gpu_get_command_queue(&device->gpu, SE_VK_CMD_QUEUE_COMPUTE)->queueFamilyIndex,
+    };
+    se_assert_msg(se_array_size(queueIndices) == SE_VK_MAX_UNIQUE_COMMAND_QUEUES, "Don't forget to support new queues here");
+    uint32_t uniqueQueues[SE_VK_MAX_UNIQUE_COMMAND_QUEUES];
+    uint32_t numUniqueQueues = 0;
+    for (uint32_t it = 0; it < SE_VK_MAX_UNIQUE_COMMAND_QUEUES; it++)
+    {
+        if (!(flags & it)) continue;
+        bool isFound = false;
+        for (uint32_t uniqueIt = 0; uniqueIt < numUniqueQueues; uniqueIt++)
+        {
+            if (uniqueQueues[uniqueIt] == queueIndices[it])
+            {
+                isFound = true;
+                break;
+            }
+        }
+        if (!isFound)
+            uniqueQueues[numUniqueQueues++] = queueIndices[it];
+    }
+    if (numUniqueQueues == 1)
+    {
+        *sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        *numQueues = 0;
+    }
+    else
+    {
+        *sharingMode = VK_SHARING_MODE_CONCURRENT;
+        *numQueues = numUniqueQueues;
+        memcpy(queueFamilyIndices, uniqueQueues, sizeof(uint32_t) * numUniqueQueues);
+    }
 }

@@ -143,8 +143,8 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
         {
             .device                 = renderDevice,
             .renderPass             = renderPass,
-            .vertexProgram          = (SePipelineProgram){ vs },
-            .fragmentProgram        = (SePipelineProgram){ fs },
+            .vertexProgram          = (SeProgramWithConstants){ vs },
+            .fragmentProgram        = (SeProgramWithConstants){ fs },
             .frontStencilOpState    = NULL,
             .backStencilOpState     = NULL,
             .depthTestState         = NULL,
@@ -243,24 +243,7 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 
 SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
 {
-    //
-    // Destroy render resources
-    //
-    renderInterface->device_wait(renderDevice);
-    frameDataBuffer->destroy(frameDataBuffer);
-    verticesBuffer->destroy(verticesBuffer);
-    instancesBuffer->destroy(instancesBuffer);
-    const size_t numFramebuffers = se_sbuffer_size(framebuffers);
-    for (size_t it = 0; it < numFramebuffers; it++) framebuffers[it]->destroy(framebuffers[it]);
-    se_sbuffer_destroy(framebuffers);
-    renderPipeline->destroy(renderPipeline);
-    renderPass->destroy(renderPass);
-    fs->destroy(fs);
-    vs->destroy(vs);
     renderDevice->destroy(renderDevice);
-    //
-    // Destroy window
-    //
     windowInterface->destroy(windowHandle);
 }
 
