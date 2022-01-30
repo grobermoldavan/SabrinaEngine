@@ -3,10 +3,16 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #include "allocator_bindings.h"
 #include "common_includes.h"
 #include "platform.h"
+#include "engine/libs/meow_hash/meow_hash_x64_aesni.h"
+
+#define __se_memcpy(dst, src, size) memcpy(dst, src, size)
+#define __se_memset(dst, val, size) memset(dst, val, size)
+#define __se_memcmp(a, b, size)     (memcmp(a, b, size) == 0)
 
 /*
    sbuffer
@@ -48,8 +54,6 @@
 void  __se_sbuffer_construct(void** arr, size_t entrySize, size_t capacity, struct SeAllocatorBindings* bindings, bool zero);
 void  __se_sbuffer_destruct(void** arr, size_t entrySize);
 void  __se_sbuffer_realloc(void** arr, size_t entrySize, size_t newCapacity);
-void* __se_memcpy(void* dst, void* src, size_t size);
-void* __se_memset(void* dst, int val, size_t size);
 
 #define __se_info_size                          (sizeof(struct SeAllocatorBindings) + sizeof(size_t) * 2)
 #define __se_raw(arr)                           (((char*)arr) - __se_info_size)
@@ -115,16 +119,6 @@ void __se_sbuffer_realloc(void** arr, size_t entrySize, size_t newCapacity)
     params[0] = newCapacity;
     params[1] = size;
     *arr = ((char*)newMem) + __se_info_size;
-}
-
-void* __se_memcpy(void* dst, void* src, size_t size)
-{
-    return memcpy(dst, src, size);
-}
-
-void* __se_memset(void* dst, int val, size_t size)
-{
-    return memset(dst, val, size);
 }
 
 /*
@@ -284,5 +278,176 @@ void __se_object_pool_return(SeObjectPool* pool, void* object)
             void* objName = se_object_pool_access_by_index(poolPtr, __it); \
             code;                                                           \
         }
+
+/*
+    Hash table.
+*/
+
+#define SeHash                              meow_u128
+#define se_hash(src, size)                  MeowHash(MeowDefaultSeed, size, src)
+#define se_hash_cmp(h1, h2)                 MeowHashesAreEqual(h1, h2)
+#define __se_hash_to_index(hash, capacity)  ((MeowU64From(hash, 0) % (capacity / 2)) + (MeowU64From(hash, 1) % (capacity / 2 + 1)))
+
+#define __se_hash_entry_size(keySize, valSize)      (sizeof(__SeHashTableObjectData) + keySize + valSize)
+#define __se_hash_table_access(table, index)        (((char*)table->memory) + (__se_hash_entry_size(table->keySize, table->valueSize) * index))
+#define __se_hash_table_key_ptr(data)               (((char*)data) + sizeof(__SeHashTableObjectData))
+#define __se_hash_table_value_ptr(data, keySize)    (((char*)data) + sizeof(__SeHashTableObjectData) + keySize)
+
+typedef struct __SeHashTableObjectData
+{
+    SeHash hash;
+    bool isOccupied;
+} __SeHashTableObjectData;
+
+typedef struct SeHashTable
+{
+    SeAllocatorBindings* allocator;
+    void* memory;
+    size_t keySize;
+    size_t valueSize;
+    size_t capacity;
+    size_t size;
+} SeHashTable;
+
+typedef struct SeHashTableCreateInfo
+{
+    SeAllocatorBindings* allocator;
+    size_t keySize;
+    size_t valueSize;
+    size_t capacity;
+} SeHashTableCreateInfo;
+
+void se_hash_table_construct(SeHashTable* table, SeHashTableCreateInfo* createInfo)
+{
+    void* memory = createInfo->allocator->alloc
+    (
+        createInfo->allocator->allocator,
+        createInfo->capacity * __se_hash_entry_size(createInfo->keySize, createInfo->valueSize),
+        se_default_alignment,
+        se_alloc_tag
+    );
+    *table = (SeHashTable)
+    {
+        .allocator  = createInfo->allocator,
+        .memory     = memory,
+        .keySize    = createInfo->keySize,
+        .valueSize  = createInfo->valueSize,
+        .capacity   = createInfo->capacity,
+        .size       = 0,
+    };
+}
+
+void se_hash_table_destroy(SeHashTable* table)
+{
+    table->allocator->dealloc
+    (
+        table->allocator->allocator,
+        table->memory,
+        table->capacity * __se_hash_entry_size(table->keySize, table->valueSize)
+    );
+}
+
+#ifdef SE_DEBUG
+#define se_hash_table_add(KeyType, ValueType, table, hash, key, value) __se_hash_table_add(table, hash, &key, &value, sizeof(KeyType), sizeof(ValueType))
+void* __se_hash_table_add(SeHashTable* table, SeHash hash, void* key, void* value, size_t keySize, size_t valueSize)
+{
+    se_assert(table->keySize == keySize);
+    se_assert(table->valueSize == valueSize);
+#else
+#define se_hash_table_add(KeyType, ValueType, table, hash, key, value) __se_hash_table_add(table, hash, &key, &value)
+void* __se_hash_table_add(SeHashTable* table, SeHash hash, void* key, void* value)
+{
+#endif
+    //
+    // Expand if needed
+    //
+    if (table->size >= (table->capacity / 2))
+    {
+        SeHashTable newTable;
+        SeHashTableCreateInfo createInfo = (SeHashTableCreateInfo)
+        {
+            .allocator  = table->allocator,
+            .keySize    = table->keySize,
+            .valueSize  = table->valueSize,
+            .capacity   = table->capacity * 2,
+        };
+        se_hash_table_construct(&newTable, &createInfo);
+        for (size_t it = 0; it < table->capacity; it++)
+        {
+            __SeHashTableObjectData* data = (__SeHashTableObjectData*)__se_hash_table_access(table, it);
+            if (data->isOccupied)
+#ifdef SE_DEBUG
+                __se_hash_table_add(&newTable, data->hash, __se_hash_table_key_ptr(data), __se_hash_table_value_ptr(data, table->keySize), table->keySize, table->valueSize);
+#else
+                __se_hash_table_add(&newTable, data->hash, __se_hash_table_key_ptr(data), __se_hash_table_value_ptr(data, table->keySize));
+#endif
+        }
+        se_hash_table_destroy(table);
+        *table = newTable;
+    }
+    //
+    // Add new value
+    //
+    size_t index = __se_hash_to_index(hash, table->capacity);
+    __SeHashTableObjectData* data = (__SeHashTableObjectData*)__se_hash_table_access(table, index);
+    while (data->isOccupied)
+    {
+        index = (index + 1) % table->capacity;
+        data = (__SeHashTableObjectData*)__se_hash_table_access(table, index);
+    }
+    data->hash = hash;
+    data->isOccupied = true;
+    __se_memcpy(__se_hash_table_key_ptr(data), key, table->keySize);
+    __se_memcpy(__se_hash_table_value_ptr(data, table->keySize), value, table->valueSize);
+    table->size += 1;
+    return __se_hash_table_value_ptr(data, table->keySize);
+}
+
+#ifdef SE_DEBUG
+#define se_hash_table_get(KeyType, ValueType, table, hash, key) (ValueType*)__se_hash_table_get(table, hash, &key, sizeof(KeyType), sizeof(ValueType))
+void* __se_hash_table_get(SeHashTable* table, SeHash hash, void* key, size_t keySize, size_t valueSize)
+{
+    se_assert(table->keySize == keySize);
+    se_assert(table->valueSize == valueSize);
+#else
+#define se_hash_table_get(KeyType, ValueType, table, hash, key) (ValueType*)__se_hash_table_get(table, hash, &key)
+void* __se_hash_table_get(SeHashTable* table, SeHash hash, void* key)
+{
+#endif
+    size_t index = __se_hash_to_index(hash, table->capacity);
+    __SeHashTableObjectData* data = (__SeHashTableObjectData*)__se_hash_table_access(table, index);
+    for (size_t it = 0; it < table->capacity; it++)
+    {
+        if (data->isOccupied && se_hash_cmp(data->hash, hash) && __se_memcmp(__se_hash_table_key_ptr(data), key, table->keySize))
+            return __se_hash_table_value_ptr(data, table->keySize);
+        index = (index + 1) % table->capacity;
+        data = (__SeHashTableObjectData*)__se_hash_table_access(table, index);
+    }
+    return NULL;
+}
+
+#ifdef SE_DEBUG
+#define se_hash_table_remove(KeyType, ValueType, table, hash, key) __se_hash_table_remove(table, hash, &key, sizeof(KeyType), sizeof(ValueType))
+void __se_hash_table_remove(SeHashTable* table, SeHash hash, void* key, size_t keySize, size_t valueSize)
+{
+    se_assert(table->keySize == keySize);
+    se_assert(table->valueSize == valueSize);
+#else
+#define se_hash_table_remove(KeyType, ValueType, table, hash, key) __se_hash_table_remove(table, hash, &key)
+void __se_hash_table_remove(SeHashTable* table, SeHash hash, void* key)
+{
+#endif
+#ifdef SE_DEBUG
+    void* val = __se_hash_table_get(table, hash, key, table->keySize, table->valueSize);
+#else
+    void* val = __se_hash_table_get(table, hash, key);
+#endif
+    if (val)
+    {
+        __SeHashTableObjectData* data = (__SeHashTableObjectData*)(((char*)val) - table->keySize - sizeof(__SeHashTableObjectData));
+        data->isOccupied = false;
+        table->size -= 1;
+    }
+}
 
 #endif
