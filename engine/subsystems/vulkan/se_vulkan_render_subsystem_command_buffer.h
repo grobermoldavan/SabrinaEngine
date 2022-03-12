@@ -3,30 +3,40 @@
 
 #include "se_vulkan_render_subsystem_base.h"
 
+#define SE_VK_COMMAND_BUFFER_EXECUTE_AFTER_MAX 16
+
+typedef enum SeVkCommandBufferUsage
+{
+    SE_VK_COMMAND_BUFFER_USAGE_GRAPHICS = 0x00000001,
+    SE_VK_COMMAND_BUFFER_USAGE_TRANSFER = 0x00000002,
+    SE_VK_COMMAND_BUFFER_USAGE_COMPUTE  = 0x00000004,
+} SeVkCommandBufferUsage;
+typedef SeVkFlags SeVkCommandBufferUsageFlags;
+
 typedef struct SeVkCommandBuffer
 {
-    SeVkRenderObject        object;
-    SeRenderObject*         device;
-    VkCommandBuffer         handle;
-    SeCommandBufferUsage    usage;
-    SeVkCommandQueueFlags   queueFlags;
-    VkSemaphore             executionFinishedSemaphore;
-    VkFence                 executionFence;
-    uint64_t                flags;
+    SeVkObject          object;
+    struct SeVkDevice*  device;
+    VkCommandPool       pool;
+    VkQueue             queue;
+    VkCommandBuffer     handle;
+    VkSemaphore         semaphore;
+    VkFence             fence;
 } SeVkCommandBuffer;
 
-SeRenderObject* se_vk_command_buffer_request(SeCommandBufferRequestInfo* requestInfo);
-void            se_vk_command_buffer_submit(SeRenderObject* cmd);
-void            se_vk_command_buffer_destroy(SeRenderObject* cmd);
-void            se_vk_command_buffer_bind_pipeline(SeRenderObject* cmd, SeCommandBindPipelineInfo* commandInfo);
-void            se_vk_command_buffer_draw(SeRenderObject* cmd, SeCommandDrawInfo* commandInfo);
-void            se_vk_command_buffer_dispatch(SeRenderObject* cmd, SeCommandDispatchInfo* commandInfo);
-void            se_vk_command_bind_resource_set(SeRenderObject* cmdBuffer, SeCommandBindResourceSetInfo* commandInfo);
+typedef struct SeVkCommandBufferInfo
+{
+    struct SeVkDevice* device;
+    SeVkCommandBufferUsageFlags usage;
+} SeVkCommandBufferInfo;
 
-VkFence     se_vk_command_buffer_get_fence(SeRenderObject* cmd);
-VkSemaphore se_vk_command_buffer_get_semaphore(SeRenderObject* cmd);
-void        se_vk_command_buffer_transition_image_layout(SeRenderObject* cmd, SeRenderObject* texture, VkImageLayout targetLayout);
-void        se_vk_command_buffer_copy_buffer(SeRenderObject* cmd, SeRenderObject* dst, SeRenderObject* src, size_t srcOffset, size_t dstOffset, size_t size);
+typedef struct SeVkCommandBufferSubmitInfo
+{
+    SeVkCommandBuffer* executeAfter[SE_VK_COMMAND_BUFFER_EXECUTE_AFTER_MAX];
+} SeVkCommandBufferSubmitInfo;
 
+void se_vk_command_buffer_construct(SeVkCommandBuffer* buffer, SeVkCommandBufferInfo* info);
+void se_vk_command_buffer_destroy(SeVkCommandBuffer* buffer);
+void se_vk_command_buffer_submit(SeVkCommandBuffer* buffer, SeVkCommandBufferSubmitInfo* info);
 
 #endif

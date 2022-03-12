@@ -22,37 +22,29 @@ typedef struct InputInstanceData
     SeFloat4x4 trfWS;
 } InputInstanceData;
 
-SePlatformInterface* platformInterface;
-SeWindowSubsystemInterface* windowInterface;
-SeRenderAbstractionSubsystemInterface* renderInterface;
-SeApplicationAllocatorsSubsystemInterface* allocatorsInterface;
+SePlatformInterface*                        platformInterface;
+SeWindowSubsystemInterface*                 windowInterface;
+SeRenderAbstractionSubsystemInterface*      render;
+SeApplicationAllocatorsSubsystemInterface*  allocatorsInterface;
 
-SeWindowHandle windowHandle;
-SeRenderObject* renderDevice;
+SeWindowHandle window;
+SeDeviceHandle device;
 
-SeRenderObject* vs;
-SeRenderObject* fs;
-SeRenderObject* renderPass;
-SeRenderObject* renderPipeline;
-se_sbuffer(SeRenderObject*) framebuffers;
+SeRenderRef vertexProgram;
+SeRenderRef fragmentProgram;
 
-SeRenderObject* frameDataBuffer;
-SeRenderObject* verticesBuffer;
-SeRenderObject* instancesBuffer;
-
-SeRenderObject* sync_load_shader(const char* path)
+SeRenderRef sync_load_shader(const char* path)
 {
     SeFile shader = {0};
     SeFileContent content = {0};
     platformInterface->file_load(&shader, path, SE_FILE_READ);
     platformInterface->file_read(&content, &shader, allocatorsInterface->frameAllocator);
-    SeRenderProgramCreateInfo createInfo = (SeRenderProgramCreateInfo)
+    SeProgramInfo info = (SeProgramInfo)
     {
-        .device = renderDevice,
-        .bytecode = (uint32_t*)content.memory,
-        .codeSizeBytes = content.size,
+        .bytecode       = (uint32_t*)content.memory,
+        .bytecodeSize   = content.size,
     };
-    SeRenderObject* program = renderInterface->program_create(&createInfo);
+    SeRenderRef program = render->program(device, &info);
     platformInterface->file_free_content(&content);
     platformInterface->file_unload(&shader);
     return program;
@@ -61,234 +53,94 @@ SeRenderObject* sync_load_shader(const char* path)
 SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 {
     windowInterface = (SeWindowSubsystemInterface*)engine->find_subsystem_interface(engine, SE_WINDOW_SUBSYSTEM_NAME);
-    renderInterface = (SeRenderAbstractionSubsystemInterface*)engine->find_subsystem_interface(engine, SE_VULKAN_RENDER_SUBSYSTEM_NAME);
+    render = (SeRenderAbstractionSubsystemInterface*)engine->find_subsystem_interface(engine, SE_VULKAN_RENDER_SUBSYSTEM_NAME);
     allocatorsInterface = (SeApplicationAllocatorsSubsystemInterface*)engine->find_subsystem_interface(engine, SE_APPLICATION_ALLOCATORS_SUBSYSTEM_NAME);
     platformInterface = &engine->platformIface;
-    //
-    // Create window
-    //
+    
+    SeWindowSubsystemCreateInfo windowInfo = (SeWindowSubsystemCreateInfo)
     {
-        SeWindowSubsystemCreateInfo createInfo = (SeWindowSubsystemCreateInfo)
-        {
-            .name           = "Sabrina engine - triangle example",
-            .isFullscreen   = false,
-            .isResizable    = false,
-            .width          = 640,
-            .height         = 480,
-        };
-        windowHandle = windowInterface->create(&createInfo);
-    }
-    //
-    // Create render device
-    //
-    {
-        SeRenderDeviceCreateInfo createInfo = (SeRenderDeviceCreateInfo)
-        {
-            .window                 = &windowHandle,
-            .persistentAllocator    = allocatorsInterface->persistentAllocator,
-            .frameAllocator         = allocatorsInterface->frameAllocator,
-            .platform               = platformInterface,
-        };
-        renderDevice = renderInterface->device_create(&createInfo);
-    }
-    //
-    // Create shaders
-    //
-    {
-        vs = sync_load_shader("assets/default/shaders/flat_color.vert.spv");
-        fs = sync_load_shader("assets/default/shaders/flat_color.frag.spv");
-    }
-    //
-    // Create render pass
-    //
-    {
-        SeRenderPassAttachment colorAttachments[] =
-        {
-            {
-                .format     = SE_TEXTURE_FORMAT_SWAP_CHAIN,
-                .loadOp     = SE_ATTACHMENT_LOAD_OP_CLEAR,
-                .storeOp    = SE_ATTACHMENT_STORE_OP_STORE,
-                .sampling   = SE_SAMPLING_1,
-            }
-        };
-        uint32_t colorRefs[] = { 0, };
-        SeRenderPassSubpass subpasses[] =
-        {
-            {
-                .colorRefs      = colorRefs,
-                .numColorRefs   = se_array_size(colorRefs),
-                .inputRefs      = NULL,
-                .numInputRefs   = 0,
-                .resolveRefs    = NULL,
-                .numResolveRefs = 0,
-                .depthOp        = SE_DEPTH_OP_NOTHING,
-            },
-        };
-        SeRenderPassCreateInfo createInfo = (SeRenderPassCreateInfo)
-        {
-            .subpasses              = subpasses,
-            .numSubpasses           = se_array_size(subpasses),
-            .colorAttachments       = colorAttachments,
-            .numColorAttachments    = se_array_size(colorAttachments),
-            .depthStencilAttachment = NULL,
-            .device                 = renderDevice,
-        };
-        renderPass = renderInterface->render_pass_create(&createInfo);
-    }
-    //
-    // Create render pipeline
-    //
-    {
-        SeGraphicsRenderPipelineCreateInfo createInfo = (SeGraphicsRenderPipelineCreateInfo)
-        {
-            .device                 = renderDevice,
-            .renderPass             = renderPass,
-            .vertexProgram          = (SeProgramWithConstants){ vs },
-            .fragmentProgram        = (SeProgramWithConstants){ fs },
-            .frontStencilOpState    = NULL,
-            .backStencilOpState     = NULL,
-            .depthTestState         = NULL,
-            .subpassIndex           = 0,
-            .poligonMode            = SE_PIPELINE_POLIGON_FILL_MODE_FILL,
-            .cullMode               = SE_PIPELINE_CULL_MODE_NONE,
-            .frontFace              = SE_PIPELINE_FRONT_FACE_CLOCKWISE,
-            .samplingType           = SE_SAMPLING_1,
-        };
-        renderPipeline = renderInterface->render_pipeline_graphics_create(&createInfo);
-    }
-    //
-    // Create framebuffers
-    //
-    {
-        const size_t numSwapChainImages = renderInterface->get_swap_chain_textures_num(renderDevice);
-        se_sbuffer_construct(framebuffers, numSwapChainImages, allocatorsInterface->persistentAllocator);
-        for (size_t it = 0; it < numSwapChainImages; it++)
-        {
-            SeRenderObject* attachments[] = { renderInterface->get_swap_chain_texture(renderDevice, it) };
-            SeFramebufferCreateInfo createInfo = (SeFramebufferCreateInfo)
-            {
-                .attachmentsPtr = attachments,
-                .numAttachments = se_array_size(attachments),
-                .renderPass     = renderPass,
-                .device         = renderDevice,
-            };
-            SeRenderObject* fb = renderInterface->framebuffer_create(&createInfo);
-            se_sbuffer_push(framebuffers, fb);
-        }
-    }
-    //
-    // Fill data buffers
-    //
-    {
-        const float aspect = (float)windowInterface->get_width(windowHandle) / (float)windowInterface->get_height(windowHandle);
-        SeFloat4x4 projection;
-        renderInterface->perspective_projection_matrix(&projection, 60, aspect, 0.1f, 100.0f);
-        FrameData data =
-        {
-            .viewProjection = se_f4x4_transposed
-            (
-                se_f4x4_mul_f4x4
-                (
-                    projection,
-                    se_f4x4_inverted(se_look_at((SeFloat3){ 0, 0, 0 }, (SeFloat3){ 0, 0, 1 }, (SeFloat3){ 0, 1, 0 }))
-                )
-            ),
-        };
-        SeMemoryBufferCreateInfo createInfo = (SeMemoryBufferCreateInfo)
-        {
-            .device     = renderDevice,
-            .size       = sizeof(data),
-            .usage      = SE_MEMORY_BUFFER_USAGE_UNIFORM_BUFFER,
-            .visibility = SE_MEMORY_BUFFER_VISIBILITY_GPU_AND_CPU,
-        };
-        frameDataBuffer = renderInterface->memory_buffer_create(&createInfo);
-        void* memory = renderInterface->memory_buffer_get_mapped_address(frameDataBuffer);
-        memcpy(memory, &data, sizeof(data));
-    }
-    {
-        InputVertex vertices[] =
-        {
-            { .positionLS = { -1, -1, 3 }, .uv = { 0, 0 }, .color = { 0.7f, 0.5f, 0.5f, 1.0f, } },
-            { .positionLS = {  1, -1, 3 }, .uv = { 1, 1 }, .color = { 0.7f, 0.5f, 0.5f, 1.0f, } },
-            { .positionLS = {  0,  1, 3 }, .uv = { 1, 0 }, .color = { 0.7f, 0.5f, 0.5f, 1.0f, } },
-        };
-        SeMemoryBufferCreateInfo createInfo = (SeMemoryBufferCreateInfo)
-        {
-            .device     = renderDevice,
-            .size       = sizeof(vertices),
-            .usage      = SE_MEMORY_BUFFER_USAGE_STORAGE_BUFFER,
-            .visibility = SE_MEMORY_BUFFER_VISIBILITY_GPU_AND_CPU,
-        };
-        verticesBuffer = renderInterface->memory_buffer_create(&createInfo);
-        void* memory = renderInterface->memory_buffer_get_mapped_address(verticesBuffer);
-        memcpy(memory, &vertices, sizeof(vertices));
-    }
-    {
-        InputInstanceData instances[] =
-        {
-            { .trfWS = SE_F4X4_IDENTITY },
-        };
-        SeMemoryBufferCreateInfo createInfo = (SeMemoryBufferCreateInfo)
-        {
-            .device     = renderDevice,
-            .size       = sizeof(instances),
-            .usage      = SE_MEMORY_BUFFER_USAGE_STORAGE_BUFFER,
-            .visibility = SE_MEMORY_BUFFER_VISIBILITY_GPU_AND_CPU,
-        };
-        instancesBuffer = renderInterface->memory_buffer_create(&createInfo);
-        void* memory = renderInterface->memory_buffer_get_mapped_address(instancesBuffer);
-        memcpy(memory, &instances, sizeof(instances));
-    }
+        .name           = "Sabrina engine - triangle example",
+        .isFullscreen   = false,
+        .isResizable    = false,
+        .width          = 640,
+        .height         = 480,
+    };
+    window = windowInterface->create(&windowInfo);
+    device = render->device_create(&(SeRenderDeviceCreateInfo){ .window = &window });
+    vertexProgram = sync_load_shader("assets/default/shaders/flat_color.vert.spv");
+    fragmentProgram = sync_load_shader("assets/default/shaders/flat_color.frag.spv");
 }
 
 SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
 {
-    renderDevice->destroy(renderDevice);
-    windowInterface->destroy(windowHandle);
+    render->device_destroy(device);
+    windowInterface->destroy(window);
 }
 
 SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
 {
-    const SeWindowSubsystemInput* input = windowInterface->get_input(windowHandle);
+    const SeWindowSubsystemInput* input = windowInterface->get_input(window);
     if (input->isCloseButtonPressed || se_is_keyboard_button_pressed(input, SE_ESCAPE)) engine->shouldRun = false;
 
-    renderInterface->begin_frame(renderDevice);
+    const InputInstanceData instances[] =
     {
-        SeRenderObject* framebuffer = framebuffers[renderInterface->get_active_swap_chain_texture_index(renderDevice)];
-        SeResourceSetBinding bindings0[] = { { frameDataBuffer }, };
-        SeResourceSetBinding bindings1[] = { { verticesBuffer }, { instancesBuffer }, };
-        SeResourceSetRequestInfo setCreateInfos[] =
+        { .trfWS = SE_F4X4_IDENTITY },
+    };
+    const InputVertex vertices[] =
+    {
+        { .positionLS = { -1, -1, 3 }, .uv = { 0, 0 }, .color = { 0.7f, 0.5f, 0.5f, 1.0f, } },
+        { .positionLS = {  1, -1, 3 }, .uv = { 1, 1 }, .color = { 0.7f, 0.5f, 0.5f, 1.0f, } },
+        { .positionLS = {  0,  1, 3 }, .uv = { 1, 0 }, .color = { 0.7f, 0.5f, 0.5f, 1.0f, } },
+    };
+    const float aspect = ((float)windowInterface->get_width(window)) / ((float)windowInterface->get_height(window));
+    SeFloat4x4 projection;
+    render->perspective_projection_matrix(&projection, 60, aspect, 0.1f, 100.0f);
+    const FrameData frameData = (FrameData)
+    {
+        .viewProjection = se_f4x4_transposed
+        (
+            se_f4x4_mul_f4x4
+            (
+                projection,
+                se_f4x4_inverted(se_look_at((SeFloat3){ 0, 0, 0 }, (SeFloat3){ 0, 0, 1 }, (SeFloat3){ 0, 1, 0 }))
+            )
+        ),
+    };
+
+    render->begin_frame(device);
+    {
+        SeRenderRef frameDataBuffer = render->memory_buffer(device, &(SeMemoryBufferInfo){ .size = sizeof(frameData), .data = &frameData });
+        SeRenderRef instancesBuffer = render->memory_buffer(device, &(SeMemoryBufferInfo){ .size = sizeof(instances), .data = instances });
+        SeRenderRef verticesBuffer = render->memory_buffer(device, &(SeMemoryBufferInfo){ .size = sizeof(vertices), .data = vertices });
+        SeRenderRef pipeline = render->graphics_pipeline(device, &(SeGraphicsPipelineInfo)
         {
-            {
-                .device         = renderDevice,
-                .pipeline       = renderPipeline,
-                .set            = 0,
-                .bindings       = bindings0,
-                .numBindings    = se_array_size(bindings0),
-            },
-            {
-                .device         = renderDevice,
-                .pipeline       = renderPipeline,
-                .set            = 1,
-                .bindings       = bindings1,
-                .numBindings    = se_array_size(bindings1),
-            },
-        };
-        SeRenderObject* resourceSets[2] =
+            .device                 = device,
+            .vertexProgram          = (SeProgramWithConstants){ .program = vertexProgram, },
+            .fragmentProgram        = (SeProgramWithConstants){ .program = fragmentProgram, },
+            .frontStencilOpState    = (SeStencilOpState){ .isEnabled = false, },
+            .backStencilOpState     = (SeStencilOpState){ .isEnabled = false, },
+            .depthState             = (SeDepthState){ .isTestEnabled = false, .isWriteEnabled = false, },
+            .polygonMode            = SE_PIPELINE_POLYGON_FILL_MODE_FILL,
+            .cullMode               = SE_PIPELINE_CULL_MODE_NONE,
+            .frontFace              = SE_PIPELINE_FRONT_FACE_CLOCKWISE,
+            .samplingType           = SE_SAMPLING_1,
+        });
+        render->begin_pass(device, &(SeBeginPassInfo)
         {
-            renderInterface->resource_set_request(&setCreateInfos[0]),
-            renderInterface->resource_set_request(&setCreateInfos[1]),
-        };
+            .id                 = 0,
+            .dependencies       = 0,
+            .pipeline           = pipeline,
+            .renderTargets      = { { render->swap_chain_texture(device), SE_PASS_RENDER_TARGET_LOAD_OP_CLEAR } },
+            .numRenderTargets   = 1,
+            .depthStencilTarget = {0},
+            .hasDepthStencil    = false,
+        });
         {
-            SeCommandBufferRequestInfo requestInfo = (SeCommandBufferRequestInfo) { renderDevice, SE_COMMAND_BUFFER_USAGE_GRAPHICS };
-            SeRenderObject* cmd = renderInterface->command_buffer_request(&requestInfo);
-            SeCommandBindPipelineInfo bindPipeline = (SeCommandBindPipelineInfo) { renderPipeline, framebuffer };
-            renderInterface->command_bind_pipeline(cmd, &bindPipeline);
-            renderInterface->command_bind_resource_set(cmd, &((SeCommandBindResourceSetInfo) { .resourceSet = resourceSets[0] }));
-            renderInterface->command_bind_resource_set(cmd, &((SeCommandBindResourceSetInfo) { .resourceSet = resourceSets[1] }));
-            renderInterface->command_draw(cmd, &((SeCommandDrawInfo) { .numVertices = 3, .numInstances = 1 }));
-            renderInterface->command_buffer_submit(cmd);
+            render->bind(device, &(SeCommandBindInfo){ .set = 0, .bindings = { { 0, frameDataBuffer } }, .numBindings = 1 });
+            render->bind(device, &(SeCommandBindInfo){ .set = 1, .bindings = { { 0, verticesBuffer }, { 1, instancesBuffer } }, .numBindings = 2 });
+            render->draw(device, &(SeCommandDrawInfo){ .numVertices = se_array_size(vertices), .numInstances = se_array_size(instances) });
         }
+        render->end_pass(device);
     }
-    renderInterface->end_frame(renderDevice);
+    render->end_frame(device);
 }

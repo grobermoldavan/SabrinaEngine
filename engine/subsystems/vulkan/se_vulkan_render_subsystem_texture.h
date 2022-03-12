@@ -6,22 +6,22 @@
 
 typedef enum SeVkTextureFlags
 {
-    SE_VK_TEXTURE_FROM_SWAP_CHAIN               = 0x00000001,
-    SE_VK_TEXTURE_HAS_SAMPLER                   = 0x00000002,
-    SE_VK_TEXTURE_DEPENDS_ON_SWAP_CHAIN_EXTENT  = 0x00000004,
-    SE_VK_TEXTURE_DEPENDS_ON_SWAP_CHAIN_FROMAT  = 0x00000008,
+    SE_VK_TEXTURE_FROM_SWAP_CHAIN = 0x00000001,
 } SeVkTextureFlags;
+
+typedef struct SeVkTextureInfo
+{
+    struct SeVkDevice*      device;
+    VkFormat                format;
+    VkExtent3D              extent;
+    VkImageUsageFlags       usage;
+    VkSampleCountFlagBits   sampling;
+} SeVkTextureInfo;
 
 typedef struct SeVkTexture
 {
-    //
-    // Constant info (filled once at creation)
-    //
-    SeVkRenderObject        object;
-    SeTextureCreateInfo     createInfo;
-    //
-    // Non-constant info (filled every time at re-creation)
-    //
+    SeVkObject              object;
+    struct SeVkDevice*      device;
     VkExtent3D              extent;
     VkFormat                format;
     VkImageLayout           currentLayout;
@@ -32,23 +32,10 @@ typedef struct SeVkTexture
     uint64_t                flags;
 } SeVkTexture;
 
-#define __SE_VK_TEXTURE_RECREATE_ZEROING_SIZE (sizeof(SeVkTexture) - offsetof(SeVkTexture, extent))
-#define __SE_VK_TEXTURE_RECREATE_ZEROING_OFFSET(texturePtr) &(texturePtr)->extent
+void se_vk_texture_construct(SeVkTexture* texture, SeVkTextureInfo* info);
+void se_vk_texture_construct_from_swap_chain(SeVkTexture* texture, struct SeVkDevice* device, VkExtent2D* extent, VkImage image, VkImageView view, VkFormat format);
+void se_vk_texture_destroy(SeVkTexture* texture);
 
-SeRenderObject* se_vk_texture_create(SeTextureCreateInfo* createInfo);
-SeRenderObject* se_vk_texture_create_from_swap_chain(SeRenderObject* device, VkExtent2D* extent, VkImage image, VkImageView view, VkFormat format);
-void            se_vk_texture_recreate_inplace(SeRenderObject* texture);
-void            se_vk_texture_recreate_inplace_from_swap_chain(SeRenderObject* texture, VkExtent2D* extent, VkImage image, VkImageView view, VkFormat format);
-void            se_vk_texture_submit_for_deffered_destruction(SeRenderObject* texture);
-void            se_vk_texture_destroy(SeRenderObject* texture);
-void            se_vk_texture_destroy_inplace(SeRenderObject* texture);
-uint32_t        se_vk_texture_get_width(SeRenderObject* texture);
-uint32_t        se_vk_texture_get_height(SeRenderObject* texture);
-
-VkFormat        se_vk_texture_get_format(SeRenderObject* texture);
-VkImageView     se_vk_texture_get_view(SeRenderObject* texture);
-VkExtent3D      se_vk_texture_get_extent(SeRenderObject* texture);
-VkImageLayout   se_vk_texture_get_current_layout(SeRenderObject* texture);
-bool            se_vk_texture_is_dependent_on_swap_chain(SeRenderObject* texture);
+#define se_vk_texture_get_hash_input(texturePtr) ((SeHashInput) { texturePtr, sizeof(SeVkObject) })
 
 #endif

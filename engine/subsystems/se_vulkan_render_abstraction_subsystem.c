@@ -1,23 +1,25 @@
 
 #include "se_vulkan_render_abstraction_subsystem.h"
 #include "vulkan/se_vulkan_render_subsystem_base.h"
-#include "vulkan/se_vulkan_render_subsystem_utils.h"
-#include "vulkan/se_vulkan_render_subsystem_memory.h"
-#include "vulkan/se_vulkan_render_subsystem_in_flight_manager.h"
 #include "vulkan/se_vulkan_render_subsystem_device.h"
-#include "vulkan/se_vulkan_render_subsystem_texture.h"
-#include "vulkan/se_vulkan_render_subsystem_sampler.h"
-#include "vulkan/se_vulkan_render_subsystem_command_buffer.h"
-#include "vulkan/se_vulkan_render_subsystem_render_pass.h"
-#include "vulkan/se_vulkan_render_subsystem_render_program.h"
-#include "vulkan/se_vulkan_render_subsystem_render_pipeline.h"
+#include "vulkan/se_vulkan_render_subsystem_frame_manager.h"
 #include "vulkan/se_vulkan_render_subsystem_framebuffer.h"
+#include "vulkan/se_vulkan_render_subsystem_graph.h"
 #include "vulkan/se_vulkan_render_subsystem_memory_buffer.h"
-#include "vulkan/se_vulkan_render_subsystem_resource_set.h"
+#include "vulkan/se_vulkan_render_subsystem_memory.h"
+#include "vulkan/se_vulkan_render_subsystem_pipeline.h"
+#include "vulkan/se_vulkan_render_subsystem_program.h"
+#include "vulkan/se_vulkan_render_subsystem_render_pass.h"
+#include "vulkan/se_vulkan_render_subsystem_sampler.h"
+#include "vulkan/se_vulkan_render_subsystem_texture.h"
+#include "vulkan/se_vulkan_render_subsystem_command_buffer.h"
+#include "vulkan/se_vulkan_render_subsystem_utils.h"
 #include "engine/engine.h"
 
-static SeRenderAbstractionSubsystemInterface g_Iface;
-static SeWindowSubsystemInterface* g_windowIface;
+static SeRenderAbstractionSubsystemInterface        g_Iface;
+static SeWindowSubsystemInterface*                  g_windowIface;
+static SeApplicationAllocatorsSubsystemInterface*   g_allocatorsIface;
+static SePlatformInterface*                         g_platformIface;
 
 static void se_vk_perspective_projection_matrix(SeFloat4x4* result, float fovDeg, float aspect, float nearPlane, float farPlane)
 {
@@ -42,40 +44,75 @@ static void se_vk_perspective_projection_matrix(SeFloat4x4* result, float fovDeg
     };
 }
 
+static void se_vk_begin_pass_call(SeDeviceHandle _device, SeBeginPassInfo* info)
+{
+    SeVkDevice* device = (SeVkDevice*)_device;
+    se_vk_graph_begin_pass(&device->graph, info);
+}
+
+static void se_vk_end_pass_call(SeDeviceHandle _device)
+{
+    SeVkDevice* device = (SeVkDevice*)_device;
+    se_vk_graph_end_pass(&device->graph);
+}
+
+static SeRenderRef se_vk_program_call(SeDeviceHandle _device, SeProgramInfo* info)
+{
+    SeVkDevice* device = (SeVkDevice*)_device;
+    return se_vk_graph_program(&device->graph, info);
+}
+
+static SeRenderRef se_vk_swap_chain_texture_call(SeDeviceHandle _device)
+{
+    SeVkDevice* device = (SeVkDevice*)_device;
+    return se_vk_graph_swap_chain_texture(&device->graph);
+}
+
+static SeRenderRef se_vk_graphics_pipeline_call(SeDeviceHandle _device, SeGraphicsPipelineInfo* info)
+{
+    SeVkDevice* device = (SeVkDevice*)_device;
+    return se_vk_graph_graphics_pipeline(&device->graph, info);
+}
+
+static SeRenderRef se_vk_memory_buffer_call(SeDeviceHandle _device, SeMemoryBufferInfo* info)
+{
+    SeVkDevice* device = (SeVkDevice*)_device;
+    return se_vk_graph_memory_buffer(&device->graph, info);
+}
+
+static void se_vk_command_bind_call(SeDeviceHandle _device, SeCommandBindInfo* info)
+{
+    SeVkDevice* device = (SeVkDevice*)_device;
+    se_vk_graph_command_bind(&device->graph, info);
+}
+
+static void se_vk_command_draw_call(SeDeviceHandle _device, SeCommandDrawInfo* info)
+{
+    SeVkDevice* device = (SeVkDevice*)_device;
+    se_vk_graph_command_draw(&device->graph, info);
+}
+
 SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
 {
     g_Iface = (SeRenderAbstractionSubsystemInterface)
     {
-        .device_create                          = se_vk_device_create,
-        .device_wait                            = se_vk_device_wait,
-        .get_swap_chain_textures_num            = se_vk_device_get_swap_chain_textures_num,
-        .get_swap_chain_texture                 = se_vk_device_get_swap_chain_texture,
-        .get_active_swap_chain_texture_index    = se_vk_device_get_active_swap_chain_texture_index,
-        .get_supported_sampling_types           = se_vk_device_get_supported_sampling_types,
-        .get_dispatch_limits                    = se_vk_device_get_dispatch_limits,
-        .begin_frame                            = se_vk_device_begin_frame,
-        .end_frame                              = se_vk_device_end_frame,
-        .program_create                         = se_vk_render_program_create,
-        .program_get_compute_work_group_size    = se_vk_render_program_get_compute_work_group_size,
-        .texture_create                         = se_vk_texture_create,
-        .texture_get_width                      = se_vk_texture_get_width,
-        .texture_get_height                     = se_vk_texture_get_height,
-        .sampler_create                         = se_vk_sampler_create,
-        .render_pass_create                     = se_vk_render_pass_create,
-        .render_pipeline_graphics_create        = se_vk_render_pipeline_graphics_create,
-        .render_pipeline_compute_create         = se_vk_render_pipeline_compute_create,
-        .framebuffer_create                     = se_vk_framebuffer_create,
-        .resource_set_request                   = se_vk_resource_set_request,
-        .memory_buffer_create                   = se_vk_memory_buffer_create,
-        .memory_buffer_get_mapped_address       = se_vk_memory_buffer_get_mapped_address,
-        .memory_buffer_copy_from                = se_vk_memory_buffer_copy_from,
-        .command_buffer_request                 = se_vk_command_buffer_request,
-        .command_buffer_submit                  = se_vk_command_buffer_submit,
-        .command_bind_pipeline                  = se_vk_command_buffer_bind_pipeline,
-        .command_draw                           = se_vk_command_buffer_draw,
-        .command_dispatch                       = se_vk_command_buffer_dispatch,
-        .command_bind_resource_set              = se_vk_command_bind_resource_set,
-        .perspective_projection_matrix          = se_vk_perspective_projection_matrix,
+        .device_create                  = se_vk_device_create,
+        .device_destroy                 = se_vk_device_destroy,
+        .begin_frame                    = se_vk_device_begin_frame,
+        .end_frame                      = se_vk_device_end_frame,
+        .begin_pass                     = se_vk_begin_pass_call,
+        .end_pass                       = se_vk_end_pass_call,
+        .program                        = se_vk_program_call,
+        .texture                        = NULL,
+        .swap_chain_texture             = se_vk_swap_chain_texture_call,
+        .graphics_pipeline              = se_vk_graphics_pipeline_call,
+        .compute_pipeline               = NULL,
+        .memory_buffer                  = se_vk_memory_buffer_call,
+        .sampler                        = NULL,
+        .bind                           = se_vk_command_bind_call,
+        .draw                           = se_vk_command_draw_call,
+        .dispatch                       = NULL,
+        .perspective_projection_matrix  = se_vk_perspective_projection_matrix,
     };
 }
 
@@ -83,6 +120,8 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 {
     se_vk_check(volkInitialize());
     g_windowIface = (SeWindowSubsystemInterface*)engine->find_subsystem_interface(engine, SE_WINDOW_SUBSYSTEM_NAME);
+    g_allocatorsIface = (SeApplicationAllocatorsSubsystemInterface*)engine->find_subsystem_interface(engine, SE_APPLICATION_ALLOCATORS_SUBSYSTEM_NAME);
+    g_platformIface = &engine->platformIface;
 }
 
 SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
@@ -97,16 +136,16 @@ SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
 #define SSR_IMPL
 #include "engine/libs/ssr/simple_spirv_reflection.h"
 
-#include "vulkan/se_vulkan_render_subsystem_utils.c"
-#include "vulkan/se_vulkan_render_subsystem_memory.c"
-#include "vulkan/se_vulkan_render_subsystem_in_flight_manager.c"
 #include "vulkan/se_vulkan_render_subsystem_device.c"
-#include "vulkan/se_vulkan_render_subsystem_texture.c"
-#include "vulkan/se_vulkan_render_subsystem_sampler.c"
-#include "vulkan/se_vulkan_render_subsystem_command_buffer.c"
-#include "vulkan/se_vulkan_render_subsystem_render_pass.c"
-#include "vulkan/se_vulkan_render_subsystem_render_program.c"
-#include "vulkan/se_vulkan_render_subsystem_render_pipeline.c"
+#include "vulkan/se_vulkan_render_subsystem_frame_manager.c"
 #include "vulkan/se_vulkan_render_subsystem_framebuffer.c"
+#include "vulkan/se_vulkan_render_subsystem_graph.c"
 #include "vulkan/se_vulkan_render_subsystem_memory_buffer.c"
-#include "vulkan/se_vulkan_render_subsystem_resource_set.c"
+#include "vulkan/se_vulkan_render_subsystem_memory.c"
+#include "vulkan/se_vulkan_render_subsystem_pipeline.c"
+#include "vulkan/se_vulkan_render_subsystem_program.c"
+#include "vulkan/se_vulkan_render_subsystem_render_pass.c"
+#include "vulkan/se_vulkan_render_subsystem_sampler.c"
+#include "vulkan/se_vulkan_render_subsystem_texture.c"
+#include "vulkan/se_vulkan_render_subsystem_command_buffer.c"
+#include "vulkan/se_vulkan_render_subsystem_utils.c"

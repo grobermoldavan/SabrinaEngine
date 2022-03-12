@@ -3,54 +3,68 @@
 
 #include "se_vulkan_render_subsystem_base.h"
 
-typedef struct SeVkSubpassInfo
-{
-    uint32_t inputAttachmentRefsBitmask;
-    uint32_t colorAttachmentRefsBitmask;
-} SeVkSubpassInfo;
+#define se_vk_render_pass_num_subpasses(passPtr) ((passPtr)->info.numSubpasses)
+#define se_vk_render_pass_num_attachments(passPtr) ((passPtr)->info.numColorAttachments + ((passPtr)->info.hasDepthStencilAttachment ? 1 : 0))
 
-typedef struct SeVkRenderPassAttachmentInfo
+typedef struct SeVkRenderPassAttachment
+{
+    VkFormat                format;
+    VkAttachmentLoadOp      loadOp;
+    VkAttachmentStoreOp     storeOp;
+    VkSampleCountFlagBits   sampling;
+    VkClearValue            clearValue;
+} SeVkRenderPassAttachment;
+
+typedef struct SeVkResolveRef
+{
+    uint32_t from;
+    uint32_t to;
+} SeVkResolveRef;
+
+typedef struct SeVkRenderPassSubpass
+{
+    SeVkGeneralBitmask  colorRefs;                                  // each value references colorAttachments array
+    SeVkGeneralBitmask  inputRefs;                                  // each value references colorAttachments array
+    SeVkResolveRef      resolveRefs[SE_VK_GENERAL_BITMASK_WIDTH];   // each value references colorAttachments array
+    uint32_t            numResolveRefs;
+    bool                depthRead;
+    bool                depthWrite;
+} SeVkRenderPassSubpass;
+
+typedef struct SeVkRenderPassInfo
+{
+    struct SeVkDevice*          device;
+    SeVkRenderPassSubpass       subpasses[SE_VK_GENERAL_BITMASK_WIDTH];
+    uint32_t                    numSubpasses;
+    SeVkRenderPassAttachment    colorAttachments[SE_VK_GENERAL_BITMASK_WIDTH];
+    uint32_t                    numColorAttachments;
+    SeVkRenderPassAttachment    depthStencilAttachment;
+    bool                        hasDepthStencilAttachment;
+} SeVkRenderPassInfo;
+
+typedef struct SeVkRenderPassAttachmentLayoutInfo
 {
     VkImageLayout initialLayout;
     VkImageLayout finalLayout;
-    VkFormat format;
-} SeVkRenderPassAttachmentInfo;
+} SeVkRenderPassAttachmentLayoutInfo;
 
 typedef struct SeVkRenderPass
 {
-    //
-    // Constant info (filled once at creation)
-    //
-    SeVkRenderObject                object;
-    SeRenderPassCreateInfo          createInfo;
-    //
-    // Non-constant info (filled every time at re-creation)
-    //
-    VkRenderPass                    handle;
-    SeVkSubpassInfo                 subpassInfos[SE_VK_GENERAL_BITMASK_WIDTH];
-    SeVkRenderPassAttachmentInfo    attachmentInfos[SE_VK_GENERAL_BITMASK_WIDTH];
-    VkClearValue                    clearValues[SE_VK_GENERAL_BITMASK_WIDTH];
-    size_t                          numSubpasses;
-    size_t                          numAttachments;
-    uint64_t                        flags;
+    SeVkObject                          object;
+    SeVkRenderPassInfo                  info;
+    VkRenderPass                        handle;
+    SeVkRenderPassAttachmentLayoutInfo  attachmentLayoutInfos[SE_VK_GENERAL_BITMASK_WIDTH];
+    VkClearValue                        clearValues[SE_VK_GENERAL_BITMASK_WIDTH];
 } SeVkRenderPass;
 
-#define __SE_VK_RENDER_PASS_RECREATE_ZEROING_SIZE (sizeof(SeVkRenderPass) - offsetof(SeVkRenderPass, handle))
-#define __SE_VK_RENDER_PASS_RECREATE_ZEROING_OFFSET(passPtr) &(passPtr)->handle
+void se_vk_render_pass_construct(SeVkRenderPass* pass, SeVkRenderPassInfo* info);
+void se_vk_render_pass_destroy(SeVkRenderPass* pass);
 
-SeRenderObject*         se_vk_render_pass_create(SeRenderPassCreateInfo* createInfo);
-void                    se_vk_render_pass_submit_for_deffered_destruction(SeRenderObject* pass);
-void                    se_vk_render_pass_destroy(SeRenderObject* pass);
-void                    se_vk_render_pass_destroy_inplace(SeRenderObject* pass);
-void                    se_vk_render_pass_recreate_inplace(SeRenderObject* pass);
+void                    se_vk_render_pass_validate_fragment_program_setup(SeVkRenderPass* pass, struct SeVkProgram* program, size_t subpassIndex);
+uint32_t                se_vk_render_pass_get_num_color_attachments(SeVkRenderPass* pass, size_t subpassIndex);
+void                    se_vk_render_pass_validate_framebuffer_textures(SeVkRenderPass* pass, struct SeVkTexture** textures, size_t numTextures);
+VkRenderPassBeginInfo   se_vk_render_pass_get_begin_info(SeVkRenderPass* pass, VkFramebuffer framebuffer, VkRect2D renderArea);
 
-size_t                  se_vk_render_pass_get_num_subpasses(SeRenderObject* pass);
-void                    se_vk_render_pass_validate_fragment_program_setup(SeRenderObject* pass, SeRenderObject* fragmentShader, size_t subpassIndex);
-uint32_t                se_vk_render_pass_get_num_color_attachments(SeRenderObject* pass, size_t subpassIndex);
-VkRenderPass            se_vk_render_pass_get_handle(SeRenderObject* pass);
-void                    se_vk_render_pass_validate_framebuffer_textures(SeRenderObject* pass, SeRenderObject** textures, size_t numTextures);
-VkRenderPassBeginInfo   se_vk_render_pass_get_begin_info(SeRenderObject* pass, SeRenderObject* framebuffer, VkRect2D renderArea);
-VkImageLayout           se_vk_render_pass_get_initial_attachment_layout(SeRenderObject* pass, size_t attachmentIndex);
-bool                    se_vk_render_pass_is_dependent_on_swap_chain(SeRenderObject* pass);
+#define se_vk_render_pass_get_hash_input(passPtr) ((SeHashInput) { passPtr, sizeof(SeVkObject) })
 
 #endif

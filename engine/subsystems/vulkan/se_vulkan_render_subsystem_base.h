@@ -16,30 +16,40 @@
 #include "engine/render_abstraction_interface.h"
 #include "engine/debug.h"
 
-#ifdef SE_DEBUG
-typedef struct SeVkRenderObject
+typedef enum SeVkType
 {
-    SeRenderObject base;
-    size_t refCounter;
-} SeVkRenderObject;
-#define se_vk_add_external_resource_dependency(objPtr) ((SeVkRenderObject*)objPtr)->refCounter++
-#define se_vk_remove_external_resource_dependency(objPtr) (se_assert(((SeVkRenderObject*)objPtr)->refCounter), ((SeVkRenderObject*)objPtr)->refCounter--)
-#define se_vk_check_external_resource_dependencies(objPtr) se_assert(((SeVkRenderObject*)objPtr)->refCounter == 0)
-#define se_vk_render_object(handleType, destroyFunc) (SeVkRenderObject){ .base = (SeRenderObject){ handleType, destroyFunc }, 0 }
-#define se_vk_render_object_handle_type(objPtr) ((SeVkRenderObject*)objPtr)->base.handleType
-#else
-typedef SeRenderObject SeVkRenderObject;
-#define se_vk_add_external_resource_dependency(objPtr)
-#define se_vk_remove_external_resource_dependency(objPtr)
-#define se_vk_check_external_resource_dependencies(objPtr)
-#define se_vk_render_object(handleType, destroyFunc) (SeVkRenderObject){ handleType, destroyFunc }
-#define se_vk_render_object_handle_type(objPtr) ((SeVkRenderObject*)objPtr)->handleType
-#endif
+    SE_VK_TYPE_UNITIALIZED,
+    SE_VK_TYPE_DEVICE,
+    SE_VK_TYPE_PROGRAM,
+    SE_VK_TYPE_TEXTURE,
+    SE_VK_TYPE_PASS,
+    SE_VK_TYPE_FRAMEBUFFER,
+    SE_VK_TYPE_GRAPHICS_PIPELINE,
+    SE_VK_TYPE_COMPUTE_PIPELINE,
+    SE_VK_TYPE_RESOURCE_SET,
+    SE_VK_TYPE_MEMORY_BUFFER,
+    SE_VK_TYPE_SAMPLER,
+    SE_VK_TYPE_COMMAND_BUFFER,
+} SeVkType;
 
+#define se_vk_ref(type, flags, index)   ((((uint64_t)(type)) << 48) | (((uint64_t)(flags)) << 32) | ((uint64_t)(index)))
+#define se_vk_ref_type(ref)             ((SeVkType)((ref) >> 48))
+#define se_vk_ref_flags(ref)            ((uint16_t)(((ref) >> 32) & 0xFF))
+#define se_vk_ref_index(ref)            ((uint32_t)((ref) & 0xFFFFFFFF))
+
+typedef struct SeVkObject
+{
+    SeVkType type;
+    size_t uniqueIndex;
+} SeVkObject;
+
+typedef uint32_t SeVkFlags;
 typedef uint32_t SeVkGeneralBitmask;
 #define SE_VK_GENERAL_BITMASK_WIDTH (sizeof(SeVkGeneralBitmask) * 8)
 
 #define se_vk_check(cmd) do { VkResult __result = cmd; se_assert(__result == VK_SUCCESS); } while(0)
 #define se_vk_expect_handle(renderObjPtr, expectedHandleType, msg) se_assert(se_vk_render_object_handle_type(renderObjPtr) == expectedHandleType && msg" - incorrect render object type (expected "#expectedHandleType")")
+
+#define se_vk_safe_cast_size_t_to_uint32_t(val) ((uint32_t)(val))
 
 #endif

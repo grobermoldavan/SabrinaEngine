@@ -6,6 +6,29 @@
 
 #define SE_VK_INVALID_QUEUE (~0u)
 
+#define se_vk_utils_is_depth_format(format)                 \
+            ((format) == VK_FORMAT_D16_UNORM            ||  \
+            (format) == VK_FORMAT_X8_D24_UNORM_PACK32   ||  \
+            (format) == VK_FORMAT_D32_SFLOAT            ||  \
+            (format) == VK_FORMAT_D16_UNORM_S8_UINT     ||  \
+            (format) == VK_FORMAT_D24_UNORM_S8_UINT     ||  \
+            (format) == VK_FORMAT_D32_SFLOAT_S8_UINT    )   
+            
+#define se_vk_utils_is_stencil_format(format)               \
+            ((format) == VK_FORMAT_S8_UINT              ||  \
+            (format) == VK_FORMAT_D16_UNORM_S8_UINT     ||  \
+            (format) == VK_FORMAT_D24_UNORM_S8_UINT     ||  \
+            (format) == VK_FORMAT_D32_SFLOAT_S8_UINT    )
+
+#define se_vk_utils_is_depth_stencil_format(format)         \
+            ((format) == VK_FORMAT_S8_UINT              ||  \
+            (format) == VK_FORMAT_D16_UNORM             ||  \
+            (format) == VK_FORMAT_X8_D24_UNORM_PACK32   ||  \
+            (format) == VK_FORMAT_D32_SFLOAT            ||  \
+            (format) == VK_FORMAT_D16_UNORM_S8_UINT     ||  \
+            (format) == VK_FORMAT_D24_UNORM_S8_UINT     ||  \
+            (format) == VK_FORMAT_D32_SFLOAT_S8_UINT    )      
+
 typedef struct SeVkSwapChainSupportDetails
 {
     VkSurfaceCapabilitiesKHR        capabilities;
@@ -51,9 +74,7 @@ void                                    se_vk_utils_destroy_shader_module(VkDevi
 bool                                    se_vk_utils_get_memory_type_index(VkPhysicalDeviceMemoryProperties* props, uint32_t typeBits, VkMemoryPropertyFlags properties, uint32_t* result);
 enum SeTextureFormat                    se_vk_utils_to_texture_format(enum VkFormat vkFormat);
 VkFormat                                se_vk_utils_to_vk_format(enum SeTextureFormat format);
-VkAttachmentLoadOp                      se_vk_utils_to_vk_load_op(enum SeAttachmentLoadOp loadOp);
-VkAttachmentStoreOp                     se_vk_utils_to_vk_store_op(enum SeAttachmentStoreOp storeOp);
-VkPolygonMode                           se_vk_utils_to_vk_polygon_mode(enum SePipelinePoligonMode mode);
+VkPolygonMode                           se_vk_utils_to_vk_polygon_mode(enum SePipelinePolygonMode mode);
 VkCullModeFlags                         se_vk_utils_to_vk_cull_mode(enum SePipelineCullMode mode);
 VkFrontFace                             se_vk_utils_to_vk_front_face(enum SePipelineFrontFace frontFace);
 VkSampleCountFlagBits                   se_vk_utils_to_vk_sample_count(enum SeSamplingType sampling);
@@ -64,7 +85,7 @@ VkBool32                                se_vk_utils_to_vk_bool(bool value);
 VkPipelineVertexInputStateCreateInfo    se_vk_utils_vertex_input_state_create_info(uint32_t bindingsCount, const VkVertexInputBindingDescription* bindingDescs, uint32_t attrCount, const VkVertexInputAttributeDescription* attrDescs);
 VkPipelineInputAssemblyStateCreateInfo  se_vk_utils_input_assembly_state_create_info(VkPrimitiveTopology topology, VkBool32 primitiveRestartEnable);
 SeVkViewportScissor                     se_vk_utils_default_viewport_scissor(uint32_t width, uint32_t height);
-VkPipelineViewportStateCreateInfo       se_vk_utils_viewport_state_create_info(VkViewport* viewport, VkRect2D* scissor);
+VkPipelineViewportStateCreateInfo       se_vk_utils_viewport_state_create_info(const VkViewport* viewport, const VkRect2D* scissor);
 VkPipelineRasterizationStateCreateInfo  se_vk_utils_rasterization_state_create_info(VkPolygonMode polygonMode, VkCullModeFlags cullMode, VkFrontFace frontFace);
 VkPipelineMultisampleStateCreateInfo    se_vk_utils_multisample_state_create_info(VkSampleCountFlagBits resterizationSamples);
 VkPipelineColorBlendStateCreateInfo     se_vk_utils_color_blending_create_info(VkPipelineColorBlendAttachmentState* colorBlendAttachmentStates, uint32_t numStates);

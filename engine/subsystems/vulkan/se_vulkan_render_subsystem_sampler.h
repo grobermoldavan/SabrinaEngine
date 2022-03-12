@@ -3,17 +3,35 @@
 
 #include "se_vulkan_render_subsystem_base.h"
 
+#define se_vk_sampler_filter(seFilter) (seFilter == SE_SAMPLER_FILTER_NEAREST ? VK_FILTER_NEAREST : VK_FILTER_LINEAR)
+#define se_vk_sampler_mipmap_mode(seMode) (seMode == SE_SAMPLER_MIPMAP_MODE_NEAREST ? VK_SAMPLER_MIPMAP_MODE_NEAREST : VK_SAMPLER_MIPMAP_MODE_LINEAR)
+
 typedef struct SeVkSampler
 {
-    SeVkRenderObject object;
-    SeRenderObject* device;
-    VkSampler handle;
+    SeVkObject          object;
+    struct SeVkDevice*  device;
+    VkSampler           handle;
 } SeVkSampler;
 
-SeRenderObject* se_vk_sampler_create(SeSamplerCreateInfo* createInfo);
-void se_vk_sampler_submit_for_deffered_destruction(SeRenderObject* sampler);
-void se_vk_sampler_destroy(SeRenderObject* sampler);
+typedef struct SeVkSamplerInfo
+{
+    struct SeVkDevice*      device;
+    VkFilter                magFilter;
+    VkFilter                minFilter;
+    VkSamplerAddressMode    addressModeU;
+    VkSamplerAddressMode    addressModeV;
+    VkSamplerAddressMode    addressModeW;
+    VkSamplerMipmapMode     mipmapMode;
+    float                   mipLodBias;
+    float                   minLod;
+    float                   maxLod;
+    VkBool32                anisotropyEnabled;
+    float                   maxAnisotropy;
+    VkBool32                compareEnabled;
+    VkCompareOp             compareOp;
+} SeVkSamplerInfo;
 
-VkSampler se_vk_sampler_get_handle(SeRenderObject* sampler);
+void se_vk_sampler_construct(SeVkSampler* sampler, SeVkSamplerInfo* info);
+void se_vk_sampler_destroy(SeVkSampler* sampler);
 
 #endif

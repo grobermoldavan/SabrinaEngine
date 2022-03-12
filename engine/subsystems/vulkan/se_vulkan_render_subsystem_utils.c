@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "se_vulkan_render_subsystem_utils.h"
+#include "engine/render_abstraction_interface.h"
 #include "engine/se_math.h"
 #include "engine/containers.h"
 #include "engine/debug.h"
@@ -394,14 +395,14 @@ VkCommandBuffer se_vk_utils_create_command_buffer(VkDevice device, VkCommandPool
     return buffer;
 };
 
-VkShaderModule se_vk_utils_create_shader_module(VkDevice device, const uint32_t* bytecode, size_t bytecodeSIze, VkAllocationCallbacks* allocationCb)
+VkShaderModule se_vk_utils_create_shader_module(VkDevice device, const uint32_t* bytecode, size_t bytecodeSize, VkAllocationCallbacks* allocationCb)
 {
     VkShaderModuleCreateInfo createInfo = (VkShaderModuleCreateInfo)
     {
         .sType      = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
         .pNext      = NULL,
         .flags      = 0,
-        .codeSize   = bytecodeSIze,
+        .codeSize   = bytecodeSize,
         .pCode      = bytecode,
     };
     VkShaderModule shaderModule;
@@ -453,38 +454,15 @@ VkFormat se_vk_utils_to_vk_format(SeTextureFormat format)
     return (VkFormat)0;
 }
 
-VkAttachmentLoadOp se_vk_utils_to_vk_load_op(SeAttachmentLoadOp loadOp)
-{
-    switch (loadOp)
-    {
-        case SE_ATTACHMENT_LOAD_OP_CLEAR: return VK_ATTACHMENT_LOAD_OP_CLEAR;
-        case SE_ATTACHMENT_LOAD_OP_LOAD: return VK_ATTACHMENT_LOAD_OP_LOAD;
-        case SE_ATTACHMENT_LOAD_OP_NOTHING: return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    }
-    se_assert(!"Unsupported SeAttachmentLoadOp");
-    return (VkAttachmentLoadOp)0;
-}
-
-VkAttachmentStoreOp se_vk_utils_to_vk_store_op(SeAttachmentStoreOp storeOp)
-{
-    switch (storeOp)
-    {
-        case SE_ATTACHMENT_STORE_OP_STORE: return VK_ATTACHMENT_STORE_OP_STORE;
-        case SE_ATTACHMENT_STORE_OP_NOTHING: return VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    }
-    se_assert(!"Unsupported SeAttachmentStoreOp");
-    return (VkAttachmentStoreOp)0;
-}
-
-VkPolygonMode se_vk_utils_to_vk_polygon_mode(SePipelinePoligonMode mode)
+VkPolygonMode se_vk_utils_to_vk_polygon_mode(SePipelinePolygonMode mode)
 {
     switch (mode)
     {
-        case SE_PIPELINE_POLIGON_FILL_MODE_FILL: return VK_POLYGON_MODE_FILL;
-        case SE_PIPELINE_POLIGON_FILL_MODE_LINE: return VK_POLYGON_MODE_LINE;
-        case SE_PIPELINE_POLIGON_FILL_MODE_POINT: return VK_POLYGON_MODE_POINT;
+        case SE_PIPELINE_POLYGON_FILL_MODE_FILL: return VK_POLYGON_MODE_FILL;
+        case SE_PIPELINE_POLYGON_FILL_MODE_LINE: return VK_POLYGON_MODE_LINE;
+        case SE_PIPELINE_POLYGON_FILL_MODE_POINT: return VK_POLYGON_MODE_POINT;
     }
-    se_assert(!"Unsupported PipelinePoligonMode");
+    se_assert(!"Unsupported SePipelinePolygonMode");
     return (VkPolygonMode)0;
 }
 
@@ -623,7 +601,7 @@ SeVkViewportScissor se_vk_utils_default_viewport_scissor(uint32_t width, uint32_
     };
 }
 
-VkPipelineViewportStateCreateInfo se_vk_utils_viewport_state_create_info(VkViewport* viewport, VkRect2D* scissor)
+VkPipelineViewportStateCreateInfo se_vk_utils_viewport_state_create_info(const VkViewport* viewport, const VkRect2D* scissor)
 {
     return (VkPipelineViewportStateCreateInfo)
     {
