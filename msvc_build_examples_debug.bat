@@ -20,11 +20,11 @@ cd %bat_file_dir%\examples
 
 call :message "[MESSAGE] Build example subsysteams"
 REM for /r %%f in (subsystems\*.c) do call :build_single_subsystem %build_folder_examples%\subsystems\application\ %%f %bat_file_dir%
-for /r %%f in (triangle\subsystems\*.c) do call :build_single_subsystem %build_folder_examples%\subsystems\application\ %%f %bat_file_dir%
+for /r %%f in (triangle\subsystems\*.cpp) do call :build_single_subsystem %build_folder_examples%\subsystems\application\ %%f %bat_file_dir%
 
 call :message "[MESSAGE] Build example exes"
 REM for /r %%f in (*.c) do if %%~nf == main call :build_exe %build_folder_examples% %%f %bat_file_dir%
-for /r %%f in (triangle\*.c) do if %%~nf == main call :build_exe %build_folder_examples% %%f %bat_file_dir%
+for /r %%f in (triangle\*.cpp) do if %%~nf == main call :build_exe %build_folder_examples% %%f %bat_file_dir%
 
 call :message "[MESSAGE] Copy default assets"
 md %build_folder_examples%\assets\default
@@ -53,7 +53,7 @@ EXIT /B %ERRORLEVEL%
     set build_subsystems_engine_include_path=%~3
 
     md %build_subsystems_target_folder%
-    for %%f in (%build_subsystems_source_folder%*.c) do call :build_dll %%f %build_subsystems_target_folder% %build_subsystems_engine_include_path%
+    for %%f in (%build_subsystems_source_folder%*.cpp) do call :build_dll %%f %build_subsystems_target_folder% %build_subsystems_engine_include_path%
 
     del *.exp
     del *.ilk
@@ -97,6 +97,7 @@ EXIT /B 0
     -Z7 -Od -EHsc -MT ^
     %~1 ^
     /LD /I "." /I "%VK_SDK_PATH%\Include" /I %build_dll_additional_include_path% /DSE_DEBUG ^
+    /std:c++20 /W4 /wd4201 /wd4324 /wd4100 /wd4505 ^
     kernel32.lib user32.lib ^
     /link /DEBUG:FULL /OUT:%%build_dll_target_folder%%%build_dll_file_name%.dll
 
@@ -119,6 +120,7 @@ EXIT /B 0
     -Z7 -Od -EHsc -MT ^
     %build_exe_source_file_path% ^
     /I "." /I "%VK_SDK_PATH%\Include" /I %build_exe_engine_include_path% /DSE_DEBUG ^
+    /std:c++20 /W4 /wd4201 /wd4324 /wd4100 /wd4505 ^
     kernel32.lib user32.lib ^
     /link /DEBUG:FULL /OUT:%%build_exe_target_folder%%%build_exe_result_file_name%.exe
 
