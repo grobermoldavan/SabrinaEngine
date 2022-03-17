@@ -38,29 +38,29 @@ struct SeVkGraphPass
 {
     SeBeginPassInfo info;
     SeVkRenderPassInfo renderPassInfo;
-    se_sbuffer(SeVkGraphCommand) commands;
+    DynamicArray<SeVkGraphCommand> commands;
 };
 
 struct SeVkGraph
 {
-    struct SeVkDevice*                  device;
-    SeVkGraphContextType                context;
+    struct SeVkDevice*                      device;
+    SeVkGraphContextType                    context;
 
-    se_sbuffer(SeVkTextureInfo)         textureInfos;           // Requested textures
-    se_sbuffer(SeVkGraphPass)           passes;                 // Started passes
-    se_sbuffer(SeGraphicsPipelineInfo)  graphicsPipelineInfos;  // Used pipeline infos (graphics)
-    se_sbuffer(SeComputePipelineInfo)   computePipelineInfos;   // Used pipeline infos (compute)
-    se_sbuffer(SeVkMemoryBufferView)    scratchBufferViews;     // Requested buffers
+    DynamicArray<SeVkTextureInfo>           textureInfos;           // Requested textures
+    DynamicArray<SeVkGraphPass>             passes;                 // Started passes
+    DynamicArray<SeGraphicsPipelineInfo>    graphicsPipelineInfos;  // Used pipeline infos (graphics)
+    DynamicArray<SeComputePipelineInfo>     computePipelineInfos;   // Used pipeline infos (compute)
+    DynamicArray<SeVkMemoryBufferView>      scratchBufferViews;     // Requested buffers
 
-    SeHashTable                         textureUsageCountTable; // Mapps SeVkTextureInfo to count value (this is required to support multiple textures of exactly the same format)
-    SeHashTable                         textureTable;           // Mapps { SeVkTextureInfo, usageCount } to actual SeVkTexture pointer
-    SeHashTable                         programTable;
-    SeHashTable                         renderPassTable;
-    SeHashTable                         framebufferTable;
-    SeHashTable                         graphicsPipelineTable;
-    SeHashTable                         computePipelineTable;
-    SeHashTable                         samplerTable;
-    SeHashTable                         descriptorPoolsTable;   // Mapps { SeVkPipeline, frameIndex } to SeVkGraphDescriptorPoolArray
+    SeHashTable                             textureUsageCountTable; // Mapps SeVkTextureInfo to count value (this is required to support multiple textures of exactly the same format)
+    SeHashTable                             textureTable;           // Mapps { SeVkTextureInfo, usageCount } to actual SeVkTexture pointer
+    SeHashTable                             programTable;
+    SeHashTable                             renderPassTable;
+    SeHashTable                             framebufferTable;
+    SeHashTable                             graphicsPipelineTable;
+    SeHashTable                             computePipelineTable;
+    SeHashTable                             samplerTable;
+    SeHashTable                             descriptorPoolsTable;   // Mapps { SeVkPipeline, frameIndex } to SeVkGraphDescriptorPoolArray
 };
 
 struct SeVkGraphInfo

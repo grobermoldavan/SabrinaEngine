@@ -23,7 +23,7 @@ static HANDLE se_platform_handle_from_se_handle(SeHandle handle)
 
 static SeHandle se_platform_load_dynamic_library(const char** possibleLibPaths, size_t numPossibleLibPaths)
 {
-    HMODULE handle = NULL;
+    HMODULE handle = nullptr;
     for (size_t it = 0; it < numPossibleLibPaths; it++)
     {
         handle = LoadLibraryA(possibleLibPaths[it]);
@@ -56,7 +56,7 @@ static size_t se_platform_get_mem_page_size()
 
 static void* se_platform_mem_reserve(size_t size)
 {
-    void* res = VirtualAlloc(NULL, size, MEM_RESERVE, PAGE_READWRITE);
+    void* res = VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_READWRITE);
     se_assert(res);
     return res;
 }
@@ -192,10 +192,10 @@ void se_platform_file_load(SeFile* file, const char* path, SeFileLoadMode loadMo
         path,
         loadMode == SE_FILE_READ ? GENERIC_READ : GENERIC_WRITE,
         FILE_SHARE_READ,
-        NULL,
+        nullptr,
         loadMode == SE_FILE_READ ? OPEN_EXISTING : CREATE_ALWAYS,
         FILE_ATTRIBUTE_NORMAL /*| FILE_FLAG_WRITE_THROUGH // ? */,
-        NULL
+        nullptr
     );
     se_assert_msg(handle != INVALID_HANDLE_VALUE, path);
     file->flags = SE_FILE_IS_LOADED;
@@ -232,7 +232,7 @@ void se_platform_file_read(SeFileContent* content, SeFile* file, SeAllocatorBind
             buffer,
             (DWORD)fileSize, // @TODO : safe cast
             &bytesRead,
-            NULL
+            nullptr
         );
         se_assert(result);
     }
@@ -256,7 +256,7 @@ void se_platform_file_write(SeFile* file, const void* data, size_t size)
         data,
         (DWORD)size, // @TODO : safe cast
         &bytesWritten,
-        NULL
+        nullptr
     );
     se_assert(bytesWritten == size);
 }

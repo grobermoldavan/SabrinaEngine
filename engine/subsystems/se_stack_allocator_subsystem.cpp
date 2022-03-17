@@ -74,7 +74,7 @@ static void* se_stack_alloc(SeStackAllocator* allocator, size_t size, size_t ali
     //
     if ((allocator->cur + alignedAllocationSize) > allocator->reservedMax)
     {
-        return NULL;
+        return nullptr;
     }
     if ((allocator->cur + alignedAllocationSize) > allocator->commitedMax)
     {

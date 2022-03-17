@@ -19,16 +19,16 @@ static void se_vk_gpu_fill_required_physical_deivce_features(VkPhysicalDeviceFea
     features->samplerAnisotropy = VK_TRUE;
 }
 
-static float se_vk_gpu_get_device_rating(VkPhysicalDevice device, VkSurfaceKHR surface, SeAllocatorBindings* bindings, VkPhysicalDeviceFeatures* featuresToEnable)
+static float se_vk_gpu_get_device_rating(VkPhysicalDevice device, VkSurfaceKHR surface, SeAllocatorBindings& bindings, VkPhysicalDeviceFeatures* featuresToEnable)
 {
     //
     // Get queues
     //
-    se_sbuffer(VkQueueFamilyProperties) familyProperties = se_vk_utils_get_physical_device_queue_family_properties(device, bindings);
+    DynamicArray<VkQueueFamilyProperties> familyProperties = se_vk_utils_get_physical_device_queue_family_properties(device, bindings);
     const uint32_t graphicsQueue = se_vk_utils_pick_graphics_queue(familyProperties);
     const uint32_t presentQueue = se_vk_utils_pick_present_queue(familyProperties, device, surface);
     const uint32_t transferQueue = se_vk_utils_pick_transfer_queue(familyProperties);
-    se_sbuffer_destroy(familyProperties);
+    dynamic_array::destroy(familyProperties);
     if ((graphicsQueue == SE_VK_INVALID_QUEUE) || (presentQueue == SE_VK_INVALID_QUEUE) || (transferQueue == SE_VK_INVALID_QUEUE))
     {
         return SE_VK_INVALID_DEVICE_RATING;
@@ -47,8 +47,8 @@ static float se_vk_gpu_get_device_rating(VkPhysicalDevice device, VkSurfaceKHR s
     // Check swap chain support
     //
     SeVkSwapChainSupportDetails supportDetails = se_vk_utils_create_swap_chain_support_details(surface, device, bindings);
-    const bool isSwapChainSuppoted = se_sbuffer_size(supportDetails.formats) && se_sbuffer_size(supportDetails.presentModes);
-    se_vk_utils_destroy_swap_chain_support_details(&supportDetails);
+    const bool isSwapChainSuppoted = dynamic_array::size(supportDetails.formats) && dynamic_array::size(supportDetails.presentModes);
+    se_vk_utils_destroy_swap_chain_support_details(supportDetails);
     if (!isSwapChainSuppoted)
     {
         return SE_VK_INVALID_DEVICE_RATING;
@@ -86,21 +86,22 @@ static SeVkCommandQueue* se_vk_gpu_get_command_queue(SeVkGpu* gpu, SeVkCommandQu
         }
     }
     se_assert(!"Unsupported command queue requested");
-    return NULL;
+    return nullptr;
 }
 
-static VkPhysicalDevice se_vk_gpu_pick_physical_device(VkInstance instance, VkSurfaceKHR surface, SeAllocatorBindings* bindings, VkPhysicalDeviceFeatures* featuresToEnable)
+static VkPhysicalDevice se_vk_gpu_pick_physical_device(VkInstance instance, VkSurfaceKHR surface, SeAllocatorBindings& bindings, VkPhysicalDeviceFeatures* featuresToEnable)
 {
-    se_sbuffer(VkPhysicalDevice) available = se_vk_utils_get_available_physical_devices(instance, bindings);
-    const size_t numAvailableDevices = se_sbuffer_size(available);
-    se_sbuffer(float) ratings = NULL;
-    se_sbuffer(VkPhysicalDeviceFeatures) features = NULL;
-    se_sbuffer_construct(ratings, numAvailableDevices, bindings);
-    se_sbuffer_construct_zeroed(features, numAvailableDevices, bindings);
+    DynamicArray<VkPhysicalDevice> available = se_vk_utils_get_available_physical_devices(instance, bindings);
+    const size_t numAvailableDevices = dynamic_array::size(available);
+    DynamicArray<float> ratings;
+    DynamicArray<VkPhysicalDeviceFeatures> features;
+    dynamic_array::construct(ratings, bindings, numAvailableDevices);
+    dynamic_array::construct(features, bindings, numAvailableDevices);
     for (size_t it = 0; it < numAvailableDevices; it++)
     {
+        dynamic_array::push(features, { });
         const float rating = se_vk_gpu_get_device_rating(available[it], surface, bindings, &features[it]);
-        se_sbuffer_push(ratings, rating);
+        dynamic_array::push(ratings, rating);
     }
     float bestRating = SE_VK_INVALID_DEVICE_RATING;
     size_t bestDeviceIndex = 0;
@@ -115,9 +116,9 @@ static VkPhysicalDevice se_vk_gpu_pick_physical_device(VkInstance instance, VkSu
     se_assert_msg(bestRating != SE_VK_INVALID_DEVICE_RATING, "Unable to pick physical device");
     VkPhysicalDevice device = available[bestDeviceIndex];
     *featuresToEnable = features[bestDeviceIndex];
-    se_sbuffer_destroy(features);
-    se_sbuffer_destroy(ratings);
-    se_sbuffer_destroy(available);
+    dynamic_array::destroy(features);
+    dynamic_array::destroy(ratings);
+    dynamic_array::destroy(available);
     return device;
 }
 
@@ -128,7 +129,7 @@ static void se_vk_device_swap_chain_create(SeVkDevice* device, SeWindowHandle wi
     {
         const uint32_t windowWidth = g_windowIface->get_width(window);
         const uint32_t windowHeight = g_windowIface->get_height(window);;
-        SeVkSwapChainSupportDetails supportDetails = se_vk_utils_create_swap_chain_support_details(device->surface, device->gpu.physicalHandle, memoryManager->cpu_frameAllocator);
+        SeVkSwapChainSupportDetails supportDetails = se_vk_utils_create_swap_chain_support_details(device->surface, device->gpu.physicalHandle, *memoryManager->cpu_frameAllocator);
         VkSurfaceFormatKHR  surfaceFormat   = se_vk_utils_choose_swap_chain_surface_format(supportDetails.formats);
         VkPresentModeKHR    presentMode     = se_vk_utils_choose_swap_chain_surface_present_mode(supportDetails.presentModes);
         VkExtent2D          extent          = se_vk_utils_choose_swap_chain_extent(windowWidth, windowHeight, &supportDetails.capabilities);
@@ -142,7 +143,7 @@ static void se_vk_device_swap_chain_create(SeVkDevice* device, SeWindowHandle wi
         VkSwapchainCreateInfoKHR swapChainCreateInfo
         {
             .sType                  = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-            .pNext                  = NULL,
+            .pNext                  = nullptr,
             .flags                  = 0,
             .surface                = device->surface,
             .minImageCount          = imageCount,
@@ -171,25 +172,25 @@ static void se_vk_device_swap_chain_create(SeVkDevice* device, SeWindowHandle wi
         se_vk_check(vkCreateSwapchainKHR(device->gpu.logicalHandle, &swapChainCreateInfo, callbacks, &device->swapChain.handle));
         device->swapChain.surfaceFormat = surfaceFormat;
         device->swapChain.extent = extent;
-        se_vk_utils_destroy_swap_chain_support_details(&supportDetails);
+        se_vk_utils_destroy_swap_chain_support_details(supportDetails);
     }
     {
         uint32_t swapChainImageCount;
-        se_vk_check(vkGetSwapchainImagesKHR(device->gpu.logicalHandle, device->swapChain.handle, &swapChainImageCount, NULL));
+        se_vk_check(vkGetSwapchainImagesKHR(device->gpu.logicalHandle, device->swapChain.handle, &swapChainImageCount, nullptr));
         se_assert(swapChainImageCount < SE_VK_MAX_SWAP_CHAIN_IMAGES);
         se_assert(allocateNewTextures || swapChainImageCount == device->swapChain.numTextures);
-        se_sbuffer(VkImage) swapChainImageHandles = {0};
-        se_sbuffer_construct(swapChainImageHandles, swapChainImageCount, memoryManager->cpu_frameAllocator);
-        se_sbuffer_set_size(swapChainImageHandles, swapChainImageCount);
+        DynamicArray<VkImage> swapChainImageHandles;
+        dynamic_array::construct(swapChainImageHandles, *memoryManager->cpu_frameAllocator, swapChainImageCount);
+        dynamic_array::force_set_size(swapChainImageHandles, swapChainImageCount);
         // It seems like this vkGetSwapchainImagesKHR call leaks memory
-        se_vk_check(vkGetSwapchainImagesKHR(device->gpu.logicalHandle, device->swapChain.handle, &swapChainImageCount, swapChainImageHandles));
+        se_vk_check(vkGetSwapchainImagesKHR(device->gpu.logicalHandle, device->swapChain.handle, &swapChainImageCount, dynamic_array::raw(swapChainImageHandles)));
         for (uint32_t it = 0; it < swapChainImageCount; it++)
         {
             VkImageView view = VK_NULL_HANDLE;
             VkImageViewCreateInfo imageViewCreateInfo
             {
                 .sType              = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                .pNext              = NULL,
+                .pNext              = nullptr,
                 .flags              = 0,
                 .image              = swapChainImageHandles[it],
                 .viewType           = VK_IMAGE_VIEW_TYPE_2D,
@@ -218,7 +219,7 @@ static void se_vk_device_swap_chain_create(SeVkDevice* device, SeWindowHandle wi
             };
         }
         device->swapChain.numTextures = swapChainImageCount;
-        se_sbuffer_destroy(swapChainImageHandles);
+        dynamic_array::destroy(swapChainImageHandles);
     }
     {
         for (size_t it = 0; it < device->swapChain.numTextures; it++)
@@ -306,12 +307,12 @@ SeDeviceHandle se_vk_device_create(SeDeviceInfo* deviceInfo)
         //
         size_t numValidationLayers = 0;
         const char** validationLayers = se_vk_utils_get_required_validation_layers(&numValidationLayers);
-        se_sbuffer(VkLayerProperties) availableValidationLayers = se_vk_utils_get_available_validation_layers(device->memoryManager.cpu_frameAllocator);
+        DynamicArray<VkLayerProperties> availableValidationLayers = se_vk_utils_get_available_validation_layers(*device->memoryManager.cpu_frameAllocator);
         for (size_t requiredIt = 0; requiredIt < numValidationLayers; requiredIt++)
         {
             const char* requiredLayerName = validationLayers[requiredIt];
             bool isFound = false;
-            for (size_t availableIt = 0; availableIt < se_sbuffer_size(availableValidationLayers); availableIt++)
+            for (size_t availableIt = 0; availableIt < dynamic_array::size(availableValidationLayers); availableIt++)
             {
                 const char* availableLayerName = availableValidationLayers[availableIt].layerName;
                 if (strcmp(availableLayerName, requiredLayerName) == 0)
@@ -322,19 +323,19 @@ SeDeviceHandle se_vk_device_create(SeDeviceInfo* deviceInfo)
             }
             se_assert(isFound && "Required validation layer is not supported");
         }
-        se_sbuffer_destroy(availableValidationLayers);
+        dynamic_array::destroy(availableValidationLayers);
 #endif
         //
         // Check that all instance extensions are supported
         //
         size_t numInstanceExtensions = 0;
         const char** instanceExtensions = se_vk_utils_get_required_instance_extensions(&numInstanceExtensions);
-        se_sbuffer(VkExtensionProperties) availableInstanceExtensions = se_vk_utils_get_available_instance_extensions(device->memoryManager.cpu_frameAllocator);
+        DynamicArray<VkExtensionProperties> availableInstanceExtensions = se_vk_utils_get_available_instance_extensions(*device->memoryManager.cpu_frameAllocator);
         for (size_t requiredIt = 0; requiredIt < numInstanceExtensions; requiredIt++)
         {
             const char* requiredExtensionName = instanceExtensions[requiredIt];
             bool isFound = false;
-            for (size_t availableIt = 0; availableIt < se_sbuffer_size(availableInstanceExtensions); availableIt++)
+            for (size_t availableIt = 0; availableIt < dynamic_array::size(availableInstanceExtensions); availableIt++)
             {
                 const char* availableExtensionName = availableInstanceExtensions[availableIt].extensionName;
                 if (strcmp(availableExtensionName, requiredExtensionName) == 0)
@@ -345,11 +346,11 @@ SeDeviceHandle se_vk_device_create(SeDeviceInfo* deviceInfo)
             }
             se_assert(isFound && "Required instance extension is not supported");
         }
-        se_sbuffer_destroy(availableInstanceExtensions);
+        dynamic_array::destroy(availableInstanceExtensions);
         VkApplicationInfo applicationInfo =
         {
             .sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-            .pNext              = NULL,
+            .pNext              = nullptr,
             .pApplicationName   = "Sabrina Engine App",
             .applicationVersion = VK_MAKE_VERSION(0, 1, 0),
             .pEngineName        = "Sabrina Engine",
@@ -362,7 +363,7 @@ SeDeviceHandle se_vk_device_create(SeDeviceInfo* deviceInfo)
         //          vkCreateInstance and vkDestroyInstance calls. So we have to pass additional
         //          VkDebugUtilsMessengerCreateInfoEXT struct pointer to VkInstanceCreateInfo::pNext
         //          to enable debug of these functions
-        VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo = se_vk_utils_get_debug_messenger_create_info(se_vk_debug_callback, NULL);
+        VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo = se_vk_utils_get_debug_messenger_create_info(se_vk_debug_callback, nullptr);
         VkInstanceCreateInfo instanceCreateInfo =
         {
             .sType                      = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
@@ -378,11 +379,11 @@ SeDeviceHandle se_vk_device_create(SeDeviceInfo* deviceInfo)
         VkInstanceCreateInfo instanceCreateInfo =
         {
             .sType                      = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-            .pNext                      = NULL,
+            .pNext                      = nullptr,
             .flags                      = 0,
             .pApplicationInfo           = &applicationInfo,
             .enabledLayerCount          = 0,
-            .ppEnabledLayerNames        = NULL,
+            .ppEnabledLayerNames        = nullptr,
             .enabledExtensionCount      = (uint32_t)numInstanceExtensions,
             .ppEnabledExtensionNames    = instanceExtensions,
         };
@@ -402,9 +403,9 @@ SeDeviceHandle se_vk_device_create(SeDeviceInfo* deviceInfo)
         VkWin32SurfaceCreateInfoKHR surfaceCreateInfo =
         {
             .sType      = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
-            .pNext      = NULL,
+            .pNext      = nullptr,
             .flags      = 0,
-            .hinstance  = GetModuleHandle(NULL),
+            .hinstance  = GetModuleHandle(nullptr),
             .hwnd       = windowHandle,
         };
         se_vk_check(vkCreateWin32SurfaceKHR(device->instance, &surfaceCreateInfo, callbacks, &device->surface));
@@ -417,12 +418,12 @@ SeDeviceHandle se_vk_device_create(SeDeviceInfo* deviceInfo)
     //
     {
         VkPhysicalDeviceFeatures featuresToEnable = {0};
-        device->gpu.physicalHandle = se_vk_gpu_pick_physical_device(device->instance, device->surface, g_allocatorsIface->frameAllocator, &featuresToEnable);
+        device->gpu.physicalHandle = se_vk_gpu_pick_physical_device(device->instance, device->surface, *g_allocatorsIface->frameAllocator, &featuresToEnable);
         device->gpu.enabledFeatures = featuresToEnable;
         //
         // Get command queue infos
         //
-        se_sbuffer(VkQueueFamilyProperties) familyProperties = se_vk_utils_get_physical_device_queue_family_properties(device->gpu.physicalHandle, g_allocatorsIface->frameAllocator);
+        DynamicArray<VkQueueFamilyProperties> familyProperties = se_vk_utils_get_physical_device_queue_family_properties(device->gpu.physicalHandle, *g_allocatorsIface->frameAllocator);
         uint32_t queuesFamilyIndices[] =
         {
             se_vk_utils_pick_graphics_queue(familyProperties),
@@ -430,7 +431,7 @@ SeDeviceHandle se_vk_device_create(SeDeviceInfo* deviceInfo)
             se_vk_utils_pick_transfer_queue(familyProperties),
             se_vk_utils_pick_compute_queue(familyProperties),
         };
-        se_sbuffer(VkDeviceQueueCreateInfo) queueCreateInfos = se_vk_utils_get_queue_create_infos(queuesFamilyIndices, se_array_size(queuesFamilyIndices), g_allocatorsIface->frameAllocator);
+        DynamicArray<VkDeviceQueueCreateInfo> queueCreateInfos = se_vk_utils_get_queue_create_infos(queuesFamilyIndices, se_array_size(queuesFamilyIndices), *g_allocatorsIface->frameAllocator);
         //
         // Create logical device
         //
@@ -441,10 +442,10 @@ SeDeviceHandle se_vk_device_create(SeDeviceInfo* deviceInfo)
         VkDeviceCreateInfo logicalDeviceCreateInfo =
         {
             .sType                      = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-            .pNext                      = NULL,
+            .pNext                      = nullptr,
             .flags                      = 0,
-            .queueCreateInfoCount       = (uint32_t)se_sbuffer_size(queueCreateInfos),
-            .pQueueCreateInfos          = queueCreateInfos,
+            .queueCreateInfoCount       = (uint32_t)dynamic_array::size(queueCreateInfos),
+            .pQueueCreateInfos          = dynamic_array::raw(queueCreateInfos),
             .enabledLayerCount          = (uint32_t)numValidationLayers,
             .ppEnabledLayerNames        = requiredValidationLayers,
             .enabledExtensionCount      = (uint32_t)numDeviceExtensions,
@@ -455,7 +456,7 @@ SeDeviceHandle se_vk_device_create(SeDeviceInfo* deviceInfo)
         //
         // Create queues
         //
-        for (size_t it = 0; it < se_sbuffer_size(queueCreateInfos); it++)
+        for (size_t it = 0; it < dynamic_array::size(queueCreateInfos); it++)
         {
             SeVkCommandQueue* queue = &device->gpu.commandQueues[it];
             queue->queueFamilyIndex = queueCreateInfos[it].queueFamilyIndex;
@@ -467,8 +468,8 @@ SeDeviceHandle se_vk_device_create(SeDeviceInfo* deviceInfo)
             VkCommandPoolCreateInfo poolCreateInfo = se_vk_utils_command_pool_create_info(queue->queueFamilyIndex, VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
             se_vk_check(vkCreateCommandPool(device->gpu.logicalHandle, &poolCreateInfo, callbacks, &queue->commandPoolHandle));
         }
-        se_sbuffer_destroy(familyProperties);
-        se_sbuffer_destroy(queueCreateInfos);
+        dynamic_array::destroy(familyProperties);
+        dynamic_array::destroy(queueCreateInfos);
         //
         // Get device info
         //
@@ -478,7 +479,7 @@ SeDeviceHandle se_vk_device_create(SeDeviceInfo* deviceInfo)
         VkPhysicalDeviceVulkan12Properties deviceProperties_12 =
         {
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_PROPERTIES,
-            .pNext = NULL
+            .pNext = nullptr
         };
         VkPhysicalDeviceVulkan11Properties deviceProperties_11 =
         {
@@ -540,7 +541,7 @@ void se_vk_device_destroy(SeDeviceHandle _device)
     se_object_pool_for(SeVkPipeline     , &device->memoryManager.pipelinePool       , obj, se_vk_pipeline_destroy(obj));
     se_object_pool_for(SeVkRenderPass   , &device->memoryManager.renderPassPool     , obj, se_vk_render_pass_destroy(obj));
     se_object_pool_for(SeVkProgram      , &device->memoryManager.programPool        , obj, se_vk_program_destroy(obj));
-    for (size_t it = 0; it < se_sbuffer_size(device->memoryManager.commandBufferPools); it++)
+    for (size_t it = 0; it < dynamic_array::size(device->memoryManager.commandBufferPools); it++)
     {
         se_object_pool_for(SeVkCommandBuffer, &device->memoryManager.commandBufferPools[it], obj, se_vk_command_buffer_destroy(obj));
     }

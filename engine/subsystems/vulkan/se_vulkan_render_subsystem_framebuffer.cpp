@@ -39,7 +39,7 @@ void se_vk_framebuffer_construct(SeVkFramebuffer* framebuffer, SeVkFramebufferIn
     VkFramebufferCreateInfo framebufferCreateInfo
     {
         .sType              = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-        .pNext              = NULL,
+        .pNext              = nullptr,
         .flags              = 0,
         .renderPass         = info->pass->handle,
         .attachmentCount    = info->numTextures,

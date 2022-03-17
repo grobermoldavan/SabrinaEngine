@@ -107,7 +107,7 @@ VkPipelineShaderStageCreateInfo se_vk_program_get_shader_stage_create_info(SeVkD
     for (uint32_t it = 0; it < pipelineProgram->numSpecializationConstants; it++)
     {
         const SeSpecializationConstant* constantDesc = &pipelineProgram->constants[it];
-        SsrSpecializationConstant* reflectionConstant = NULL;
+        SsrSpecializationConstant* reflectionConstant = nullptr;
         for (size_t scIt = 0; scIt < reflection->numSpecializationConstants; scIt++)
         {
             SsrSpecializationConstant* candidate = &reflection->specializationConstants[scIt];
@@ -130,7 +130,7 @@ VkPipelineShaderStageCreateInfo se_vk_program_get_shader_stage_create_info(SeVkD
     return
     {
         .sType                  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .pNext                  = NULL,
+        .pNext                  = nullptr,
         .flags                  = 0,
         .stage                  = stage,
         .module                 = program->handle,

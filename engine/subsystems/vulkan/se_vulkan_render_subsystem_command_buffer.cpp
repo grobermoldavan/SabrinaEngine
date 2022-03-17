@@ -35,7 +35,7 @@ void se_vk_command_buffer_construct(SeVkCommandBuffer* buffer, SeVkCommandBuffer
     const VkCommandBufferAllocateInfo allocateInfo =
     {
         .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .pNext              = NULL,
+        .pNext              = nullptr,
         .commandPool        = buffer->pool,
         .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         .commandBufferCount = 1,
@@ -44,23 +44,23 @@ void se_vk_command_buffer_construct(SeVkCommandBuffer* buffer, SeVkCommandBuffer
     const VkSemaphoreCreateInfo semaphoreCreateInfo =
     {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-        .pNext = NULL,
+        .pNext = nullptr,
         .flags = 0,
     };
     se_vk_check(vkCreateSemaphore(logicalHandle, &semaphoreCreateInfo, callbacks, &buffer->semaphore));
     const VkFenceCreateInfo fenceCreateInfo =
     {
         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-        .pNext = NULL,
+        .pNext = nullptr,
         .flags = 0,
     };
     se_vk_check(vkCreateFence(logicalHandle, &fenceCreateInfo, callbacks, &buffer->fence));
     const VkCommandBufferBeginInfo beginInfo =
     {
         .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .pNext              = NULL,
+        .pNext              = nullptr,
         .flags              = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-        .pInheritanceInfo   = NULL,
+        .pInheritanceInfo   = nullptr,
     };
     se_vk_check(vkBeginCommandBuffer(buffer->handle, &beginInfo));
 }
@@ -89,7 +89,7 @@ void se_vk_command_buffer_submit(SeVkCommandBuffer* buffer, SeVkCommandBufferSub
     const VkSubmitInfo submitInfo =
     {
         .sType                  = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .pNext                  = NULL,
+        .pNext                  = nullptr,
         .waitSemaphoreCount     = waitSemaphoreCount,
         .pWaitSemaphores        = waitSemaphores,
         .pWaitDstStageMask      = waitStages,

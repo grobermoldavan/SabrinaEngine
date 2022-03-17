@@ -38,7 +38,7 @@ void se_vk_texture_construct(SeVkTexture* texture, SeVkTextureInfo* info)
         VkImageCreateInfo imageCreateInfo =
         {
             .sType                  = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-            .pNext                  = NULL,
+            .pNext                  = nullptr,
             .flags                  = 0,
             .imageType              = texture->extent.depth > 1 ? VK_IMAGE_TYPE_3D : (texture->extent.height > 1 ? VK_IMAGE_TYPE_2D : VK_IMAGE_TYPE_1D),
             .format                 = texture->format,
@@ -80,7 +80,7 @@ void se_vk_texture_construct(SeVkTexture* texture, SeVkTextureInfo* info)
         VkImageViewCreateInfo viewCreateInfo =
         {
             .sType              = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            .pNext              = NULL,
+            .pNext              = nullptr,
             .flags              = 0,
             .image              = texture->image,
             .viewType           = texture->extent.depth > 1 ? VK_IMAGE_VIEW_TYPE_3D : (texture->extent.height > 1 ? VK_IMAGE_VIEW_TYPE_2D : VK_IMAGE_VIEW_TYPE_1D),

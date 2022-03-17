@@ -14,8 +14,8 @@
 
 struct SeVkDescriptorSetLayoutCreateInfos
 {
-    se_sbuffer(VkDescriptorSetLayoutCreateInfo) createInfos;
-    se_sbuffer(VkDescriptorSetLayoutBinding) bindings;
+    DynamicArray<VkDescriptorSetLayoutCreateInfo> createInfos;
+    DynamicArray<VkDescriptorSetLayoutBinding> bindings;
 };
 
 static size_t g_pipelineIndex = 0;
@@ -67,19 +67,26 @@ static SeVkDescriptorSetLayoutCreateInfos se_vk_pipeline_get_discriptor_set_layo
             if (setBindingMasks[it] & (1 << maskIt)) numBindings += 1;
         }
     }
-    se_sbuffer(VkDescriptorSetLayoutCreateInfo) layoutCreateInfos = NULL;
-    se_sbuffer(VkDescriptorSetLayoutBinding) bindings = NULL;
-    se_sbuffer_construct(layoutCreateInfos, numLayouts, allocator);
-    se_sbuffer_construct_zeroed(bindings, numBindings, allocator);
-    se_sbuffer_set_size(layoutCreateInfos, numLayouts);
-    se_sbuffer_set_size(bindings, numBindings);
+    DynamicArray<VkDescriptorSetLayoutCreateInfo> layoutCreateInfos;
+    DynamicArray<VkDescriptorSetLayoutBinding> bindings;
+    dynamic_array::construct(layoutCreateInfos, *allocator, numLayouts);
+    dynamic_array::construct(bindings, *allocator, numBindings);
     // ~((uint32_t)0) is an unused binding
-    for (size_t it = 0; it < numBindings; it++) bindings[it].binding = ~((uint32_t)0);
+    for (size_t it = 0; it < numBindings; it++)
+    {
+        dynamic_array::push(bindings,
+        {
+            .binding            = ~((uint32_t)0),
+            .descriptorType     = (VkDescriptorType)0,
+            .descriptorCount    = 0,
+            .stageFlags         = (VkShaderStageFlags)0,
+            .pImmutableSamplers = nullptr,
+        });
+    }
     //
     // Set layout create infos
     //
     {
-        size_t layoutCreateInfosIt = 0;
         size_t layoutBindingsIt = 0;
         for (size_t it = 0; it < SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS; it++)
         {
@@ -89,14 +96,14 @@ static SeVkDescriptorSetLayoutCreateInfos se_vk_pipeline_get_discriptor_set_layo
             {
                 if (setBindingMasks[it] & (1 << maskIt)) numBindingsInSet += 1;
             }
-            layoutCreateInfos[layoutCreateInfosIt++] =
+            dynamic_array::push(layoutCreateInfos,
             {
-                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-                .pNext = NULL,
-                .flags = 0,
-                .bindingCount = numBindingsInSet,
-                .pBindings = &bindings[layoutBindingsIt],
-            };
+                .sType          = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+                .pNext          = nullptr,
+                .flags          = 0,
+                .bindingCount   = numBindingsInSet,
+                .pBindings      = &bindings[layoutBindingsIt],
+            });
             layoutBindingsIt += numBindingsInSet;
         }
     }
@@ -128,8 +135,8 @@ static SeVkDescriptorSetLayoutCreateInfos se_vk_pipeline_get_discriptor_set_layo
                 (VkDescriptorType)~0;
             se_assert(uniformDescriptorType != ~0);
             VkDescriptorSetLayoutCreateInfo* layoutCreateInfo = &layoutCreateInfos[uniform->set];
-            const size_t bindingsArrayInitialOffset = layoutCreateInfo->pBindings - bindings;
-            VkDescriptorSetLayoutBinding* binding = NULL;
+            const size_t bindingsArrayInitialOffset = layoutCreateInfo->pBindings - dynamic_array::raw(bindings);
+            VkDescriptorSetLayoutBinding* binding = nullptr;
             for (size_t bindingsIt = 0; bindingsIt < layoutCreateInfo->bindingCount; bindingsIt++)
             {
                 VkDescriptorSetLayoutBinding* candidate = &bindings[bindingsArrayInitialOffset + bindingsIt];
@@ -173,8 +180,8 @@ static SeVkDescriptorSetLayoutCreateInfos se_vk_pipeline_get_discriptor_set_layo
 
 static void se_vk_pipeline_destroy_descriptor_set_layout_create_infos(SeVkDescriptorSetLayoutCreateInfos* infos)
 {
-    se_sbuffer_destroy(infos->createInfos);
-    se_sbuffer_destroy(infos->bindings);
+    dynamic_array::destroy(infos->createInfos);
+    dynamic_array::destroy(infos->bindings);
 }
 
 static void se_vk_pipeline_create_descriptor_sets_and_layout(SeVkPipeline* pipeline, const SimpleSpirvReflection** reflections, size_t numReflections)
@@ -188,7 +195,7 @@ static void se_vk_pipeline_create_descriptor_sets_and_layout(SeVkPipeline* pipel
     //
     {
         SeVkDescriptorSetLayoutCreateInfos layoutCreateInfos = se_vk_pipeline_get_discriptor_set_layout_create_infos(memoryManager->cpu_frameAllocator, reflections, numReflections);
-        pipeline->numDescriptorSetLayouts = se_sbuffer_size(layoutCreateInfos.createInfos);
+        pipeline->numDescriptorSetLayouts = dynamic_array::size(layoutCreateInfos.createInfos);
         for (size_t it = 0; it < pipeline->numDescriptorSetLayouts; it++)
         {
             VkDescriptorSetLayoutCreateInfo* layoutCreateInfo = &layoutCreateInfos.createInfos[it];
@@ -250,7 +257,7 @@ static void se_vk_pipeline_create_descriptor_sets_and_layout(SeVkPipeline* pipel
             layout->poolCreateInfo =
             {
                 .sType          = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-                .pNext          = NULL,
+                .pNext          = nullptr,
                 .flags          = 0,
                 .maxSets        = SE_VK_RENDER_PIPELINE_NUMBER_OF_SETS_IN_POOL,
                 .poolSizeCount  = (uint32_t)layout->numPoolSizes, // @TODO : safe cast
@@ -271,12 +278,12 @@ static void se_vk_pipeline_create_descriptor_sets_and_layout(SeVkPipeline* pipel
         VkPipelineLayoutCreateInfo pipelineLayoutInfo =
         {
             .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-            .pNext                  = NULL,
+            .pNext                  = nullptr,
             .flags                  = 0,
             .setLayoutCount         = (uint32_t)pipeline->numDescriptorSetLayouts, // @TODO : safe cast
             .pSetLayouts            = descriptorSetLayoutHandles,
             .pushConstantRangeCount = 0,
-            .pPushConstantRanges    = NULL,
+            .pPushConstantRanges    = nullptr,
         };
         se_vk_check(vkCreatePipelineLayout(logicalHandle, &pipelineLayoutInfo, callbacks, &pipeline->layout));
     }
@@ -321,7 +328,7 @@ void se_vk_pipeline_graphics_construct(SeVkPipeline* pipeline, SeVkGraphicsPipel
         se_vk_program_get_shader_stage_create_info(device, &info->fragmentProgram, memoryManager->cpu_frameAllocator),
     };
     const VkExtent2D swapChainExtent = se_vk_device_get_swap_chain_extent(device);
-    const VkPipelineVertexInputStateCreateInfo vertexInputInfo = se_vk_utils_vertex_input_state_create_info(0, NULL, 0, NULL);
+    const VkPipelineVertexInputStateCreateInfo vertexInputInfo = se_vk_utils_vertex_input_state_create_info(0, nullptr, 0, nullptr);
     const VkPipelineInputAssemblyStateCreateInfo inputAssembly = se_vk_utils_input_assembly_state_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_FALSE);
     const SeVkViewportScissor viewportScissor = se_vk_utils_default_viewport_scissor(swapChainExtent.width, swapChainExtent.height);
     const VkPipelineViewportStateCreateInfo viewportState = se_vk_utils_viewport_state_create_info(&viewportScissor.viewport, &viewportScissor.scissor);
@@ -336,7 +343,7 @@ void se_vk_pipeline_graphics_construct(SeVkPipeline* pipeline, SeVkGraphicsPipel
     const VkPipelineDepthStencilStateCreateInfo depthStencilState
     {
         .sType                  = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-        .pNext                  = NULL,
+        .pNext                  = nullptr,
         .flags                  = 0,
         .depthTestEnable        = info->isDepthTestEnabled,
         .depthWriteEnable       = info->isDepthWriteEnabled,
@@ -356,13 +363,13 @@ void se_vk_pipeline_graphics_construct(SeVkPipeline* pipeline, SeVkGraphicsPipel
     VkGraphicsPipelineCreateInfo pipelineCreateInfo
     {
         .sType                  = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        .pNext                  = NULL,
+        .pNext                  = nullptr,
         .flags                  = 0,
         .stageCount             = se_array_size(shaderStages),
         .pStages                = shaderStages,
         .pVertexInputState      = &vertexInputInfo,
         .pInputAssemblyState    = &inputAssembly,
-        .pTessellationState     = NULL,
+        .pTessellationState     = nullptr,
         .pViewportState         = &viewportState,
         .pRasterizationState    = &rasterizationState,
         .pMultisampleState      = &multisampleState,
@@ -405,7 +412,7 @@ void se_vk_pipeline_compute_construct(SeVkPipeline* pipeline, SeVkComputePipelin
     VkComputePipelineCreateInfo pipelineCreateInfo
     {
         .sType              = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
-        .pNext              = NULL,
+        .pNext              = nullptr,
         .flags              = 0,
         .stage              = se_vk_program_get_shader_stage_create_info(device, &info->program, memoryManager->cpu_frameAllocator),
         .layout             = pipeline->layout,

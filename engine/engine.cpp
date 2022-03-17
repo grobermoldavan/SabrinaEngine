@@ -9,10 +9,10 @@ static void* se_find_subsystem_interface(SabrinaEngine* engine, const char* name
         if (strcmp(engine->subsystems.subsystemsStorage[i].name, name) == 0)
         {
             SeSubsystemReturnPtrFunc getInterface = engine->subsystems.subsystemsStorage[i].getInterface;
-            return getInterface ? getInterface(engine) : NULL;
+            return getInterface ? getInterface(engine) : nullptr;
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 void se_initialize(SabrinaEngine* engine)

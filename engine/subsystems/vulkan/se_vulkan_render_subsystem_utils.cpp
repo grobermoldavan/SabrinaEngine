@@ -39,25 +39,25 @@ const char** se_vk_utils_get_required_device_extensions(size_t* outNum)
     return DEVICE_EXTENSIONS;
 }
 
-se_sbuffer(VkLayerProperties) se_vk_utils_get_available_validation_layers(SeAllocatorBindings* allocator)
+DynamicArray<VkLayerProperties> se_vk_utils_get_available_validation_layers(SeAllocatorBindings& allocator)
 {
     uint32_t count;
-    se_sbuffer(VkLayerProperties) result = {0};
-    vkEnumerateInstanceLayerProperties(&count, NULL);
-    se_sbuffer_construct(result, count, allocator);
-    vkEnumerateInstanceLayerProperties(&count, result);
-    se_sbuffer_set_size(result, count);
+    DynamicArray<VkLayerProperties> result;
+    vkEnumerateInstanceLayerProperties(&count, nullptr);
+    dynamic_array::construct(result, allocator, count);
+    vkEnumerateInstanceLayerProperties(&count, dynamic_array::raw(result));
+    dynamic_array::force_set_size(result, count);
     return result;
 }
 
-se_sbuffer(VkExtensionProperties) se_vk_utils_get_available_instance_extensions(SeAllocatorBindings* allocator)
+DynamicArray<VkExtensionProperties> se_vk_utils_get_available_instance_extensions(SeAllocatorBindings& allocator)
 {
     uint32_t count;
-    se_sbuffer(VkExtensionProperties) result = {0};
-    vkEnumerateInstanceExtensionProperties(NULL, &count, NULL);
-    se_sbuffer_construct(result, count, allocator);
-    vkEnumerateInstanceExtensionProperties(NULL, &count, result);
-    se_sbuffer_set_size(result, count);
+    DynamicArray<VkExtensionProperties> result;
+    vkEnumerateInstanceExtensionProperties(nullptr, &count, nullptr);
+    dynamic_array::construct(result, allocator, count);
+    vkEnumerateInstanceExtensionProperties(nullptr, &count, dynamic_array::raw(result));
+    dynamic_array::force_set_size(result, count);
     return result;
 }
 
@@ -66,7 +66,7 @@ VkDebugUtilsMessengerCreateInfoEXT se_vk_utils_get_debug_messenger_create_info(P
     return
     {
         .sType              = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-        .pNext              = NULL,
+        .pNext              = nullptr,
         .flags              = 0,
         .messageSeverity    = /*VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |*/ VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
         .messageType        = /*VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |*/ VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
@@ -95,7 +95,7 @@ VkCommandPool se_vk_utils_create_command_pool(VkDevice device, uint32_t queueFam
     VkCommandPoolCreateInfo poolInfo
     {
         .sType              = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-        .pNext              = NULL,
+        .pNext              = nullptr,
         .flags              = flags,
         .queueFamilyIndex   = queueFamilyIndex,
     };
@@ -108,37 +108,37 @@ void se_vk_utils_destroy_command_pool(VkCommandPool pool, VkDevice device, VkAll
     vkDestroyCommandPool(device, pool, callbacks);
 }
 
-SeVkSwapChainSupportDetails se_vk_utils_create_swap_chain_support_details(VkSurfaceKHR surface, VkPhysicalDevice device, SeAllocatorBindings* allocator)
+SeVkSwapChainSupportDetails se_vk_utils_create_swap_chain_support_details(VkSurfaceKHR surface, VkPhysicalDevice device, SeAllocatorBindings& allocator)
 {
     SeVkSwapChainSupportDetails result = {0};
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &result.capabilities);
     uint32_t count;
-    vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &count, NULL);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &count, nullptr);
     if (count != 0)
     {
-        se_sbuffer_construct(result.formats, count, allocator);
-        vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &count, result.formats);
-        se_sbuffer_set_size(result.formats, count);
+        dynamic_array::construct(result.formats, allocator, count);
+        vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &count, dynamic_array::raw(result.formats));
+        dynamic_array::force_set_size(result.formats, count);
     }
-    vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &count, NULL);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &count, nullptr);
     if (count != 0)
     {
-        se_sbuffer_construct(result.presentModes, count, allocator);
-        vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &count, result.presentModes);
-        se_sbuffer_set_size(result.presentModes, count);
+        dynamic_array::construct(result.presentModes, allocator, count);
+        vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &count, dynamic_array::raw(result.presentModes));
+        dynamic_array::force_set_size(result.presentModes, count);
     }
     return result;
 }
 
-void se_vk_utils_destroy_swap_chain_support_details(SeVkSwapChainSupportDetails* details)
+void se_vk_utils_destroy_swap_chain_support_details(SeVkSwapChainSupportDetails& details)
 {
-    se_sbuffer_destroy(details->formats);
-    se_sbuffer_destroy(details->presentModes);
+    dynamic_array::destroy(details.formats);
+    dynamic_array::destroy(details.presentModes);
 }
 
-VkSurfaceFormatKHR se_vk_utils_choose_swap_chain_surface_format(se_sbuffer(VkSurfaceFormatKHR) available)
+VkSurfaceFormatKHR se_vk_utils_choose_swap_chain_surface_format(const DynamicArray<VkSurfaceFormatKHR>& available)
 {
-    for (size_t it = 0; it < se_sbuffer_size(available); it++)
+    for (size_t it = 0; it < dynamic_array::size(available); it++)
     {
         if (available[it].format == /*VK_FORMAT_B8G8R8A8_SRGB*/ VK_FORMAT_R8G8B8A8_SRGB && available[it].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
         {
@@ -148,9 +148,9 @@ VkSurfaceFormatKHR se_vk_utils_choose_swap_chain_surface_format(se_sbuffer(VkSur
     return available[0];
 }
 
-VkPresentModeKHR se_vk_utils_choose_swap_chain_surface_present_mode(se_sbuffer(VkPresentModeKHR) available)
+VkPresentModeKHR se_vk_utils_choose_swap_chain_surface_present_mode(const DynamicArray<VkPresentModeKHR>& available)
 {
-    for (size_t it = 0; it < se_sbuffer_size(available); it++)
+    for (size_t it = 0; it < dynamic_array::size(available); it++)
     {
         if (available[it] == VK_PRESENT_MODE_MAILBOX_KHR)
         {
@@ -176,9 +176,9 @@ VkExtent2D se_vk_utils_choose_swap_chain_extent(uint32_t windowWidth, uint32_t w
     }
 }
 
-uint32_t se_vk_utils_pick_graphics_queue(se_sbuffer(VkQueueFamilyProperties) familyProperties)
+uint32_t se_vk_utils_pick_graphics_queue(const DynamicArray<VkQueueFamilyProperties>& familyProperties)
 {
-    for (uint32_t it = 0; it < se_sbuffer_size(familyProperties); it++)
+    for (uint32_t it = 0; it < dynamic_array::size(familyProperties); it++)
     {
         if (familyProperties[it].queueFlags & VK_QUEUE_GRAPHICS_BIT)
         {
@@ -188,9 +188,9 @@ uint32_t se_vk_utils_pick_graphics_queue(se_sbuffer(VkQueueFamilyProperties) fam
     return SE_VK_INVALID_QUEUE;
 }
 
-uint32_t se_vk_utils_pick_present_queue(se_sbuffer(VkQueueFamilyProperties) familyProperties, VkPhysicalDevice device, VkSurfaceKHR surface)
+uint32_t se_vk_utils_pick_present_queue(const DynamicArray<VkQueueFamilyProperties>& familyProperties, VkPhysicalDevice device, VkSurfaceKHR surface)
 {
-    for (uint32_t it = 0; it < se_sbuffer_size(familyProperties); it++)
+    for (uint32_t it = 0; it < dynamic_array::size(familyProperties); it++)
     {
         VkBool32 isSupported;
         vkGetPhysicalDeviceSurfaceSupportKHR(device, it, surface, &isSupported);
@@ -202,9 +202,9 @@ uint32_t se_vk_utils_pick_present_queue(se_sbuffer(VkQueueFamilyProperties) fami
     return SE_VK_INVALID_QUEUE;
 }
 
-uint32_t se_vk_utils_pick_transfer_queue(se_sbuffer(VkQueueFamilyProperties) familyProperties)
+uint32_t se_vk_utils_pick_transfer_queue(const DynamicArray<VkQueueFamilyProperties>& familyProperties)
 {
-    for (uint32_t it = 0; it < se_sbuffer_size(familyProperties); it++)
+    for (uint32_t it = 0; it < dynamic_array::size(familyProperties); it++)
     {
         if (familyProperties[it].queueFlags & VK_QUEUE_TRANSFER_BIT)
         {
@@ -214,9 +214,9 @@ uint32_t se_vk_utils_pick_transfer_queue(se_sbuffer(VkQueueFamilyProperties) fam
     return SE_VK_INVALID_QUEUE;
 }
 
-uint32_t se_vk_utils_pick_compute_queue(se_sbuffer(VkQueueFamilyProperties) familyProperties)
+uint32_t se_vk_utils_pick_compute_queue(const DynamicArray<VkQueueFamilyProperties>& familyProperties)
 {
-    for (uint32_t it = 0; it < se_sbuffer_size(familyProperties); it++)
+    for (uint32_t it = 0; it < dynamic_array::size(familyProperties); it++)
     {
         if (familyProperties[it].queueFlags & VK_QUEUE_COMPUTE_BIT)
         {
@@ -226,7 +226,7 @@ uint32_t se_vk_utils_pick_compute_queue(se_sbuffer(VkQueueFamilyProperties) fami
     return SE_VK_INVALID_QUEUE;
 }
 
-se_sbuffer(VkDeviceQueueCreateInfo) se_vk_utils_get_queue_create_infos(uint32_t* queues, size_t numQueues, SeAllocatorBindings* allocator)
+DynamicArray<VkDeviceQueueCreateInfo> se_vk_utils_get_queue_create_infos(uint32_t* queues, size_t numQueues, SeAllocatorBindings& allocator)
 {
     // @NOTE :  this is possible that queue family might support more than one of the required features,
     //          so we have to remove duplicates from queueFamiliesInfo and create VkDeviceQueueCreateInfos
@@ -250,21 +250,20 @@ se_sbuffer(VkDeviceQueueCreateInfo) se_vk_utils_get_queue_create_infos(uint32_t*
             indicesArray[numUniqueIndices++] = queues[it];
         }
     }
-    se_sbuffer(VkDeviceQueueCreateInfo) result = {0};
-    se_sbuffer_construct(result, numUniqueIndices, allocator);
+    DynamicArray<VkDeviceQueueCreateInfo> result;
+    dynamic_array::construct(result, allocator, numUniqueIndices);
     for (size_t it = 0; it < numUniqueIndices; it++)
     {
-        result[it] =
+        dynamic_array::push(result,
         {
             .sType              = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-            .pNext              = NULL,
+            .pNext              = nullptr,
             .flags              = 0,
             .queueFamilyIndex   = indicesArray[it],
             .queueCount         = 1,
             .pQueuePriorities   = &QUEUE_DEFAULT_PRIORITY,
-        };
+        });
     }
-    se_sbuffer_set_size(result, numUniqueIndices);
     return result;
 }
 
@@ -273,7 +272,7 @@ VkCommandPoolCreateInfo se_vk_utils_command_pool_create_info(uint32_t queueFamil
     return
     {
         .sType              = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-        .pNext              = NULL,
+        .pNext              = nullptr,
         .flags              = flags,
         .queueFamilyIndex   = queueFamilyIndex,
     };
@@ -307,44 +306,44 @@ bool se_vk_utils_pick_depth_stencil_format(VkPhysicalDevice physicalDevice, VkFo
     return false;
 }
 
-se_sbuffer(VkPhysicalDevice) se_vk_utils_get_available_physical_devices(VkInstance instance, SeAllocatorBindings* allocator)
+DynamicArray<VkPhysicalDevice> se_vk_utils_get_available_physical_devices(VkInstance instance, SeAllocatorBindings& allocator)
 {
     uint32_t count;
-    se_sbuffer(VkPhysicalDevice) result = {0};
-    vkEnumeratePhysicalDevices(instance, &count, NULL);
-    se_sbuffer_construct(result, count, allocator);
-    vkEnumeratePhysicalDevices(instance, &count, result);
-    se_sbuffer_set_size(result, count);
+    DynamicArray<VkPhysicalDevice> result;
+    vkEnumeratePhysicalDevices(instance, &count, nullptr);
+    dynamic_array::construct(result, allocator, count);
+    vkEnumeratePhysicalDevices(instance, &count, dynamic_array::raw(result));
+    dynamic_array::force_set_size(result, count);
     return result;
 };
 
-se_sbuffer(VkQueueFamilyProperties) se_vk_utils_get_physical_device_queue_family_properties(VkPhysicalDevice physicalDevice, SeAllocatorBindings* allocator)
+DynamicArray<VkQueueFamilyProperties> se_vk_utils_get_physical_device_queue_family_properties(VkPhysicalDevice physicalDevice, SeAllocatorBindings& allocator)
 {
     uint32_t count;
-    se_sbuffer(VkQueueFamilyProperties) familyProperties;
-    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &count, NULL);
-    se_sbuffer_construct(familyProperties, count, allocator);
-    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &count, familyProperties);
-    se_sbuffer_set_size(familyProperties, count);
+    DynamicArray<VkQueueFamilyProperties> familyProperties;
+    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &count, nullptr);
+    dynamic_array::construct(familyProperties, allocator, count);
+    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &count, dynamic_array::raw(familyProperties));
+    dynamic_array::force_set_size(familyProperties, count);
     return familyProperties;
 }
 
-bool se_vk_utils_does_physical_device_supports_required_extensions(VkPhysicalDevice device, const char** extensions, size_t numExtensions, SeAllocatorBindings* allocator)
+bool se_vk_utils_does_physical_device_supports_required_extensions(VkPhysicalDevice device, const char** extensions, size_t numExtensions, SeAllocatorBindings& allocator)
 {
     uint32_t count;
     VkPhysicalDeviceFeatures feat = {0};
     vkGetPhysicalDeviceFeatures(device, &feat);
-    vkEnumerateDeviceExtensionProperties(device, NULL, &count, NULL);
-    se_sbuffer(VkExtensionProperties) availableExtensions = {0};
-    se_sbuffer_construct(availableExtensions, count, allocator);
-    se_sbuffer_set_size(availableExtensions, count);
-    vkEnumerateDeviceExtensionProperties(device, NULL, &count, availableExtensions);
+    vkEnumerateDeviceExtensionProperties(device, nullptr, &count, nullptr);
+    DynamicArray<VkExtensionProperties> availableExtensions;
+    dynamic_array::construct(availableExtensions, allocator, count);
+    vkEnumerateDeviceExtensionProperties(device, nullptr, &count, dynamic_array::raw(availableExtensions));
+    dynamic_array::force_set_size(availableExtensions, count);
     bool isRequiredExtensionAvailable;
     bool result = true;
     for (size_t requiredIt = 0; requiredIt < numExtensions; requiredIt++)
     {
         isRequiredExtensionAvailable = false;
-        for (size_t availableIt = 0; availableIt < se_sbuffer_size(availableExtensions); availableIt++)
+        for (size_t availableIt = 0; availableIt < dynamic_array::size(availableExtensions); availableIt++)
         {
             if (strcmp(availableExtensions[availableIt].extensionName, extensions[requiredIt]) == 0)
             {
@@ -358,7 +357,7 @@ bool se_vk_utils_does_physical_device_supports_required_extensions(VkPhysicalDev
             break;
         }
     }
-    se_sbuffer_destroy(availableExtensions);
+    dynamic_array::destroy(availableExtensions);
     return result;
 };
 
@@ -384,7 +383,7 @@ VkCommandBuffer se_vk_utils_create_command_buffer(VkDevice device, VkCommandPool
     VkCommandBufferAllocateInfo allocInfo
     {
         .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .pNext              = NULL,
+        .pNext              = nullptr,
         .commandPool        = pool,
         .level              = level,
         .commandBufferCount = 1,
@@ -398,7 +397,7 @@ VkShaderModule se_vk_utils_create_shader_module(VkDevice device, const uint32_t*
     VkShaderModuleCreateInfo createInfo
     {
         .sType      = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .pNext      = NULL,
+        .pNext      = nullptr,
         .flags      = 0,
         .codeSize   = bytecodeSize,
         .pCode      = bytecode,
@@ -559,7 +558,7 @@ VkPipelineVertexInputStateCreateInfo se_vk_utils_vertex_input_state_create_info(
     return
     {
         .sType                              = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .pNext                              = NULL,
+        .pNext                              = nullptr,
         .flags                              = 0,
         .vertexBindingDescriptionCount      = bindingsCount,
         .pVertexBindingDescriptions         = bindingDescs,
@@ -573,7 +572,7 @@ VkPipelineInputAssemblyStateCreateInfo se_vk_utils_input_assembly_state_create_i
     return
     {
         .sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        .pNext                  = NULL,
+        .pNext                  = nullptr,
         .flags                  = 0,
         .topology               = topology,
         .primitiveRestartEnable = primitiveRestartEnable,
@@ -604,7 +603,7 @@ VkPipelineViewportStateCreateInfo se_vk_utils_viewport_state_create_info(const V
     return
     {
         .sType          = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-        .pNext          = NULL,
+        .pNext          = nullptr,
         .flags          = 0,
         .viewportCount  = 1,
         .pViewports     = viewport,
@@ -618,7 +617,7 @@ VkPipelineRasterizationStateCreateInfo se_vk_utils_rasterization_state_create_in
     return
     {
         .sType                      = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-        .pNext                      = NULL,
+        .pNext                      = nullptr,
         .flags                      = 0,
         .depthClampEnable           = VK_FALSE,
         .rasterizerDiscardEnable    = VK_FALSE,
@@ -638,12 +637,12 @@ VkPipelineMultisampleStateCreateInfo se_vk_utils_multisample_state_create_info(V
     return
     {
         .sType                  = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .pNext                  = NULL,
+        .pNext                  = nullptr,
         .flags                  = 0,
         .rasterizationSamples   = resterizationSamples,
         .sampleShadingEnable    = VK_FALSE,
         .minSampleShading       = 1.0f,
-        .pSampleMask            = NULL,
+        .pSampleMask            = nullptr,
         .alphaToCoverageEnable  = VK_FALSE,
         .alphaToOneEnable       = VK_FALSE,
     };
@@ -654,7 +653,7 @@ VkPipelineColorBlendStateCreateInfo se_vk_utils_color_blending_create_info(VkPip
     return
     {
         .sType              = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-        .pNext              = NULL,
+        .pNext              = nullptr,
         .flags              = 0,
         .logicOpEnable      = VK_FALSE,
         .logicOp            = VK_LOGIC_OP_COPY, // optional if logicOpEnable == VK_FALSE
@@ -674,7 +673,7 @@ VkPipelineDynamicStateCreateInfo se_vk_utils_dynamic_state_default_create_info()
     return
     {
         .sType              = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-        .pNext              = NULL,
+        .pNext              = nullptr,
         .flags              = 0,
         .dynamicStateCount  = se_array_size(dynamicStates),
         .pDynamicStates     = dynamicStates,

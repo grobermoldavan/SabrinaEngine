@@ -103,9 +103,9 @@ static void destroy_windows()
 static SeWindowWin32* win32_get_new_window()
 {
     for (size_t i = 0; i < se_array_size(g_windowPool); i++)
-        if (g_windowPool[i].handle == NULL)
+        if (g_windowPool[i].handle == nullptr)
             return &g_windowPool[i];
-    return NULL;
+    return nullptr;
 }
 
 static SeWindowHandle win32_window_create(SeWindowSubsystemCreateInfo* createInfo)
@@ -113,13 +113,13 @@ static SeWindowHandle win32_window_create(SeWindowSubsystemCreateInfo* createInf
     SeWindowWin32* window = win32_get_new_window();
     memset(window, 0, sizeof(SeWindowWin32));
 
-    HMODULE moduleHandle = GetModuleHandle(NULL);
+    HMODULE moduleHandle = GetModuleHandle(nullptr);
 
     WNDCLASSA wc = {0};
     wc.lpfnWndProc      = win32_window_proc;
     wc.hInstance        = moduleHandle;
     wc.lpszClassName    = createInfo->name;
-    wc.hCursor          = LoadCursor(NULL, IDC_ARROW);
+    wc.hCursor          = LoadCursor(nullptr, IDC_ARROW);
 
     const bool isClassRegistered = RegisterClassA(&wc);
     // al_assert(isClassRegistered);
@@ -153,10 +153,10 @@ static SeWindowHandle win32_window_create(SeWindowSubsystemCreateInfo* createInf
         CW_USEDEFAULT,      // Position Y
         targetWidth,        // Size X
         targetHeight,       // Size Y
-        NULL,               // Parent window
-        NULL,               // Menu
+        nullptr,               // Parent window
+        nullptr,               // Menu
         moduleHandle,       // Instance handle
-        NULL                // Additional application data
+        nullptr                // Additional application data
     );
     // al_assert(window->handle);
     if (!createInfo->isFullscreen)
@@ -175,7 +175,7 @@ static SeWindowHandle win32_window_create(SeWindowSubsystemCreateInfo* createInf
         int windowWidth = windowRect.right - windowRect.left;
         int windowHeight = windowRect.bottom - windowRect.top;
         // Set new window size based on calculated diff
-        bool setWindowPosResult = SetWindowPos(window->handle, NULL, windowRect.left, windowRect.top, windowWidth + widthDiff, windowHeight + heightDiff, SWP_NOMOVE | SWP_NOZORDER);
+        bool setWindowPosResult = SetWindowPos(window->handle, nullptr, windowRect.left, windowRect.top, windowWidth + widthDiff, windowHeight + heightDiff, SWP_NOMOVE | SWP_NOZORDER);
         se_assert(setWindowPosResult);
         // Retrieve resulting size
         getClientRectResult = GetClientRect(window->handle, &clientRect);
@@ -260,7 +260,7 @@ static void win32_window_process(SeWindowWin32* window)
     const uint32_t prevHeight = window->height;
     window->input.mouseWheel = 0;
     MSG msg = {0};
-    while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+    while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
     {
         TranslateMessage(&msg);
         DispatchMessage(&msg);

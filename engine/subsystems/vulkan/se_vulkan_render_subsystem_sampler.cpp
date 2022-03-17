@@ -36,7 +36,7 @@ void se_vk_sampler_construct(SeVkSampler* sampler, SeVkSamplerInfo* info)
     VkSamplerCreateInfo samplerCreateInfo
     {
         .sType                      = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-        .pNext                      = NULL,
+        .pNext                      = nullptr,
         .flags                      = 0,
         .magFilter                  = info->magFilter,
         .minFilter                  = info->minFilter,

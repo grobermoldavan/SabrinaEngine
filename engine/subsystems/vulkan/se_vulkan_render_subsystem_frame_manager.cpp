@@ -22,7 +22,7 @@ void se_vk_frame_manager_construct(SeVkFrameManager* manager, SeVkFrameManagerCr
             .scratchBuffer              = se_object_pool_take(SeVkMemoryBuffer, &createInfo->device->memoryManager.memoryBufferPool),
             .scratchBufferTop           = 0,
             .imageAvailableSemaphore    = VK_NULL_HANDLE,
-            .lastBuffer                 = NULL,
+            .lastBuffer                 = nullptr,
         };
         SeVkMemoryBufferInfo bufferInfo
         {
@@ -38,7 +38,7 @@ void se_vk_frame_manager_construct(SeVkFrameManager* manager, SeVkFrameManagerCr
         const VkSemaphoreCreateInfo semaphoreCreateInfo
         {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-            .pNext = NULL,
+            .pNext = nullptr,
             .flags = 0,
         };
         se_vk_check(vkCreateSemaphore(logicalHandle, &semaphoreCreateInfo, callbacks, &frame->imageAvailableSemaphore));
@@ -77,7 +77,7 @@ SeVkMemoryBufferView se_vk_frame_manager_alloc_scratch_buffer(SeVkFrameManager* 
         .buffer         = frame->scratchBuffer,
         .offset         = frame->scratchBufferTop,
         .size           = size,
-        .mappedMemory   = frame->scratchBuffer->memory.mappedMemory ? ((char*)frame->scratchBuffer->memory.mappedMemory) + frame->scratchBufferTop : NULL,
+        .mappedMemory   = frame->scratchBuffer->memory.mappedMemory ? ((char*)frame->scratchBuffer->memory.mappedMemory) + frame->scratchBufferTop : nullptr,
     };
     frame->scratchBufferTop += size;
     return view;

@@ -27,7 +27,7 @@ void se_vk_memory_buffer_construct(SeVkMemoryBuffer* buffer, SeVkMemoryBufferInf
     VkBufferCreateInfo bufferCreateInfo
     {
         .sType                  = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .pNext                  = NULL,
+        .pNext                  = nullptr,
         .flags                  = 0,
         .size                   = info->size,
         .usage                  = info->usage,

@@ -101,11 +101,11 @@ void se_vk_graph_construct(SeVkGraph* graph, SeVkGraphInfo* info)
     {
         .device                     = info->device,
         .context                    = SE_VK_GRAPH_CONTEXT_TYPE_BETWEEN_FRAMES,
-        .textureInfos               = NULL,
-        .passes                     = NULL,
-        .graphicsPipelineInfos      = NULL,
-        .computePipelineInfos       = NULL,
-        .scratchBufferViews         = NULL,
+        .textureInfos               = { },
+        .passes                     = { },
+        .graphicsPipelineInfos      = { },
+        .computePipelineInfos       = { },
+        .scratchBufferViews         = { },
         .textureUsageCountTable     = {0},
         .textureTable               = {0},
         .programTable               = {0},
@@ -115,6 +115,12 @@ void se_vk_graph_construct(SeVkGraph* graph, SeVkGraphInfo* info)
         .computePipelineTable       = {0},
         .samplerTable               = {0},
     };
+    const size_t INITIAL_CAPACITY = 32;
+    dynamic_array::construct(graph->textureInfos            , *memoryManager->cpu_frameAllocator, INITIAL_CAPACITY);
+    dynamic_array::construct(graph->passes                  , *memoryManager->cpu_frameAllocator, INITIAL_CAPACITY);
+    dynamic_array::construct(graph->graphicsPipelineInfos   , *memoryManager->cpu_frameAllocator, INITIAL_CAPACITY);
+    dynamic_array::construct(graph->computePipelineInfos    , *memoryManager->cpu_frameAllocator, INITIAL_CAPACITY);
+    dynamic_array::construct(graph->scratchBufferViews      , *memoryManager->cpu_frameAllocator, INITIAL_CAPACITY);
     {
         SeHashTableCreateInfo ci{ memoryManager->cpu_persistentAllocator, sizeof(SeVkTextureInfo), sizeof(size_t), 32 };
         se_hash_table_construct(&graph->textureUsageCountTable, &ci);
@@ -158,11 +164,11 @@ void se_vk_graph_destroy(SeVkGraph* graph)
     VkDevice logicalHandle = se_vk_device_get_logical_handle(graph->device);
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(&graph->device->memoryManager);
 
-    if (graph->textureInfos)            se_sbuffer_destroy(graph->textureInfos);
-    if (graph->passes)                  se_sbuffer_destroy(graph->passes);
-    if (graph->graphicsPipelineInfos)   se_sbuffer_destroy(graph->graphicsPipelineInfos);
-    if (graph->computePipelineInfos)    se_sbuffer_destroy(graph->computePipelineInfos);
-    if (graph->scratchBufferViews)      se_sbuffer_destroy(graph->scratchBufferViews);
+    dynamic_array::destroy(graph->textureInfos);
+    dynamic_array::destroy(graph->passes);
+    dynamic_array::destroy(graph->graphicsPipelineInfos);
+    dynamic_array::destroy(graph->computePipelineInfos);
+    dynamic_array::destroy(graph->scratchBufferViews);
     se_hash_table_destroy(&graph->textureUsageCountTable);
     se_hash_table_destroy(&graph->textureTable);
     se_hash_table_destroy(&graph->programTable);
@@ -188,13 +194,6 @@ void se_vk_graph_begin_frame(SeVkGraph* graph)
     SeVkFrameManager* frameManager = &graph->device->frameManager;
     const size_t currentFrame = frameManager->frameNumber;
     const size_t frameIndex = se_vk_frame_manager_get_active_frame_index(frameManager);
-
-    const size_t INITIAL_CAPACITY = 32;
-    se_sbuffer_construct(graph->textureInfos            , INITIAL_CAPACITY, memoryManager->cpu_frameAllocator);
-    se_sbuffer_construct(graph->passes                  , INITIAL_CAPACITY, memoryManager->cpu_frameAllocator);
-    se_sbuffer_construct(graph->graphicsPipelineInfos   , INITIAL_CAPACITY, memoryManager->cpu_frameAllocator);
-    se_sbuffer_construct(graph->computePipelineInfos    , INITIAL_CAPACITY, memoryManager->cpu_frameAllocator);
-    se_sbuffer_construct(graph->scratchBufferViews      , INITIAL_CAPACITY, memoryManager->cpu_frameAllocator);
 
     se_hash_table_reset(&graph->textureUsageCountTable);
     const size_t OBJECT_LIFETIME = 5;
@@ -292,9 +291,9 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
     // Textures
     //
 
-    const size_t numTextureInfos = se_sbuffer_size(graph->textureInfos);
-    se_sbuffer(SeVkTexture*) frameTextures = NULL;
-    se_sbuffer_construct(frameTextures, numTextureInfos, memoryManager->cpu_frameAllocator);
+    const size_t numTextureInfos = dynamic_array::size(graph->textureInfos);
+    DynamicArray<SeVkTexture*> frameTextures;
+    dynamic_array::construct(frameTextures, *memoryManager->cpu_frameAllocator, numTextureInfos);
     for (size_t it = 0; it < numTextureInfos; it++)
     {
         SeVkTextureInfo* info = &graph->textureInfos[it];
@@ -321,23 +320,23 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
         }
         texture->lastFrame = frameManager->frameNumber;
         *usageCount += 1;
-        se_sbuffer_push(frameTextures, texture->handle);
+        dynamic_array::push(frameTextures, texture->handle);
     }
 
     //
     // Render passes
     //
 
-    const size_t numPasses = se_sbuffer_size(graph->passes);
-    se_sbuffer(SeVkRenderPass*) frameRenderPasses = NULL;
-    se_sbuffer_construct(frameRenderPasses, numPasses, memoryManager->cpu_frameAllocator);
+    const size_t numPasses = dynamic_array::size(graph->passes);
+    DynamicArray<SeVkRenderPass*> frameRenderPasses;
+    dynamic_array::construct(frameRenderPasses, *memoryManager->cpu_frameAllocator, numPasses);
     for (size_t it = 0; it < numPasses; it++)
     {
         const SeVkType pipelineType = se_vk_ref_type(graph->passes[it].info.pipeline);
         se_assert((pipelineType == SE_VK_TYPE_GRAPHICS_PIPELINE) || (pipelineType == SE_VK_TYPE_COMPUTE_PIPELINE));
         if (pipelineType == SE_VK_TYPE_COMPUTE_PIPELINE)
         {
-            se_sbuffer_push(frameRenderPasses, NULL);
+            dynamic_array::push(frameRenderPasses, nullptr);
         }
         else
         {
@@ -355,7 +354,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
                 pass = se_hash_table_set(SeVkRenderPassInfo, __SE_VK_GRAPH_TIMED(SeVkRenderPass), &graph->renderPassTable, hash, info, &newPass);
             }
             pass->lastFrame = frameManager->frameNumber;
-            se_sbuffer_push(frameRenderPasses, pass->handle);
+            dynamic_array::push(frameRenderPasses, pass->handle);
         }
     }
 
@@ -363,13 +362,13 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
     // Framebuffers
     //
 
-    se_sbuffer(SeVkFramebuffer*) frameFramebuffers = NULL;
-    se_sbuffer_construct(frameFramebuffers, numPasses, memoryManager->cpu_frameAllocator);
+    DynamicArray<SeVkFramebuffer*> frameFramebuffers;
+    dynamic_array::construct(frameFramebuffers, *memoryManager->cpu_frameAllocator, numPasses);
     for (size_t it = 0; it < numPasses; it++)
     {
         if (se_vk_ref_type(graph->passes[it].info.pipeline) == SE_VK_TYPE_COMPUTE_PIPELINE)
         {
-            se_sbuffer_push(frameFramebuffers, NULL);
+            dynamic_array::push(frameFramebuffers, nullptr);
         }
         else
         {
@@ -415,7 +414,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
                 framebuffer = se_hash_table_set(SeVkFramebufferInfo, __SE_VK_GRAPH_TIMED(SeVkFramebuffer), &graph->framebufferTable, hash, &info, &newFramebuffer);
             }
             framebuffer->lastFrame = frameManager->frameNumber;
-            se_sbuffer_push(frameFramebuffers, framebuffer->handle);
+            dynamic_array::push(frameFramebuffers, framebuffer->handle);
         }
     }
 
@@ -423,11 +422,11 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
     // Pipelines
     //
 
-    se_sbuffer(SeVkPipeline*) framePipelines = NULL;
-    se_sbuffer_construct(framePipelines, numPasses, memoryManager->cpu_frameAllocator);
+    DynamicArray<SeVkPipeline*> framePipelines;
+    dynamic_array::construct(framePipelines, *memoryManager->cpu_frameAllocator, numPasses);
     for (size_t it = 0; it < numPasses; it++)
     {
-        SeVkPipeline* pipeline = NULL;
+        SeVkPipeline* pipeline = nullptr;
         if (se_vk_ref_type(graph->passes[it].info.pipeline) == SE_VK_TYPE_COMPUTE_PIPELINE)
         {
             se_assert(!"todo");
@@ -488,7 +487,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
             pipeline = pipelineTimed->handle;
         }
         se_assert(pipeline);
-        se_sbuffer_push(framePipelines, pipeline);
+        dynamic_array::push(framePipelines, pipeline);
     }
 
     //
@@ -510,7 +509,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
         ));
     }
 
-    se_assert(frameIndex < se_sbuffer_size(memoryManager->commandBufferPools));
+    se_assert(frameIndex < dynamic_array::size(memoryManager->commandBufferPools));
     SeObjectPool* cmdPool = &memoryManager->commandBufferPools[frameIndex];
     se_object_pool_for(SeVkCommandBuffer, cmdPool, cmd, se_vk_command_buffer_destroy(cmd));
     se_object_pool_reset(cmdPool);
@@ -537,7 +536,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
         queuePresentDependencies |= 1ull << it;
         SeVkGraphPass* graphPass = &graph->passes[it];
         SeVkPipeline* pipeline = framePipelines[it];
-        SeVkGraphDescriptorPoolArray* descriptorPools = NULL;
+        SeVkGraphDescriptorPoolArray* descriptorPools = nullptr;
         {
             SeVkGraphPipelineWithFrame pipelineWithFrame
             {
@@ -585,7 +584,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
                     imageBarriers[numImageBarriers++] =
                     {
                         .sType                  = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-                        .pNext                  = NULL,
+                        .pNext                  = nullptr,
                         .srcAccessMask          = se_vk_utils_image_layout_to_access_flags(texture->currentLayout),
                         .dstAccessMask          = se_vk_utils_image_layout_to_access_flags(initialLayout),
                         .oldLayout              = texture->currentLayout,
@@ -609,9 +608,9 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
                     dstPipelineStageFlags,
                     0,
                     0,
-                    NULL,
+                    nullptr,
                     0,
-                    NULL,
+                    nullptr,
                     numImageBarriers,
                     imageBarriers
                 );
@@ -635,7 +634,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
             VkRenderPassBeginInfo beginInfo
             {
                 .sType              = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-                .pNext              = NULL,
+                .pNext              = nullptr,
                 .renderPass         = renderPass->handle,
                 .framebuffer        = framebuffer->handle,
                 .renderArea         = { { 0, 0 }, framebuffer->extent },
@@ -648,7 +647,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
         //
         // Record commands
         //
-        const size_t numCommands = se_sbuffer_size(graphPass->commands);
+        const size_t numCommands = dynamic_array::size(graphPass->commands);
         for (size_t cmdIt = 0; cmdIt < numCommands; cmdIt++)
         {
             SeVkGraphCommand* command = &graphPass->commands[cmdIt];
@@ -674,7 +673,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
                     //
                     VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
                     {
-                        SeVkGraphDescriptorPool* pool = NULL;
+                        SeVkGraphDescriptorPool* pool = nullptr;
                         for (size_t poolIt = 0; poolIt < descriptorPools->numPools; poolIt++)
                         {
                             if (descriptorPools->pools[poolIt].isLastAllocationSuccessful)
@@ -688,7 +687,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
                             VkDescriptorSetAllocateInfo allocateInfo
                             {
                                 .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-                                .pNext              = NULL,
+                                .pNext              = nullptr,
                                 .descriptorPool     = pool->handle,
                                 .descriptorSetCount = 1,
                                 .pSetLayouts        = &pipeline->descriptorSetLayouts[bindCommandInfo->set].handle,
@@ -710,7 +709,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
                             VkDescriptorSetAllocateInfo allocateInfo
                             {
                                 .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-                                .pNext              = NULL,
+                                .pNext              = nullptr,
                                 .descriptorPool     = newPool.handle,
                                 .descriptorSetCount = 1,
                                 .pSetLayouts        = &pipeline->descriptorSetLayouts[bindCommandInfo->set].handle,
@@ -731,15 +730,15 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
                         VkWriteDescriptorSet write
                         {
                             .sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                            .pNext              = NULL,
+                            .pNext              = nullptr,
                             .dstSet             = descriptorSet,
                             .dstBinding         = binding->binding,
                             .dstArrayElement    = 0,
                             .descriptorCount    = 1,
                             .descriptorType     = pipeline->descriptorSetLayouts[bindCommandInfo->set].bindingInfos[binding->binding].descriptorType,
-                            .pImageInfo         = NULL,
-                            .pBufferInfo        = NULL,
-                            .pTexelBufferView   = NULL,
+                            .pImageInfo         = nullptr,
+                            .pBufferInfo        = nullptr,
+                            .pTexelBufferView   = nullptr,
                         };
                         if (se_vk_ref_type(binding->object) == SE_VK_TYPE_MEMORY_BUFFER)
                         {
@@ -773,8 +772,8 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
                         }
                         writes[bindingIt] = write;
                     }
-                    vkUpdateDescriptorSets(logicalHandle, bindCommandInfo->numBindings, writes, 0, NULL);
-                    vkCmdBindDescriptorSets(commandBuffer->handle, pipeline->bindPoint, pipeline->layout, bindCommandInfo->set, 1, &descriptorSet, 0, NULL);
+                    vkUpdateDescriptorSets(logicalHandle, bindCommandInfo->numBindings, writes, 0, nullptr);
+                    vkCmdBindDescriptorSets(commandBuffer->handle, pipeline->bindPoint, pipeline->layout, bindCommandInfo->set, 1, &descriptorSet, 0, nullptr);
                 } break;
                 default: { se_assert(!"Unknown SeVkGraphCommand"); }
             };
@@ -808,7 +807,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
         VkSubmitInfo submit
         {
             .sType                  = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-            .pNext                  = NULL,
+            .pNext                  = nullptr,
             .waitSemaphoreCount     = numWaitSemaphores,
             .pWaitSemaphores        = waitSemaphores,
             .pWaitDstStageMask      = waitStages,
@@ -839,7 +838,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
         VkImageMemoryBarrier swapChainImageBarrier
         {
             .sType                  = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-            .pNext                  = NULL,
+            .pNext                  = nullptr,
             .srcAccessMask          = se_vk_utils_image_layout_to_access_flags(swapChainTexture->currentLayout),
             .dstAccessMask          = se_vk_utils_image_layout_to_access_flags(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR),
             .oldLayout              = swapChainTexture->currentLayout,
@@ -856,9 +855,9 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
             se_vk_utils_image_layout_to_pipeline_stage_flags(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR),
             0,
             0,
-            NULL,
+            nullptr,
             0,
-            NULL,
+            nullptr,
             1,
             &swapChainImageBarrier
         );
@@ -883,7 +882,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
         VkSubmitInfo submit
         {
             .sType                  = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-            .pNext                  = NULL,
+            .pNext                  = nullptr,
             .waitSemaphoreCount     = numPresentWaitSemaphores,
             .pWaitSemaphores        = presentWaitSemaphores,
             .pWaitDstStageMask      = presentWaitStages,
@@ -901,34 +900,28 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
         VkPresentInfoKHR presentInfo
         {
             .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-            .pNext              = NULL,
+            .pNext              = nullptr,
             .waitSemaphoreCount = 1,
             .pWaitSemaphores    = &transitionCmd->semaphore,
             .swapchainCount     = se_array_size(swapChains),
             .pSwapchains        = swapChains,
             .pImageIndices      = imageIndices,
-            .pResults           = NULL,
+            .pResults           = nullptr,
         };
         se_vk_check(vkQueuePresentKHR(se_vk_device_get_command_queue(graph->device, SE_VK_CMD_QUEUE_PRESENT), &presentInfo));
         frame->lastBuffer = transitionCmd;
     }
 
-    se_sbuffer_destroy(framePipelines);
-    se_sbuffer_destroy(frameFramebuffers);
-    se_sbuffer_destroy(frameRenderPasses);
-    se_sbuffer_destroy(frameTextures);
+    dynamic_array::destroy(framePipelines);
+    dynamic_array::destroy(frameFramebuffers);
+    dynamic_array::destroy(frameRenderPasses);
+    dynamic_array::destroy(frameTextures);
 
-    se_sbuffer_destroy(graph->textureInfos);
-    se_sbuffer_destroy(graph->passes);
-    se_sbuffer_destroy(graph->graphicsPipelineInfos);
-    se_sbuffer_destroy(graph->computePipelineInfos);
-    se_sbuffer_destroy(graph->scratchBufferViews);
-
-    graph->textureInfos = NULL;
-    graph->passes = NULL;
-    graph->graphicsPipelineInfos = NULL;
-    graph->computePipelineInfos = NULL;
-    graph->scratchBufferViews = NULL;
+    dynamic_array::reset(graph->textureInfos);
+    dynamic_array::reset(graph->passes);
+    dynamic_array::reset(graph->graphicsPipelineInfos);
+    dynamic_array::reset(graph->computePipelineInfos);
+    dynamic_array::reset(graph->scratchBufferViews);
 
     graph->context = SE_VK_GRAPH_CONTEXT_TYPE_BETWEEN_FRAMES;
 }
@@ -944,10 +937,10 @@ void se_vk_graph_begin_pass(SeVkGraph* graph, SeBeginPassInfo* info)
     SeVkGraphPass pass
     {
         .info           = *info,
-        .renderPassInfo = {0},
-        .commands       = NULL,
+        .renderPassInfo = { },
+        .commands       = { },
     };
-    se_sbuffer_construct(pass.commands, 16, memoryManager->cpu_frameAllocator);
+    dynamic_array::construct(pass.commands, *memoryManager->cpu_frameAllocator, 16);
 
     se_assert(se_vk_ref_type(info->pipeline) == SE_VK_TYPE_GRAPHICS_PIPELINE || se_vk_ref_type(info->pipeline) == SE_VK_TYPE_COMPUTE_PIPELINE);
     if (se_vk_ref_type(info->pipeline) == SE_VK_TYPE_GRAPHICS_PIPELINE)
@@ -979,7 +972,7 @@ void se_vk_graph_begin_pass(SeVkGraph* graph, SeBeginPassInfo* info)
         //
         // Render pass info
         //
-        SeVkTextureInfo* depthStencilTextureInfo = info->hasDepthStencil ? &graph->textureInfos[se_vk_ref_index(info->depthStencilTarget.texture)] : NULL;
+        SeVkTextureInfo* depthStencilTextureInfo = info->hasDepthStencil ? &graph->textureInfos[se_vk_ref_index(info->depthStencilTarget.texture)] : nullptr;
         VkAttachmentLoadOp depthStencilLoadOp = info->hasDepthStencil ? (VkAttachmentLoadOp)info->depthStencilTarget.loadOp : (VkAttachmentLoadOp)0;
         const uint32_t numColorAttachments = se_vk_safe_cast_size_t_to_uint32_t(info->numRenderTargets);
         SeVkRenderPassInfo renderPassInfo =
@@ -999,15 +992,15 @@ void se_vk_graph_begin_pass(SeVkGraph* graph, SeBeginPassInfo* info)
                     .clearValue = { .depthStencil = { .depth = 0, .stencil = 0 } },
                 }
                 : SeVkRenderPassAttachment{0},
-            .hasDepthStencilAttachment  = depthStencilTextureInfo != NULL,
+            .hasDepthStencilAttachment  = depthStencilTextureInfo != nullptr,
         };
         renderPassInfo.subpasses[0] =
         {
             .colorRefs   = 0,
             .inputRefs   = 0,
             .resolveRefs = {0},
-            .depthRead   = depthStencilTextureInfo != NULL,
-            .depthWrite  = depthStencilTextureInfo != NULL,
+            .depthRead   = depthStencilTextureInfo != nullptr,
+            .depthWrite  = depthStencilTextureInfo != nullptr,
         };
         for (size_t it = 0; it < info->numRenderTargets; it++)
         {
@@ -1040,7 +1033,7 @@ void se_vk_graph_begin_pass(SeVkGraph* graph, SeBeginPassInfo* info)
         }
         pass.renderPassInfo = renderPassInfo;
     }
-    se_sbuffer_push(graph->passes, pass);
+    dynamic_array::push(graph->passes, pass);
 
     graph->context = SE_VK_GRAPH_CONTEXT_TYPE_IN_PASS;
 }
@@ -1066,7 +1059,7 @@ SeRenderRef se_vk_graph_program(SeVkGraph* graph, SeProgramInfo* info)
         .bytecode       = info->bytecode,
         .bytecodeSize   = info->bytecodeSize,
     };
-    SeVkProgram* program = NULL;
+    SeVkProgram* program = nullptr;
     if (graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_FRAME)
     {
         SeHash hash = se_hash(vkInfo.bytecode, vkInfo.bytecodeSize);
@@ -1108,9 +1101,9 @@ SeRenderRef se_vk_graph_texture(SeVkGraph* graph, SeTextureInfo* info)
         .usage      = 0,
         .sampling   = VK_SAMPLE_COUNT_1_BIT, // @TODO : support multisampling
     };
-    se_sbuffer_push(graph->textureInfos, vkInfo);
+    dynamic_array::push(graph->textureInfos, vkInfo);
 
-    return se_vk_ref(SE_VK_TYPE_TEXTURE, 0, se_sbuffer_size(graph->textureInfos) - 1);
+    return se_vk_ref(SE_VK_TYPE_TEXTURE, 0, dynamic_array::size(graph->textureInfos) - 1);
 }
 
 SeRenderRef se_vk_graph_swap_chain_texture(SeVkGraph* graph)
@@ -1125,28 +1118,28 @@ SeRenderRef se_vk_graph_memory_buffer(SeVkGraph* graph, SeMemoryBufferInfo* info
     // @TODO : create persistent buffer if se_vk_graph_memory_buffer call was done outside of begin-end pass region
     SeVkFrameManager* frameManager = &graph->device->frameManager;
     SeVkMemoryBufferView view = se_vk_frame_manager_alloc_scratch_buffer(frameManager, info->size);
-    se_sbuffer_push(graph->scratchBufferViews, view);
+    dynamic_array::push(graph->scratchBufferViews, view);
     se_assert_msg(view.mappedMemory, "todo : support copies for non host-visible memory buffers");
     if (view.mappedMemory && info->data)
     {
         memcpy(view.mappedMemory, info->data, info->size);
     }
 
-    return se_vk_ref(SE_VK_TYPE_MEMORY_BUFFER, SE_VK_GRAPH_MEMORY_BUFFER_SCRATCH, se_sbuffer_size(graph->scratchBufferViews) - 1);
+    return se_vk_ref(SE_VK_TYPE_MEMORY_BUFFER, SE_VK_GRAPH_MEMORY_BUFFER_SCRATCH, dynamic_array::size(graph->scratchBufferViews) - 1);
 }
 
 SeRenderRef se_vk_graph_graphics_pipeline(SeVkGraph* graph, SeGraphicsPipelineInfo* info)
 {
     se_assert(graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_FRAME);
-    se_sbuffer_push(graph->graphicsPipelineInfos, *info);
-    return se_vk_ref(SE_VK_TYPE_GRAPHICS_PIPELINE, 0, se_sbuffer_size(graph->graphicsPipelineInfos) - 1);
+    dynamic_array::push(graph->graphicsPipelineInfos, *info);
+    return se_vk_ref(SE_VK_TYPE_GRAPHICS_PIPELINE, 0, dynamic_array::size(graph->graphicsPipelineInfos) - 1);
 }
 
 SeRenderRef se_vk_graph_compute_pipeline(SeVkGraph* graph, SeComputePipelineInfo* info)
 {
     se_assert(graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_FRAME);
-    se_sbuffer_push(graph->computePipelineInfos, *info);
-    return se_vk_ref(SE_VK_TYPE_COMPUTE_PIPELINE, 0, se_sbuffer_size(graph->computePipelineInfos) - 1);
+    dynamic_array::push(graph->computePipelineInfos, *info);
+    return se_vk_ref(SE_VK_TYPE_COMPUTE_PIPELINE, 0, dynamic_array::size(graph->computePipelineInfos) - 1);
 }
 
 SeRenderRef se_vk_graph_sampler(SeVkGraph* graph, SeSamplerInfo* info)
@@ -1195,14 +1188,14 @@ void se_vk_graph_command_bind(SeVkGraph* graph, SeCommandBindInfo* info)
 {
     se_assert(graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_PASS);
 
-    SeVkGraphPass* pass = &graph->passes[se_sbuffer_size(graph->passes) - 1];
+    SeVkGraphPass* pass = &graph->passes[dynamic_array::size(graph->passes) - 1];
     se_assert(info->numBindings);
     SeVkGraphCommand command
     {
         .type = SE_VK_GRAPH_COMMAND_TYPE_BIND,
         .info = { .bind = *info },
     };
-    se_sbuffer_push(pass->commands, command);
+    dynamic_array::push(pass->commands, command);
 
     for (size_t it = 0; it < info->numBindings; it++)
     {
@@ -1221,11 +1214,11 @@ void se_vk_graph_command_draw(SeVkGraph* graph, SeCommandDrawInfo* info)
 {
     se_assert(graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_PASS);
 
-    SeVkGraphPass* pass = &graph->passes[se_sbuffer_size(graph->passes) - 1];
+    SeVkGraphPass* pass = &graph->passes[dynamic_array::size(graph->passes) - 1];
     SeVkGraphCommand command
     {
         .type = SE_VK_GRAPH_COMMAND_TYPE_DRAW,
         .info = { .draw = *info },
     };
-    se_sbuffer_push(pass->commands, command);
+    dynamic_array::push(pass->commands, command);
 }

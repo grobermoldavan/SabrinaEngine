@@ -31,9 +31,9 @@
 
 struct SeVkSwapChainSupportDetails
 {
-    VkSurfaceCapabilitiesKHR        capabilities;
-    se_sbuffer(VkSurfaceFormatKHR)  formats;
-    se_sbuffer(VkPresentModeKHR)    presentModes;
+    VkSurfaceCapabilitiesKHR            capabilities;
+    DynamicArray<VkSurfaceFormatKHR>    formats;
+    DynamicArray<VkPresentModeKHR>      presentModes;
 };
 
 struct SeVkViewportScissor
@@ -45,28 +45,28 @@ struct SeVkViewportScissor
 const char**                            se_vk_utils_get_required_validation_layers(size_t* outNum);
 const char**                            se_vk_utils_get_required_instance_extensions(size_t* outNum);
 const char**                            se_vk_utils_get_required_device_extensions(size_t* outNum);
-se_sbuffer(VkLayerProperties)           se_vk_utils_get_available_validation_layers(struct SeAllocatorBindings* allocator);
-se_sbuffer(VkExtensionProperties)       se_vk_utils_get_available_instance_extensions(struct SeAllocatorBindings* allocator);
+DynamicArray<VkLayerProperties>         se_vk_utils_get_available_validation_layers(struct SeAllocatorBindings& allocator);
+DynamicArray<VkExtensionProperties>     se_vk_utils_get_available_instance_extensions(struct SeAllocatorBindings& allocator);
 VkDebugUtilsMessengerCreateInfoEXT      se_vk_utils_get_debug_messenger_create_info(PFN_vkDebugUtilsMessengerCallbackEXT callback, void* userData);
 VkDebugUtilsMessengerEXT                se_vk_utils_create_debug_messenger(VkDebugUtilsMessengerCreateInfoEXT* createInfo, VkInstance instance, VkAllocationCallbacks* callbacks);
 void                                    se_vk_utils_destroy_debug_messenger(VkInstance instance, VkDebugUtilsMessengerEXT messenger, VkAllocationCallbacks* callbacks);
 VkCommandPool                           se_vk_utils_create_command_pool(VkDevice device, uint32_t queueFamilyIndex, VkAllocationCallbacks* callbacks, VkCommandPoolCreateFlags flags);
 void                                    se_vk_utils_destroy_command_pool(VkCommandPool pool, VkDevice device, VkAllocationCallbacks* callbacks);
-SeVkSwapChainSupportDetails             se_vk_utils_create_swap_chain_support_details(VkSurfaceKHR surface, VkPhysicalDevice device, struct SeAllocatorBindings* allocator);
-void                                    se_vk_utils_destroy_swap_chain_support_details(SeVkSwapChainSupportDetails* details);
-VkSurfaceFormatKHR                      se_vk_utils_choose_swap_chain_surface_format(se_sbuffer(VkSurfaceFormatKHR) available);
-VkPresentModeKHR                        se_vk_utils_choose_swap_chain_surface_present_mode(se_sbuffer(VkPresentModeKHR) available);
+SeVkSwapChainSupportDetails             se_vk_utils_create_swap_chain_support_details(VkSurfaceKHR surface, VkPhysicalDevice device, struct SeAllocatorBindings& allocator);
+void                                    se_vk_utils_destroy_swap_chain_support_details(SeVkSwapChainSupportDetails& details);
+VkSurfaceFormatKHR                      se_vk_utils_choose_swap_chain_surface_format(const DynamicArray<VkSurfaceFormatKHR>& available);
+VkPresentModeKHR                        se_vk_utils_choose_swap_chain_surface_present_mode(const DynamicArray<VkPresentModeKHR>& available);
 VkExtent2D                              se_vk_utils_choose_swap_chain_extent(uint32_t windowWidth, uint32_t windowHeight, VkSurfaceCapabilitiesKHR* capabilities);
-uint32_t                                se_vk_utils_pick_graphics_queue(se_sbuffer(VkQueueFamilyProperties) familyProperties);
-uint32_t                                se_vk_utils_pick_present_queue(se_sbuffer(VkQueueFamilyProperties) familyProperties, VkPhysicalDevice device, VkSurfaceKHR surface);
-uint32_t                                se_vk_utils_pick_transfer_queue(se_sbuffer(VkQueueFamilyProperties) familyProperties);
-uint32_t                                se_vk_utils_pick_compute_queue(se_sbuffer(VkQueueFamilyProperties) familyProperties);
-se_sbuffer(VkDeviceQueueCreateInfo)     se_vk_utils_get_queue_create_infos(uint32_t* queues, size_t numQueues, struct SeAllocatorBindings* allocator);
+uint32_t                                se_vk_utils_pick_graphics_queue(const DynamicArray<VkQueueFamilyProperties>& familyProperties);
+uint32_t                                se_vk_utils_pick_present_queue(const DynamicArray<VkQueueFamilyProperties>& familyProperties, VkPhysicalDevice device, VkSurfaceKHR surface);
+uint32_t                                se_vk_utils_pick_transfer_queue(const DynamicArray<VkQueueFamilyProperties>& familyProperties);
+uint32_t                                se_vk_utils_pick_compute_queue(const DynamicArray<VkQueueFamilyProperties>& familyProperties);
+DynamicArray<VkDeviceQueueCreateInfo>   se_vk_utils_get_queue_create_infos(uint32_t* queues, size_t numQueues, struct SeAllocatorBindings& allocator);
 VkCommandPoolCreateInfo                 se_vk_utils_command_pool_create_info(uint32_t queueFamilyIndex, VkCommandPoolCreateFlags flags);
 bool                                    se_vk_utils_pick_depth_stencil_format(VkPhysicalDevice physicalDevice, VkFormat* result);
-se_sbuffer(VkPhysicalDevice)            se_vk_utils_get_available_physical_devices(VkInstance instance, struct SeAllocatorBindings* allocator);
-se_sbuffer(VkQueueFamilyProperties)     se_vk_utils_get_physical_device_queue_family_properties(VkPhysicalDevice physicalDevice, struct SeAllocatorBindings* allocator);
-bool                                    se_vk_utils_does_physical_device_supports_required_extensions(VkPhysicalDevice device, const char** extensions, size_t numExtensions, struct SeAllocatorBindings* allocator);
+DynamicArray<VkPhysicalDevice>          se_vk_utils_get_available_physical_devices(VkInstance instance, struct SeAllocatorBindings& allocator);
+DynamicArray<VkQueueFamilyProperties>   se_vk_utils_get_physical_device_queue_family_properties(VkPhysicalDevice physicalDevice, struct SeAllocatorBindings& allocator);
+bool                                    se_vk_utils_does_physical_device_supports_required_extensions(VkPhysicalDevice device, const char** extensions, size_t numExtensions, struct SeAllocatorBindings& allocator);
 VkImageType                             se_vk_utils_pick_image_type(VkExtent3D imageExtent);
 VkCommandBuffer                         se_vk_utils_create_command_buffer(VkDevice device, VkCommandPool pool, VkCommandBufferLevel level);
 VkShaderModule                          se_vk_utils_create_shader_module(VkDevice device, const uint32_t* bytecode, size_t bytecodeSIze, VkAllocationCallbacks* allocationCb);

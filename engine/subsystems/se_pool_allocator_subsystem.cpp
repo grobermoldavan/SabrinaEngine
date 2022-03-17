@@ -122,7 +122,7 @@ void* se_pool_allocator_alloc(SePoolAllocator* allocator, size_t allocationSize,
 {
     if (allocationSize == 0)
     {
-        return NULL;
+        return nullptr;
     }
     se_assert(((alignment - 1) & alignment) == 0 && "Alignment must be a power of two");
     //

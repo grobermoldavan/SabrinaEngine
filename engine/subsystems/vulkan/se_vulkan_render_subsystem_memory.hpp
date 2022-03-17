@@ -49,7 +49,7 @@ struct SeVkCpuAllocation
 struct SeVkMemoryManager
 {
     VkAllocationCallbacks               cpu_allocationCallbacks;
-    se_sbuffer(SeVkCpuAllocation)       cpu_allocations;
+    DynamicArray<SeVkCpuAllocation>     cpu_allocations;
     struct SeAllocatorBindings*         cpu_persistentAllocator;
     struct SeAllocatorBindings*         cpu_frameAllocator;
 
@@ -60,10 +60,10 @@ struct SeVkMemoryManager
     SeObjectPool                        pipelinePool;
     SeObjectPool                        memoryBufferPool;
     SeObjectPool                        samplerPool;
-    se_sbuffer(SeObjectPool)            commandBufferPools;
+    DynamicArray<SeObjectPool>          commandBufferPools;
 
     struct SeVkDevice*                  device;
-    se_sbuffer(SeVkGpuMemoryChunk)      gpu_chunks;
+    DynamicArray<SeVkGpuMemoryChunk>    gpu_chunks;
     VkPhysicalDeviceMemoryProperties*   memoryProperties;
 };
 

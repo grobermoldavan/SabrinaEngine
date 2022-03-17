@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <type_traits>
 
 #include "allocator_bindings.hpp"
 #include "common_includes.hpp"
@@ -14,112 +15,135 @@
 #define __se_memset(dst, val, size) memset(dst, val, size)
 #define __se_memcmp(a, b, size)     (memcmp(a, b, size) == 0)
 
+template<typename T> concept pointer = std::is_pointer_v<T>;
+
 /*
-   sbuffer
-
-   Based on stb's stretchy buffer.
-
-   Supports:
-   - custom allocators (alloc, realloc and dealloc functions)
-   - size and capacity information retrieval
-   - reserving memory
-   - pushing new values to the end of buffer
-   - removing values by index
-   - removing values by pointer
-   - clearnig array
-
-   In code sbuffer look similar to usual pointer:
-   int* sbufferInstance;
-
-   To use sbuffer user have to construct it:
-   1) se_sbuffer_construct(sbufferInstance, 4, alloc, realloc, dealloc, userDataPtr);
-      This constructs sbuffer with custom allocators
-   2) se_sbuffer_construct_std(sbufferInstance, 4);
-      This constructs sbuffer with std allocation functions
-
-   After user is done with sbuffer user have to destroy it:
-   se_sbuffer_destroy(sbufferInstance);
-
-   sbuffer memory layout:
-   {
-      struct SeAllocatorBindings allocator;
-      size_t capacity;
-      size_t size;
-      T memory[capacity]; <---- user pointer points to the first element of this array
-   }
+    Dynamic array
 */
 
-#define se_sbuffer(type) type*
-
-void  __se_sbuffer_construct(void** arr, size_t entrySize, size_t capacity, struct SeAllocatorBindings* bindings, bool zero);
-void  __se_sbuffer_destruct(void** arr, size_t entrySize);
-void  __se_sbuffer_realloc(void** arr, size_t entrySize, size_t newCapacity);
-
-#define __se_info_size                          (sizeof(struct SeAllocatorBindings) + sizeof(size_t) * 2)
-#define __se_raw(arr)                           (((char*)arr) - __se_info_size)
-#define __se_param_ptr(arr, index)              (((size_t*)(arr)) - index)
-#define __se_param(arr, index)                  (*__se_param_ptr(arr, index))
-#define __se_expand(arr)                        __se_sbuffer_realloc((void**)&(arr), sizeof((arr)[0]), (arr) ? __se_param(arr, 2) * 2 : 4)
-#define __se_realloc_if_full(arr)               (__se_param(arr, 1) == __se_param(arr, 2) ? __se_expand(arr), 0 : 0)
-#define __se_remove_idx(arr, idx)               __se_memcpy((void*)&(arr)[idx], (void*)&(arr)[__se_param(arr, 1) - 1], sizeof((arr)[0])), __se_param(arr, 1) -= 1
-#define __se_get_elem_idx(arr, valPtr)          ((valPtr) - (arr))
-
-#define se_sbuffer_construct(arr, capacity, allocatorPtr)           __se_sbuffer_construct((void**)&(arr), sizeof((arr)[0]), capacity, allocatorPtr, false)
-#define se_sbuffer_construct_zeroed(arr, capacity, allocatorPtr)    __se_sbuffer_construct((void**)&(arr), sizeof((arr)[0]), capacity, allocatorPtr, true)
-#define se_sbuffer_destroy(arr)                                     __se_sbuffer_destruct((void**)&(arr), sizeof((arr)[0]))
-
-#define se_sbuffer_set_size(arr, size)              (*__se_param_ptr(arr, 1) = size)
-#define se_sbuffer_size(arr)                        ((arr) ? __se_param(arr, 1) : 0)
-#define se_sbuffer_capacity(arr)                    ((arr) ? __se_param(arr, 2) : 0)
-#define se_sbuffer_reserve(arr, capacity)           __se_sbuffer_realloc((void**)&(arr), sizeof((arr)[0]), capacity)
-#define se_sbuffer_push(arr, val)                   (__se_realloc_if_full(arr), (arr)[__se_param(arr, 1)++] = val)
-#define se_sbuffer_remove_idx(arr, idx)             (idx < __se_param(arr, 1) ? __se_remove_idx(arr, idx), 0 : 0)
-#define se_sbuffer_remove_val(arr, valPtr)          ((valPtr) >= (arr) ? se_sbuffer_remove_idx(arr, __se_get_elem_idx(arr, valPtr)), 0 : 0)
-#define se_sbuffer_clear(arr)                       ((arr) ? __se_memset(arr, 0, sizeof((arr)[0]) * __se_param(arr, 1)), __se_param(arr, 1) = 0, 0 : 0)
-
-typedef void* SeAnyPtr;
-
-void __se_sbuffer_construct(void** arr, size_t entrySize, size_t capacity, struct SeAllocatorBindings* allocator, bool zero)
+template<typename T>
+struct DynamicArray
 {
-    SeAnyPtr* mem = (SeAnyPtr*)allocator->alloc(allocator->allocator, __se_info_size + entrySize * capacity, se_default_alignment, se_alloc_tag);
-    __se_memcpy(mem, allocator, sizeof(struct SeAllocatorBindings));
-    size_t* params = (size_t*)(((char*)mem) + sizeof(struct SeAllocatorBindings));
-    params[0] = capacity;
-    params[1] = 0; // size
-    *arr = ((char*)mem) + __se_info_size;
-    if (zero)
-        __se_memset(*arr, 0, entrySize * capacity);
-}
+    SeAllocatorBindings allocator;
+    T* memory;
+    size_t size;
+    size_t capacity;
 
-void __se_sbuffer_destruct(void** arr, size_t entrySize)
+    T& operator [] (size_t index)
+    {
+        return memory[index];
+    }
+
+    const T& operator [] (size_t index) const
+    {
+        return memory[index];
+    }
+};
+
+struct dynamic_array
 {
-    if (!(*arr)) return;
-    SeAnyPtr* mem = (SeAnyPtr*)__se_raw(*arr);
-    size_t capacity = se_sbuffer_capacity(*arr);
-    struct SeAllocatorBindings* allocator = (struct SeAllocatorBindings*)mem;
-    allocator->dealloc(allocator->allocator, mem, __se_info_size + entrySize * capacity);
-}
+    template<typename T>
+    static void construct(DynamicArray<T>& array, SeAllocatorBindings& allocator, size_t capacity = 4)
+    {
+        array =
+        {
+            .allocator  = allocator,
+            .memory     = (T*)allocator.alloc(allocator.allocator, sizeof(T) * capacity, se_default_alignment, se_alloc_tag),
+            .size       = 0,
+            .capacity   = capacity,
+        };
+    }
 
-void __se_sbuffer_realloc(void** arr, size_t entrySize, size_t newCapacity)
-{
-    size_t capacity = se_sbuffer_capacity(*arr);
-    size_t size = se_sbuffer_size(*arr);
-    if (capacity >= newCapacity) return;
+    template<typename T>
+    static void destroy(DynamicArray<T>& array)
+    {
+        array.allocator.dealloc(array.allocator.allocator, array.memory, sizeof(T) * array.capacity);
+    }
 
-    const size_t oldSize = __se_info_size + entrySize * capacity;
-    const size_t newSize = __se_info_size + entrySize * newCapacity;
+    template<typename T>
+    static void reserve(DynamicArray<T>& array, size_t capacity)
+    {
+        if (array.capacity < capacity)
+        {
+            SeAllocatorBindings& allocator = array.allocator;
+            const size_t newCapacity = capacity;
+            const size_t oldCapacity = array.capacity;
+            T* newMemory = (T*)allocator.alloc(allocator.allocator, sizeof(T) * newCapacity, se_default_alignment, se_alloc_tag);
+            __se_memcpy(newMemory, array.memory, sizeof(T) * oldCapacity);
+            allocator.dealloc(allocator.allocator, array.memory, sizeof(T) * oldCapacity);
+            array.memory = newMemory;
+            array.capacity = newCapacity;
+        }
+    }
 
-    SeAnyPtr* oldMem = (SeAnyPtr*)__se_raw(*arr);
-    struct SeAllocatorBindings* allocator = (struct SeAllocatorBindings*)oldMem;
-    SeAnyPtr* newMem = (SeAnyPtr*)allocator->alloc(allocator->allocator, newSize, se_default_alignment, se_alloc_tag);
-    __se_memcpy(newMem, oldMem, oldSize);
-    allocator->dealloc(allocator->allocator, oldMem, oldSize);
+    template<typename T>
+    static inline size_t size(const DynamicArray<T>& array)
+    {
+        return array.size;
+    }
 
-    size_t* params = (size_t*)(((char*)newMem) + sizeof(struct SeAllocatorBindings));
-    params[0] = newCapacity;
-    params[1] = size;
-    *arr = ((char*)newMem) + __se_info_size;
-}
+    template<typename T>
+    static T& add(DynamicArray<T>& array)
+    {
+        if (array.size == array.capacity)
+        {
+            dynamic_array::reserve(array, array.capacity * 2);
+        }
+        return array.memory[array.size++];
+    }
+
+    template<typename T>
+    static T& push(DynamicArray<T>& array, const T& val)
+    {
+        T& pushed = dynamic_array::add(array);
+        pushed = val;
+        return pushed;
+    }
+
+    template<pointer T>
+    static T& push(DynamicArray<T>& array, nullptr_t)
+    {
+        T& pushed = dynamic_array::add(array);
+        return pushed;
+    }
+
+    template<typename T>
+    static void remove(DynamicArray<T>& array, size_t index)
+    {
+        se_assert(index < array.size);
+        array.size -= 1;
+        array.memory[index] = array.memory[array.size];
+    }
+
+    template<typename T>
+    static void remove(DynamicArray<T>& array, const T* val)
+    {
+        const ptrdiff_t offset = val - array.memory;
+        se_assert(offset >= 0);
+        se_assert((size_t)offset < array.size);
+        array.size -= 1;
+        array.memory[offset] = array.memory[array.size];
+    }
+
+    template<typename T>
+    static inline void reset(DynamicArray<T>& array)
+    {
+        array.size = 0;
+    }
+
+    template<typename T>
+    static inline void force_set_size(DynamicArray<T>& array, size_t size)
+    {
+        dynamic_array::reserve(array, size);
+        array.size = size;
+    }
+
+    template<typename T>
+    static inline T* raw(DynamicArray<T>& array)
+    {
+        return array.memory;
+    }
+};
 
 /*
     Expandable virtual memory.
@@ -336,7 +360,7 @@ SeHash se_hash_multiple(SeHashInput* inputs, size_t numInputs)
     {
         MeowAbsorb(&state, inputs[it].size, (void*)inputs[it].data);
     }
-    return MeowEnd(&state, NULL);
+    return MeowEnd(&state, nullptr);
 }
 
 void se_hash_table_construct(SeHashTable* table, SeHashTableCreateInfo* createInfo)
@@ -411,7 +435,7 @@ void* __se_hash_table_set(SeHashTable* table, SeHash hash, const void* key, void
     //
     // Add new value
     //
-    __SeHashTableObjectData* data = NULL;
+    __SeHashTableObjectData* data = nullptr;
     const size_t initialPosition = __se_hash_to_index(hash, table->capacity);
     size_t currentPosition = initialPosition;
     do
@@ -466,7 +490,7 @@ void* __se_hash_table_get(SeHashTable* table, SeHash hash, const void* key)
         }
         currentPosition = ((currentPosition + 1) % table->capacity);
     } while (currentPosition != initialPosition);
-    return NULL;
+    return nullptr;
 }
 
 void __se_hash_table_remove_data(SeHashTable* table, __SeHashTableObjectData* dataToRemove)

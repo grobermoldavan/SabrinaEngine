@@ -40,7 +40,7 @@ static VkAttachmentReference* se_vk_render_pass_find_attachment_reference(VkAtta
     for (size_t it = 0; it < numRefs; it++)
         if (refs[it].attachment == attachmentIndex)
             return &refs[it];
-    return NULL;
+    return nullptr;
 }
 
 void se_vk_render_pass_construct(SeVkRenderPass* pass, SeVkRenderPassInfo* info)
@@ -180,7 +180,7 @@ void se_vk_render_pass_construct(SeVkRenderPass* pass, SeVkRenderPassInfo* info)
         //
         // Setup the description
         //
-        VkAttachmentReference* depthRef = NULL;
+        VkAttachmentReference* depthRef = nullptr;
         if (subpassIntermediateData->depthStencilReference.attachment != VK_ATTACHMENT_UNUSED)
         {
             depthRef = &subpassIntermediateData->depthStencilReference;
@@ -193,7 +193,7 @@ void se_vk_render_pass_construct(SeVkRenderPass* pass, SeVkRenderPassInfo* info)
             .pInputAttachments          = subpassIntermediateData->inputAttachmentRefs,
             .colorAttachmentCount       = subpassIntermediateData->numColorRefs,
             .pColorAttachments          = subpassIntermediateData->colorAttachmentRefs,
-            .pResolveAttachments        = usedFromResolveRefs ? subpassIntermediateData->resolveAttachmentRefs : NULL,
+            .pResolveAttachments        = usedFromResolveRefs ? subpassIntermediateData->resolveAttachmentRefs : nullptr,
             .pDepthStencilAttachment    = depthRef,
             .preserveAttachmentCount    = numPreserveRefs,
             .pPreserveAttachments       = subpassIntermediateData->preserveAttachmentRefs,
@@ -231,7 +231,7 @@ void se_vk_render_pass_construct(SeVkRenderPass* pass, SeVkRenderPassInfo* info)
             VkAttachmentReference* resolve  = se_vk_render_pass_find_attachment_reference(subpassIntermediateData->resolveAttachmentRefs, subpassIntermediateData->numColorRefs, attachmentIt);
             VkAttachmentReference* depth    = (subpassIntermediateData->depthStencilReference.attachment != VK_ATTACHMENT_UNUSED) && (subpassIntermediateData->depthStencilReference.attachment == attachmentIt)
                                                 ? &subpassIntermediateData->depthStencilReference
-                                                : NULL;
+                                                : nullptr;
             if (!color && !input && !resolve && !depth)
             {
                 continue;
@@ -409,7 +409,7 @@ void se_vk_render_pass_construct(SeVkRenderPass* pass, SeVkRenderPassInfo* info)
     VkRenderPassCreateInfo renderPassInfo =
     {
         .sType              = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-        .pNext              = NULL,
+        .pNext              = nullptr,
         .flags              = 0,
         .attachmentCount    = numAttachments,
         .pAttachments       = attachmentDescriptions,
@@ -492,7 +492,7 @@ VkRenderPassBeginInfo se_vk_render_pass_get_begin_info(SeVkRenderPass* pass, VkF
     return
     {
         .sType              = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .pNext              = NULL,
+        .pNext              = nullptr,
         .renderPass         = pass->handle,
         .framebuffer        = framebuffer,
         .renderArea         = renderArea,
