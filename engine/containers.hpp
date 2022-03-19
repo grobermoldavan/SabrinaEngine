@@ -15,8 +15,6 @@
 #define __se_memset(dst, val, size) memset(dst, val, size)
 #define __se_memcmp(a, b, size)     (memcmp(a, b, size) == 0)
 
-template<typename T> concept pointer = std::is_pointer_v<T>;
-
 /*
     Dynamic array
 */
@@ -40,10 +38,10 @@ struct DynamicArray
     }
 };
 
-struct dynamic_array
+namespace dynamic_array
 {
     template<typename T>
-    static void construct(DynamicArray<T>& array, SeAllocatorBindings& allocator, size_t capacity = 4)
+    void construct(DynamicArray<T>& array, SeAllocatorBindings& allocator, size_t capacity = 4)
     {
         array =
         {
@@ -55,13 +53,38 @@ struct dynamic_array
     }
 
     template<typename T>
-    static void destroy(DynamicArray<T>& array)
+    DynamicArray<T> create(SeAllocatorBindings& allocator, size_t capacity = 4)
+    {
+        return
+        {
+            .allocator  = allocator,
+            .memory     = (T*)allocator.alloc(allocator.allocator, sizeof(T) * capacity, se_default_alignment, se_alloc_tag),
+            .size       = 0,
+            .capacity   = capacity,
+        };
+    }
+
+    template<typename T>
+    DynamicArray<T> create_zeroed(SeAllocatorBindings& allocator, size_t capacity = 4)
+    {
+        DynamicArray<T> result
+        {
+            .allocator  = allocator,
+            .memory     = (T*)allocator.alloc(allocator.allocator, sizeof(T) * capacity, se_default_alignment, se_alloc_tag),
+            .size       = 0,
+            .capacity   = capacity,
+        };
+        __se_memset(result.memory, 0, sizeof(T) * capacity);
+    }
+
+    template<typename T>
+    void destroy(DynamicArray<T>& array)
     {
         array.allocator.dealloc(array.allocator.allocator, array.memory, sizeof(T) * array.capacity);
     }
 
     template<typename T>
-    static void reserve(DynamicArray<T>& array, size_t capacity)
+    void reserve(DynamicArray<T>& array, size_t capacity)
     {
         if (array.capacity < capacity)
         {
@@ -77,13 +100,13 @@ struct dynamic_array
     }
 
     template<typename T>
-    static inline size_t size(const DynamicArray<T>& array)
+    inline size_t size(const DynamicArray<T>& array)
     {
         return array.size;
     }
 
     template<typename T>
-    static T& add(DynamicArray<T>& array)
+    T& add(DynamicArray<T>& array)
     {
         if (array.size == array.capacity)
         {
@@ -93,14 +116,15 @@ struct dynamic_array
     }
 
     template<typename T>
-    static T& push(DynamicArray<T>& array, const T& val)
+    T& push(DynamicArray<T>& array, const T& val)
     {
         T& pushed = dynamic_array::add(array);
         pushed = val;
         return pushed;
     }
 
-    template<pointer T>
+    template<typename T>
+    requires std::is_pointer_v<T>
     static T& push(DynamicArray<T>& array, nullptr_t)
     {
         T& pushed = dynamic_array::add(array);
@@ -108,7 +132,7 @@ struct dynamic_array
     }
 
     template<typename T>
-    static void remove(DynamicArray<T>& array, size_t index)
+    void remove(DynamicArray<T>& array, size_t index)
     {
         se_assert(index < array.size);
         array.size -= 1;
@@ -116,7 +140,7 @@ struct dynamic_array
     }
 
     template<typename T>
-    static void remove(DynamicArray<T>& array, const T* val)
+    void remove(DynamicArray<T>& array, const T* val)
     {
         const ptrdiff_t offset = val - array.memory;
         se_assert(offset >= 0);
@@ -126,20 +150,20 @@ struct dynamic_array
     }
 
     template<typename T>
-    static inline void reset(DynamicArray<T>& array)
+    inline void reset(DynamicArray<T>& array)
     {
         array.size = 0;
     }
 
     template<typename T>
-    static inline void force_set_size(DynamicArray<T>& array, size_t size)
+    inline void force_set_size(DynamicArray<T>& array, size_t size)
     {
         dynamic_array::reserve(array, size);
         array.size = size;
     }
 
     template<typename T>
-    static inline T* raw(DynamicArray<T>& array)
+    inline T* raw(DynamicArray<T>& array)
     {
         return array.memory;
     }
@@ -151,44 +175,57 @@ struct dynamic_array
     Basically a stack that uses OS virtual memory system and commits memory pages on demand.
 */
 
-typedef struct SeExpandableVirtualMemory
+struct ExpandableVirtualMemory
 {
     SePlatformInterface* platform;
     void* base;
     size_t reserved;
     size_t commited;
     size_t used;
-} SeExpandableVirtualMemory;
+};
 
-void se_expandable_virtual_memory_construct(SeExpandableVirtualMemory* memory, SePlatformInterface* platform, size_t size)
+namespace expandable_virtual_memory
 {
-    *memory =
+    ExpandableVirtualMemory create(SePlatformInterface* platform, size_t size)
     {
-        .platform   = platform,
-        .base       = platform->mem_reserve(size),
-        .reserved   = size,
-        .commited   = 0,
-        .used       = 0,
-    };
-}
+        return
+        {
+            .platform   = platform,
+            .base       = platform->mem_reserve(size),
+            .reserved   = size,
+            .commited   = 0,
+            .used       = 0,
+        };
+    }
 
-void se_expandable_virtual_memory_destroy(SeExpandableVirtualMemory* memory)
-{
-    memory->platform->mem_release(memory->base, memory->reserved);
-}
-
-void se_expandable_virtual_memory_add(SeExpandableVirtualMemory* memory, size_t addition)
-{
-    memory->used += addition;
-    se_assert(memory->used <= memory->reserved);
-    if (memory->used > memory->commited)
+    void destroy(ExpandableVirtualMemory& memory)
     {
-        const size_t memPageSize = memory->platform->get_mem_page_size();
-        const size_t requredToCommit = memory->used - memory->commited;
-        const size_t numPagesToCommit = 1 + ((requredToCommit - 1) / memPageSize);
-        const size_t memoryToCommit = numPagesToCommit * memPageSize;
-        memory->platform->mem_commit(((uint8_t*)memory->base) + memory->commited, memoryToCommit);
-        memory->commited += memoryToCommit;
+        memory.platform->mem_release(memory.base, memory.reserved);
+    }
+
+    void add(ExpandableVirtualMemory& memory, size_t addition)
+    {
+        memory.used += addition;
+        se_assert(memory.used <= memory.reserved);
+        if (memory.used > memory.commited)
+        {
+            const size_t memPageSize = memory.platform->get_mem_page_size();
+            const size_t requredToCommit = memory.used - memory.commited;
+            const size_t numPagesToCommit = 1 + ((requredToCommit - 1) / memPageSize);
+            const size_t memoryToCommit = numPagesToCommit * memPageSize;
+            memory.platform->mem_commit(((uint8_t*)memory.base) + memory.commited, memoryToCommit);
+            memory.commited += memoryToCommit;
+        }
+    }
+
+    inline void* raw(const ExpandableVirtualMemory& memory)
+    {
+        return memory.base;
+    }
+
+    inline size_t used(const ExpandableVirtualMemory& memory)
+    {
+        return memory.used;
     }
 }
 
@@ -198,111 +235,155 @@ void se_expandable_virtual_memory_add(SeExpandableVirtualMemory* memory, size_t 
     Container for an objects of the same size.
 */
 
-typedef struct SeObjectPool
+struct TypelessObjectPool
 {
-    SeExpandableVirtualMemory ledger;
-    SeExpandableVirtualMemory objectMemory;
-    size_t objectSize;
+    ExpandableVirtualMemory ledger;
+    ExpandableVirtualMemory objectMemory;
     size_t currentCapacity;
-} SeObjectPool;
+};
 
-typedef struct SeObjectPoolCreateInfo
-{
-    SePlatformInterface* platform;
-    size_t objectSize;
-} SeObjectPoolCreateInfo;
+template<typename T>
+struct ObjectPool : TypelessObjectPool { };
 
-void se_object_pool_construct(SeObjectPool* pool, SeObjectPoolCreateInfo* createInfo)
+namespace object_pool
 {
-    __se_memset(pool, 0, sizeof(SeObjectPool));
-    se_expandable_virtual_memory_construct(&pool->ledger, createInfo->platform, se_gigabytes(16));
-    se_expandable_virtual_memory_construct(&pool->objectMemory, createInfo->platform, se_gigabytes(16));
-    pool->objectSize = createInfo->objectSize;
-    pool->currentCapacity = 0;
-}
-
-void se_object_pool_destroy(SeObjectPool* pool)
-{
-    se_expandable_virtual_memory_destroy(&pool->ledger);
-    se_expandable_virtual_memory_destroy(&pool->objectMemory);
-}
-
-void se_object_pool_reset(SeObjectPool* pool)
-{
-    memset(pool->ledger.base, 0, pool->ledger.used);
-}
-
-#ifdef SE_DEBUG
-#define se_object_pool_take(type, poolPtr) ((type*)__se_object_pool_take(poolPtr, sizeof(type)))
-void* __se_object_pool_take(SeObjectPool* pool, size_t objectSize)
-{
-    se_assert(objectSize == pool->objectSize);
-#else
-#define se_object_pool_take(type, poolPtr) ((type*)__se_object_pool_take(poolPtr))
-void* __se_object_pool_take(SeObjectPool* pool)
-{
-#endif
-    for (size_t it = 0; it < pool->ledger.used; it++)
+    template<typename T>
+    inline void construct(ObjectPool<T>& pool, SePlatformInterface* platform)
     {
-        uint8_t* byte = ((uint8_t*)pool->ledger.base) + it;
-        if (*byte == 255) continue;
-        for (uint8_t byteIt = 0; byteIt < 8; byteIt++)
+        pool =
         {
-            if ((*byte & (1 << byteIt)) == 0)
-            {
-                const size_t ledgerOffset = it * 8 + byteIt;
-                const size_t memoryOffset = ledgerOffset * pool->objectSize;
-                *byte |= (1 << byteIt);
-                return ((uint8_t*)pool->objectMemory.base) + memoryOffset;
-            }
-        }
-        se_assert_msg(false, "Invalid code path");
+            .ledger             = expandable_virtual_memory::create(platform, se_gigabytes(16)),
+            .objectMemory       = expandable_virtual_memory::create(platform, se_gigabytes(16)),
+            .currentCapacity    = 0,
+        };
     }
-    const size_t ledgerUsed = pool->ledger.used;
-    const size_t ledgerOffset = ledgerUsed * 8;
-    const size_t memoryOffset = ledgerOffset * pool->objectSize;
-    se_expandable_virtual_memory_add(&pool->ledger, 1);
-    se_expandable_virtual_memory_add(&pool->objectMemory, pool->objectSize * 8);
-    uint8_t* byte = ((uint8_t*)pool->ledger.base) + ledgerUsed;
-    *byte |= 1;
-    return ((uint8_t*)pool->objectMemory.base) + memoryOffset;
-}
 
-#ifdef SE_DEBUG
-#define se_object_pool_return(type, poolPtr, objPtr) __se_object_pool_return(poolPtr, objPtr, sizeof(type))
-void __se_object_pool_return(SeObjectPool* pool, void* object, size_t objectSize)
-{
-    se_assert(objectSize == pool->objectSize);
-#else
-#define se_object_pool_return(type, poolPtr, objPtr) __se_object_pool_return(poolPtr, objPtr)
-void __se_object_pool_return(SeObjectPool* pool, void* object)
-{
-#endif
-    const intptr_t base = (intptr_t)pool->objectMemory.base;
-    const intptr_t end = base + pool->objectMemory.used;
-    const intptr_t candidate = (intptr_t)object;
-    se_assert_msg(candidate >= base && candidate < end, "Can't return object to the pool : pointer is not in the pool range");
-    const size_t memoryOffset = candidate - base;
-    se_assert_msg((memoryOffset % pool->objectSize) == 0, "Can't return object to the pool : wrong pointer provided");
-    const size_t ledgerOffset = memoryOffset / pool->objectSize;
-    uint8_t* byte = ((uint8_t*)pool->ledger.base) + (ledgerOffset / 8);
-    se_assert_msg(*byte & (1 << (ledgerOffset % 8)), "Can't return object to the pool : object is already returned");
-    *byte &= ~(1 << (ledgerOffset % 8));
-}
+    template<typename T>
+    inline ObjectPool<T> create(SePlatformInterface* platform)
+    {
+        return
+        {
+            .ledger             = expandable_virtual_memory::create(platform, se_gigabytes(16)),
+            .objectMemory       = expandable_virtual_memory::create(platform, se_gigabytes(16)),
+            .currentCapacity    = 0,
+        };
+    }
 
-#define se_object_pool_is_taken(poolPtr, index) (*(((uint8_t*)(poolPtr)->ledger.base) + (index / 8)) & (1 << (index % 8)))
+    inline TypelessObjectPool create_typeless(SePlatformInterface* platform)
+    {
+        return
+        {
+            .ledger             = expandable_virtual_memory::create(platform, se_gigabytes(16)),
+            .objectMemory       = expandable_virtual_memory::create(platform, se_gigabytes(16)),
+            .currentCapacity    = 0,
+        };
+    }
 
-#define se_object_pool_index_of(poolPtr, objectPtr) (((poolPtr)->objectMemory.base <= objectPtr) ? (((uint8_t*)(objectPtr) - (uint8_t*)(poolPtr)->objectMemory.base) / (poolPtr)->objectSize) : 0)
+    template<typename T>
+    inline void destroy(ObjectPool<T>& pool)
+    {
+        expandable_virtual_memory::destroy(pool.ledger);
+        expandable_virtual_memory::destroy(pool.objectMemory);
+    }
 
-#define se_object_pool_access_by_index(type, poolPtr, index) ((type*)(((uint8_t*)(poolPtr)->objectMemory.base) + (index * (poolPtr)->objectSize)))
+    inline void destroy(TypelessObjectPool& pool)
+    {
+        expandable_virtual_memory::destroy(pool.ledger);
+        expandable_virtual_memory::destroy(pool.objectMemory);
+    }
 
-#define se_object_pool_for(type, poolPtr, objName, code)                            \
-    for (size_t __it = 0; __it < (poolPtr)->ledger.used * 8; __it++)                \
-        if (se_object_pool_is_taken((poolPtr), __it))                               \
-        {                                                                           \
-            type* objName = se_object_pool_access_by_index(type, (poolPtr), __it);  \
-            code;                                                                   \
+    template<typename T>
+    inline void reset(ObjectPool<T>& pool)
+    {
+        __se_memset(expandable_virtual_memory::raw(pool.ledger), 0, expandable_virtual_memory::used(pool.ledger));
+    }
+
+    template<typename T>
+    T* take(ObjectPool<T>& pool)
+    {
+        for (size_t it = 0; it < expandable_virtual_memory::used(pool.ledger); it++)
+        {
+            uint8_t* byte = ((uint8_t*)expandable_virtual_memory::raw(pool.ledger)) + it;
+            if (*byte == 255) continue;
+            for (uint8_t byteIt = 0; byteIt < 8; byteIt++)
+            {
+                if ((*byte & (1 << byteIt)) == 0)
+                {
+                    const size_t ledgerOffset = it * 8 + byteIt;
+                    const size_t memoryOffset = ledgerOffset * sizeof(T);
+                    *byte |= (1 << byteIt);
+                    void* memory = ((uint8_t*)expandable_virtual_memory::raw(pool.objectMemory)) + memoryOffset;
+                    return (T*)memory;
+                }
+            }
+            se_assert_msg(false, "Invalid code path");
         }
+        const size_t ledgerUsed = expandable_virtual_memory::used(pool.ledger);
+        const size_t ledgerOffset = ledgerUsed * 8;
+        const size_t memoryOffset = ledgerOffset * sizeof(T);
+        expandable_virtual_memory::add(pool.ledger, 1);
+        expandable_virtual_memory::add(pool.objectMemory, sizeof(T) * 8);
+        uint8_t* byte = ((uint8_t*)expandable_virtual_memory::raw(pool.ledger)) + ledgerUsed;
+        *byte |= 1;
+        void* memory = ((uint8_t*)expandable_virtual_memory::raw(pool.objectMemory)) + memoryOffset;
+        return (T*)memory;
+    }
+
+    template<typename T>
+    size_t index_of(const ObjectPool<T>& pool, const T* object)
+    {
+        const intptr_t base = (intptr_t)expandable_virtual_memory::raw(pool.objectMemory);
+        const intptr_t end = base + (intptr_t)expandable_virtual_memory::used(pool.objectMemory);
+        const intptr_t candidate = (intptr_t)object;
+        se_assert_msg(candidate >= base && candidate < end, "Can't get index of an object in pool : pointer is not in the pool range");
+        const size_t memoryOffset = candidate - base;
+        se_assert_msg((memoryOffset % sizeof(T)) == 0, "Can't get index of an object in pool : wrong pointer provided");
+        return memoryOffset / sizeof(T);
+    }
+
+    template<typename T>
+    bool is_taken(const ObjectPool<T>& pool, size_t index)
+    {
+        se_assert_msg((pool.ledger.used * 8) > index, "Can't get check if object is taken from pool : index is out of range");
+        const uint8_t* byte = ((uint8_t*)expandable_virtual_memory::raw(pool.ledger)) + (index / 8);
+        return *byte & (1 << (index % 8));
+    }
+
+    template<typename T>
+    void release(ObjectPool<T>& pool, const T* object)
+    {
+        const size_t index = object_pool::index_of(pool, object);
+        se_assert(object_pool::is_taken(pool, index));
+        uint8_t* byte = ((uint8_t*)expandable_virtual_memory::raw(pool.ledger)) + (index / 8);
+        se_assert_msg(*byte & (1 << (index % 8)), "Can't return object to the pool : object is already returned");
+        *byte &= ~(1 << (index % 8));
+    }
+
+    template<typename T>
+    inline T* access(ObjectPool<T>& pool, size_t index)
+    {
+        se_assert(object_pool::is_taken(pool, index));
+        return ((T*)expandable_virtual_memory::raw(pool.objectMemory)) + index;
+    }
+
+    template<typename T>
+    using ForEachCb = void(*)(T*);
+
+    template<typename T>
+    void for_each(ObjectPool<T>& pool, ForEachCb<T> cb)
+    {
+        for (size_t it = 0; it < expandable_virtual_memory::used(pool.ledger) * 8; it++)
+        {
+            if (object_pool::is_taken(pool, it)) cb(object_pool::access(pool, it));
+        }
+    }
+
+    template<typename T>
+    inline ObjectPool<T>& from_typeless(TypelessObjectPool& pool)
+    {
+        return (ObjectPool<T>&)pool;
+    }
+}
 
 /*
     Hash table.

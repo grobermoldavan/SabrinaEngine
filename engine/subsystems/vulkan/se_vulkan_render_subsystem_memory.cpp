@@ -18,6 +18,15 @@
 #define SE_VK_GPU_MEMORY_BLOCK_SIZE_BYTES   64ull
 #define SE_VK_GPU_DEFAULT_CHUNK_SIZE_BYTES  (32ull * 1024ull * 1024ull)
 
+static size_t g_memoryManagerPoolIndex = 0;
+
+template<typename T>
+static size_t se_vk_memory_manager_get_pool_index()
+{
+    static size_t index = g_memoryManagerPoolIndex++;
+    return index;
+}
+
 static void* se_vk_memory_manager_alloc(void* pUserData, size_t size, size_t alignment, VkSystemAllocationScope allocationScope)
 {
     SeVkMemoryManager* manager = (SeVkMemoryManager*)pUserData;
@@ -142,35 +151,26 @@ static size_t se_vk_memory_chunk_find_aligned_free_space(SeVkGpuMemoryChunk* chu
 
 void se_vk_memory_manager_construct(SeVkMemoryManager* manager, SeVkMemoryManagerCreateInfo* createInfo)
 {
-    manager->cpu_persistentAllocator = createInfo->persistentAllocator;
-    manager->cpu_frameAllocator = createInfo->frameAllocator;
-    manager->cpu_allocationCallbacks =
+    *manager = SeVkMemoryManager
     {
-        .pUserData               = manager,
-        .pfnAllocation           = se_vk_memory_manager_alloc,
-        .pfnReallocation         = se_vk_memory_manager_realloc,
-        .pfnFree                 = se_vk_memory_manager_dealloc,
-        .pfnInternalAllocation   = nullptr,
-        .pfnInternalFree         = nullptr,
+        .cpu_allocationCallbacks    =
+        {
+            .pUserData              = manager,
+            .pfnAllocation          = se_vk_memory_manager_alloc,
+            .pfnReallocation        = se_vk_memory_manager_realloc,
+            .pfnFree                = se_vk_memory_manager_dealloc,
+            .pfnInternalAllocation  = nullptr,
+            .pfnInternalFree        = nullptr,
+        },
+        .cpu_allocations            = dynamic_array::create<SeVkCpuAllocation>(*createInfo->persistentAllocator, 4096),
+        .cpu_persistentAllocator    = createInfo->persistentAllocator,
+        .cpu_frameAllocator         = createInfo->frameAllocator,
+        .platform                   = createInfo->platform,
+        .cpu_pools                  = dynamic_array::create<TypelessObjectPool>(*createInfo->persistentAllocator, 32),
+        .device                     = nullptr,
+        .gpu_chunks                 = dynamic_array::create<SeVkGpuMemoryChunk>(*createInfo->persistentAllocator, 64),
+        .memoryProperties           = nullptr,
     };
-
-    { SeObjectPoolCreateInfo ci{ createInfo->platform, sizeof(SeVkProgram) }; se_object_pool_construct(&manager->programPool, &ci); }
-    { SeObjectPoolCreateInfo ci{ createInfo->platform, sizeof(SeVkTexture) }; se_object_pool_construct(&manager->texturePool, &ci); }
-    { SeObjectPoolCreateInfo ci{ createInfo->platform, sizeof(SeVkRenderPass) }; se_object_pool_construct(&manager->renderPassPool, &ci); }
-    { SeObjectPoolCreateInfo ci{ createInfo->platform, sizeof(SeVkFramebuffer) }; se_object_pool_construct(&manager->framebufferPool, &ci); }
-    { SeObjectPoolCreateInfo ci{ createInfo->platform, sizeof(SeVkPipeline) }; se_object_pool_construct(&manager->pipelinePool, &ci); }
-    { SeObjectPoolCreateInfo ci{ createInfo->platform, sizeof(SeVkMemoryBuffer) }; se_object_pool_construct(&manager->memoryBufferPool, &ci); }
-    { SeObjectPoolCreateInfo ci{ createInfo->platform, sizeof(SeVkSampler) }; se_object_pool_construct(&manager->samplerPool, &ci); }
-
-    dynamic_array::construct(manager->commandBufferPools, *createInfo->persistentAllocator, createInfo->numFrames);
-    for (size_t it = 0; it < createInfo->numFrames; it++)
-    {
-        dynamic_array::push(manager->commandBufferPools, { });
-        SeObjectPoolCreateInfo ci{ createInfo->platform, sizeof(SeVkCommandBuffer) };
-        se_object_pool_construct(&manager->commandBufferPools[it], &ci);
-    }
-    dynamic_array::construct(manager->cpu_allocations, *manager->cpu_persistentAllocator, 4096);
-    dynamic_array::construct(manager->gpu_chunks, *manager->cpu_persistentAllocator, 64);
 }
 
 void se_vk_memory_manager_free_gpu_memory(SeVkMemoryManager* manager)
@@ -189,22 +189,14 @@ void se_vk_memory_manager_free_gpu_memory(SeVkMemoryManager* manager)
 void se_vk_memory_manager_free_cpu_memory(SeVkMemoryManager* manager)
 {
     SeAllocatorBindings* allocator = manager->cpu_persistentAllocator;
+
     const size_t numAllocations = dynamic_array::size(manager->cpu_allocations);
     for (size_t it = 0; it < numAllocations; it++)
         allocator->dealloc(allocator->allocator, manager->cpu_allocations[it].ptr, manager->cpu_allocations[it].size);
     dynamic_array::destroy(manager->cpu_allocations);
 
-    se_object_pool_destroy(&manager->programPool);
-    se_object_pool_destroy(&manager->texturePool);
-    se_object_pool_destroy(&manager->renderPassPool);
-    se_object_pool_destroy(&manager->framebufferPool);
-    se_object_pool_destroy(&manager->pipelinePool);
-    se_object_pool_destroy(&manager->memoryBufferPool);
-    se_object_pool_destroy(&manager->samplerPool);
-
-    const size_t nummCommandBufferPools = dynamic_array::size(manager->commandBufferPools);
-    for (size_t it = 0; it < nummCommandBufferPools; it++)
-        se_object_pool_destroy(&manager->commandBufferPools[it]);
+    for (size_t it = 0; it < dynamic_array::size(manager->cpu_pools); it++)
+        object_pool::destroy(manager->cpu_pools[it]);
 }
 
 void se_vk_memory_manager_set_device(SeVkMemoryManager* manager, SeVkDevice* device)
@@ -313,6 +305,21 @@ void se_vk_memory_manager_deallocate(SeVkMemoryManager* manager, const SeVkMemor
         }
         break;
     }
+}
+
+template<typename T>
+ObjectPool<T>& se_vk_memory_manager_get_pool(SeVkMemoryManager* manager)
+{
+    const size_t index = se_vk_memory_manager_get_pool_index<T>();
+    if (index == dynamic_array::size(manager->cpu_pools))
+    {
+        dynamic_array::push(manager->cpu_pools, object_pool::create_typeless(manager->platform));
+    }
+    else
+    {
+        se_assert(index < dynamic_array::size(manager->cpu_pools));
+    }
+    return object_pool::from_typeless<T>(manager->cpu_pools[index]);
 }
 
 VkAllocationCallbacks* se_vk_memory_manager_get_callbacks(SeVkMemoryManager* manager)

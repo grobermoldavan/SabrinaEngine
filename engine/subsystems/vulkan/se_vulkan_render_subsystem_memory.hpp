@@ -52,15 +52,8 @@ struct SeVkMemoryManager
     DynamicArray<SeVkCpuAllocation>     cpu_allocations;
     struct SeAllocatorBindings*         cpu_persistentAllocator;
     struct SeAllocatorBindings*         cpu_frameAllocator;
-
-    SeObjectPool                        programPool;
-    SeObjectPool                        texturePool;
-    SeObjectPool                        renderPassPool;
-    SeObjectPool                        framebufferPool;
-    SeObjectPool                        pipelinePool;
-    SeObjectPool                        memoryBufferPool;
-    SeObjectPool                        samplerPool;
-    DynamicArray<SeObjectPool>          commandBufferPools;
+    struct SePlatformInterface*         platform;
+    DynamicArray<TypelessObjectPool>    cpu_pools;
 
     struct SeVkDevice*                  device;
     DynamicArray<SeVkGpuMemoryChunk>    gpu_chunks;
@@ -75,6 +68,8 @@ void            se_vk_memory_manager_set_device(SeVkMemoryManager* manager, stru
 bool            se_vk_memory_manager_is_valid_memory(const SeVkMemory memory);
 SeVkMemory      se_vk_memory_manager_allocate(SeVkMemoryManager* manager, const SeVkGpuAllocationRequest request);
 void            se_vk_memory_manager_deallocate(SeVkMemoryManager* manager, const SeVkMemory allocation);
+
+template<typename T> ObjectPool<T>& se_vk_memory_manager_get_pool(SeVkMemoryManager* manager);
 
 VkAllocationCallbacks* se_vk_memory_manager_get_callbacks(SeVkMemoryManager* manager);
 

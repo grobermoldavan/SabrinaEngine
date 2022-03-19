@@ -227,7 +227,7 @@ static void se_vk_device_swap_chain_create(SeVkDevice* device, SeWindowHandle wi
             SeVkSwapChainImage* image = &device->swapChain.images[it];
             if (allocateNewTextures)
             {
-                device->swapChain.textures[it] = se_object_pool_take(SeVkTexture, &memoryManager->texturePool);
+                device->swapChain.textures[it] = object_pool::take(se_vk_memory_manager_get_pool<SeVkTexture>(memoryManager));
                 se_vk_texture_construct_from_swap_chain(device->swapChain.textures[it], device, &device->swapChain.extent, image->handle, image->view, device->swapChain.surfaceFormat.format);
             }
             else
@@ -246,7 +246,7 @@ static void se_vk_device_swap_chain_destroy(SeVkDevice* device, bool deallocateT
         if (deallocateTextures)
         {
             se_vk_texture_destroy(device->swapChain.textures[it]);
-            se_object_pool_return(SeVkTexture, &device->memoryManager.texturePool, device->swapChain.textures[it]);
+            object_pool::release(se_vk_memory_manager_get_pool<SeVkTexture>(&device->memoryManager), device->swapChain.textures[it]);
         }
         else
         {
@@ -519,7 +519,8 @@ SeDeviceHandle se_vk_device_create(SeDeviceInfo* deviceInfo)
     {
         SeVkGraphInfo graphCreateInfo =
         {
-            .device = device,
+            .device     = device,
+            .numFrames  = NUM_FRAMES,
         };
         se_vk_graph_construct(&device->graph, &graphCreateInfo);
     }
@@ -534,17 +535,29 @@ void se_vk_device_destroy(SeDeviceHandle _device)
     //
     // Destroy all resources
     //
-    se_object_pool_for(SeVkSampler      , &device->memoryManager.samplerPool        , obj, se_vk_sampler_destroy(obj));
-    se_object_pool_for(SeVkMemoryBuffer , &device->memoryManager.memoryBufferPool   , obj, se_vk_memory_buffer_destroy(obj));
-    se_object_pool_for(SeVkFramebuffer  , &device->memoryManager.framebufferPool    , obj, se_vk_framebuffer_destroy(obj));
-    se_object_pool_for(SeVkTexture      , &device->memoryManager.texturePool        , obj, se_vk_texture_destroy(obj));
-    se_object_pool_for(SeVkPipeline     , &device->memoryManager.pipelinePool       , obj, se_vk_pipeline_destroy(obj));
-    se_object_pool_for(SeVkRenderPass   , &device->memoryManager.renderPassPool     , obj, se_vk_render_pass_destroy(obj));
-    se_object_pool_for(SeVkProgram      , &device->memoryManager.programPool        , obj, se_vk_program_destroy(obj));
-    for (size_t it = 0; it < dynamic_array::size(device->memoryManager.commandBufferPools); it++)
-    {
-        se_object_pool_for(SeVkCommandBuffer, &device->memoryManager.commandBufferPools[it], obj, se_vk_command_buffer_destroy(obj));
-    }
+    object_pool::for_each(se_vk_memory_manager_get_pool<SeVkSampler>(&device->memoryManager),
+        (object_pool::ForEachCb<SeVkSampler>)[](SeVkSampler* obj) { se_vk_sampler_destroy(obj); });
+
+    object_pool::for_each(se_vk_memory_manager_get_pool<SeVkMemoryBuffer>(&device->memoryManager),
+        (object_pool::ForEachCb<SeVkMemoryBuffer>)[](SeVkMemoryBuffer* obj) { se_vk_memory_buffer_destroy(obj); });
+
+    object_pool::for_each(se_vk_memory_manager_get_pool<SeVkFramebuffer>(&device->memoryManager),
+        (object_pool::ForEachCb<SeVkFramebuffer>)[](SeVkFramebuffer* obj) { se_vk_framebuffer_destroy(obj); });
+
+    object_pool::for_each(se_vk_memory_manager_get_pool<SeVkTexture>(&device->memoryManager),
+        (object_pool::ForEachCb<SeVkTexture>)[](SeVkTexture* obj) { se_vk_texture_destroy(obj); });
+
+    object_pool::for_each(se_vk_memory_manager_get_pool<SeVkPipeline>(&device->memoryManager),
+        (object_pool::ForEachCb<SeVkPipeline>)[](SeVkPipeline* obj) { se_vk_pipeline_destroy(obj); });
+
+    object_pool::for_each(se_vk_memory_manager_get_pool<SeVkRenderPass>(&device->memoryManager),
+        (object_pool::ForEachCb<SeVkRenderPass>)[](SeVkRenderPass* obj) { se_vk_render_pass_destroy(obj); });
+
+    object_pool::for_each(se_vk_memory_manager_get_pool<SeVkProgram>(&device->memoryManager),
+        (object_pool::ForEachCb<SeVkProgram>)[](SeVkProgram* obj) { se_vk_program_destroy(obj); });
+        
+    object_pool::for_each(se_vk_memory_manager_get_pool<SeVkCommandBuffer>(&device->memoryManager),
+        (object_pool::ForEachCb<SeVkCommandBuffer>)[](SeVkCommandBuffer* obj) { se_vk_command_buffer_destroy(obj); });
     //
     // Graph
     //

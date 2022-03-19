@@ -46,6 +46,8 @@ struct SeVkGraph
     struct SeVkDevice*                      device;
     SeVkGraphContextType                    context;
 
+    DynamicArray<DynamicArray<SeVkCommandBuffer*>> frameCommandBuffers;
+
     DynamicArray<SeVkTextureInfo>           textureInfos;           // Requested textures
     DynamicArray<SeVkGraphPass>             passes;                 // Started passes
     DynamicArray<SeGraphicsPipelineInfo>    graphicsPipelineInfos;  // Used pipeline infos (graphics)
@@ -66,6 +68,7 @@ struct SeVkGraph
 struct SeVkGraphInfo
 {
     struct SeVkDevice* device;
+    size_t numFrames;
 };
 
 void        se_vk_graph_construct(SeVkGraph* graph, SeVkGraphInfo* info);

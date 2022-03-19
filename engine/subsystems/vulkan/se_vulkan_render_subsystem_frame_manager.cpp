@@ -19,7 +19,7 @@ void se_vk_frame_manager_construct(SeVkFrameManager* manager, SeVkFrameManagerCr
         SeVkFrame* frame = &manager->frames[it];
         *frame =
         {
-            .scratchBuffer              = se_object_pool_take(SeVkMemoryBuffer, &createInfo->device->memoryManager.memoryBufferPool),
+            .scratchBuffer              = object_pool::take(se_vk_memory_manager_get_pool<SeVkMemoryBuffer>(&createInfo->device->memoryManager)),
             .scratchBufferTop           = 0,
             .imageAvailableSemaphore    = VK_NULL_HANDLE,
             .lastBuffer                 = nullptr,
