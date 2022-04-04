@@ -67,4 +67,10 @@ VkRenderPassBeginInfo   se_vk_render_pass_get_begin_info(SeVkRenderPass* pass, V
 
 #define se_vk_render_pass_get_hash_input(passPtr) (SeHashInput{ passPtr, sizeof(SeVkObject) })
 
+template<>
+void se_vk_destroy<SeVkRenderPass>(SeVkRenderPass* res)
+{
+    se_vk_render_pass_destroy(res);
+}
+
 #endif

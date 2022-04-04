@@ -34,4 +34,10 @@ struct SeVkSamplerInfo
 void se_vk_sampler_construct(SeVkSampler* sampler, SeVkSamplerInfo* info);
 void se_vk_sampler_destroy(SeVkSampler* sampler);
 
+template<>
+void se_vk_destroy<SeVkSampler>(SeVkSampler* res)
+{
+    se_vk_sampler_destroy(res);
+}
+
 #endif

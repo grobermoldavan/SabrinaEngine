@@ -27,4 +27,10 @@ struct SeVkFramebuffer
 void se_vk_framebuffer_construct(SeVkFramebuffer* framebuffer, SeVkFramebufferInfo* info);
 void se_vk_framebuffer_destroy(SeVkFramebuffer* framebuffer);
 
+template<>
+void se_vk_destroy<SeVkFramebuffer>(SeVkFramebuffer* res)
+{
+    se_vk_framebuffer_destroy(res);
+}
+
 #endif

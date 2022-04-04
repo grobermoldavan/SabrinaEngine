@@ -52,4 +52,10 @@ using SeVkGeneralBitmask = uint32_t;
 
 #define se_vk_safe_cast_size_t_to_uint32_t(val) ((uint32_t)(val))
 
+template<typename T>
+void se_vk_destroy(T* resource)
+{
+    static_assert(!"Destroy template function is not specified");
+}
+
 #endif

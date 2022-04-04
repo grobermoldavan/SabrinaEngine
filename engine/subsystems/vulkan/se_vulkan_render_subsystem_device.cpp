@@ -295,6 +295,15 @@ SeDeviceHandle se_vk_device_create(SeDeviceInfo* deviceInfo)
             .numFrames              = NUM_FRAMES,
         };
         se_vk_memory_manager_construct(&device->memoryManager, &createInfo);
+        se_vk_memory_manager_create_pool<SeVkCommandBuffer>(&device->memoryManager);
+        se_vk_memory_manager_create_pool<SeVkFramebuffer>(&device->memoryManager);
+        se_vk_memory_manager_create_pool<SeVkMemoryBuffer>(&device->memoryManager);
+        se_vk_memory_manager_create_pool<SeVkPipeline>(&device->memoryManager);
+        se_vk_memory_manager_create_pool<SeVkProgram>(&device->memoryManager);
+        se_vk_memory_manager_create_pool<SeVkRenderPass>(&device->memoryManager);
+        se_vk_memory_manager_create_pool<SeVkSampler>(&device->memoryManager);
+        se_vk_memory_manager_create_pool<SeVkTexture>(&device->memoryManager);
+
     }
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(&device->memoryManager);
     //

@@ -2,10 +2,17 @@
 #define _SE_VULKAN_RENDER_SUBSYSTEM_GRAPH_H_
 
 #include "se_vulkan_render_subsystem_base.hpp"
+#include "se_vulkan_render_subsystem_program.hpp"
 #include "se_vulkan_render_subsystem_texture.hpp"
 #include "se_vulkan_render_subsystem_render_pass.hpp"
+#include "se_vulkan_render_subsystem_framebuffer.hpp"
+#include "se_vulkan_render_subsystem_pipeline.hpp"
 #include "se_vulkan_render_subsystem_memory_buffer.hpp"
+#include "se_vulkan_render_subsystem_sampler.hpp"
+#include "se_vulkan_render_subsystem_command_buffer.hpp"
 #include "engine/containers.hpp"
+
+static constexpr size_t SE_VK_GRAPH_MAX_POOLS_IN_ARRAY = 64;
 
 enum SeVkGraphContextType
 {
@@ -41,28 +48,61 @@ struct SeVkGraphPass
     DynamicArray<SeVkGraphCommand> commands;
 };
 
+template<typename T>
+struct SeVkGraphTimed
+{
+    using Type = T;
+    T* handle;
+    size_t lastFrame;
+};
+
+struct SeVkGraphTextureInfoIndexed
+{
+    SeVkTextureInfo info;
+    size_t index;
+};
+
+struct SeVkGraphPipelineWithFrame
+{
+    SeVkPipeline* pipeline;
+    size_t frame;
+};
+
+struct SeVkGraphDescriptorPool
+{
+    VkDescriptorPool handle;
+    bool isLastAllocationSuccessful;
+};
+
+struct SeVkGraphDescriptorPoolArray
+{
+    SeVkGraphDescriptorPool pools[SE_VK_GRAPH_MAX_POOLS_IN_ARRAY];
+    size_t numPools;
+    size_t lastFrame;
+};
+
 struct SeVkGraph
 {
-    struct SeVkDevice*                      device;
-    SeVkGraphContextType                    context;
+    struct SeVkDevice*                                                  device;
+    SeVkGraphContextType                                                context;
 
-    DynamicArray<DynamicArray<SeVkCommandBuffer*>> frameCommandBuffers;
+    DynamicArray<DynamicArray<SeVkCommandBuffer*>>                      frameCommandBuffers;
 
-    DynamicArray<SeVkTextureInfo>           textureInfos;           // Requested textures
-    DynamicArray<SeVkGraphPass>             passes;                 // Started passes
-    DynamicArray<SeGraphicsPipelineInfo>    graphicsPipelineInfos;  // Used pipeline infos (graphics)
-    DynamicArray<SeComputePipelineInfo>     computePipelineInfos;   // Used pipeline infos (compute)
-    DynamicArray<SeVkMemoryBufferView>      scratchBufferViews;     // Requested buffers
+    DynamicArray<SeVkTextureInfo>                                       textureInfos;           // Requested textures
+    DynamicArray<SeVkGraphPass>                                         passes;                 // Started passes
+    DynamicArray<SeGraphicsPipelineInfo>                                graphicsPipelineInfos;  // Used pipeline infos (graphics)
+    DynamicArray<SeComputePipelineInfo>                                 computePipelineInfos;   // Used pipeline infos (compute)
+    DynamicArray<SeVkMemoryBufferView>                                  scratchBufferViews;     // Requested buffers
 
-    SeHashTable                             textureUsageCountTable; // Mapps SeVkTextureInfo to count value (this is required to support multiple textures of exactly the same format)
-    SeHashTable                             textureTable;           // Mapps { SeVkTextureInfo, usageCount } to actual SeVkTexture pointer
-    SeHashTable                             programTable;
-    SeHashTable                             renderPassTable;
-    SeHashTable                             framebufferTable;
-    SeHashTable                             graphicsPipelineTable;
-    SeHashTable                             computePipelineTable;
-    SeHashTable                             samplerTable;
-    SeHashTable                             descriptorPoolsTable;   // Mapps { SeVkPipeline, frameIndex } to SeVkGraphDescriptorPoolArray
+    HashTable<SeVkTextureInfo, size_t>                                  textureUsageCountTable; // Mapps SeVkTextureInfo to count value (this is required to support multiple textures of exactly the same format)
+    HashTable<SeVkGraphTextureInfoIndexed, SeVkGraphTimed<SeVkTexture>> textureTable;           // Mapps { SeVkTextureInfo, usageCount } to actual SeVkTexture pointer
+    HashTable<SeVkProgramInfo, SeVkGraphTimed<SeVkProgram>>             programTable;
+    HashTable<SeVkRenderPassInfo, SeVkGraphTimed<SeVkRenderPass>>       renderPassTable;
+    HashTable<SeVkFramebufferInfo, SeVkGraphTimed<SeVkFramebuffer>>     framebufferTable;
+    HashTable<SeVkGraphicsPipelineInfo, SeVkGraphTimed<SeVkPipeline>>   graphicsPipelineTable;
+    HashTable<SeVkComputePipelineInfo, SeVkGraphTimed<SeVkPipeline>>    computePipelineTable;
+    HashTable<SeVkSamplerInfo, SeVkGraphTimed<SeVkSampler>>             samplerTable;
+    HashTable<SeVkGraphPipelineWithFrame, SeVkGraphDescriptorPoolArray> descriptorPoolsTable;   // Mapps { SeVkPipeline, frameIndex } to SeVkGraphDescriptorPoolArray
 };
 
 struct SeVkGraphInfo
@@ -89,5 +129,34 @@ SeRenderRef se_vk_graph_compute_pipeline(SeVkGraph* graph, SeComputePipelineInfo
 SeRenderRef se_vk_graph_sampler(SeVkGraph* graph, SeSamplerInfo* info);
 void        se_vk_graph_command_bind(SeVkGraph* graph, SeCommandBindInfo* info);
 void        se_vk_graph_command_draw(SeVkGraph* graph, SeCommandDrawInfo* info);
+
+namespace hash_value
+{
+    template<>
+    HashValue generate<SeVkGraphPipelineWithFrame>(const SeVkGraphPipelineWithFrame& pipelineWithFrame)
+    {
+        const SeVkPipeline* pipeline = pipelineWithFrame.pipeline;
+        if (pipeline->bindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS)
+        {
+            return hash_value::generate
+            (
+                *pipeline->dependencies.graphics.vertexProgram,
+                *pipeline->dependencies.graphics.fragmentProgram,
+                *pipeline->dependencies.graphics.pass,
+                pipelineWithFrame.frame
+            );
+        }
+        else if (pipeline->bindPoint == VK_PIPELINE_BIND_POINT_COMPUTE)
+        {
+            return hash_value::generate
+            (
+                *pipeline->dependencies.compute.program,
+                pipelineWithFrame.frame
+            );
+        }
+        else { se_assert(!"Unsupported pipeline type"); }
+        return {};
+    }
+}
 
 #endif

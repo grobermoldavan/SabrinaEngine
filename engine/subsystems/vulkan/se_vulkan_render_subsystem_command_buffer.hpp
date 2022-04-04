@@ -39,4 +39,10 @@ void se_vk_command_buffer_construct(SeVkCommandBuffer* buffer, SeVkCommandBuffer
 void se_vk_command_buffer_destroy(SeVkCommandBuffer* buffer);
 void se_vk_command_buffer_submit(SeVkCommandBuffer* buffer, SeVkCommandBufferSubmitInfo* info);
 
+template<>
+void se_vk_destroy<SeVkCommandBuffer>(SeVkCommandBuffer* res)
+{
+    se_vk_command_buffer_destroy(res);
+}
+
 #endif

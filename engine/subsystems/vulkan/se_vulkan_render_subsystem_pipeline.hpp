@@ -79,4 +79,19 @@ size_t                          se_vk_pipeline_get_biggest_binding_index(const S
 VkDescriptorSetLayout           se_vk_pipeline_get_descriptor_set_layout(SeVkPipeline* pipeline, size_t set);
 SeVkDescriptorSetBindingInfo    se_vk_pipeline_get_binding_info(const SeVkPipeline* pipeline, size_t set, size_t binding);
 
+template<>
+void se_vk_destroy<SeVkPipeline>(SeVkPipeline* res)
+{
+    se_vk_pipeline_destroy(res);
+}
+
+namespace hash_value
+{
+    template<>
+    HashValue generate<SeVkGraphicsPipelineInfo>(const SeVkGraphicsPipelineInfo& info)
+    {
+        return hash_value::generate(info, *info.pass);
+    }
+}
+
 #endif

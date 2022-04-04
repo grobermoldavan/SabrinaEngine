@@ -31,6 +31,10 @@ void se_vk_program_destroy(SeVkProgram* program);
 
 VkPipelineShaderStageCreateInfo se_vk_program_get_shader_stage_create_info(struct SeVkDevice* device, SeVkProgramWithConstants* pipelineProgram, SeAllocatorBindings* allocator);
 
-#define se_vk_program_get_hash_input(programPtr) (SeHashInput{ programPtr, sizeof(SeVkObject) })
+template<>
+void se_vk_destroy<SeVkProgram>(SeVkProgram* res)
+{
+    se_vk_program_destroy(res);
+}
 
 #endif

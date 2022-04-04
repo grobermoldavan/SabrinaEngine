@@ -308,7 +308,7 @@ void se_vk_memory_manager_deallocate(SeVkMemoryManager* manager, const SeVkMemor
 }
 
 template<typename T>
-ObjectPool<T>& se_vk_memory_manager_get_pool(SeVkMemoryManager* manager)
+ObjectPool<T>& se_vk_memory_manager_create_pool(SeVkMemoryManager* manager)
 {
     const size_t index = se_vk_memory_manager_get_pool_index<T>();
     if (index == dynamic_array::size(manager->cpu_pools))
@@ -319,6 +319,14 @@ ObjectPool<T>& se_vk_memory_manager_get_pool(SeVkMemoryManager* manager)
     {
         se_assert(index < dynamic_array::size(manager->cpu_pools));
     }
+    return object_pool::from_typeless<T>(manager->cpu_pools[index]);
+}
+
+template<typename T>
+ObjectPool<T>& se_vk_memory_manager_get_pool(SeVkMemoryManager* manager)
+{
+    const size_t index = se_vk_memory_manager_get_pool_index<T>();
+    se_assert(index < dynamic_array::size(manager->cpu_pools));
     return object_pool::from_typeless<T>(manager->cpu_pools[index]);
 }
 

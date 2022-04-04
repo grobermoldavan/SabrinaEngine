@@ -106,6 +106,18 @@ namespace dynamic_array
     }
 
     template<typename T>
+    inline size_t capacity(const DynamicArray<T>& array)
+    {
+        return array.capacity;
+    }
+
+    template<typename T>
+    inline SeAllocatorBindings& allocator(const DynamicArray<T>& array)
+    {
+        return array.allocator;
+    }
+
+    template<typename T>
     T& add(DynamicArray<T>& array)
     {
         if (array.size == array.capacity)
@@ -391,283 +403,302 @@ namespace object_pool
     https://en.wikipedia.org/wiki/Linear_probing
 */
 
-#define SeHash meow_u128
+using HashValue = meow_u128;
 
-#define __se_hash_to_index(hash, capacity)          ((MeowU64From(hash, 0) % (capacity / 2)) + (MeowU64From(hash, 1) % (capacity / 2 + 1)))
-#define __se_hash_entry_size(keySize, valSize)      (sizeof(__SeHashTableObjectData) + keySize + valSize)
-#define __se_hash_table_access(table, index)        ((__SeHashTableObjectData*)(((char*)table->memory) + (__se_hash_entry_size(table->keySize, table->valueSize) * index)))
-#define __se_hash_table_key_ptr(data)               (((char*)data) + sizeof(__SeHashTableObjectData))
-#define __se_hash_table_value_ptr(data, keySize)    (((char*)data) + sizeof(__SeHashTableObjectData) + keySize)
-
-typedef struct __SeHashTableObjectData
+namespace hash_value
 {
-    SeHash hash;
-    bool isOccupied;
-} __SeHashTableObjectData;
-
-typedef struct SeHashTable
-{
-    SeAllocatorBindings* allocator;
-    void* memory;
-    size_t keySize;
-    size_t valueSize;
-    size_t capacity;
-    size_t size;
-} SeHashTable;
-
-typedef struct SeHashTableCreateInfo
-{
-    SeAllocatorBindings* allocator;
-    size_t keySize;
-    size_t valueSize;
-    size_t capacity;
-} SeHashTableCreateInfo;
-
-typedef struct SeHashInput
-{
-    const void* data;
-    size_t size;
-} SeHashInput;
-
-#define se_hash_cmp(h1, h2) MeowHashesAreEqual(h1, h2)
-
-#define se_hash(src, size) MeowHash(MeowDefaultSeed, size, (void*)src)
-
-SeHash se_hash_multiple(SeHashInput* inputs, size_t numInputs)
-{
-    meow_state state = {0};
-    MeowBegin(&state, MeowDefaultSeed);
-    for (size_t it = 0; it < numInputs; it++)
+    namespace impl
     {
-        MeowAbsorb(&state, inputs[it].size, (void*)inputs[it].data);
-    }
-    return MeowEnd(&state, nullptr);
-}
-
-void se_hash_table_construct(SeHashTable* table, SeHashTableCreateInfo* createInfo)
-{
-    void* memory = createInfo->allocator->alloc
-    (
-        createInfo->allocator->allocator,
-        createInfo->capacity * __se_hash_entry_size(createInfo->keySize, createInfo->valueSize),
-        se_default_alignment,
-        se_alloc_tag
-    );
-    __se_memset(memory, 0, createInfo->capacity * __se_hash_entry_size(createInfo->keySize, createInfo->valueSize));
-    *table =
-    {
-        .allocator  = createInfo->allocator,
-        .memory     = memory,
-        .keySize    = createInfo->keySize,
-        .valueSize  = createInfo->valueSize,
-        .capacity   = createInfo->capacity,
-        .size       = 0,
-    };
-}
-
-void se_hash_table_destroy(SeHashTable* table)
-{
-    table->allocator->dealloc
-    (
-        table->allocator->allocator,
-        table->memory,
-        table->capacity * __se_hash_entry_size(table->keySize, table->valueSize)
-    );
-}
-
-#ifdef SE_DEBUG
-#define se_hash_table_set(KeyType, ValueType, table, hash, keyPtr, valuePtr) (ValueType*)__se_hash_table_set(table, hash, keyPtr, valuePtr, sizeof(KeyType), sizeof(ValueType))
-void* __se_hash_table_set(SeHashTable* table, SeHash hash, const void* key, void* value, size_t keySize, size_t valueSize)
-{
-    se_assert(table->keySize == keySize);
-    se_assert(table->valueSize == valueSize);
-#else
-#define se_hash_table_set(KeyType, ValueType, table, hash, keyPtr, valuePtr) (ValueType*)__se_hash_table_set(table, hash, keyPtr, valuePtr)
-void* __se_hash_table_set(SeHashTable* table, SeHash hash, const void* key, void* value)
-{
-#endif
-    //
-    // Expand if needed
-    //
-    if (table->size >= (table->capacity / 2))
-    {
-        SeHashTable newTable;
-        SeHashTableCreateInfo createInfo =
+        struct MultiHashInput
         {
-            .allocator  = table->allocator,
-            .keySize    = table->keySize,
-            .valueSize  = table->valueSize,
-            .capacity   = table->capacity * 2,
+            void* data;
+            size_t size;
         };
-        se_hash_table_construct(&newTable, &createInfo);
-        for (size_t it = 0; it < table->capacity; it++)
-        {
-            __SeHashTableObjectData* data = __se_hash_table_access(table, it);
-            if (data->isOccupied)
-#ifdef SE_DEBUG
-                __se_hash_table_set(&newTable, data->hash, __se_hash_table_key_ptr(data), __se_hash_table_value_ptr(data, table->keySize), table->keySize, table->valueSize);
-#else
-                __se_hash_table_set(&newTable, data->hash, __se_hash_table_key_ptr(data), __se_hash_table_value_ptr(data, table->keySize));
-#endif
-        }
-        se_hash_table_destroy(table);
-        *table = newTable;
-    }
-    //
-    // Add new value
-    //
-    __SeHashTableObjectData* data = nullptr;
-    const size_t initialPosition = __se_hash_to_index(hash, table->capacity);
-    size_t currentPosition = initialPosition;
-    do
-    {
-        data = __se_hash_table_access(table, currentPosition);
-        if (!data->isOccupied)
-        {
-            break;
-        }
-        else if (se_hash_cmp(data->hash, hash) && __se_memcmp(__se_hash_table_key_ptr(data), key, table->keySize))
-        {
-            break;
-        }
-        currentPosition = ((currentPosition + 1) % table->capacity);
-    } while (currentPosition != initialPosition);
-    if (!data->isOccupied)
-    {
-        data->hash = hash;
-        data->isOccupied = true;
-        __se_memcpy(__se_hash_table_key_ptr(data), key, table->keySize);
-        __se_memcpy(__se_hash_table_value_ptr(data, table->keySize), value, table->valueSize);
-        table->size += 1;
-    }
-    else 
-    {
-        __se_memcpy(__se_hash_table_value_ptr(data, table->keySize), value, table->valueSize);
-    }
-    return __se_hash_table_value_ptr(data, table->keySize);
-}
 
-#ifdef SE_DEBUG
-#define se_hash_table_get(KeyType, ValueType, table, hash, keyPtr) (ValueType*)__se_hash_table_get(table, hash, keyPtr, sizeof(KeyType), sizeof(ValueType))
-void* __se_hash_table_get(SeHashTable* table, SeHash hash, const void* key, size_t keySize, size_t valueSize)
-{
-    se_assert(table->keySize == keySize);
-    se_assert(table->valueSize == valueSize);
-#else
-#define se_hash_table_get(KeyType, ValueType, table, hash, keyPtr) (ValueType*)__se_hash_table_get(table, hash, keyPtr)
-void* __se_hash_table_get(SeHashTable* table, SeHash hash, const void* key)
-{
-#endif
-    const size_t initialPosition = __se_hash_to_index(hash, table->capacity);
-    size_t currentPosition = initialPosition;
-    do
-    {
-        __SeHashTableObjectData* data = __se_hash_table_access(table, currentPosition);
-        if (!data->isOccupied) break;
-        const bool isCorrectData = se_hash_cmp(data->hash, hash) && __se_memcmp(__se_hash_table_key_ptr(data), key, table->keySize);
-        if (isCorrectData)
+        template<size_t index, typename Value>
+        void fill_hash_inputs(MultiHashInput* inputs, const Value& value)
         {
-            return __se_hash_table_value_ptr(data, table->keySize);
+            inputs[index] = MultiHashInput{ .data = (void*)&value, .size = sizeof(Value) };
         }
-        currentPosition = ((currentPosition + 1) % table->capacity);
-    } while (currentPosition != initialPosition);
-    return nullptr;
-}
 
-void __se_hash_table_remove_data(SeHashTable* table, __SeHashTableObjectData* dataToRemove)
-{
-    se_assert((((char*)dataToRemove) - ((char*)table->memory)) % __se_hash_entry_size(table->keySize, table->valueSize) == 0);
-    const size_t removedDataPosition = (((char*)dataToRemove) - ((char*)table->memory)) / __se_hash_entry_size(table->keySize, table->valueSize);
-    dataToRemove->isOccupied = false;
-    table->size -= 1;
-    __SeHashTableObjectData* dataToReplace = dataToRemove;
-    for (size_t currentPosition = ((removedDataPosition + 1) % table->capacity); currentPosition != removedDataPosition; currentPosition = ((currentPosition + 1) % table->capacity))
-    {
-        __SeHashTableObjectData* data = __se_hash_table_access(table, currentPosition);
-        if (!data->isOccupied) break;
-        if (__se_hash_to_index(data->hash, table->capacity) <= __se_hash_to_index(dataToReplace->hash, table->capacity))
+        template<size_t index, typename Value, typename ... Other>
+        void fill_hash_inputs(MultiHashInput* inputs, const Value& value, const Other& ... other)
         {
-            __se_memcpy(dataToReplace, data, __se_hash_entry_size(table->keySize, table->valueSize));
-            data->isOccupied = false;
-            dataToReplace = data;
+            inputs[index] = MultiHashInput{ .data = (void*)&value, .size = sizeof(Value) };
+            fill_hash_inputs<index + 1, Other...>(inputs, other...);
         }
+    }
+
+    template<typename Value>
+    HashValue generate(const Value& value)
+    {
+        return MeowHash(MeowDefaultSeed, sizeof(Value), (void*)&value);
+    }
+
+    template<typename Value, typename ... Other>
+    HashValue generate(const Value& value, const Other& ... other)
+    {
+        constexpr size_t numInputs = 1 + sizeof...(Other);
+        impl::MultiHashInput inputs[numInputs];
+        impl::fill_hash_inputs<0>(inputs, value, other...);
+        meow_state state = { };
+        MeowBegin(&state, MeowDefaultSeed);
+        for (size_t it = 0; it < numInputs; it++)
+        {
+            MeowAbsorb(&state, inputs[it].size, inputs[it].data);
+        }
+        return MeowEnd(&state, nullptr);
+    }
+
+    inline bool is_equal(const HashValue& first, const HashValue& second)
+    {
+        return MeowHashesAreEqual(first, second);
     }
 }
 
-#ifdef SE_DEBUG
-#define se_hash_table_remove(KeyType, ValueType, table, hash, key) __se_hash_table_remove(table, hash, &key, sizeof(KeyType), sizeof(ValueType))
-void __se_hash_table_remove(SeHashTable* table, SeHash hash, const void* key, size_t keySize, size_t valueSize)
+template<typename Key, typename Value>
+struct HashTable
 {
-    se_assert(table->keySize == keySize);
-    se_assert(table->valueSize == valueSize);
-#else
-#define se_hash_table_remove(KeyType, ValueType, table, hash, key) __se_hash_table_remove(table, hash, &key)
-void __se_hash_table_remove(SeHashTable* table, SeHash hash, const void* key)
-{
-#endif
-#ifdef SE_DEBUG
-    void* val = __se_hash_table_get(table, hash, key, table->keySize, table->valueSize);
-#else
-    void* val = __se_hash_table_get(table, hash, key);
-#endif
-    if (val)
+    using KeyType = Key;
+    using ValueType = Key;
+    struct Entry
     {
-        __SeHashTableObjectData* dataToRemove = (__SeHashTableObjectData*)(((char*)val) - table->keySize - sizeof(__SeHashTableObjectData));
-        __se_hash_table_remove_data(table, dataToRemove);
-        // dataToRemove->isOccupied = false;
-        // table->size -= 1;
-        // const size_t removedDataPosition = (((char*)dataToRemove) - ((char*)table->memory)) / __se_hash_entry_size(table->keySize, table->valueSize);
-        // __SeHashTableObjectData* dataToReplace = dataToRemove;
-        // for (size_t currentPosition = ((removedDataPosition + 1) % table->capacity); currentPosition != removedDataPosition; currentPosition = ((currentPosition + 1) % table->capacity))
-        // {
-        //     __SeHashTableObjectData* data = __se_hash_table_access(table, currentPosition);
-        //     if (!data->isOccupied) break;
-        //     if (__se_hash_to_index(data->hash, table->capacity) <= __se_hash_to_index(dataToReplace->hash, table->capacity))
-        //     {
-        //         __se_memcpy(dataToReplace, data, __se_hash_entry_size(table->keySize, table->valueSize));
-        //         data->isOccupied = false;
-        //         dataToReplace = data;
-        //     }
-        // }
-    }
-}
+        Key         key;
+        Value       value;
+        HashValue   hash;
+        bool        isOccupied;
+    };
+    struct Iterator
+    {
+        struct IteratorValue
+        {
+            const Key&  key;
+            Value&      value;
+            Iterator*   iterator;
+        };
+        HashTable* table;
+        size_t index;
 
-void se_hash_table_reset(SeHashTable* table)
+        bool            operator != (const Iterator& other);
+        IteratorValue   operator *  ();
+        Iterator&       operator ++ ();
+    };
+
+    SeAllocatorBindings allocator;
+    Entry*              memory;
+    size_t              capacity;
+    size_t              size;
+};
+
+template<typename Key, typename Value>
+typename HashTable<Key, Value>::Iterator begin(HashTable<Key, Value>& table)
 {
-    for (size_t it = 0; it < table->capacity; it++)
-        __se_hash_table_access(table, it)->isOccupied = false;
+    if (table.size == 0) return { &table, table.capacity };
+    size_t it = 0;
+    while (it < table.capacity && !table.memory[it].isOccupied) { it++; }
+    return { &table, it };
 }
 
-#define se_hash_table_remove_if(ValueType, tablePtr, objName, condition, destructor)    \
-    {                                                                                   \
-        for (size_t __it = 0; __it < (tablePtr)->capacity; __it++)                      \
-        {                                                                               \
-            __SeHashTableObjectData* __data = __se_hash_table_access((tablePtr), __it); \
-            if (__data->isOccupied)                                                     \
-            {                                                                           \
-                ValueType* objName = (ValueType*)__se_hash_table_value_ptr(__data, (tablePtr)->keySize); \
-                if (condition)                                                          \
-                {                                                                       \
-                    destructor;                                                         \
-                    __se_hash_table_remove_data((tablePtr), __data);                    \
-                    __it -= 1;                                                          \
-                }                                                                       \
-            }                                                                           \
-        }                                                                               \
+template<typename Key, typename Value>
+typename HashTable<Key, Value>::Iterator end(HashTable<Key, Value>& table)
+{
+    return { &table, table.capacity };
+}
+
+template<typename Key, typename Value>
+bool HashTable<Key, Value>::Iterator::operator != (const typename HashTable<Key, Value>::Iterator& other)
+{
+    return (table != other.table) || (index != other.index);
+}
+
+template<typename Key, typename Value>
+typename HashTable<Key, Value>::Iterator::IteratorValue HashTable<Key, Value>::Iterator::operator * ()
+{
+    return{ table->memory[index].key, table->memory[index].value, this };
+}
+
+template<typename Key, typename Value>
+typename HashTable<Key, Value>::Iterator& HashTable<Key, Value>::Iterator::operator ++ ()
+{
+    do { index++; } while (index < table->capacity && !table->memory[index].isOccupied);
+    return *this;
+}
+
+namespace hash_table
+{
+    namespace impl
+    {
+        inline size_t hash_to_index(HashValue hash, size_t capacity)
+        {
+            return (MeowU64From(hash, 0) % (capacity / 2)) + (MeowU64From(hash, 1) % (capacity / 2 + 1));
+        }
+
+        template<typename Key, typename Value>
+        size_t index_of(HashTable<Key, Value>& table, const Key& key)
+        {
+            using Entry = HashTable<Key, Value>::Entry;
+            HashValue hash = hash_value::generate(key);
+            const size_t initialPosition = impl::hash_to_index(hash, table.capacity);
+            size_t currentPosition = initialPosition;
+            do
+            {
+                Entry& data = table.memory[currentPosition];
+                if (!data.isOccupied) break;
+                const bool isCorrectData = hash_value::is_equal(data.hash, hash) && __se_memcmp(&data.key, &key, sizeof(Key));
+                if (isCorrectData)
+                {
+                    return currentPosition;
+                }
+                currentPosition = ((currentPosition + 1) % table.capacity);
+            } while (currentPosition != initialPosition);
+            return table.capacity;
+        }
+
+        template<typename Key, typename Value>
+        void remove(HashTable<Key, Value>& table, size_t index)
+        {
+            using Entry = HashTable<Key, Value>::Entry;
+            Entry& dataToRemove = table.memory[index];
+            dataToRemove.isOccupied = false;
+            table.size -= 1;
+            Entry& dataToReplace = dataToRemove;
+            for (size_t currentPosition = ((index + 1) % table.capacity); currentPosition != index; currentPosition = ((currentPosition + 1) % table.capacity))
+            {
+                Entry& data = table.memory[currentPosition];
+                if (!data.isOccupied) break;
+                if (hash_to_index(data.hash, table.capacity) <= hash_to_index(dataToReplace.hash, table.capacity))
+                {
+                    __se_memcpy(&dataToReplace, &data, sizeof(Entry));
+                    data.isOccupied = false;
+                    dataToReplace = data;
+                }
+            }
+        }
     }
 
-#define se_hash_table_for_each(KeyType, ValueType, tablePtr, keyName, valName, code)    \
-    {                                                                                   \
-        for (size_t __it = 0; __it < (tablePtr)->capacity; __it++)                      \
-        {                                                                               \
-            __SeHashTableObjectData* __data = __se_hash_table_access((tablePtr), __it); \
-            if (__data->isOccupied)                                                     \
-            {                                                                           \
-                KeyType* keyName = (KeyType*)__se_hash_table_key_ptr(__data); \
-                ValueType* valName = (ValueType*)__se_hash_table_value_ptr(__data, (tablePtr)->keySize); \
-                code;                                                                   \
-            }                                                                           \
-        }                                                                               \
+    template<typename Key, typename Value>
+    void construct(HashTable<Key, Value>& table, SeAllocatorBindings& allocator, size_t capacity = 4)
+    {
+        table =
+        {
+            .allocator  = allocator,
+            .memory     = nullptr,
+            .capacity   = capacity,
+            .size       = 0,
+        };
+        const size_t allocSize = sizeof(HashTable<Key, Value>::Entry) * capacity;
+        table.memory = (typename HashTable<Key, Value>::Entry*)allocator.alloc(allocator.allocator, allocSize, se_default_alignment, se_alloc_tag);
+        __se_memset(table.memory, 0, allocSize);
     }
+
+    template<typename Key, typename Value>
+    HashTable<Key, Value> create(SeAllocatorBindings& allocator, size_t capacity = 4)
+    {
+        HashTable<Key, Value> result =
+        {
+            .allocator  = allocator,
+            .memory     = nullptr,
+            .capacity   = capacity,
+            .size       = 0,
+        };
+        const size_t allocSize = sizeof(HashTable<Key, Value>::Entry) * capacity;
+        result.memory = (typename HashTable<Key, Value>::Entry*)allocator.alloc(allocator.allocator, allocSize, se_default_alignment, se_alloc_tag);
+        __se_memset(result.memory, 0, allocSize);
+        return result;
+    }
+
+    template<typename Key, typename Value>
+    void destroy(HashTable<Key, Value>& table)
+    {
+        table.allocator.dealloc(table.allocator.allocator, table.memory, sizeof(HashTable<Key, Value>::Entry) * table.capacity);
+    }
+
+    template<typename Key, typename Value>
+    Value* set(HashTable<Key, Value>& table, const Key& key, const Value& value)
+    {
+        using Entry = HashTable<Key, Value>::Entry;
+        HashValue hash = hash_value::generate(key);
+        //
+        // Expand if needed
+        //
+        if (table.size >= (table.capacity / 2))
+        {
+            const size_t oldCapacity = table.capacity;
+            const size_t newCapacity = oldCapacity * 2;
+            HashTable<Key, Value> newTable = hash_table::create<Key, Value>(table.allocator, newCapacity);
+            for (size_t it = 0; it < oldCapacity; it++)
+            {
+                Entry& entry = table.memory[it];
+                if (entry.isOccupied) hash_table::set(newTable, entry.key, entry.value);
+            }
+            hash_table::destroy(table);
+            table = newTable;
+        }
+        //
+        // Find position
+        //
+        const size_t capacity = table.capacity;
+        const size_t initialPosition = impl::hash_to_index(hash, capacity);
+        size_t currentPosition = initialPosition;
+        do
+        {
+            Entry& entry = table.memory[currentPosition];
+            if (!entry.isOccupied)
+            {
+                break;
+            }
+            else if (hash_value::is_equal(entry.hash, hash) && __se_memcmp(&entry.key, &key, sizeof(Key)))
+            {
+                break;
+            }
+            currentPosition = ((currentPosition + 1) % capacity);
+        } while (currentPosition != initialPosition);
+        //
+        // Fill data
+        //
+        Entry& entry = table.memory[currentPosition];
+        if (!entry.isOccupied)
+        {
+            entry.hash = hash;
+            entry.isOccupied = true;
+            __se_memcpy(&entry.key, &key, sizeof(Key));
+            __se_memcpy(&entry.value, &value, sizeof(Value));
+            table.size += 1;
+        }
+        else 
+        {
+            __se_memcpy(&entry.value, &value, sizeof(Value));
+        }
+        return &entry.value;
+    }
+
+    template<typename Key, typename Value>
+    Value* get(HashTable<Key, Value>& table, const Key& key)
+    {
+        const size_t position = impl::index_of(table, key);
+        return position == table.capacity ? nullptr : &table.memory[position].value;
+    }
+
+    template<typename Key, typename Value>
+    void remove(HashTable<Key, Value>& table, const Key& key)
+    {
+        const size_t position = impl::index_of(table, key);
+        if (position != table.capacity) impl::remove(table, position);
+    }
+
+    template<typename Key, typename Value>
+    void reset(HashTable<Key, Value>& table)
+    {
+        for (size_t it = 0; it < table.capacity; it++)
+            table.memory[it].isOccupied = false;
+    }
+
+    template<typename Key, typename Value>
+    void remove(typename HashTable<Key, Value>::Iterator::IteratorValue val)
+    {
+        remove(*val.iterator->table, val.key);
+        val.iterator->index -= 1;
+    }
+}
 
 #endif

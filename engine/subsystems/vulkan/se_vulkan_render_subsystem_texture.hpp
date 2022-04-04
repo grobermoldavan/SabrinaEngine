@@ -38,4 +38,10 @@ void se_vk_texture_destroy(SeVkTexture* texture);
 
 #define se_vk_texture_get_hash_input(texturePtr) (SeHashInput{ texturePtr, sizeof(SeVkObject) })
 
+template<>
+void se_vk_destroy<SeVkTexture>(SeVkTexture* res)
+{
+    se_vk_texture_destroy(res);
+}
+
 #endif

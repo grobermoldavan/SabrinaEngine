@@ -31,4 +31,10 @@ struct SeVkMemoryBufferInfo
 void se_vk_memory_buffer_construct(SeVkMemoryBuffer* buffer, SeVkMemoryBufferInfo* info);
 void se_vk_memory_buffer_destroy(SeVkMemoryBuffer* buffer);
 
+template<>
+void se_vk_destroy<SeVkMemoryBuffer>(SeVkMemoryBuffer* res)
+{
+    se_vk_memory_buffer_destroy(res);
+}
+
 #endif
