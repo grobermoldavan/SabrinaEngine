@@ -23,9 +23,9 @@ template<typename T>
 struct DynamicArray
 {
     SeAllocatorBindings allocator;
-    T* memory;
-    size_t size;
-    size_t capacity;
+    T*                  memory;
+    size_t              size;
+    size_t              capacity;
 
     T& operator [] (size_t index)
     {
@@ -37,6 +37,70 @@ struct DynamicArray
         return memory[index];
     }
 };
+
+template <typename T, typename ValueT, typename Array>
+struct DynamicArrayIterator;
+
+template <typename T, typename ValueT, typename Array>
+struct DynamicArrayIteratorValue
+{
+    ValueT& value;
+    DynamicArrayIterator<T, ValueT, Array>* iterator;
+};
+
+template <typename T, typename ValueT, typename Array>
+struct DynamicArrayIterator
+{
+    Array* arr;
+    size_t index;
+
+    bool                                        operator != (const DynamicArrayIterator& other);
+    DynamicArrayIteratorValue<T, ValueT, Array> operator *  ();
+    DynamicArrayIterator&                       operator ++ ();
+};
+
+template<typename T>
+DynamicArrayIterator<T, T, DynamicArray<T>> begin(DynamicArray<T>& arr)
+{
+    return { &arr, 0 };
+}
+
+template<typename T>
+DynamicArrayIterator<T, T, DynamicArray<T>> end(DynamicArray<T>& arr)
+{
+    return { &arr, arr.size };
+}
+
+template<typename T>
+DynamicArrayIterator<T, const T, const DynamicArray<T>> begin(const DynamicArray<T>& arr)
+{
+    return { &arr, 0 };
+}
+
+template<typename T>
+DynamicArrayIterator<T, const T, const DynamicArray<T>> end(const DynamicArray<T>& arr)
+{
+    return { &arr, arr.size };
+}
+
+template<typename T, typename ValueT, typename Array>
+bool DynamicArrayIterator<T, ValueT, Array>::operator != (const DynamicArrayIterator<T, ValueT, Array>& other)
+{
+    return (arr != other.arr) || (index != other.index);
+}
+
+template<typename T, typename ValueT, typename Array>
+DynamicArrayIteratorValue<T, ValueT, Array> DynamicArrayIterator<T, ValueT, Array>::operator * ()
+{
+    return { arr->memory[index], this };
+}
+
+template<typename T, typename ValueT, typename Array>
+DynamicArrayIterator<T, ValueT, Array>& DynamicArrayIterator<T, ValueT, Array>::operator ++ ()
+{
+    index += 1;
+    return *this;
+}
 
 namespace dynamic_array
 {
@@ -179,7 +243,35 @@ namespace dynamic_array
     {
         return array.memory;
     }
-};
+}
+
+namespace iter
+{
+    template<typename T>
+    T& value(DynamicArrayIteratorValue<T, T, DynamicArray<T>>& value)
+    {
+        return value.value;
+    }
+
+    template<typename T>
+    const T& value(DynamicArrayIteratorValue<T, const T, const DynamicArray<T>>& value)
+    {
+        return value.value;
+    }
+
+    template<typename T, typename ValueT, typename Array>
+    size_t index(DynamicArrayIteratorValue<T, ValueT, Array>& value)
+    {
+        return value.iterator->index;
+    }
+
+    template<typename T>
+    void remove(DynamicArrayIteratorValue<T, T, DynamicArray<T>>& value)
+    {
+        dynamic_array::remove(*value.iterator->arr, value.iterator->index);
+        value.iterator->index -= 1;
+    }
+}
 
 /*
     Expandable virtual memory.
@@ -490,6 +582,25 @@ struct HashTable
     size_t              size;
 };
 
+// template<typename Key, typename Value, typename Table>
+// struct HashTableIteratorValue
+// {
+//     const Key&  key;
+//     Value&      value;
+//     Iterator*   iterator;
+// };
+
+// template<typename Key, typename Value, typename Table>
+// struct HashTableIterator
+// {
+//     Table* table;
+//     size_t index;
+
+//     bool            operator != (const Iterator& other);
+//     IteratorValue   operator *  ();
+//     Iterator&       operator ++ ();
+// };
+
 template<typename Key, typename Value>
 typename HashTable<Key, Value>::Iterator begin(HashTable<Key, Value>& table)
 {
@@ -514,7 +625,7 @@ bool HashTable<Key, Value>::Iterator::operator != (const typename HashTable<Key,
 template<typename Key, typename Value>
 typename HashTable<Key, Value>::Iterator::IteratorValue HashTable<Key, Value>::Iterator::operator * ()
 {
-    return{ table->memory[index].key, table->memory[index].value, this };
+    return { table->memory[index].key, table->memory[index].value, this };
 }
 
 template<typename Key, typename Value>

@@ -138,11 +138,12 @@ void se_vk_utils_destroy_swap_chain_support_details(SeVkSwapChainSupportDetails&
 
 VkSurfaceFormatKHR se_vk_utils_choose_swap_chain_surface_format(const DynamicArray<VkSurfaceFormatKHR>& available)
 {
-    for (size_t it = 0; it < dynamic_array::size(available); it++)
+    for (auto it : available)
     {
-        if (available[it].format == /*VK_FORMAT_B8G8R8A8_SRGB*/ VK_FORMAT_R8G8B8A8_SRGB && available[it].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+        const VkSurfaceFormatKHR& value = iter::value(it);
+        if (value.format == /*VK_FORMAT_B8G8R8A8_SRGB*/ VK_FORMAT_R8G8B8A8_SRGB && value.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
         {
-            return available[it];
+            return value;
         }
     }
     return available[0];
@@ -150,11 +151,12 @@ VkSurfaceFormatKHR se_vk_utils_choose_swap_chain_surface_format(const DynamicArr
 
 VkPresentModeKHR se_vk_utils_choose_swap_chain_surface_present_mode(const DynamicArray<VkPresentModeKHR>& available)
 {
-    for (size_t it = 0; it < dynamic_array::size(available); it++)
+    for (auto it : available)
     {
-        if (available[it] == VK_PRESENT_MODE_MAILBOX_KHR)
+        const VkPresentModeKHR& value = iter::value(it);
+        if (value == VK_PRESENT_MODE_MAILBOX_KHR)
         {
-            return available[it];
+            return value;
         }
     }
     return VK_PRESENT_MODE_FIFO_KHR; // Guarateed to be available
@@ -178,11 +180,11 @@ VkExtent2D se_vk_utils_choose_swap_chain_extent(uint32_t windowWidth, uint32_t w
 
 uint32_t se_vk_utils_pick_graphics_queue(const DynamicArray<VkQueueFamilyProperties>& familyProperties)
 {
-    for (uint32_t it = 0; it < dynamic_array::size(familyProperties); it++)
+    for (auto it : familyProperties)
     {
-        if (familyProperties[it].queueFlags & VK_QUEUE_GRAPHICS_BIT)
+        if (iter::value(it).queueFlags & VK_QUEUE_GRAPHICS_BIT)
         {
-            return it;
+            return (uint32_t)iter::index(it);
         }
     }
     return SE_VK_INVALID_QUEUE;
@@ -190,13 +192,14 @@ uint32_t se_vk_utils_pick_graphics_queue(const DynamicArray<VkQueueFamilyPropert
 
 uint32_t se_vk_utils_pick_present_queue(const DynamicArray<VkQueueFamilyProperties>& familyProperties, VkPhysicalDevice device, VkSurfaceKHR surface)
 {
-    for (uint32_t it = 0; it < dynamic_array::size(familyProperties); it++)
+    for (auto it : familyProperties)
     {
+        const uint32_t index = (uint32_t)iter::index(it);
         VkBool32 isSupported;
-        vkGetPhysicalDeviceSurfaceSupportKHR(device, it, surface, &isSupported);
+        vkGetPhysicalDeviceSurfaceSupportKHR(device, index, surface, &isSupported);
         if (isSupported)
         {
-            return it;
+            return index;
         }
     }
     return SE_VK_INVALID_QUEUE;
@@ -204,11 +207,11 @@ uint32_t se_vk_utils_pick_present_queue(const DynamicArray<VkQueueFamilyProperti
 
 uint32_t se_vk_utils_pick_transfer_queue(const DynamicArray<VkQueueFamilyProperties>& familyProperties)
 {
-    for (uint32_t it = 0; it < dynamic_array::size(familyProperties); it++)
+    for (auto it : familyProperties)
     {
-        if (familyProperties[it].queueFlags & VK_QUEUE_TRANSFER_BIT)
+        if (iter::value(it).queueFlags & VK_QUEUE_TRANSFER_BIT)
         {
-            return it;
+            return (uint32_t)iter::index(it);
         }
     }
     return SE_VK_INVALID_QUEUE;
@@ -216,11 +219,11 @@ uint32_t se_vk_utils_pick_transfer_queue(const DynamicArray<VkQueueFamilyPropert
 
 uint32_t se_vk_utils_pick_compute_queue(const DynamicArray<VkQueueFamilyProperties>& familyProperties)
 {
-    for (uint32_t it = 0; it < dynamic_array::size(familyProperties); it++)
+    for (auto it : familyProperties)
     {
-        if (familyProperties[it].queueFlags & VK_QUEUE_COMPUTE_BIT)
+        if (iter::value(it).queueFlags & VK_QUEUE_COMPUTE_BIT)
         {
-            return it;
+            return (uint32_t)iter::index(it);
         }
     }
     return SE_VK_INVALID_QUEUE;
@@ -343,9 +346,9 @@ bool se_vk_utils_does_physical_device_supports_required_extensions(VkPhysicalDev
     for (size_t requiredIt = 0; requiredIt < numExtensions; requiredIt++)
     {
         isRequiredExtensionAvailable = false;
-        for (size_t availableIt = 0; availableIt < dynamic_array::size(availableExtensions); availableIt++)
+        for (auto availableIt : availableExtensions)
         {
-            if (strcmp(availableExtensions[availableIt].extensionName, extensions[requiredIt]) == 0)
+            if (strcmp(iter::value(availableIt).extensionName, extensions[requiredIt]) == 0)
             {
                 isRequiredExtensionAvailable = true;
                 break;

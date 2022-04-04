@@ -89,8 +89,8 @@ void se_vk_graph_destroy(SeVkGraph* graph)
     VkDevice logicalHandle = se_vk_device_get_logical_handle(graph->device);
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(&graph->device->memoryManager);
 
-    for (size_t it = 0; it < dynamic_array::size(graph->frameCommandBuffers); it++)
-        dynamic_array::destroy(graph->frameCommandBuffers[it]);
+    for (auto it : graph->frameCommandBuffers)
+        dynamic_array::destroy(iter::value(it));
     dynamic_array::destroy(graph->frameCommandBuffers);
 
     dynamic_array::destroy(graph->textureInfos);
@@ -375,10 +375,11 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
 
     ObjectPool<SeVkCommandBuffer>& cmdPool = se_vk_memory_manager_get_pool<SeVkCommandBuffer>(memoryManager);
     DynamicArray<SeVkCommandBuffer*>& cmdArray = graph->frameCommandBuffers[frameIndex];
-    for (size_t it = 0; it < dynamic_array::size(cmdArray); it++)
+    for (auto it : cmdArray)
     {
-        se_vk_command_buffer_destroy(cmdArray[it]);
-        object_pool::release(cmdPool, cmdArray[it]);
+        SeVkCommandBuffer* value = iter::value(it);
+        se_vk_command_buffer_destroy(value);
+        object_pool::release(cmdPool, value);
     }
     dynamic_array::reset(cmdArray);
 

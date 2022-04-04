@@ -321,9 +321,9 @@ SeDeviceHandle se_vk_device_create(SeDeviceInfo* deviceInfo)
         {
             const char* requiredLayerName = validationLayers[requiredIt];
             bool isFound = false;
-            for (size_t availableIt = 0; availableIt < dynamic_array::size(availableValidationLayers); availableIt++)
+            for (auto it : availableValidationLayers)
             {
-                const char* availableLayerName = availableValidationLayers[availableIt].layerName;
+                const char* availableLayerName = iter::value(it).layerName;
                 if (strcmp(availableLayerName, requiredLayerName) == 0)
                 {
                     isFound = true;
@@ -344,9 +344,9 @@ SeDeviceHandle se_vk_device_create(SeDeviceInfo* deviceInfo)
         {
             const char* requiredExtensionName = instanceExtensions[requiredIt];
             bool isFound = false;
-            for (size_t availableIt = 0; availableIt < dynamic_array::size(availableInstanceExtensions); availableIt++)
+            for (auto it : availableInstanceExtensions)
             {
-                const char* availableExtensionName = availableInstanceExtensions[availableIt].extensionName;
+                const char* availableExtensionName = iter::value(it).extensionName;
                 if (strcmp(availableExtensionName, requiredExtensionName) == 0)
                 {
                     isFound = true;
@@ -465,10 +465,10 @@ SeDeviceHandle se_vk_device_create(SeDeviceInfo* deviceInfo)
         //
         // Create queues
         //
-        for (size_t it = 0; it < dynamic_array::size(queueCreateInfos); it++)
+        for (auto it : queueCreateInfos)
         {
-            SeVkCommandQueue* queue = &device->gpu.commandQueues[it];
-            queue->queueFamilyIndex = queueCreateInfos[it].queueFamilyIndex;
+            SeVkCommandQueue* queue = &device->gpu.commandQueues[iter::index(it)];
+            queue->queueFamilyIndex = iter::value(it).queueFamilyIndex;
             if (queuesFamilyIndices[0] == queue->queueFamilyIndex) queue->flags |= SE_VK_CMD_QUEUE_GRAPHICS;
             if (queuesFamilyIndices[1] == queue->queueFamilyIndex) queue->flags |= SE_VK_CMD_QUEUE_PRESENT;
             if (queuesFamilyIndices[2] == queue->queueFamilyIndex) queue->flags |= SE_VK_CMD_QUEUE_TRANSFER;

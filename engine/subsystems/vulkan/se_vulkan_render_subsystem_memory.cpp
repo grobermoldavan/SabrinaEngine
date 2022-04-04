@@ -195,8 +195,8 @@ void se_vk_memory_manager_free_cpu_memory(SeVkMemoryManager* manager)
         allocator->dealloc(allocator->allocator, manager->cpu_allocations[it].ptr, manager->cpu_allocations[it].size);
     dynamic_array::destroy(manager->cpu_allocations);
 
-    for (size_t it = 0; it < dynamic_array::size(manager->cpu_pools); it++)
-        object_pool::destroy(manager->cpu_pools[it]);
+    for (auto it : manager->cpu_pools)
+        object_pool::destroy(iter::value(it));
 }
 
 void se_vk_memory_manager_set_device(SeVkMemoryManager* manager, SeVkDevice* device)
