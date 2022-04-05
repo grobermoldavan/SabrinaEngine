@@ -38,70 +38,6 @@ struct DynamicArray
     }
 };
 
-template <typename T, typename ValueT, typename Array>
-struct DynamicArrayIterator;
-
-template <typename T, typename ValueT, typename Array>
-struct DynamicArrayIteratorValue
-{
-    ValueT& value;
-    DynamicArrayIterator<T, ValueT, Array>* iterator;
-};
-
-template <typename T, typename ValueT, typename Array>
-struct DynamicArrayIterator
-{
-    Array* arr;
-    size_t index;
-
-    bool                                        operator != (const DynamicArrayIterator& other);
-    DynamicArrayIteratorValue<T, ValueT, Array> operator *  ();
-    DynamicArrayIterator&                       operator ++ ();
-};
-
-template<typename T>
-DynamicArrayIterator<T, T, DynamicArray<T>> begin(DynamicArray<T>& arr)
-{
-    return { &arr, 0 };
-}
-
-template<typename T>
-DynamicArrayIterator<T, T, DynamicArray<T>> end(DynamicArray<T>& arr)
-{
-    return { &arr, arr.size };
-}
-
-template<typename T>
-DynamicArrayIterator<T, const T, const DynamicArray<T>> begin(const DynamicArray<T>& arr)
-{
-    return { &arr, 0 };
-}
-
-template<typename T>
-DynamicArrayIterator<T, const T, const DynamicArray<T>> end(const DynamicArray<T>& arr)
-{
-    return { &arr, arr.size };
-}
-
-template<typename T, typename ValueT, typename Array>
-bool DynamicArrayIterator<T, ValueT, Array>::operator != (const DynamicArrayIterator<T, ValueT, Array>& other)
-{
-    return (arr != other.arr) || (index != other.index);
-}
-
-template<typename T, typename ValueT, typename Array>
-DynamicArrayIteratorValue<T, ValueT, Array> DynamicArrayIterator<T, ValueT, Array>::operator * ()
-{
-    return { arr->memory[index], this };
-}
-
-template<typename T, typename ValueT, typename Array>
-DynamicArrayIterator<T, ValueT, Array>& DynamicArrayIterator<T, ValueT, Array>::operator ++ ()
-{
-    index += 1;
-    return *this;
-}
-
 namespace dynamic_array
 {
     template<typename T>
@@ -245,6 +181,70 @@ namespace dynamic_array
     }
 }
 
+template <typename T, typename ValueT, typename Array>
+struct DynamicArrayIterator;
+
+template <typename T, typename ValueT, typename Array>
+struct DynamicArrayIteratorValue
+{
+    ValueT& value;
+    DynamicArrayIterator<T, ValueT, Array>* iterator;
+};
+
+template <typename T, typename ValueT, typename Array>
+struct DynamicArrayIterator
+{
+    Array* arr;
+    size_t index;
+
+    bool                                        operator != (const DynamicArrayIterator& other);
+    DynamicArrayIteratorValue<T, ValueT, Array> operator *  ();
+    DynamicArrayIterator&                       operator ++ ();
+};
+
+template<typename T>
+DynamicArrayIterator<T, T, DynamicArray<T>> begin(DynamicArray<T>& arr)
+{
+    return { &arr, 0 };
+}
+
+template<typename T>
+DynamicArrayIterator<T, T, DynamicArray<T>> end(DynamicArray<T>& arr)
+{
+    return { &arr, arr.size };
+}
+
+template<typename T>
+DynamicArrayIterator<T, const T, const DynamicArray<T>> begin(const DynamicArray<T>& arr)
+{
+    return { &arr, 0 };
+}
+
+template<typename T>
+DynamicArrayIterator<T, const T, const DynamicArray<T>> end(const DynamicArray<T>& arr)
+{
+    return { &arr, arr.size };
+}
+
+template<typename T, typename ValueT, typename Array>
+bool DynamicArrayIterator<T, ValueT, Array>::operator != (const DynamicArrayIterator<T, ValueT, Array>& other)
+{
+    return (arr != other.arr) || (index != other.index);
+}
+
+template<typename T, typename ValueT, typename Array>
+DynamicArrayIteratorValue<T, ValueT, Array> DynamicArrayIterator<T, ValueT, Array>::operator * ()
+{
+    return { arr->memory[index], this };
+}
+
+template<typename T, typename ValueT, typename Array>
+DynamicArrayIterator<T, ValueT, Array>& DynamicArrayIterator<T, ValueT, Array>::operator ++ ()
+{
+    index += 1;
+    return *this;
+}
+
 namespace iter
 {
     template<typename T>
@@ -254,13 +254,13 @@ namespace iter
     }
 
     template<typename T>
-    const T& value(DynamicArrayIteratorValue<T, const T, const DynamicArray<T>>& value)
+    const T& value(const DynamicArrayIteratorValue<T, const T, const DynamicArray<T>>& value)
     {
         return value.value;
     }
 
     template<typename T, typename ValueT, typename Array>
-    size_t index(DynamicArrayIteratorValue<T, ValueT, Array>& value)
+    size_t index(const DynamicArrayIteratorValue<T, ValueT, Array>& value)
     {
         return value.iterator->index;
     }
@@ -560,80 +560,12 @@ struct HashTable
         HashValue   hash;
         bool        isOccupied;
     };
-    struct Iterator
-    {
-        struct IteratorValue
-        {
-            const Key&  key;
-            Value&      value;
-            Iterator*   iterator;
-        };
-        HashTable* table;
-        size_t index;
-
-        bool            operator != (const Iterator& other);
-        IteratorValue   operator *  ();
-        Iterator&       operator ++ ();
-    };
 
     SeAllocatorBindings allocator;
     Entry*              memory;
     size_t              capacity;
     size_t              size;
 };
-
-// template<typename Key, typename Value, typename Table>
-// struct HashTableIteratorValue
-// {
-//     const Key&  key;
-//     Value&      value;
-//     Iterator*   iterator;
-// };
-
-// template<typename Key, typename Value, typename Table>
-// struct HashTableIterator
-// {
-//     Table* table;
-//     size_t index;
-
-//     bool            operator != (const Iterator& other);
-//     IteratorValue   operator *  ();
-//     Iterator&       operator ++ ();
-// };
-
-template<typename Key, typename Value>
-typename HashTable<Key, Value>::Iterator begin(HashTable<Key, Value>& table)
-{
-    if (table.size == 0) return { &table, table.capacity };
-    size_t it = 0;
-    while (it < table.capacity && !table.memory[it].isOccupied) { it++; }
-    return { &table, it };
-}
-
-template<typename Key, typename Value>
-typename HashTable<Key, Value>::Iterator end(HashTable<Key, Value>& table)
-{
-    return { &table, table.capacity };
-}
-
-template<typename Key, typename Value>
-bool HashTable<Key, Value>::Iterator::operator != (const typename HashTable<Key, Value>::Iterator& other)
-{
-    return (table != other.table) || (index != other.index);
-}
-
-template<typename Key, typename Value>
-typename HashTable<Key, Value>::Iterator::IteratorValue HashTable<Key, Value>::Iterator::operator * ()
-{
-    return { table->memory[index].key, table->memory[index].value, this };
-}
-
-template<typename Key, typename Value>
-typename HashTable<Key, Value>::Iterator& HashTable<Key, Value>::Iterator::operator ++ ()
-{
-    do { index++; } while (index < table->capacity && !table->memory[index].isOccupied);
-    return *this;
-}
 
 namespace hash_table
 {
@@ -803,11 +735,108 @@ namespace hash_table
         for (size_t it = 0; it < table.capacity; it++)
             table.memory[it].isOccupied = false;
     }
+}
+
+template<typename Key, typename Value, typename Table>
+struct HashTableIterator;
+
+template<typename Key, typename Value, typename Table>
+struct HashTableIteratorValue
+{
+    const Key&                              key;
+    Value&                                  value;
+    HashTableIterator<Key, Value, Table>*   iterator;
+};
+
+// @NOTE : typename Value can be const version of Table's Value type
+//         and table can be const too
+//         e.g. if table is HashTable<int, float> itrator can ve either
+//         HashTableIterator<int, float, HashTable<int, float>> if we iterating over const table or
+//         HashTableIterator<int, const float, const HashTable<int, float>> while iterating over non-const table
+template<typename Key, typename Value, typename Table>
+struct HashTableIterator
+{
+    Table* table;
+    size_t index;
+
+    bool                                        operator != (const HashTableIterator& other);
+    HashTableIteratorValue<Key, Value, Table>   operator *  ();
+    HashTableIterator&                          operator ++ ();
+};
+
+template<typename Key, typename Value>
+HashTableIterator<Key, Value, HashTable<Key, Value>> begin(HashTable<Key, Value>& table)
+{
+    if (table.size == 0) return { &table, table.capacity };
+    size_t it = 0;
+    while (it < table.capacity && !table.memory[it].isOccupied) { it++; }
+    return { &table, it };
+}
+
+template<typename Key, typename Value>
+HashTableIterator<Key, Value, HashTable<Key, Value>> end(HashTable<Key, Value>& table)
+{
+    return { &table, table.capacity };
+}
+
+template<typename Key, typename Value>
+HashTableIterator<Key, const Value, const HashTable<Key, Value>> begin(const HashTable<Key, Value>& table)
+{
+    if (table.size == 0) return { &table, table.capacity };
+    size_t it = 0;
+    while (it < table.capacity && !table.memory[it].isOccupied) { it++; }
+    return { &table, it };
+}
+
+template<typename Key, typename Value>
+HashTableIterator<Key, const Value, const HashTable<Key, Value>> end(const HashTable<Key, Value>& table)
+{
+    return { &table, table.capacity };
+}
+
+template<typename Key, typename Value, typename Table>
+bool HashTableIterator<Key, Value, Table>::operator != (const HashTableIterator<Key, Value, Table>& other)
+{
+    return (table != other.table) || (index != other.index);
+}
+
+template<typename Key, typename Value, typename Table>
+HashTableIteratorValue<Key, Value, Table> HashTableIterator<Key, Value, Table>::operator * ()
+{
+    return { table->memory[index].key, table->memory[index].value, this };
+}
+
+template<typename Key, typename Value, typename Table>
+HashTableIterator<Key, Value, Table>& HashTableIterator<Key, Value, Table>::operator ++ ()
+{
+    do { index++; } while (index < table->capacity && !table->memory[index].isOccupied);
+    return *this;
+}
+
+namespace iter
+{
+    template<typename Key, typename Value>
+    const Value& value(const HashTableIteratorValue<Key, const Value, const HashTable<Key, Value>>& val)
+    {
+        return val.value;
+    }
 
     template<typename Key, typename Value>
-    void remove(typename HashTable<Key, Value>::Iterator::IteratorValue val)
+    Value& value(const HashTableIteratorValue<Key, Value, HashTable<Key, Value>>& val)
     {
-        remove(*val.iterator->table, val.key);
+        return val.value;
+    }
+
+    template<typename Key, typename Value, typename Table>
+    const Key& key(const HashTableIteratorValue<Key, Value, Table>& val)
+    {
+        return val.key;
+    }
+
+    template<typename Key, typename Value>
+    void remove(HashTableIteratorValue<Key, Value, HashTable<Key, Value>>& val)
+    {
+        hash_table::remove(*val.iterator->table, val.key);
         val.iterator->index -= 1;
     }
 }

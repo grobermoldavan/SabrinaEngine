@@ -36,16 +36,19 @@ template <typename Key, typename Value>
 void se_vk_graph_free_old_resources(HashTable<Key, SeVkGraphTimed<Value>>& table, size_t currentFrame, SeVkMemoryManager* memoryManager)
 {
     for (auto kv : table)
-        if ((currentFrame - kv.value.lastFrame) > SE_VK_GRAPH_OBJECT_LIFETIME)
+    {
+        auto& value = iter::value(kv);
+        if ((currentFrame - value.lastFrame) > SE_VK_GRAPH_OBJECT_LIFETIME)
         {
-            se_vk_destroy(kv.value.handle);
+            se_vk_destroy(value.handle);
             object_pool::release<Value>
             (
                 se_vk_memory_manager_get_pool<Value>(memoryManager),
-                kv.value.handle
+                value.handle
             );
-            hash_table::remove<Key, SeVkGraphTimed<Value>>(kv);
+            iter::remove(kv);
         }
+    }
 }
 
 void se_vk_graph_construct(SeVkGraph* graph, SeVkGraphInfo* info)
@@ -109,7 +112,7 @@ void se_vk_graph_destroy(SeVkGraph* graph)
 
     for (auto kv : graph->descriptorPoolsTable)
     {
-        auto& pools = kv.value; 
+        auto& pools = iter::value(kv); 
         for (size_t it = 0; it < pools.numPools; it++)
             vkDestroyDescriptorPool(logicalHandle, pools.pools[it].handle, callbacks);
     };
@@ -137,12 +140,11 @@ void se_vk_graph_begin_frame(SeVkGraph* graph)
     se_vk_graph_free_old_resources(graph->samplerTable, currentFrame, memoryManager);
     for (auto kv : graph->descriptorPoolsTable)
     {
-        auto& pools = kv.value;
+        auto& pools = iter::value(kv);
         if ((currentFrame - pools.lastFrame) <= SE_VK_GRAPH_OBJECT_LIFETIME) continue;
         for (size_t it = 0; it < pools.numPools; it++)
             vkDestroyDescriptorPool(logicalHandle, pools.pools[it].handle, callbacks);
-        // For some reason msvc can't deduce template argument for Value here...
-        hash_table::remove<SeVkGraphPipelineWithFrame, SeVkGraphDescriptorPoolArray>(kv);
+        iter::remove(kv);
     }
 
     graph->context = SE_VK_GRAPH_CONTEXT_TYPE_IN_FRAME;
@@ -392,8 +394,8 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
 
     for (auto kv : graph->descriptorPoolsTable)
     {
-        auto& info = kv.key;
-        auto& pools = kv.value;
+        auto& info = iter::key(kv);
+        auto& pools = iter::value(kv);
         if (info.frame == frameIndex)
         {
             for (size_t it = 0; it < pools.numPools; it++)
