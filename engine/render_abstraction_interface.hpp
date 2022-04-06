@@ -4,6 +4,9 @@
 #include <inttypes.h>
 #include <stdbool.h>
 
+#include "engine/se_math.hpp"
+#include "engine/subsystems/se_window_subsystem.hpp"
+
 #define SE_MAX_SPECIALIZATION_CONSTANTS 8
 
 enum SePassRenderTargetLoadOp
@@ -102,7 +105,7 @@ using SeRenderRef = uint64_t;
 
 struct SeDeviceInfo
 {
-    struct SeWindowHandle* window;
+    SeWindowHandle window;
 };
 
 #define SE_MAX_PASS_DEPENDENCIES 64
@@ -261,24 +264,24 @@ struct SeCommandDispatchInfo
 
 struct SeRenderAbstractionSubsystemInterface
 {
-    SeDeviceHandle                      (*device_create)                        (SeDeviceInfo* info);
+    SeDeviceHandle                      (*device_create)                        (const SeDeviceInfo& info);
     void                                (*device_destroy)                       (SeDeviceHandle device);
     void                                (*begin_frame)                          (SeDeviceHandle device);
     void                                (*end_frame)                            (SeDeviceHandle device);
-    void                                (*begin_pass)                           (SeDeviceHandle device, SeBeginPassInfo* info);
+    void                                (*begin_pass)                           (SeDeviceHandle device, const SeBeginPassInfo& info);
     void                                (*end_pass)                             (SeDeviceHandle device);
 
-    SeRenderRef                         (*program)                              (SeDeviceHandle device, SeProgramInfo* info);
-    SeRenderRef                         (*texture)                              (SeDeviceHandle device, SeTextureInfo* info);
+    SeRenderRef                         (*program)                              (SeDeviceHandle device, const SeProgramInfo& info);
+    SeRenderRef                         (*texture)                              (SeDeviceHandle device, const SeTextureInfo& info);
     SeRenderRef                         (*swap_chain_texture)                   (SeDeviceHandle device);
-    SeRenderRef                         (*graphics_pipeline)                    (SeDeviceHandle device, SeGraphicsPipelineInfo* info);
-    SeRenderRef                         (*compute_pipeline)                     (SeDeviceHandle device, SeComputePipelineInfo* info);
-    SeRenderRef                         (*memory_buffer)                        (SeDeviceHandle device, SeMemoryBufferInfo* info);
-    SeRenderRef                         (*sampler)                              (SeDeviceHandle device, SeSamplerInfo* info);
-    void                                (*bind)                                 (SeDeviceHandle device, SeCommandBindInfo* info);
-    void                                (*draw)                                 (SeDeviceHandle device, SeCommandDrawInfo* info);
-    void                                (*dispatch)                             (SeDeviceHandle device, SeCommandDispatchInfo* info);
-    void                                (*perspective_projection_matrix)        (struct SeFloat4x4* result, float fovDeg, float aspect, float nearPlane, float farPlane);
+    SeRenderRef                         (*graphics_pipeline)                    (SeDeviceHandle device, const SeGraphicsPipelineInfo& info);
+    SeRenderRef                         (*compute_pipeline)                     (SeDeviceHandle device, const SeComputePipelineInfo& info);
+    SeRenderRef                         (*memory_buffer)                        (SeDeviceHandle device, const SeMemoryBufferInfo& info);
+    SeRenderRef                         (*sampler)                              (SeDeviceHandle device, const SeSamplerInfo& info);
+    void                                (*bind)                                 (SeDeviceHandle device, const SeCommandBindInfo& info);
+    void                                (*draw)                                 (SeDeviceHandle device, const SeCommandDrawInfo& info);
+    void                                (*dispatch)                             (SeDeviceHandle device, const SeCommandDispatchInfo& info);
+    SeFloat4x4                          (*perspective_projection_matrix)        (float fovDeg, float aspect, float nearPlane, float farPlane);
 };
 
 #endif

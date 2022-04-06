@@ -98,7 +98,7 @@ struct SeVkDevice
     SeVkGraph                       graph;
 };
 
-SeDeviceHandle                      se_vk_device_create(SeDeviceInfo* info);
+SeDeviceHandle                      se_vk_device_create(const SeDeviceInfo& info);
 void                                se_vk_device_destroy(SeDeviceHandle device);
 void                                se_vk_device_begin_frame(SeDeviceHandle device);
 void                                se_vk_device_end_frame(SeDeviceHandle device);

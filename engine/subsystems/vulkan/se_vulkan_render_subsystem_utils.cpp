@@ -111,7 +111,7 @@ void se_vk_utils_destroy_command_pool(VkCommandPool pool, VkDevice device, VkAll
 SeVkSwapChainSupportDetails se_vk_utils_create_swap_chain_support_details(VkSurfaceKHR surface, VkPhysicalDevice device, SeAllocatorBindings& allocator)
 {
     SeVkSwapChainSupportDetails result = {0};
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &result.capabilities);
+    se_vk_check(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &result.capabilities));
     uint32_t count;
     vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &count, nullptr);
     if (count != 0)

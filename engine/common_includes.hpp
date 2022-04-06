@@ -20,9 +20,9 @@
 {                                                                       \
     const char* possibleLibPaths[] =                                    \
     {                                                                   \
-        subsystemName,                                                  \
         "." SE_PATH_SEP "subsystems" SE_PATH_SEP "default" SE_PATH_SEP subsystemName, \
         "." SE_PATH_SEP "subsystems" SE_PATH_SEP "application" SE_PATH_SEP subsystemName, \
+        subsystemName,                                                  \
     };                                                                  \
     SeHandle libHandle = (enginePtr)->platformIface.dynamic_library_load(possibleLibPaths, se_array_size(possibleLibPaths)); \
     SeSubsystemUpdateFunc update = (SeSubsystemUpdateFunc)(enginePtr)->platformIface.dynamic_library_get_function_address(libHandle, "se_update"); \

@@ -21,7 +21,7 @@ static SeWindowSubsystemInterface*                  g_windowIface;
 static SeApplicationAllocatorsSubsystemInterface*   g_allocatorsIface;
 static SePlatformInterface*                         g_platformIface;
 
-static void se_vk_perspective_projection_matrix(SeFloat4x4* result, float fovDeg, float aspect, float nearPlane, float farPlane)
+static SeFloat4x4 se_vk_perspective_projection_matrix(float fovDeg, float aspect, float nearPlane, float farPlane)
 {
     //
     // https://vincent-p.github.io/posts/vulkan_perspective_matrix/
@@ -35,7 +35,7 @@ static void se_vk_perspective_projection_matrix(SeFloat4x4* result, float fovDeg
     const float y  = -focalLength;
     const float A  = nearPlane / (nearPlane - farPlane);
     const float B  = A * -farPlane;
-    *result =
+    return
     {
         x,    0.0f,  0.0f, 0.0f,
         0.0f,    y,  0.0f, 0.0f,
@@ -44,7 +44,7 @@ static void se_vk_perspective_projection_matrix(SeFloat4x4* result, float fovDeg
     };
 }
 
-static void se_vk_begin_pass_call(SeDeviceHandle _device, SeBeginPassInfo* info)
+static void se_vk_begin_pass_call(SeDeviceHandle _device, const SeBeginPassInfo& info)
 {
     SeVkDevice* device = (SeVkDevice*)_device;
     se_vk_graph_begin_pass(&device->graph, info);
@@ -56,7 +56,7 @@ static void se_vk_end_pass_call(SeDeviceHandle _device)
     se_vk_graph_end_pass(&device->graph);
 }
 
-static SeRenderRef se_vk_program_call(SeDeviceHandle _device, SeProgramInfo* info)
+static SeRenderRef se_vk_program_call(SeDeviceHandle _device, const SeProgramInfo& info)
 {
     SeVkDevice* device = (SeVkDevice*)_device;
     return se_vk_graph_program(&device->graph, info);
@@ -68,25 +68,25 @@ static SeRenderRef se_vk_swap_chain_texture_call(SeDeviceHandle _device)
     return se_vk_graph_swap_chain_texture(&device->graph);
 }
 
-static SeRenderRef se_vk_graphics_pipeline_call(SeDeviceHandle _device, SeGraphicsPipelineInfo* info)
+static SeRenderRef se_vk_graphics_pipeline_call(SeDeviceHandle _device, const SeGraphicsPipelineInfo& info)
 {
     SeVkDevice* device = (SeVkDevice*)_device;
     return se_vk_graph_graphics_pipeline(&device->graph, info);
 }
 
-static SeRenderRef se_vk_memory_buffer_call(SeDeviceHandle _device, SeMemoryBufferInfo* info)
+static SeRenderRef se_vk_memory_buffer_call(SeDeviceHandle _device, const SeMemoryBufferInfo& info)
 {
     SeVkDevice* device = (SeVkDevice*)_device;
     return se_vk_graph_memory_buffer(&device->graph, info);
 }
 
-static void se_vk_command_bind_call(SeDeviceHandle _device, SeCommandBindInfo* info)
+static void se_vk_command_bind_call(SeDeviceHandle _device, const SeCommandBindInfo& info)
 {
     SeVkDevice* device = (SeVkDevice*)_device;
     se_vk_graph_command_bind(&device->graph, info);
 }
 
-static void se_vk_command_draw_call(SeDeviceHandle _device, SeCommandDrawInfo* info)
+static void se_vk_command_draw_call(SeDeviceHandle _device, const SeCommandDrawInfo& info)
 {
     SeVkDevice* device = (SeVkDevice*)_device;
     se_vk_graph_command_draw(&device->graph, info);

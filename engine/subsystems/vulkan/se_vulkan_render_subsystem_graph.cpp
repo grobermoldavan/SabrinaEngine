@@ -806,7 +806,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
 }
 
 
-void se_vk_graph_begin_pass(SeVkGraph* graph, SeBeginPassInfo* info)
+void se_vk_graph_begin_pass(SeVkGraph* graph, const SeBeginPassInfo& info)
 {
     se_assert(graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_FRAME);
 
@@ -815,21 +815,24 @@ void se_vk_graph_begin_pass(SeVkGraph* graph, SeBeginPassInfo* info)
 
     SeVkGraphPass pass
     {
-        .info           = *info,
+        .info           = info,
         .renderPassInfo = { },
         .commands       = dynamic_array::create<SeVkGraphCommand>(*memoryManager->cpu_frameAllocator, 64),
     };
 
-    se_assert(se_vk_ref_type(info->pipeline) == SE_VK_TYPE_GRAPHICS_PIPELINE || se_vk_ref_type(info->pipeline) == SE_VK_TYPE_COMPUTE_PIPELINE);
-    if (se_vk_ref_type(info->pipeline) == SE_VK_TYPE_GRAPHICS_PIPELINE)
+    se_assert(se_vk_ref_type(info.pipeline) == SE_VK_TYPE_GRAPHICS_PIPELINE || se_vk_ref_type(info.pipeline) == SE_VK_TYPE_COMPUTE_PIPELINE);
+    if (se_vk_ref_type(info.pipeline) == SE_VK_TYPE_GRAPHICS_PIPELINE)
     {
         //
         // Render target texture usages
         //
-        se_assert(info->numRenderTargets || info->hasDepthStencil);
-        for (size_t it = 0; it < info->numRenderTargets; it++)
+        
+        const SeGraphicsPipelineInfo& pipelineInfo = graph->graphicsPipelineInfos[se_vk_ref_index(info.pipeline)];
+        se_assert((pipelineInfo.depthState.isTestEnabled || pipelineInfo.depthState.isWriteEnabled) == info.hasDepthStencil);
+        se_assert(info.numRenderTargets || info.hasDepthStencil);
+        for (size_t it = 0; it < info.numRenderTargets; it++)
         {
-            const SeRenderRef rt = info->renderTargets[it].texture;
+            const SeRenderRef rt = info.renderTargets[it].texture;
             se_assert(se_vk_ref_type(rt) == SE_VK_TYPE_TEXTURE);
             if (se_vk_ref_flags(rt) & SE_VK_GRAPH_TEXTURE_FROM_SWAP_CHAIN)
             {
@@ -839,9 +842,9 @@ void se_vk_graph_begin_pass(SeVkGraph* graph, SeBeginPassInfo* info)
             se_assert(!se_vk_utils_is_depth_stencil_format(textureInfo->format));
             textureInfo->usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
         }
-        if (info->hasDepthStencil)
+        if (info.hasDepthStencil)
         {
-            const SeRenderRef rt = info->depthStencilTarget.texture;
+            const SeRenderRef rt = info.depthStencilTarget.texture;
             SeVkTextureInfo* textureInfo = &graph->textureInfos[se_vk_ref_index(rt)];
             se_assert(!(se_vk_ref_flags(rt) & SE_VK_GRAPH_TEXTURE_FROM_SWAP_CHAIN));
             se_assert(se_vk_utils_is_depth_stencil_format(textureInfo->format));
@@ -850,13 +853,13 @@ void se_vk_graph_begin_pass(SeVkGraph* graph, SeBeginPassInfo* info)
         //
         // Render pass info
         //
-        SeVkTextureInfo* depthStencilTextureInfo = info->hasDepthStencil ? &graph->textureInfos[se_vk_ref_index(info->depthStencilTarget.texture)] : nullptr;
-        VkAttachmentLoadOp depthStencilLoadOp = info->hasDepthStencil ? (VkAttachmentLoadOp)info->depthStencilTarget.loadOp : (VkAttachmentLoadOp)0;
-        const uint32_t numColorAttachments = se_vk_safe_cast_size_t_to_uint32_t(info->numRenderTargets);
+        const SeVkTextureInfo* depthStencilTextureInfo = info.hasDepthStencil ? &graph->textureInfos[se_vk_ref_index(info.depthStencilTarget.texture)] : nullptr;
+        const VkAttachmentLoadOp depthStencilLoadOp = info.hasDepthStencil ? (VkAttachmentLoadOp)info.depthStencilTarget.loadOp : (VkAttachmentLoadOp)0;
+        const uint32_t numColorAttachments = se_vk_safe_cast_size_t_to_uint32_t(info.numRenderTargets);
         SeVkRenderPassInfo renderPassInfo =
         {
             .device                     = device,
-            .subpasses                  = {0},
+            .subpasses                  = { },
             .numSubpasses               = 1,
             .colorAttachments           = { },
             .numColorAttachments        = numColorAttachments,
@@ -876,20 +879,20 @@ void se_vk_graph_begin_pass(SeVkGraph* graph, SeBeginPassInfo* info)
         {
             .colorRefs   = 0,
             .inputRefs   = 0,
-            .resolveRefs = {0},
+            .resolveRefs = { },
             .depthRead   = depthStencilTextureInfo != nullptr,
             .depthWrite  = depthStencilTextureInfo != nullptr,
         };
-        for (size_t it = 0; it < info->numRenderTargets; it++)
+        for (size_t it = 0; it < info.numRenderTargets; it++)
         {
-            const SeRenderRef rt = info->renderTargets[it].texture;
+            const SeRenderRef rt = info.renderTargets[it].texture;
             if (se_vk_ref_flags(rt) & SE_VK_GRAPH_TEXTURE_FROM_SWAP_CHAIN)
             {
                 renderPassInfo.subpasses[0].colorRefs |= 1 << it;
                 renderPassInfo.colorAttachments[it] =
                 {
                     .format     = se_vk_device_get_swap_chain_format(graph->device),
-                    .loadOp     = (VkAttachmentLoadOp)info->renderTargets[it].loadOp,
+                    .loadOp     = (VkAttachmentLoadOp)info.renderTargets[it].loadOp,
                     .storeOp    = VK_ATTACHMENT_STORE_OP_STORE,
                     .sampling   = VK_SAMPLE_COUNT_1_BIT,
                     .clearValue = { .color = {0} },
@@ -902,9 +905,9 @@ void se_vk_graph_begin_pass(SeVkGraph* graph, SeBeginPassInfo* info)
                 renderPassInfo.colorAttachments[it] =
                 {
                     .format     = textureInfo->format,
-                    .loadOp     = (VkAttachmentLoadOp)info->renderTargets[it].loadOp,
+                    .loadOp     = (VkAttachmentLoadOp)info.renderTargets[it].loadOp,
                     .storeOp    = VK_ATTACHMENT_STORE_OP_STORE,
-                    .sampling   = textureInfo->sampling,            // @TODO : support multisampling (and resolve and stuff)
+                    .sampling   = textureInfo->sampling, // @TODO : support multisampling (and resolve and stuff)
                     .clearValue = { .color = {0} },
                 };
             }
@@ -923,7 +926,7 @@ void se_vk_graph_end_pass(SeVkGraph* graph)
     graph->context = SE_VK_GRAPH_CONTEXT_TYPE_IN_FRAME;
 }
 
-SeRenderRef se_vk_graph_program(SeVkGraph* graph, SeProgramInfo* info)
+SeRenderRef se_vk_graph_program(SeVkGraph* graph, const SeProgramInfo& info)
 {
     se_assert(graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_FRAME || graph->context == SE_VK_GRAPH_CONTEXT_TYPE_BETWEEN_FRAMES);
 
@@ -934,8 +937,8 @@ SeRenderRef se_vk_graph_program(SeVkGraph* graph, SeProgramInfo* info)
     SeVkProgramInfo vkInfo
     {
         .device         = device,
-        .bytecode       = info->bytecode,
-        .bytecodeSize   = info->bytecodeSize,
+        .bytecode       = info.bytecode,
+        .bytecodeSize   = info.bytecodeSize,
     };
     SeVkProgram* program = nullptr;
     if (graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_FRAME)
@@ -963,7 +966,7 @@ SeRenderRef se_vk_graph_program(SeVkGraph* graph, SeProgramInfo* info)
     return se_vk_ref(SE_VK_TYPE_PROGRAM, 0, object_pool::index_of(se_vk_memory_manager_get_pool<SeVkProgram>(memoryManager), program));
 }
 
-SeRenderRef se_vk_graph_texture(SeVkGraph* graph, SeTextureInfo* info)
+SeRenderRef se_vk_graph_texture(SeVkGraph* graph, const SeTextureInfo& info)
 {
     se_assert(graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_FRAME);
 
@@ -972,8 +975,8 @@ SeRenderRef se_vk_graph_texture(SeVkGraph* graph, SeTextureInfo* info)
     dynamic_array::push(graph->textureInfos,
     {
         .device     = device,
-        .format     = info->format == SE_TEXTURE_FORMAT_DEPTH_STENCIL ? se_vk_device_get_depth_stencil_format(device) : se_vk_utils_to_vk_format(info->format),
-        .extent     = { se_vk_safe_cast_size_t_to_uint32_t(info->width), se_vk_safe_cast_size_t_to_uint32_t(info->height), 1 },
+        .format     = info.format == SE_TEXTURE_FORMAT_DEPTH_STENCIL ? se_vk_device_get_depth_stencil_format(device) : se_vk_utils_to_vk_format(info.format),
+        .extent     = { se_vk_safe_cast_size_t_to_uint32_t(info.width), se_vk_safe_cast_size_t_to_uint32_t(info.height), 1 },
         .usage      = 0,
         .sampling   = VK_SAMPLE_COUNT_1_BIT, // @TODO : support multisampling
     });
@@ -986,38 +989,38 @@ SeRenderRef se_vk_graph_swap_chain_texture(SeVkGraph* graph)
     return se_vk_ref(SE_VK_TYPE_TEXTURE, SE_VK_GRAPH_TEXTURE_FROM_SWAP_CHAIN, 0);
 }
 
-SeRenderRef se_vk_graph_memory_buffer(SeVkGraph* graph, SeMemoryBufferInfo* info)
+SeRenderRef se_vk_graph_memory_buffer(SeVkGraph* graph, const SeMemoryBufferInfo& info)
 {
     se_assert(graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_FRAME);
 
     // @TODO : create persistent buffer if se_vk_graph_memory_buffer call was done outside of begin-end pass region
     SeVkFrameManager* frameManager = &graph->device->frameManager;
-    SeVkMemoryBufferView view = se_vk_frame_manager_alloc_scratch_buffer(frameManager, info->size);
+    SeVkMemoryBufferView view = se_vk_frame_manager_alloc_scratch_buffer(frameManager, info.size);
     dynamic_array::push(graph->scratchBufferViews, view);
     se_assert_msg(view.mappedMemory, "todo : support copies for non host-visible memory buffers");
-    if (view.mappedMemory && info->data)
+    if (view.mappedMemory && info.data)
     {
-        memcpy(view.mappedMemory, info->data, info->size);
+        memcpy(view.mappedMemory, info.data, info.size);
     }
 
     return se_vk_ref(SE_VK_TYPE_MEMORY_BUFFER, SE_VK_GRAPH_MEMORY_BUFFER_SCRATCH, dynamic_array::size(graph->scratchBufferViews) - 1);
 }
 
-SeRenderRef se_vk_graph_graphics_pipeline(SeVkGraph* graph, SeGraphicsPipelineInfo* info)
+SeRenderRef se_vk_graph_graphics_pipeline(SeVkGraph* graph, const SeGraphicsPipelineInfo& info)
 {
     se_assert(graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_FRAME);
-    dynamic_array::push(graph->graphicsPipelineInfos, *info);
+    dynamic_array::push(graph->graphicsPipelineInfos, info);
     return se_vk_ref(SE_VK_TYPE_GRAPHICS_PIPELINE, 0, dynamic_array::size(graph->graphicsPipelineInfos) - 1);
 }
 
-SeRenderRef se_vk_graph_compute_pipeline(SeVkGraph* graph, SeComputePipelineInfo* info)
+SeRenderRef se_vk_graph_compute_pipeline(SeVkGraph* graph, const SeComputePipelineInfo& info)
 {
     se_assert(graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_FRAME);
-    dynamic_array::push(graph->computePipelineInfos, *info);
+    dynamic_array::push(graph->computePipelineInfos, info);
     return se_vk_ref(SE_VK_TYPE_COMPUTE_PIPELINE, 0, dynamic_array::size(graph->computePipelineInfos) - 1);
 }
 
-SeRenderRef se_vk_graph_sampler(SeVkGraph* graph, SeSamplerInfo* info)
+SeRenderRef se_vk_graph_sampler(SeVkGraph* graph, const SeSamplerInfo& info)
 {
     se_assert(graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_FRAME);
 
@@ -1027,19 +1030,19 @@ SeRenderRef se_vk_graph_sampler(SeVkGraph* graph, SeSamplerInfo* info)
     SeVkSamplerInfo vkInfo
     {
         .device             = graph->device,
-        .magFilter          = (VkFilter)info->magFilter,
-        .minFilter          = (VkFilter)info->minFilter,
-        .addressModeU       = (VkSamplerAddressMode)info->addressModeU,
-        .addressModeV       = (VkSamplerAddressMode)info->addressModeV,
-        .addressModeW       = (VkSamplerAddressMode)info->addressModeW,
-        .mipmapMode         = (VkSamplerMipmapMode)info->mipmapMode,
-        .mipLodBias         = info->mipLodBias,
-        .minLod             = info->minLod,
-        .maxLod             = info->maxLod,
-        .anisotropyEnabled  = info->anisotropyEnable,
-        .maxAnisotropy      = info->maxAnisotropy,
-        .compareEnabled     = info->compareEnabled,
-        .compareOp          = (VkCompareOp)info->compareOp,
+        .magFilter          = (VkFilter)info.magFilter,
+        .minFilter          = (VkFilter)info.minFilter,
+        .addressModeU       = (VkSamplerAddressMode)info.addressModeU,
+        .addressModeV       = (VkSamplerAddressMode)info.addressModeV,
+        .addressModeW       = (VkSamplerAddressMode)info.addressModeW,
+        .mipmapMode         = (VkSamplerMipmapMode)info.mipmapMode,
+        .mipLodBias         = info.mipLodBias,
+        .minLod             = info.minLod,
+        .maxLod             = info.maxLod,
+        .anisotropyEnabled  = info.anisotropyEnable,
+        .maxAnisotropy      = info.maxAnisotropy,
+        .compareEnabled     = info.compareEnabled,
+        .compareOp          = (VkCompareOp)info.compareOp,
     };
     SeVkGraphTimed<SeVkSampler>* timedSampler = hash_table::get(graph->samplerTable, vkInfo);
     if (!timedSampler)
@@ -1057,32 +1060,32 @@ SeRenderRef se_vk_graph_sampler(SeVkGraph* graph, SeSamplerInfo* info)
     return se_vk_ref(SE_VK_TYPE_SAMPLER, 0, object_pool::index_of(se_vk_memory_manager_get_pool<SeVkSampler>(memoryManager), sampler));
 }
 
-void se_vk_graph_command_bind(SeVkGraph* graph, SeCommandBindInfo* info)
+void se_vk_graph_command_bind(SeVkGraph* graph, const SeCommandBindInfo& info)
 {
     se_assert(graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_PASS);
 
     SeVkGraphPass* pass = &graph->passes[dynamic_array::size(graph->passes) - 1];
-    se_assert(info->numBindings);
+    se_assert(info.numBindings);
     dynamic_array::push(pass->commands,
     {
         .type = SE_VK_GRAPH_COMMAND_TYPE_BIND,
-        .info = { .bind = *info },
+        .info = { .bind = info },
     });
 
-    for (size_t it = 0; it < info->numBindings; it++)
+    for (size_t it = 0; it < info.numBindings; it++)
     {
-        const SeRenderRef object = info->bindings[it].object;
+        const SeRenderRef object = info.bindings[it].object;
         const SeVkType type = se_vk_ref_type(object);
         se_assert(type == SE_VK_TYPE_TEXTURE || type == SE_VK_TYPE_MEMORY_BUFFER);
         if (type == SE_VK_TYPE_TEXTURE)
         {
-            SeVkTextureInfo* textureInfo = &graph->textureInfos[se_vk_ref_index(object)];
-            textureInfo->usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
+            SeVkTextureInfo& textureInfo = graph->textureInfos[se_vk_ref_index(object)];
+            textureInfo.usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
         }
     }
 }
 
-void se_vk_graph_command_draw(SeVkGraph* graph, SeCommandDrawInfo* info)
+void se_vk_graph_command_draw(SeVkGraph* graph, const SeCommandDrawInfo& info)
 {
     se_assert(graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_PASS);
 
@@ -1090,6 +1093,6 @@ void se_vk_graph_command_draw(SeVkGraph* graph, SeCommandDrawInfo* info)
     dynamic_array::push(pass->commands,
     {
         .type = SE_VK_GRAPH_COMMAND_TYPE_DRAW,
-        .info = { .draw = *info },
+        .info = { .draw = info },
     });
 }

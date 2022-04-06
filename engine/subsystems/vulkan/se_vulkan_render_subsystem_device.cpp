@@ -277,7 +277,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL se_vk_debug_callback(
     return VK_FALSE;
 }
 
-SeDeviceHandle se_vk_device_create(SeDeviceInfo* deviceInfo)
+SeDeviceHandle se_vk_device_create(const SeDeviceInfo& deviceInfo)
 {
     SeAllocatorBindings* allocator = g_allocatorsIface->persistentAllocator;
     SeVkDevice* device = (SeVkDevice*)allocator->alloc(allocator->allocator, sizeof(SeVkDevice), se_default_alignment, se_alloc_tag);
@@ -408,7 +408,7 @@ SeDeviceHandle se_vk_device_create(SeDeviceInfo* deviceInfo)
     //
     {
 #ifdef _WIN32
-        HWND windowHandle = (HWND)g_windowIface->get_native_handle(*deviceInfo->window);
+        HWND windowHandle = (HWND)g_windowIface->get_native_handle(deviceInfo.window);
         VkWin32SurfaceCreateInfoKHR surfaceCreateInfo =
         {
             .sType      = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
@@ -510,7 +510,7 @@ SeDeviceHandle se_vk_device_create(SeDeviceInfo* deviceInfo)
     //
     // Swap chain
     //
-    se_vk_device_swap_chain_create(device, *deviceInfo->window, true);
+    se_vk_device_swap_chain_create(device, deviceInfo.window, true);
     //
     // Frame manager
     //
