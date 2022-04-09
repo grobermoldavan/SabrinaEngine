@@ -26,7 +26,7 @@ typedef struct FrameData
 SeWindowSubsystemInterface* windowIface;
 SeApplicationAllocatorsSubsystemInterface* allocators;
 SeRenderAbstractionSubsystemInterface* render;
-SePlatformInterface* platform;
+SePlatformSubsystemInterface* platform;
 
 SeWindowHandle window;
 

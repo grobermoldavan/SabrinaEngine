@@ -140,6 +140,7 @@ namespace hash_value
         {
             return hash_value::generate
             (
+                *pipeline,
                 *pipeline->dependencies.graphics.vertexProgram,
                 *pipeline->dependencies.graphics.fragmentProgram,
                 *pipeline->dependencies.graphics.pass,
@@ -150,6 +151,7 @@ namespace hash_value
         {
             return hash_value::generate
             (
+                *pipeline,
                 *pipeline->dependencies.compute.program,
                 pipelineWithFrame.frame
             );

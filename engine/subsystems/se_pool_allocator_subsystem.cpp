@@ -1,9 +1,10 @@
 
 #include "se_pool_allocator_subsystem.hpp"
+#include "se_platform_subsystem.hpp"
 #include "engine/common_includes.hpp"
 #include "engine/allocator_bindings.hpp"
-#include "engine/platform.hpp"
 #include "engine/debug.hpp"
+#include "engine/engine.hpp"
 
 struct SePoolMemoryBucketCompareInfo
 {
@@ -20,8 +21,9 @@ void* se_pool_allocator_alloc(SePoolAllocator* allocator, size_t allocationSize,
 void se_pool_allocator_dealloc(SePoolAllocator* allocator, void* ptr, size_t size);
 
 static SePoolAllocatorSubsystemInterface g_iface;
+static SePlatformSubsystemInterface* g_platformIface;
 
-SE_DLL_EXPORT void se_load(struct SabrinaEngine* engine)
+SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
 {
     g_iface =
     {
@@ -29,54 +31,54 @@ SE_DLL_EXPORT void se_load(struct SabrinaEngine* engine)
         .destroy                = se_pool_allocator_destroy,
         .to_allocator_bindings  = se_pool_allocator_to_allocator_bindings,
     };
+    g_platformIface = (SePlatformSubsystemInterface*)engine->find_subsystem_interface(engine, SE_PLATFORM_SUBSYSTEM_NAME);
 }
 
-SE_DLL_EXPORT void* se_get_interface(struct SabrinaEngine* engine)
+SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
 {
     return &g_iface;
 }
 
-void se_pool_allocator_memory_bucket_source_construct(SePoolMemoryBucketSource* source, SePlatformInterface* platformIface)
+void se_pool_allocator_memory_bucket_source_construct(SePoolMemoryBucketSource* source)
 {
     const size_t reserveSize = se_gigabytes(32);
-    source->base = platformIface->mem_reserve(reserveSize);
+    source->base = g_platformIface->mem_reserve(reserveSize);
     source->reserved = reserveSize;
     source->commited = 0;
     source->used = 0;
 }
 
-void se_pool_allocator_memory_bucket_source_add_memory(SePoolMemoryBucketSource* source, SePlatformInterface* platformIface, size_t size)
+void se_pool_allocator_memory_bucket_source_add_memory(SePoolMemoryBucketSource* source, size_t size)
 {
     source->used += size;
     if (source->used > source->commited)
     {
         const size_t requiredCommit = source->used - source->commited;
-        const size_t memPageSize = platformIface->get_mem_page_size();
+        const size_t memPageSize = g_platformIface->get_mem_page_size();
         const size_t numPagesToCommit = 1 + ((requiredCommit - 1) / memPageSize);
         const size_t actualCommitSize = numPagesToCommit * memPageSize;
         se_assert((source->commited + actualCommitSize) <= source->reserved);
-        platformIface->mem_commit(((char*)source->base) + source->commited, actualCommitSize);
+        g_platformIface->mem_commit(((char*)source->base) + source->commited, actualCommitSize);
         source->commited += actualCommitSize;
     }
 }
 
-void se_pool_allocator_memory_bucket_source_destroy(SePoolMemoryBucketSource* source, SePlatformInterface* platformIface)
+void se_pool_allocator_memory_bucket_source_destroy(SePoolMemoryBucketSource* source)
 {
-    platformIface->mem_release(source->base, source->reserved);
+    g_platformIface->mem_release(source->base, source->reserved);
 }
 
 void se_pool_allocator_construct(SePoolAllocator* allocator, SePoolAllocatorCreateInfo* createInfo)
 {
     *allocator = {0};
-    allocator->platformIface = createInfo->platformIface;
     for (size_t it = 0; it < SE_POOL_ALLOCATOR_SUBSYSTEM_MAX_BUCKETS; it++)
     {
         const SePoolMemoryBucketConfig* config = &createInfo->buckets[it];
         if (config->blockSize == 0) break;
         SePoolMemoryBucket* bucket = &allocator->buckets[allocator->numBuckets++];
         bucket->blockSize = config->blockSize;
-        se_pool_allocator_memory_bucket_source_construct(&bucket->memory, allocator->platformIface);
-        se_pool_allocator_memory_bucket_source_construct(&bucket->ledger, allocator->platformIface);
+        se_pool_allocator_memory_bucket_source_construct(&bucket->memory);
+        se_pool_allocator_memory_bucket_source_construct(&bucket->ledger);
     }
 }
 
@@ -85,8 +87,8 @@ void se_pool_allocator_destroy(SePoolAllocator* allocator)
     for (size_t it = 0; it < allocator->numBuckets; it++)
     {
         SePoolMemoryBucket* bucket = &allocator->buckets[it];
-        se_pool_allocator_memory_bucket_source_destroy(&bucket->memory, allocator->platformIface);
-        se_pool_allocator_memory_bucket_source_destroy(&bucket->ledger, allocator->platformIface);
+        se_pool_allocator_memory_bucket_source_destroy(&bucket->memory);
+        se_pool_allocator_memory_bucket_source_destroy(&bucket->ledger);
     }
     *allocator = {0};
 }
@@ -209,8 +211,8 @@ void* se_pool_allocator_alloc(SePoolAllocator* allocator, size_t allocationSize,
         if (firstValidLedgerBit == (bucket->ledger.used * 8))
         {
             const size_t numOccupiedLedgerBytes = numOccupiedLedgerBits / 8 + ((numOccupiedLedgerBits % 8) ? 1 : 0);
-            se_pool_allocator_memory_bucket_source_add_memory(&bucket->ledger, allocator->platformIface, numOccupiedLedgerBytes);
-            se_pool_allocator_memory_bucket_source_add_memory(&bucket->memory, allocator->platformIface, numOccupiedLedgerBytes * 8 * bucket->blockSize);
+            se_pool_allocator_memory_bucket_source_add_memory(&bucket->ledger, numOccupiedLedgerBytes);
+            se_pool_allocator_memory_bucket_source_add_memory(&bucket->memory, numOccupiedLedgerBytes * 8 * bucket->blockSize);
         }
         //
         // Set ledger blocks in use if requested memory if found

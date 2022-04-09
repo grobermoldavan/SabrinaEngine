@@ -25,7 +25,7 @@ struct SePoolAllocator
 {
     SePoolMemoryBucket buckets[SE_POOL_ALLOCATOR_SUBSYSTEM_MAX_BUCKETS];
     size_t numBuckets;
-    struct SePlatformInterface* platformIface;
+    struct SePlatformSubsystemInterface* platformIface;
 };
 
 struct SePoolMemoryBucketConfig
@@ -36,7 +36,7 @@ struct SePoolMemoryBucketConfig
 struct SePoolAllocatorCreateInfo
 {
     SePoolMemoryBucketConfig buckets[SE_POOL_ALLOCATOR_SUBSYSTEM_MAX_BUCKETS];
-    struct SePlatformInterface* platformIface;
+    struct SePlatformSubsystemInterface* platformIface;
 };
 
 struct SePoolAllocatorSubsystemInterface

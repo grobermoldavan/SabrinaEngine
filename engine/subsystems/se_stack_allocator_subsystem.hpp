@@ -7,7 +7,6 @@
 
 struct SeStackAllocator
 {
-    struct SePlatformInterface* platformIface;
     intptr_t base;      // actual pointer
     size_t cur;         // offset form base
     size_t reservedMax; // offset form base
@@ -18,7 +17,7 @@ struct SeStackAllocator
 
 struct SeStackAllocatorSubsystemInterface
 {
-    void (*construct)(struct SePlatformInterface* platformIface, SeStackAllocator* allocator, size_t capacity);
+    void (*construct)(SeStackAllocator* allocator, size_t capacity);
     void (*destroy)(SeStackAllocator* allocator);
     void (*to_allocator_bindings)(SeStackAllocator* allocator, struct SeAllocatorBindings* bindings);
 };

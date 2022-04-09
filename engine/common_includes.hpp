@@ -16,27 +16,6 @@
 #define se_concat(first, second) first##second
 #define se_to_str(text) #text
 
-#define se_add_subsystem(subsystemName, enginePtr)                      \
-{                                                                       \
-    const char* possibleLibPaths[] =                                    \
-    {                                                                   \
-        "." SE_PATH_SEP "subsystems" SE_PATH_SEP "default" SE_PATH_SEP subsystemName, \
-        "." SE_PATH_SEP "subsystems" SE_PATH_SEP "application" SE_PATH_SEP subsystemName, \
-        subsystemName,                                                  \
-    };                                                                  \
-    SeHandle libHandle = (enginePtr)->platformIface.dynamic_library_load(possibleLibPaths, se_array_size(possibleLibPaths)); \
-    SeSubsystemUpdateFunc update = (SeSubsystemUpdateFunc)(enginePtr)->platformIface.dynamic_library_get_function_address(libHandle, "se_update"); \
-    SeSubsystemReturnPtrFunc getInterface = (SeSubsystemReturnPtrFunc)(enginePtr)->platformIface.dynamic_library_get_function_address(libHandle, "se_get_interface"); \
-    SeSubsystemStorageEntry storageEntry                                \
-    {                                                                   \
-        .libraryHandle      = libHandle,                                \
-        .getInterface       = getInterface,                             \
-        .update             = update,                                   \
-        .name               = subsystemName,                            \
-    };                                                                  \
-    (enginePtr)->subsystems.subsystemsStorage[(enginePtr)->subsystems.subsystemsStorageSize++] = storageEntry;  \
-}
-
 #define se_bytes(val) val
 #define se_kilobytes(val) val * 1024ull
 #define se_megabytes(val) val * 1024ull * 1024ull

@@ -4,8 +4,9 @@
 
 int main(int argc, char* argv[])
 {
-    SabrinaEngine engine = {0};
+    SabrinaEngine engine = { };
     se_initialize(&engine);    
+    se_add_subsystem(SE_PLATFORM_SUBSYSTEM_NAME, &engine);
     se_add_subsystem(SE_STACK_ALLOCATOR_SUBSYSTEM_NAME, &engine);
     se_add_subsystem(SE_POOL_ALLOCATOR_SUBSYSTEM_NAME, &engine);
     se_add_subsystem(SE_APPLICATION_ALLOCATORS_SUBSYSTEM_NAME, &engine);

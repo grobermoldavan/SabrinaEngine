@@ -3,7 +3,7 @@
 #include "se_stack_allocator_subsystem.hpp"
 #include "engine/engine.hpp"
 
-static void se_stack_construct_allocator(SePlatformInterface* platformIface, SeStackAllocator* allocator, size_t capacity);
+static void se_stack_construct_allocator(SeStackAllocator* allocator, size_t capacity);
 static void se_stack_destruct_allocator(SeStackAllocator* allocator);
 static void se_stack_to_allocator_bindings(SeStackAllocator* allocator, SeAllocatorBindings* bindings);
 
@@ -12,6 +12,7 @@ static void se_stack_reset(SeStackAllocator* allocator);
 static void se_stack_dealloc(SeStackAllocator* allocator, void* ptr, size_t size);
 
 static SeStackAllocatorSubsystemInterface g_Iface;
+static SePlatformSubsystemInterface* g_platformIface;
 
 SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
 {
@@ -21,6 +22,7 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
         .destroy = se_stack_destruct_allocator,
         .to_allocator_bindings = se_stack_to_allocator_bindings,
     };
+    g_platformIface = (SePlatformSubsystemInterface*)engine->find_subsystem_interface(engine, SE_PLATFORM_SUBSYSTEM_NAME);
 }
 
 SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
@@ -28,12 +30,11 @@ SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
     return &g_Iface;
 }
 
-static void se_stack_construct_allocator(SePlatformInterface* platformIface, SeStackAllocator* allocator, size_t capacity)
+static void se_stack_construct_allocator(SeStackAllocator* allocator, size_t capacity)
 {
     *allocator =
     {
-        .platformIface  = platformIface,
-        .base           = (intptr_t)platformIface->mem_reserve(capacity),
+        .base           = (intptr_t)g_platformIface->mem_reserve(capacity),
         .cur            = 0,
         .reservedMax    = capacity,
         .commitedMax    = 0,
@@ -44,7 +45,7 @@ static void se_stack_construct_allocator(SePlatformInterface* platformIface, SeS
 
 static void se_stack_destruct_allocator(SeStackAllocator* allocator)
 {
-    allocator->platformIface->mem_release((void*)allocator->base, allocator->reservedMax);
+    g_platformIface->mem_release((void*)allocator->base, allocator->reservedMax);
     memset(allocator, 0, sizeof(SeStackAllocator));
 }
 
@@ -79,10 +80,10 @@ static void* se_stack_alloc(SeStackAllocator* allocator, size_t size, size_t ali
     if ((allocator->cur + alignedAllocationSize) > allocator->commitedMax)
     {
         const intptr_t allocationSize = alignedAllocationSize - (allocator->commitedMax - allocator->cur);
-        const size_t pageSize = allocator->platformIface->get_mem_page_size();
+        const size_t pageSize = g_platformIface->get_mem_page_size();
         const size_t numPages = allocationSize / pageSize + (allocationSize % pageSize == 0 ? 0 : 1);
         void* commitedTopPtr = (void*)(allocator->base + allocator->commitedMax);
-        allocator->platformIface->mem_commit(commitedTopPtr, numPages * pageSize);
+        g_platformIface->mem_commit(commitedTopPtr, numPages * pageSize);
         allocator->commitedMax += numPages * pageSize;
     }
     allocator->cur += alignedAllocationSize;

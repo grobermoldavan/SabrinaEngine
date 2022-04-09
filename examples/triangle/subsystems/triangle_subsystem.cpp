@@ -22,7 +22,7 @@ struct InputInstanceData
     SeFloat4x4 trfWS;
 };
 
-SePlatformInterface*                        platformInterface;
+SePlatformSubsystemInterface*               platformInterface;
 SeWindowSubsystemInterface*                 windowInterface;
 SeRenderAbstractionSubsystemInterface*      render;
 SeApplicationAllocatorsSubsystemInterface*  allocatorsInterface;
@@ -35,8 +35,8 @@ SeRenderRef fragmentProgram;
 
 SeRenderRef sync_load_shader(const char* path)
 {
-    SeFile shader = {0};
-    SeFileContent content = {0};
+    SeFile shader = { };
+    SeFileContent content = { };
     platformInterface->file_load(&shader, path, SE_FILE_READ);
     platformInterface->file_read(&content, &shader, allocatorsInterface->frameAllocator);
     SeRenderRef program = render->program(device,
@@ -54,7 +54,7 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
     windowInterface = (SeWindowSubsystemInterface*)engine->find_subsystem_interface(engine, SE_WINDOW_SUBSYSTEM_NAME);
     render = (SeRenderAbstractionSubsystemInterface*)engine->find_subsystem_interface(engine, SE_VULKAN_RENDER_SUBSYSTEM_NAME);
     allocatorsInterface = (SeApplicationAllocatorsSubsystemInterface*)engine->find_subsystem_interface(engine, SE_APPLICATION_ALLOCATORS_SUBSYSTEM_NAME);
-    platformInterface = &engine->platformIface;
+    platformInterface = (SePlatformSubsystemInterface*)engine->find_subsystem_interface(engine, SE_PLATFORM_SUBSYSTEM_NAME);
     
     SeWindowSubsystemCreateInfo windowInfo
     {

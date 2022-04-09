@@ -14,12 +14,15 @@
 #include "vulkan/se_vulkan_render_subsystem_texture.hpp"
 #include "vulkan/se_vulkan_render_subsystem_command_buffer.hpp"
 #include "vulkan/se_vulkan_render_subsystem_utils.hpp"
+#include "engine/subsystems/se_window_subsystem.hpp"
+#include "engine/subsystems/se_application_allocators_subsystem.hpp"
+#include "engine/subsystems/se_platform_subsystem.hpp"
 #include "engine/engine.hpp"
 
 static SeRenderAbstractionSubsystemInterface        g_Iface;
 static SeWindowSubsystemInterface*                  g_windowIface;
 static SeApplicationAllocatorsSubsystemInterface*   g_allocatorsIface;
-static SePlatformInterface*                         g_platformIface;
+static SePlatformSubsystemInterface*                g_platformIface;
 
 static SeFloat4x4 se_vk_perspective_projection_matrix(float fovDeg, float aspect, float nearPlane, float farPlane)
 {
@@ -114,14 +117,14 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
         .dispatch                       = nullptr,
         .perspective_projection_matrix  = se_vk_perspective_projection_matrix,
     };
+    g_windowIface = (SeWindowSubsystemInterface*)engine->find_subsystem_interface(engine, SE_WINDOW_SUBSYSTEM_NAME);
+    g_allocatorsIface = (SeApplicationAllocatorsSubsystemInterface*)engine->find_subsystem_interface(engine, SE_APPLICATION_ALLOCATORS_SUBSYSTEM_NAME);
+    g_platformIface = (SePlatformSubsystemInterface*)engine->find_subsystem_interface(engine, SE_PLATFORM_SUBSYSTEM_NAME);
 }
 
 SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 {
     se_vk_check(volkInitialize());
-    g_windowIface = (SeWindowSubsystemInterface*)engine->find_subsystem_interface(engine, SE_WINDOW_SUBSYSTEM_NAME);
-    g_allocatorsIface = (SeApplicationAllocatorsSubsystemInterface*)engine->find_subsystem_interface(engine, SE_APPLICATION_ALLOCATORS_SUBSYSTEM_NAME);
-    g_platformIface = &engine->platformIface;
 }
 
 SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)

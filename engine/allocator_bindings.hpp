@@ -1,7 +1,7 @@
 #ifndef _SE_ALLOCATOR_BINDINGS_H_
 #define _SE_ALLOCATOR_BINDINGS_H_
 
-#include <inttypes.h>
+#include "common_includes.hpp"
 
 #define se_default_alignment 8
 

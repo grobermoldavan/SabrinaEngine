@@ -1,8 +1,6 @@
 
 #include "se_vulkan_render_subsystem_device.hpp"
 #include "se_vulkan_render_subsystem_utils.hpp"
-#include "engine/subsystems/se_application_allocators_subsystem.hpp"
-#include "engine/platform.hpp"
 #include "engine/allocator_bindings.hpp"
 #include "engine/debug.hpp"
 
@@ -10,7 +8,7 @@
 
 extern SeWindowSubsystemInterface*                  g_windowIface;
 extern SeApplicationAllocatorsSubsystemInterface*   g_allocatorsIface;
-extern SePlatformInterface*                         g_platformIface;
+extern SePlatformSubsystemInterface*                g_platformIface;
 
 static size_t g_deviceIndex = 0;
 

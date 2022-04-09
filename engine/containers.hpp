@@ -6,9 +6,9 @@
 #include <stdbool.h>
 #include <type_traits>
 
-#include "allocator_bindings.hpp"
 #include "common_includes.hpp"
-#include "platform.hpp"
+#include "allocator_bindings.hpp"
+#include "engine/subsystems/se_platform_subsystem.hpp"
 #include "engine/libs/meow_hash/meow_hash_x64_aesni.h"
 
 #define __se_memcpy(dst, src, size) memcpy(dst, src, size)
@@ -281,7 +281,7 @@ namespace iter
 
 struct ExpandableVirtualMemory
 {
-    SePlatformInterface* platform;
+    SePlatformSubsystemInterface* platform;
     void* base;
     size_t reserved;
     size_t commited;
@@ -290,7 +290,7 @@ struct ExpandableVirtualMemory
 
 namespace expandable_virtual_memory
 {
-    ExpandableVirtualMemory create(SePlatformInterface* platform, size_t size)
+    ExpandableVirtualMemory create(SePlatformSubsystemInterface* platform, size_t size)
     {
         return
         {
@@ -352,7 +352,7 @@ struct ObjectPool : TypelessObjectPool { };
 namespace object_pool
 {
     template<typename T>
-    inline void construct(ObjectPool<T>& pool, SePlatformInterface* platform)
+    inline void construct(ObjectPool<T>& pool, SePlatformSubsystemInterface* platform)
     {
         pool =
         {
@@ -363,7 +363,7 @@ namespace object_pool
     }
 
     template<typename T>
-    inline ObjectPool<T> create(SePlatformInterface* platform)
+    inline ObjectPool<T> create(SePlatformSubsystemInterface* platform)
     {
         return
         {
@@ -373,7 +373,7 @@ namespace object_pool
         };
     }
 
-    inline TypelessObjectPool create_typeless(SePlatformInterface* platform)
+    inline TypelessObjectPool create_typeless(SePlatformSubsystemInterface* platform)
     {
         return
         {
@@ -601,18 +601,19 @@ namespace hash_table
         void remove(HashTable<Key, Value>& table, size_t index)
         {
             using Entry = HashTable<Key, Value>::Entry;
-            Entry& dataToRemove = table.memory[index];
-            dataToRemove.isOccupied = false;
+            Entry* dataToRemove = &table.memory[index];
+            se_assert(dataToRemove->isOccupied);
+            dataToRemove->isOccupied = false;
             table.size -= 1;
-            Entry& dataToReplace = dataToRemove;
+            Entry* dataToReplace = dataToRemove;
             for (size_t currentPosition = ((index + 1) % table.capacity); currentPosition != index; currentPosition = ((currentPosition + 1) % table.capacity))
             {
-                Entry& data = table.memory[currentPosition];
-                if (!data.isOccupied) break;
-                if (hash_to_index(data.hash, table.capacity) <= hash_to_index(dataToReplace.hash, table.capacity))
+                Entry* data = &table.memory[currentPosition];
+                if (!data->isOccupied) break;
+                if (hash_to_index(data->hash, table.capacity) <= hash_to_index(dataToReplace->hash, table.capacity))
                 {
-                    __se_memcpy(&dataToReplace, &data, sizeof(Entry));
-                    data.isOccupied = false;
+                    __se_memcpy(dataToReplace, data, sizeof(Entry));
+                    data->isOccupied = false;
                     dataToReplace = data;
                 }
             }
@@ -735,6 +736,12 @@ namespace hash_table
         for (size_t it = 0; it < table.capacity; it++)
             table.memory[it].isOccupied = false;
     }
+
+    template<typename Key, typename Value>
+    size_t size(const HashTable<Key, Value>& table)
+    {
+        return table.size;
+    }
 }
 
 template<typename Key, typename Value, typename Table>
@@ -822,7 +829,7 @@ namespace iter
     }
 
     template<typename Key, typename Value>
-    Value& value(const HashTableIteratorValue<Key, Value, HashTable<Key, Value>>& val)
+    Value& value(HashTableIteratorValue<Key, Value, HashTable<Key, Value>>& val)
     {
         return val.value;
     }
@@ -831,6 +838,12 @@ namespace iter
     const Key& key(const HashTableIteratorValue<Key, Value, Table>& val)
     {
         return val.key;
+    }
+
+    template<typename Key, typename Value, typename Table>
+    size_t index(const HashTableIteratorValue<Key, Value, Table>& val)
+    {
+        return val.iterator->index;
     }
 
     template<typename Key, typename Value>

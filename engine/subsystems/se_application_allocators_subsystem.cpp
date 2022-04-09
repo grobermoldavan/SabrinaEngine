@@ -23,14 +23,13 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
 
 SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 {
-    SeStackAllocatorSubsystemInterface* stackIface = (SeStackAllocatorSubsystemInterface*)engine->find_subsystem_interface(engine, SE_STACK_ALLOCATOR_SUBSYSTEM_NAME);
-    SePoolAllocatorSubsystemInterface* poolIface = (SePoolAllocatorSubsystemInterface*)engine->find_subsystem_interface(engine, SE_POOL_ALLOCATOR_SUBSYSTEM_NAME);
+    const SeStackAllocatorSubsystemInterface* stackIface = (SeStackAllocatorSubsystemInterface*)engine->find_subsystem_interface(engine, SE_STACK_ALLOCATOR_SUBSYSTEM_NAME);
+    const SePoolAllocatorSubsystemInterface* poolIface = (SePoolAllocatorSubsystemInterface*)engine->find_subsystem_interface(engine, SE_POOL_ALLOCATOR_SUBSYSTEM_NAME);
 
-    stackIface->construct(&engine->platformIface, &frameAllocator, se_gigabytes(64));
+    stackIface->construct(&frameAllocator, se_gigabytes(64));
     SePoolAllocatorCreateInfo poolCreateInfo
     {
         .buckets = { { .blockSize = 8 }, { .blockSize = 32 }, { .blockSize = 256 } },
-        .platformIface = &engine->platformIface,
     };
     poolIface->construct(&persistentAllocator, &poolCreateInfo);
 
