@@ -23,10 +23,10 @@ typedef struct FrameData
     float _pad[2];
 } FrameData;
 
-SeWindowSubsystemInterface* windowIface;
-SeApplicationAllocatorsSubsystemInterface* allocators;
-SeRenderAbstractionSubsystemInterface* render;
-SePlatformSubsystemInterface* platform;
+const SeWindowSubsystemInterface* windowIface;
+const SeApplicationAllocatorsSubsystemInterface* allocators;
+const SeRenderAbstractionSubsystemInterface* render;
+const SePlatformSubsystemInterface* platform;
 
 SeWindowHandle window;
 

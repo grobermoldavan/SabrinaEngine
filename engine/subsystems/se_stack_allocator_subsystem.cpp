@@ -12,7 +12,7 @@ static void se_stack_reset(SeStackAllocator* allocator);
 static void se_stack_dealloc(SeStackAllocator* allocator, void* ptr, size_t size);
 
 static SeStackAllocatorSubsystemInterface g_Iface;
-static SePlatformSubsystemInterface* g_platformIface;
+static const SePlatformSubsystemInterface* g_platformIface;
 
 SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
 {

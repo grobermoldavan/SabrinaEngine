@@ -22,10 +22,10 @@ struct InputInstanceData
     SeFloat4x4 trfWS;
 };
 
-SePlatformSubsystemInterface*               platformInterface;
-SeWindowSubsystemInterface*                 windowInterface;
-SeRenderAbstractionSubsystemInterface*      render;
-SeApplicationAllocatorsSubsystemInterface*  allocatorsInterface;
+const SePlatformSubsystemInterface*               platformInterface;
+const SeWindowSubsystemInterface*                 windowInterface;
+const SeRenderAbstractionSubsystemInterface*      render;
+const SeApplicationAllocatorsSubsystemInterface*  allocatorsInterface;
 
 SeWindowHandle window;
 SeDeviceHandle device;

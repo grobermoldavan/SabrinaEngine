@@ -90,14 +90,14 @@ void se_add_subsystem(SabrinaEngine* engine)
 }
 
 template<typename Iterface>
-typename Iterface* se_get_subsystem_interface(SabrinaEngine* engine)
+const Iterface* se_get_subsystem_interface(SabrinaEngine* engine)
 {
     for (size_t i = 0; i < engine->subsystemStorage.size; i++)
     {
         if (strcmp(engine->subsystemStorage.storage[i].interfaceName, Iterface::NAME) == 0)
         {
             SeSubsystemReturnPtrFunc getInterface = engine->subsystemStorage.storage[i].getInterface;
-            return (Iterface*)(getInterface ? getInterface(engine) : nullptr);
+            return (const Iterface*)(getInterface ? getInterface(engine) : nullptr);
         }
     }
     return nullptr;

@@ -12,10 +12,10 @@ typedef struct TetrisRenderInitInfo
 
 typedef struct TetrisRenderState
 {
-    struct SePlatformSubsystemInterface* platformInterface;
-    struct SeRenderAbstractionSubsystemInterface* renderInterface;
-    struct SeApplicationAllocatorsSubsystemInterface* allocatorsInterface;
-    struct SeWindowSubsystemInterface* windowInterface;
+    const struct SePlatformSubsystemInterface* platformInterface;
+    const struct SeRenderAbstractionSubsystemInterface* renderInterface;
+    const struct SeApplicationAllocatorsSubsystemInterface* allocatorsInterface;
+    const struct SeWindowSubsystemInterface* windowInterface;
 
     struct SeWindowHandle* window;
 

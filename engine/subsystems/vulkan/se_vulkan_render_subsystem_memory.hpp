@@ -7,10 +7,10 @@
 
 struct SeVkMemoryManagerCreateInfo
 {
-    struct SeAllocatorBindings* persistentAllocator;
-    struct SeAllocatorBindings* frameAllocator;
-    struct SePlatformSubsystemInterface* platform;
-    size_t                      numFrames;
+    struct SeAllocatorBindings*                 persistentAllocator;
+    struct SeAllocatorBindings*                 frameAllocator;
+    const struct SePlatformSubsystemInterface*  platform;
+    size_t                                      numFrames;
 };
 
 struct SeVkGpuAllocationRequest
@@ -48,16 +48,16 @@ struct SeVkCpuAllocation
 
 struct SeVkMemoryManager
 {
-    VkAllocationCallbacks                   cpu_allocationCallbacks;
-    DynamicArray<SeVkCpuAllocation>         cpu_allocations;
-    struct SeAllocatorBindings*             cpu_persistentAllocator;
-    struct SeAllocatorBindings*             cpu_frameAllocator;
-    struct SePlatformSubsystemInterface*    platform;
-    DynamicArray<TypelessObjectPool>        cpu_pools;
+    VkAllocationCallbacks                       cpu_allocationCallbacks;
+    DynamicArray<SeVkCpuAllocation>             cpu_allocations;
+    struct SeAllocatorBindings*                 cpu_persistentAllocator;
+    struct SeAllocatorBindings*                 cpu_frameAllocator;
+    const struct SePlatformSubsystemInterface*  platform;
+    DynamicArray<TypelessObjectPool>            cpu_pools;
 
-    struct SeVkDevice*                      device;
-    DynamicArray<SeVkGpuMemoryChunk>        gpu_chunks;
-    VkPhysicalDeviceMemoryProperties*       memoryProperties;
+    struct SeVkDevice*                          device;
+    DynamicArray<SeVkGpuMemoryChunk>            gpu_chunks;
+    VkPhysicalDeviceMemoryProperties*           memoryProperties;
 };
 
 void            se_vk_memory_manager_construct(SeVkMemoryManager* manager, SeVkMemoryManagerCreateInfo* createInfo);

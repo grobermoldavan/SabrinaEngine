@@ -6,9 +6,9 @@
 
 #define SE_VK_INVALID_DEVICE_RATING -1.0f
 
-extern SeWindowSubsystemInterface*                  g_windowIface;
-extern SeApplicationAllocatorsSubsystemInterface*   g_allocatorsIface;
-extern SePlatformSubsystemInterface*                g_platformIface;
+extern const SeWindowSubsystemInterface*                  g_windowIface;
+extern const SeApplicationAllocatorsSubsystemInterface*   g_allocatorsIface;
+extern const SePlatformSubsystemInterface*                g_platformIface;
 
 static size_t g_deviceIndex = 0;
 

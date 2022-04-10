@@ -21,7 +21,7 @@ void* se_pool_allocator_alloc(SePoolAllocator* allocator, size_t allocationSize,
 void se_pool_allocator_dealloc(SePoolAllocator* allocator, void* ptr, size_t size);
 
 static SePoolAllocatorSubsystemInterface g_iface;
-static SePlatformSubsystemInterface* g_platformIface;
+static const SePlatformSubsystemInterface* g_platformIface;
 
 SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
 {

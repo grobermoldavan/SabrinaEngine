@@ -3,7 +3,7 @@
 #include "tetris_subsystem_impl/tetris_render.h"
 #include "engine/engine.h"
 
-SeWindowSubsystemInterface* windowInterface;
+const SeWindowSubsystemInterface* windowInterface;
 
 SeWindowHandle windowHandle;
 TetrisState tetrisState = {0};

@@ -19,10 +19,10 @@
 #include "engine/subsystems/se_platform_subsystem.hpp"
 #include "engine/engine.hpp"
 
-static SeRenderAbstractionSubsystemInterface        g_Iface;
-static SeWindowSubsystemInterface*                  g_windowIface;
-static SeApplicationAllocatorsSubsystemInterface*   g_allocatorsIface;
-static SePlatformSubsystemInterface*                g_platformIface;
+static SeRenderAbstractionSubsystemInterface            g_Iface;
+static const SeWindowSubsystemInterface*                g_windowIface;
+static const SeApplicationAllocatorsSubsystemInterface* g_allocatorsIface;
+static const SePlatformSubsystemInterface*              g_platformIface;
 
 static SeFloat4x4 se_vk_perspective_projection_matrix(float fovDeg, float aspect, float nearPlane, float farPlane)
 {

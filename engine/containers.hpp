@@ -281,7 +281,7 @@ namespace iter
 
 struct ExpandableVirtualMemory
 {
-    SePlatformSubsystemInterface* platform;
+    const SePlatformSubsystemInterface* platform;
     void* base;
     size_t reserved;
     size_t commited;
@@ -290,7 +290,7 @@ struct ExpandableVirtualMemory
 
 namespace expandable_virtual_memory
 {
-    ExpandableVirtualMemory create(SePlatformSubsystemInterface* platform, size_t size)
+    ExpandableVirtualMemory create(const SePlatformSubsystemInterface* platform, size_t size)
     {
         return
         {
@@ -352,7 +352,7 @@ struct ObjectPool : TypelessObjectPool { };
 namespace object_pool
 {
     template<typename T>
-    inline void construct(ObjectPool<T>& pool, SePlatformSubsystemInterface* platform)
+    inline void construct(ObjectPool<T>& pool, const SePlatformSubsystemInterface* platform)
     {
         pool =
         {
@@ -363,7 +363,7 @@ namespace object_pool
     }
 
     template<typename T>
-    inline ObjectPool<T> create(SePlatformSubsystemInterface* platform)
+    inline ObjectPool<T> create(const SePlatformSubsystemInterface* platform)
     {
         return
         {
@@ -373,7 +373,7 @@ namespace object_pool
         };
     }
 
-    inline TypelessObjectPool create_typeless(SePlatformSubsystemInterface* platform)
+    inline TypelessObjectPool create_typeless(const SePlatformSubsystemInterface* platform)
     {
         return
         {
