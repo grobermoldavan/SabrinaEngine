@@ -372,9 +372,9 @@ SeRenderObject* sync_load_shader(const char* path)
 
 SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 {
-    windowIface = (SeWindowSubsystemInterface*)engine->find_subsystem_interface(engine, SE_WINDOW_SUBSYSTEM_NAME);
-    allocators = (SeApplicationAllocatorsSubsystemInterface*)engine->find_subsystem_interface(engine, SE_APPLICATION_ALLOCATORS_SUBSYSTEM_NAME);
-    render = (SeRenderAbstractionSubsystemInterface*)engine->find_subsystem_interface(engine, SE_VULKAN_RENDER_SUBSYSTEM_NAME);
+    windowIface = se_get_subsystem_interface<SeWindowSubsystemInterface>(engine);
+    allocators = se_get_subsystem_interface<SeApplicationAllocatorsSubsystemInterface>(engine);
+    render = se_get_subsystem_interface<SeRenderAbstractionSubsystemInterface>(engine);
     platform = &engine->platformIface;
     //
     // Create window

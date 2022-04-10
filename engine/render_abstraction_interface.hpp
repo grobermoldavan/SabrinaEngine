@@ -264,6 +264,8 @@ struct SeCommandDispatchInfo
 
 struct SeRenderAbstractionSubsystemInterface
 {
+    static constexpr const char* NAME = "SeRenderAbstractionSubsystemInterface";
+
     SeDeviceHandle                      (*device_create)                        (const SeDeviceInfo& info);
     void                                (*device_destroy)                       (SeDeviceHandle device);
     void                                (*begin_frame)                          (SeDeviceHandle device);

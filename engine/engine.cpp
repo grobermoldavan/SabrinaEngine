@@ -1,5 +1,4 @@
 
-#include <string.h>
 #include "engine.hpp"
 
 #ifdef _WIN32
@@ -52,55 +51,12 @@ static uint64_t se_get_perf_frequency()
 #   error Unsupported platform
 #endif
 
-static void* se_find_subsystem_interface(SabrinaEngine* engine, const char* name)
-{
-    for (size_t i = 0; i < engine->subsystemStorage.size; i++)
-    {
-        if (strcmp(engine->subsystemStorage.storage[i].name, name) == 0)
-        {
-            SeSubsystemReturnPtrFunc getInterface = engine->subsystemStorage.storage[i].getInterface;
-            return getInterface ? getInterface(engine) : nullptr;
-        }
-    }
-    return nullptr;
-}
-
 void se_initialize(SabrinaEngine* engine)
 {
-    engine->find_subsystem_interface = se_find_subsystem_interface;
+    engine->load_dynamic_library = se_load_dynamic_library;
+    engine->find_function_address = se_get_dynamic_library_function_address;
+    engine->subsystemStorage = { };
     engine->shouldRun = true;
-}
-
-void se_add_subsystem(const char* name, SabrinaEngine* engine)
-{
-    const size_t BUFFER_SIZE = 512;
-    const char* POSSIBLE_LIB_PATHS[] =
-    {
-        "." SE_PATH_SEP "subsystems" SE_PATH_SEP "default" SE_PATH_SEP,
-        "." SE_PATH_SEP "subsystems" SE_PATH_SEP "application" SE_PATH_SEP,
-        "",
-    };
-    const size_t nameLength = strlen(name);
-    char buffer[BUFFER_SIZE];
-    SeLibraryHandle libHandle = { };
-    for (const char* path : POSSIBLE_LIB_PATHS)
-    {
-        const size_t pathLength = strlen(path);
-        se_assert((nameLength + pathLength) < BUFFER_SIZE);
-        memcpy(buffer, path, pathLength);
-        memcpy(buffer + pathLength, name, nameLength);
-        buffer[pathLength + nameLength] = 0;
-        libHandle = se_load_dynamic_library(buffer);
-        if (libHandle) break;
-    }
-    se_assert(libHandle);
-    engine->subsystemStorage.storage[engine->subsystemStorage.size++] =
-    {
-        .libraryHandle      = libHandle,
-        .getInterface       = (SeSubsystemReturnPtrFunc)se_get_dynamic_library_function_address(libHandle, "se_get_interface"),
-        .update             = (SeSubsystemUpdateFunc)se_get_dynamic_library_function_address(libHandle, "se_update"),
-        .name               = name,
-    };
 }
 
 void se_run(SabrinaEngine* engine)

@@ -3,8 +3,6 @@
 
 #include <inttypes.h>
 
-#define SE_STACK_ALLOCATOR_SUBSYSTEM_NAME "se_stack_allocator_subsystem"
-
 struct SeStackAllocator
 {
     intptr_t base;      // actual pointer
@@ -17,9 +15,17 @@ struct SeStackAllocator
 
 struct SeStackAllocatorSubsystemInterface
 {
+    static constexpr const char* NAME = "SeStackAllocatorSubsystemInterface";
+
     void (*construct)(SeStackAllocator* allocator, size_t capacity);
     void (*destroy)(SeStackAllocator* allocator);
     void (*to_allocator_bindings)(SeStackAllocator* allocator, struct SeAllocatorBindings* bindings);
+};
+
+struct SeStackAllocatorSubsystem
+{
+    using Interface = SeStackAllocatorSubsystemInterface;
+    static constexpr const char* NAME = "se_stack_allocator_subsystem";
 };
 
 #endif

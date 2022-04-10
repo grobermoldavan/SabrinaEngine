@@ -23,8 +23,8 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
 
 SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 {
-    const SeStackAllocatorSubsystemInterface* stackIface = (SeStackAllocatorSubsystemInterface*)engine->find_subsystem_interface(engine, SE_STACK_ALLOCATOR_SUBSYSTEM_NAME);
-    const SePoolAllocatorSubsystemInterface* poolIface = (SePoolAllocatorSubsystemInterface*)engine->find_subsystem_interface(engine, SE_POOL_ALLOCATOR_SUBSYSTEM_NAME);
+    const SeStackAllocatorSubsystemInterface* stackIface = se_get_subsystem_interface<SeStackAllocatorSubsystemInterface>(engine);
+    const SePoolAllocatorSubsystemInterface* poolIface = se_get_subsystem_interface<SePoolAllocatorSubsystemInterface>(engine);
 
     stackIface->construct(&frameAllocator, se_gigabytes(64));
     SePoolAllocatorCreateInfo poolCreateInfo
@@ -39,9 +39,9 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 
 SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
 {
-    SeStackAllocatorSubsystemInterface* stackIface = (SeStackAllocatorSubsystemInterface*)engine->find_subsystem_interface(engine, SE_STACK_ALLOCATOR_SUBSYSTEM_NAME);
-    SePoolAllocatorSubsystemInterface* poolIface = (SePoolAllocatorSubsystemInterface*)engine->find_subsystem_interface(engine, SE_POOL_ALLOCATOR_SUBSYSTEM_NAME);
-    
+    const SeStackAllocatorSubsystemInterface* stackIface = se_get_subsystem_interface<SeStackAllocatorSubsystemInterface>(engine);
+    const SePoolAllocatorSubsystemInterface* poolIface = se_get_subsystem_interface<SePoolAllocatorSubsystemInterface>(engine);
+
     poolIface->destroy(&persistentAllocator);
     stackIface->destroy(&frameAllocator);
 }

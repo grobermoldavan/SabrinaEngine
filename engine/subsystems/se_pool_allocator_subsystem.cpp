@@ -31,7 +31,7 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
         .destroy                = se_pool_allocator_destroy,
         .to_allocator_bindings  = se_pool_allocator_to_allocator_bindings,
     };
-    g_platformIface = (SePlatformSubsystemInterface*)engine->find_subsystem_interface(engine, SE_PLATFORM_SUBSYSTEM_NAME);
+    g_platformIface = se_get_subsystem_interface<SePlatformSubsystemInterface>(engine);
 }
 
 SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)

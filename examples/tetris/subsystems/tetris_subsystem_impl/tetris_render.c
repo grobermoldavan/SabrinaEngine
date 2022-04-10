@@ -50,9 +50,9 @@ SeRenderObject* tetris_render_sync_load_shader(TetrisRenderState* renderState, c
 void tetris_render_init(TetrisRenderInitInfo* initInfo)
 {
     TetrisRenderState* renderState = initInfo->renderState;
-    renderState->renderInterface = (SeRenderAbstractionSubsystemInterface*)initInfo->engine->find_subsystem_interface(initInfo->engine, SE_VULKAN_RENDER_SUBSYSTEM_NAME);
-    renderState->allocatorsInterface = (SeApplicationAllocatorsSubsystemInterface*)initInfo->engine->find_subsystem_interface(initInfo->engine, SE_APPLICATION_ALLOCATORS_SUBSYSTEM_NAME);
-    renderState->windowInterface = (SeWindowSubsystemInterface*)initInfo->engine->find_subsystem_interface(initInfo->engine, SE_WINDOW_SUBSYSTEM_NAME);
+    renderState->renderInterface = se_get_subsystem_interface<SeRenderAbstractionSubsystemInterface>(initInfo->engine);
+    renderState->allocatorsInterface = se_get_subsystem_interface<SeApplicationAllocatorsSubsystemInterface>(initInfo->engine);
+    renderState->windowInterface = se_get_subsystem_interface<SeWindowSubsystemInterface>(initInfo->engine);
     renderState->platformInterface = &initInfo->engine->platformIface;
     renderState->window = initInfo->window;
     //

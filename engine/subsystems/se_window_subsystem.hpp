@@ -4,8 +4,6 @@
 #include <inttypes.h>
 #include <stdbool.h>
 
-#define SE_WINDOW_SUBSYSTEM_NAME "se_window_subsystem"
-
 #define __se_is_keyboard_button_pressed(keyboardFlags, keyFlag) (keyboardFlags[keyFlag / 64] & (1ull << (keyFlag - (keyFlag / 64) * 64)))
 #define se_is_keyboard_button_pressed(inputPtr, keyFlag) __se_is_keyboard_button_pressed(input->keyboardButtonsCurrent, keyFlag)
 #define se_is_keyboard_button_just_pressed(inputPtr, keyFlag) ((__se_is_keyboard_button_pressed(input->keyboardButtonsCurrent, keyFlag)) && !(__se_is_keyboard_button_pressed(input->keyboardButtonsPrevious, keyFlag)))
@@ -96,6 +94,8 @@ using SeWindowResizeCallbackHandle = void*;
 
 struct SeWindowSubsystemInterface
 {
+    static constexpr const char* NAME = "SeWindowSubsystemInterface";
+
     SeWindowHandle                  (*create)(SeWindowSubsystemCreateInfo* createInfo);
     void                            (*destroy)(SeWindowHandle handle);
     const SeWindowSubsystemInput*   (*get_input)(SeWindowHandle handle);
@@ -104,6 +104,12 @@ struct SeWindowSubsystemInterface
     void*                           (*get_native_handle)(SeWindowHandle handle);
     SeWindowResizeCallbackHandle    (*add_resize_callback)(SeWindowHandle handle, SeWindowResizeCallbackInfo* callbackInfo);
     void                            (*remove_resize_callback)(SeWindowHandle handle, SeWindowResizeCallbackHandle cbHandle);
+};
+
+struct SeWindowSubsystem
+{
+    using Interface = SeWindowSubsystemInterface;
+    static constexpr const char* NAME = "se_window_subsystem";
 };
 
 #endif

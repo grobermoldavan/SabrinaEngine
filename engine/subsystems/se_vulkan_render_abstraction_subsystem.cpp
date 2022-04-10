@@ -117,9 +117,9 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
         .dispatch                       = nullptr,
         .perspective_projection_matrix  = se_vk_perspective_projection_matrix,
     };
-    g_windowIface = (SeWindowSubsystemInterface*)engine->find_subsystem_interface(engine, SE_WINDOW_SUBSYSTEM_NAME);
-    g_allocatorsIface = (SeApplicationAllocatorsSubsystemInterface*)engine->find_subsystem_interface(engine, SE_APPLICATION_ALLOCATORS_SUBSYSTEM_NAME);
-    g_platformIface = (SePlatformSubsystemInterface*)engine->find_subsystem_interface(engine, SE_PLATFORM_SUBSYSTEM_NAME);
+    g_windowIface = se_get_subsystem_interface<SeWindowSubsystemInterface>(engine);
+    g_allocatorsIface = se_get_subsystem_interface<SeApplicationAllocatorsSubsystemInterface>(engine);
+    g_platformIface = se_get_subsystem_interface<SePlatformSubsystemInterface>(engine);
 }
 
 SE_DLL_EXPORT void se_init(SabrinaEngine* engine)

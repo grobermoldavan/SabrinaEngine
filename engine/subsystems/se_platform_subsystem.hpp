@@ -4,8 +4,6 @@
 #include "engine/common_includes.hpp"
 #include "engine/allocator_bindings.hpp"
 
-#define SE_PLATFORM_SUBSYSTEM_NAME "se_platform_subsystem"
-
 enum SeMemoryOrder
 {
     SE_RELAXED,
@@ -49,6 +47,8 @@ struct SeFileContent
 
 struct SePlatformSubsystemInterface
 {
+    static constexpr const char* NAME = "SePlatformSubsystemInterface";
+
     size_t      (*get_mem_page_size)        ();
     void*       (*mem_reserve)              (size_t size);
     void*       (*mem_commit)               (void* ptr, size_t size);
@@ -75,6 +75,12 @@ struct SePlatformSubsystemInterface
     void        (*file_read)                (SeFileContent* content, SeFile* file, SeAllocatorBindings* allocator);
     void        (*file_free_content)        (SeFileContent* content);
     void        (*file_write)               (SeFile* file, const void* data, size_t size);
+};
+
+struct SePlatformSubsystem
+{
+    using Interface = SePlatformSubsystemInterface;
+    static constexpr const char* NAME = "se_platform_subsystem";
 };
 
 #endif

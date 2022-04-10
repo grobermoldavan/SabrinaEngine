@@ -3,7 +3,6 @@
 
 #include <inttypes.h>
 
-#define SE_POOL_ALLOCATOR_SUBSYSTEM_NAME "se_pool_allocator_subsystem"
 #define SE_POOL_ALLOCATOR_SUBSYSTEM_MAX_BUCKETS 8
 
 struct SePoolMemoryBucketSource
@@ -41,9 +40,17 @@ struct SePoolAllocatorCreateInfo
 
 struct SePoolAllocatorSubsystemInterface
 {
+    static constexpr const char* NAME = "SePoolAllocatorSubsystemInterface";
+
     void (*construct)(SePoolAllocator* allocator, SePoolAllocatorCreateInfo* createInfo);
     void (*destroy)(SePoolAllocator* allocator);
     void (*to_allocator_bindings)(SePoolAllocator* allocator, struct SeAllocatorBindings* bindings);
+};
+
+struct SePoolAllocatorSubsystem
+{
+    using Interface = SePoolAllocatorSubsystemInterface;
+    static constexpr const char* NAME = "se_pool_allocator_subsystem";
 };
 
 #endif

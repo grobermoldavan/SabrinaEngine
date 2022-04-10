@@ -5,14 +5,14 @@
 int main(int argc, char* argv[])
 {
     SabrinaEngine engine = { };
-    se_initialize(&engine);    
-    se_add_subsystem(SE_PLATFORM_SUBSYSTEM_NAME, &engine);
-    se_add_subsystem(SE_STACK_ALLOCATOR_SUBSYSTEM_NAME, &engine);
-    se_add_subsystem(SE_POOL_ALLOCATOR_SUBSYSTEM_NAME, &engine);
-    se_add_subsystem(SE_APPLICATION_ALLOCATORS_SUBSYSTEM_NAME, &engine);
-    se_add_subsystem(SE_WINDOW_SUBSYSTEM_NAME, &engine);
-    se_add_subsystem(SE_VULKAN_RENDER_SUBSYSTEM_NAME, &engine);
-    se_add_subsystem(TRIANGLE_SUBSYSTEM_NAME, &engine);
+    se_initialize(&engine); 
+    se_add_subsystem<SePlatformSubsystem>(&engine);
+    se_add_subsystem<SeStackAllocatorSubsystem>(&engine);
+    se_add_subsystem<SePoolAllocatorSubsystem>(&engine);
+    se_add_subsystem<SeApplicationAllocatorsSubsystem>(&engine);
+    se_add_subsystem<SeWindowSubsystem>(&engine);
+    se_add_subsystem<SeVulkanRenderAbstractionSubsystem>(&engine);
+    se_add_subsystem<TriangleSubsystem>(&engine);
     se_run(&engine);
     return 0;
 }

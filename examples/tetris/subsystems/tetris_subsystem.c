@@ -11,7 +11,7 @@ TetrisRenderState tetrisRenderState = {0};
 
 SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 {
-    windowInterface = (SeWindowSubsystemInterface*)engine->find_subsystem_interface(engine, SE_WINDOW_SUBSYSTEM_NAME);
+    windowInterface = se_get_subsystem_interface<SeWindowSubsystemInterface>(engine);
     SeWindowSubsystemCreateInfo createInfo = (SeWindowSubsystemCreateInfo)
     {
         .name           = "Sabrina engine - tetris example",
