@@ -44,4 +44,34 @@ void se_vk_destroy<SeVkTexture>(SeVkTexture* res)
     se_vk_texture_destroy(res);
 }
 
+namespace hash_value
+{
+    namespace builder
+    {
+        template<>
+        void absorb<SeVkTextureInfo>(HashValueBuilder& builder, const SeVkTextureInfo& info)
+        {
+            hash_value::builder::absorb_raw(builder, { (void*)&info, sizeof(SeVkTextureInfo) });
+        }
+
+        template<>
+        void absorb<SeVkTexture>(HashValueBuilder& builder, const SeVkTexture& info)
+        {
+            hash_value::builder::absorb_raw(builder, { (void*)&info.object, sizeof(info.object) });
+        }
+    }
+
+    template<>
+    HashValue generate<SeVkTextureInfo>(const SeVkTextureInfo& info)
+    {
+        return hash_value::generate_raw({ (void*)&info, sizeof(SeVkTextureInfo) });
+    }
+
+    template<>
+    HashValue generate<SeVkTexture>(const SeVkTexture& info)
+    {
+        return hash_value::generate_raw({ (void*)&info.object, sizeof(info.object) });
+    }
+}
+
 #endif

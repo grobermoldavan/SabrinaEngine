@@ -4,19 +4,19 @@
 #include "se_vulkan_render_subsystem_base.hpp"
 #include "engine/libs/ssr/simple_spirv_reflection.h"
 
+struct SeVkProgramInfo
+{
+    struct SeVkDevice*  device;
+    const uint32_t*     bytecode;
+    size_t              bytecodeSize;
+};
+
 struct SeVkProgram
 {
     SeVkObject              object;
     struct SeVkDevice*      device;
     VkShaderModule          handle;
     SimpleSpirvReflection   reflection;
-};
-
-struct SeVkProgramInfo
-{
-    struct SeVkDevice*  device;
-    const uint32_t*     bytecode;
-    size_t              bytecodeSize;
 };
 
 struct SeVkProgramWithConstants
@@ -35,6 +35,52 @@ template<>
 void se_vk_destroy<SeVkProgram>(SeVkProgram* res)
 {
     se_vk_program_destroy(res);
+}
+
+namespace hash_value
+{
+    namespace builder
+    {
+        template<>
+        void absorb<SeVkProgramInfo>(HashValueBuilder& builder, const SeVkProgramInfo& value)
+        {
+            hash_value::builder::absorb_raw(builder, { (void*)value.bytecode, value.bytecodeSize });
+        }
+
+        template<>
+        void absorb<SeVkProgram>(HashValueBuilder& builder, const SeVkProgram& value)
+        {
+            hash_value::builder::absorb_raw(builder, { (void*)&value.object, sizeof(value.object) });
+        }
+
+        template<>
+        void absorb<SeVkProgramWithConstants>(HashValueBuilder& builder, const SeVkProgramWithConstants& value)
+        {
+            hash_value::builder::absorb(builder, *value.program);
+            for (size_t it = 0; it < value.numSpecializationConstants; it++)
+                hash_value::builder::absorb(builder, value.constants[it]);
+        }
+    }
+
+    template<>
+    HashValue generate<SeVkProgramInfo>(const SeVkProgramInfo& value)
+    {
+        return hash_value::generate_raw({ (void*)value.bytecode, value.bytecodeSize });
+    }
+
+    template<>
+    HashValue generate<SeVkProgram>(const SeVkProgram& value)
+    {
+        return hash_value::generate_raw({ (void*)&value.object, sizeof(value.object) });
+    }
+
+    template<>
+    HashValue generate<SeVkProgramWithConstants>(const SeVkProgramWithConstants& value)
+    {
+        HashValueBuilder builder = hash_value::builder::create();
+        hash_value::builder::absorb(builder, value);
+        return hash_value::builder::end(builder);
+    }
 }
 
 #endif

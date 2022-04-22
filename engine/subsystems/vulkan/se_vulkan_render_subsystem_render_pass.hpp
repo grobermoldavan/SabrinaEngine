@@ -73,4 +73,34 @@ void se_vk_destroy<SeVkRenderPass>(SeVkRenderPass* res)
     se_vk_render_pass_destroy(res);
 }
 
+namespace hash_value
+{
+    namespace builder
+    {
+        template<>
+        void absorb<SeVkRenderPassInfo>(HashValueBuilder& builder, const SeVkRenderPassInfo& value)
+        {
+            hash_value::builder::absorb_raw(builder, { (void*)&value, sizeof(value) });
+        }
+
+        template<>
+        void absorb<SeVkRenderPass>(HashValueBuilder& builder, const SeVkRenderPass& value)
+        {
+            hash_value::builder::absorb_raw(builder, { (void*)&value.object, sizeof(value.object) });
+        }
+    }
+
+    template<>
+    HashValue generate<SeVkRenderPassInfo>(const SeVkRenderPassInfo& value)
+    {
+        return hash_value::generate_raw({ (void*)&value, sizeof(value) });
+    }
+
+    template<>
+    HashValue generate<SeVkRenderPass>(const SeVkRenderPass& value)
+    {
+        return hash_value::generate_raw({ (void*)&value.object, sizeof(value.object) });
+    }
+}
+
 #endif

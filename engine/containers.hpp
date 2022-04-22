@@ -181,65 +181,65 @@ namespace dynamic_array
     }
 }
 
-template <typename T, typename ValueT, typename Array>
+template <typename T, typename Array>
 struct DynamicArrayIterator;
 
-template <typename T, typename ValueT, typename Array>
+template <typename T, typename Array>
 struct DynamicArrayIteratorValue
 {
-    ValueT& value;
-    DynamicArrayIterator<T, ValueT, Array>* iterator;
+    T& value;
+    DynamicArrayIterator<T, Array>* iterator;
 };
 
-template <typename T, typename ValueT, typename Array>
+template <typename T, typename Array>
 struct DynamicArrayIterator
 {
     Array* arr;
     size_t index;
 
-    bool                                        operator != (const DynamicArrayIterator& other);
-    DynamicArrayIteratorValue<T, ValueT, Array> operator *  ();
-    DynamicArrayIterator&                       operator ++ ();
+    bool                                operator != (const DynamicArrayIterator& other) const;
+    DynamicArrayIteratorValue<T, Array> operator *  ();
+    DynamicArrayIterator&               operator ++ ();
 };
 
 template<typename T>
-DynamicArrayIterator<T, T, DynamicArray<T>> begin(DynamicArray<T>& arr)
+DynamicArrayIterator<T, DynamicArray<T>> begin(DynamicArray<T>& arr)
 {
     return { &arr, 0 };
 }
 
 template<typename T>
-DynamicArrayIterator<T, T, DynamicArray<T>> end(DynamicArray<T>& arr)
+DynamicArrayIterator<T, DynamicArray<T>> end(DynamicArray<T>& arr)
 {
     return { &arr, arr.size };
 }
 
 template<typename T>
-DynamicArrayIterator<T, const T, const DynamicArray<T>> begin(const DynamicArray<T>& arr)
+DynamicArrayIterator<const T, const DynamicArray<T>> begin(const DynamicArray<T>& arr)
 {
     return { &arr, 0 };
 }
 
 template<typename T>
-DynamicArrayIterator<T, const T, const DynamicArray<T>> end(const DynamicArray<T>& arr)
+DynamicArrayIterator<const T, const DynamicArray<T>> end(const DynamicArray<T>& arr)
 {
     return { &arr, arr.size };
 }
 
-template<typename T, typename ValueT, typename Array>
-bool DynamicArrayIterator<T, ValueT, Array>::operator != (const DynamicArrayIterator<T, ValueT, Array>& other)
+template<typename T, typename Array>
+bool DynamicArrayIterator<T, Array>::operator != (const DynamicArrayIterator<T, Array>& other) const
 {
     return (arr != other.arr) || (index != other.index);
 }
 
-template<typename T, typename ValueT, typename Array>
-DynamicArrayIteratorValue<T, ValueT, Array> DynamicArrayIterator<T, ValueT, Array>::operator * ()
+template<typename T, typename Array>
+DynamicArrayIteratorValue<T, Array> DynamicArrayIterator<T, Array>::operator * ()
 {
     return { arr->memory[index], this };
 }
 
-template<typename T, typename ValueT, typename Array>
-DynamicArrayIterator<T, ValueT, Array>& DynamicArrayIterator<T, ValueT, Array>::operator ++ ()
+template<typename T, typename Array>
+DynamicArrayIterator<T, Array>& DynamicArrayIterator<T, Array>::operator ++ ()
 {
     index += 1;
     return *this;
@@ -248,25 +248,25 @@ DynamicArrayIterator<T, ValueT, Array>& DynamicArrayIterator<T, ValueT, Array>::
 namespace iter
 {
     template<typename T>
-    T& value(DynamicArrayIteratorValue<T, T, DynamicArray<T>>& value)
+    T& value(DynamicArrayIteratorValue<T, DynamicArray<T>>& value)
     {
         return value.value;
     }
 
     template<typename T>
-    const T& value(const DynamicArrayIteratorValue<T, const T, const DynamicArray<T>>& value)
+    const T& value(const DynamicArrayIteratorValue<const T, const DynamicArray<T>>& value)
     {
         return value.value;
     }
 
-    template<typename T, typename ValueT, typename Array>
-    size_t index(const DynamicArrayIteratorValue<T, ValueT, Array>& value)
+    template<typename ValueT, typename Array>
+    size_t index(const DynamicArrayIteratorValue<ValueT, Array>& value)
     {
         return value.iterator->index;
     }
 
     template<typename T>
-    void remove(DynamicArrayIteratorValue<T, T, DynamicArray<T>>& value)
+    void remove(DynamicArrayIteratorValue<T, DynamicArray<T>>& value)
     {
         dynamic_array::remove(*value.iterator->arr, value.iterator->index);
         value.iterator->index -= 1;
@@ -279,57 +279,63 @@ namespace iter
     Basically a stack that uses OS virtual memory system and commits memory pages on demand.
 */
 
+template<typename T>
 struct ExpandableVirtualMemory
 {
     const SePlatformSubsystemInterface* platform;
-    void* base;
-    size_t reserved;
-    size_t commited;
-    size_t used;
+    T* base;
+    size_t reservedRaw;
+    size_t commitedRaw;
+    size_t usedRaw;
 };
 
 namespace expandable_virtual_memory
 {
-    ExpandableVirtualMemory create(const SePlatformSubsystemInterface* platform, size_t size)
+    template<typename T>
+    ExpandableVirtualMemory<T> create(const SePlatformSubsystemInterface* platform, size_t size)
     {
         return
         {
-            .platform   = platform,
-            .base       = platform->mem_reserve(size),
-            .reserved   = size,
-            .commited   = 0,
-            .used       = 0,
+            .platform       = platform,
+            .base           = (T*)platform->mem_reserve(size),
+            .reservedRaw    = size,
+            .commitedRaw    = 0,
+            .usedRaw        = 0,
         };
     }
 
-    void destroy(ExpandableVirtualMemory& memory)
+    template<typename T>
+    void destroy(ExpandableVirtualMemory<T>& memory)
     {
-        memory.platform->mem_release(memory.base, memory.reserved);
+        memory.platform->mem_release(memory.base, memory.reservedRaw);
     }
 
-    void add(ExpandableVirtualMemory& memory, size_t addition)
+    template<typename T>
+    void add(ExpandableVirtualMemory<T>& memory, size_t numberOfElementsToAdd)
     {
-        memory.used += addition;
-        se_assert(memory.used <= memory.reserved);
-        if (memory.used > memory.commited)
+        memory.usedRaw += numberOfElementsToAdd * sizeof(T);
+        se_assert(memory.usedRaw <= memory.reservedRaw);
+        if (memory.usedRaw > memory.commitedRaw)
         {
             const size_t memPageSize = memory.platform->get_mem_page_size();
-            const size_t requredToCommit = memory.used - memory.commited;
+            const size_t requredToCommit = memory.usedRaw - memory.commitedRaw;
             const size_t numPagesToCommit = 1 + ((requredToCommit - 1) / memPageSize);
             const size_t memoryToCommit = numPagesToCommit * memPageSize;
-            memory.platform->mem_commit(((uint8_t*)memory.base) + memory.commited, memoryToCommit);
-            memory.commited += memoryToCommit;
+            memory.platform->mem_commit(((uint8_t*)memory.base) + memory.commitedRaw, memoryToCommit);
+            memory.commitedRaw += memoryToCommit;
         }
     }
 
-    inline void* raw(const ExpandableVirtualMemory& memory)
+    template<typename T>
+    inline T* raw(const ExpandableVirtualMemory<T>& memory)
     {
         return memory.base;
     }
 
-    inline size_t used(const ExpandableVirtualMemory& memory)
+    template<typename T>
+    inline size_t used(const ExpandableVirtualMemory<T>& memory)
     {
-        return memory.used;
+        return memory.usedRaw;
     }
 }
 
@@ -339,15 +345,20 @@ namespace expandable_virtual_memory
     Container for an objects of the same size.
 */
 
-struct TypelessObjectPool
+template<typename T>
+struct ObjectPoolEntry
 {
-    ExpandableVirtualMemory ledger;
-    ExpandableVirtualMemory objectMemory;
-    size_t currentCapacity;
+    T value;
+    uint32_t generation;
 };
 
 template<typename T>
-struct ObjectPool : TypelessObjectPool { };
+struct ObjectPool
+{
+    ExpandableVirtualMemory<uint8_t> ledger;
+    ExpandableVirtualMemory<ObjectPoolEntry<T>> objectMemory;
+    size_t currentCapacity;
+};
 
 namespace object_pool
 {
@@ -356,8 +367,8 @@ namespace object_pool
     {
         pool =
         {
-            .ledger             = expandable_virtual_memory::create(platform, se_gigabytes(16)),
-            .objectMemory       = expandable_virtual_memory::create(platform, se_gigabytes(16)),
+            .ledger             = expandable_virtual_memory::create<uint8_t>(platform, se_gigabytes(16)),
+            .objectMemory       = expandable_virtual_memory::create<ObjectPoolEntry<T>>(platform, se_gigabytes(16)),
             .currentCapacity    = 0,
         };
     }
@@ -367,30 +378,14 @@ namespace object_pool
     {
         return
         {
-            .ledger             = expandable_virtual_memory::create(platform, se_gigabytes(16)),
-            .objectMemory       = expandable_virtual_memory::create(platform, se_gigabytes(16)),
-            .currentCapacity    = 0,
-        };
-    }
-
-    inline TypelessObjectPool create_typeless(const SePlatformSubsystemInterface* platform)
-    {
-        return
-        {
-            .ledger             = expandable_virtual_memory::create(platform, se_gigabytes(16)),
-            .objectMemory       = expandable_virtual_memory::create(platform, se_gigabytes(16)),
+            .ledger             = expandable_virtual_memory::create<uint8_t>(platform, se_gigabytes(16)),
+            .objectMemory       = expandable_virtual_memory::create<ObjectPoolEntry<T>>(platform, se_gigabytes(16)),
             .currentCapacity    = 0,
         };
     }
 
     template<typename T>
     inline void destroy(ObjectPool<T>& pool)
-    {
-        expandable_virtual_memory::destroy(pool.ledger);
-        expandable_virtual_memory::destroy(pool.objectMemory);
-    }
-
-    inline void destroy(TypelessObjectPool& pool)
     {
         expandable_virtual_memory::destroy(pool.ledger);
         expandable_virtual_memory::destroy(pool.objectMemory);
@@ -405,32 +400,32 @@ namespace object_pool
     template<typename T>
     T* take(ObjectPool<T>& pool)
     {
-        for (size_t it = 0; it < expandable_virtual_memory::used(pool.ledger); it++)
+        const size_t ledgerUsed = expandable_virtual_memory::used(pool.ledger); 
+        for (size_t it = 0; it < ledgerUsed; it++)
         {
-            uint8_t* byte = ((uint8_t*)expandable_virtual_memory::raw(pool.ledger)) + it;
+            uint8_t* byte = expandable_virtual_memory::raw(pool.ledger) + it;
             if (*byte == 255) continue;
             for (uint8_t byteIt = 0; byteIt < 8; byteIt++)
             {
                 if ((*byte & (1 << byteIt)) == 0)
                 {
-                    const size_t ledgerOffset = it * 8 + byteIt;
-                    const size_t memoryOffset = ledgerOffset * sizeof(T);
+                    const size_t indexOffset = it * 8 + byteIt;
                     *byte |= (1 << byteIt);
-                    void* memory = ((uint8_t*)expandable_virtual_memory::raw(pool.objectMemory)) + memoryOffset;
-                    return (T*)memory;
+                    ObjectPoolEntry<T>* entry = expandable_virtual_memory::raw(pool.objectMemory) + indexOffset;
+                    entry->generation += 1;
+                    return &entry->value;
                 }
             }
             se_assert_msg(false, "Invalid code path");
         }
-        const size_t ledgerUsed = expandable_virtual_memory::used(pool.ledger);
-        const size_t ledgerOffset = ledgerUsed * 8;
-        const size_t memoryOffset = ledgerOffset * sizeof(T);
+        const size_t indexOffset = ledgerUsed * 8;
         expandable_virtual_memory::add(pool.ledger, 1);
-        expandable_virtual_memory::add(pool.objectMemory, sizeof(T) * 8);
-        uint8_t* byte = ((uint8_t*)expandable_virtual_memory::raw(pool.ledger)) + ledgerUsed;
+        expandable_virtual_memory::add(pool.objectMemory, 8);
+        uint8_t* byte = expandable_virtual_memory::raw(pool.ledger) + ledgerUsed;
         *byte |= 1;
-        void* memory = ((uint8_t*)expandable_virtual_memory::raw(pool.objectMemory)) + memoryOffset;
-        return (T*)memory;
+        ObjectPoolEntry<T>* entry = expandable_virtual_memory::raw(pool.objectMemory) + indexOffset;
+        entry->generation += 1;
+        return &entry->value;
     }
 
     template<typename T>
@@ -441,16 +436,32 @@ namespace object_pool
         const intptr_t candidate = (intptr_t)object;
         se_assert_msg(candidate >= base && candidate < end, "Can't get index of an object in pool : pointer is not in the pool range");
         const size_t memoryOffset = candidate - base;
-        se_assert_msg((memoryOffset % sizeof(T)) == 0, "Can't get index of an object in pool : wrong pointer provided");
-        return memoryOffset / sizeof(T);
+        se_assert_msg((memoryOffset % sizeof(ObjectPoolEntry<T>)) == 0, "Can't get index of an object in pool : wrong pointer provided");
+        return memoryOffset / sizeof(ObjectPoolEntry<T>);
     }
 
     template<typename T>
     bool is_taken(const ObjectPool<T>& pool, size_t index)
     {
-        se_assert_msg((pool.ledger.used * 8) > index, "Can't get check if object is taken from pool : index is out of range");
+        se_assert_msg((expandable_virtual_memory::used(pool.ledger) * 8) > index, "Can't get check if object is taken from pool : index is out of range");
         const uint8_t* byte = ((uint8_t*)expandable_virtual_memory::raw(pool.ledger)) + (index / 8);
         return *byte & (1 << (index % 8));
+    }
+
+    template<typename T>
+    T* access(ObjectPool<T>& pool, size_t index)
+    {
+        se_assert(object_pool::is_taken(pool, index));
+        ObjectPoolEntry<T>* entry = expandable_virtual_memory::raw(pool.objectMemory) + index;
+        return &entry->value;
+    }
+
+    template<typename T>
+    const T* access(const ObjectPool<T>& pool, size_t index)
+    {
+        se_assert(object_pool::is_taken(pool, index));
+        const ObjectPoolEntry<T>* entry = expandable_virtual_memory::raw(pool.objectMemory) + index;
+        return &entry->value;
     }
 
     template<typename T>
@@ -458,36 +469,101 @@ namespace object_pool
     {
         const size_t index = object_pool::index_of(pool, object);
         se_assert(object_pool::is_taken(pool, index));
-        uint8_t* byte = ((uint8_t*)expandable_virtual_memory::raw(pool.ledger)) + (index / 8);
-        se_assert_msg(*byte & (1 << (index % 8)), "Can't return object to the pool : object is already returned");
-        *byte &= ~(1 << (index % 8));
-    }
-
-    template<typename T>
-    inline T* access(ObjectPool<T>& pool, size_t index)
-    {
-        se_assert(object_pool::is_taken(pool, index));
-        return ((T*)expandable_virtual_memory::raw(pool.objectMemory)) + index;
-    }
-
-    template<typename T>
-    using ForEachCb = void(*)(T*);
-
-    template<typename T>
-    void for_each(ObjectPool<T>& pool, ForEachCb<T> cb)
-    {
-        for (size_t it = 0; it < expandable_virtual_memory::used(pool.ledger) * 8; it++)
-        {
-            if (object_pool::is_taken(pool, it)) cb(object_pool::access(pool, it));
-        }
-    }
-
-    template<typename T>
-    inline ObjectPool<T>& from_typeless(TypelessObjectPool& pool)
-    {
-        return (ObjectPool<T>&)pool;
+        uint8_t* ledgerByte = expandable_virtual_memory::raw(pool.ledger) + (index / 8);
+        se_assert_msg(*ledgerByte & (1 << (index % 8)), "Can't return object to the pool : object is already returned");
+        *ledgerByte &= ~(1 << (index % 8));
     }
 }
+
+template<typename T>
+struct ObjectPoolIteratorValue
+{
+    T& val;
+};
+
+template<typename Pool, typename T>
+struct ObjectPoolIterator
+{
+    Pool& pool;
+    size_t index;
+
+    bool                        operator != (const ObjectPoolIterator& other) const;
+    ObjectPoolIteratorValue<T>  operator *  ();
+    ObjectPoolIterator&         operator ++ ();
+};
+
+template<typename T>
+ObjectPoolIterator<ObjectPool<T>, T> begin(ObjectPool<T>& pool)
+{
+    ObjectPoolIterator<ObjectPool<T>, T> result = { pool, SIZE_MAX };
+    result.operator ++();
+    return result;
+}
+
+template<typename T>
+ObjectPoolIterator<ObjectPool<T>, T> end(ObjectPool<T>& pool)
+{
+    return { pool, expandable_virtual_memory::used(pool.ledger) * 8 };
+}
+
+template<typename T>
+ObjectPoolIterator<const ObjectPool<T>, const T> begin(const ObjectPool<T>& pool)
+{
+    ObjectPoolIterator<const ObjectPool<T>, const T> result = { pool, SIZE_MAX };
+    result.operator ++();
+    return result;
+}
+
+template<typename T>
+ObjectPoolIterator<const ObjectPool<T>, const T> end(const ObjectPool<T>& pool)
+{
+    return { pool, expandable_virtual_memory::used(pool.ledger) * 8 };
+}
+
+template<typename Pool, typename T>
+bool ObjectPoolIterator<Pool, T>::operator != (const ObjectPoolIterator<Pool, T>& other) const
+{
+    return (&pool != &other.pool) || (index != other.index);
+}
+
+template<typename Pool, typename T>
+ObjectPoolIteratorValue<T> ObjectPoolIterator<Pool, T>::operator * ()
+{
+    return { *object_pool::access<T>(pool, index) };
+}
+
+template<typename Pool, typename T>
+ObjectPoolIterator<Pool, T>& ObjectPoolIterator<Pool, T>::operator ++ ()
+{
+    const size_t used = expandable_virtual_memory::used(pool.ledger);
+    const size_t ledgerSize = used * 8;
+    const uint8_t* ledger = expandable_virtual_memory::raw(pool.ledger);
+    
+    for (index += 1; index < ledgerSize; index += 1)
+    {
+        const uint8_t ledgerByte = *(ledger + (index / 8));
+        const bool isOccupied = ledgerByte & (1 << (index % 8));
+        if (isOccupied) break;
+    }
+
+    return *this;
+}
+
+namespace iter
+{
+    template<typename T>
+    T& value(ObjectPoolIteratorValue<T>& val)
+    {
+        return val.val;
+    }
+
+    template<typename T>
+    const T& value(ObjectPoolIteratorValue<const T>& val)
+    {
+        return val.val;
+    }
+}
+
 
 /*
     Hash table.
@@ -496,50 +572,51 @@ namespace object_pool
 */
 
 using HashValue = meow_u128;
+using HashValueBuilder = meow_state;
+
+struct HashValueInput
+{
+    void* data;
+    size_t size;
+};
 
 namespace hash_value
 {
-    namespace impl
+    namespace builder
     {
-        struct MultiHashInput
+        HashValueBuilder create()
         {
-            void* data;
-            size_t size;
-        };
-
-        template<size_t index, typename Value>
-        void fill_hash_inputs(MultiHashInput* inputs, const Value& value)
-        {
-            inputs[index] = MultiHashInput{ .data = (void*)&value, .size = sizeof(Value) };
+            HashValueBuilder result = { };
+            MeowBegin(&result, MeowDefaultSeed);
+            return result;
         }
 
-        template<size_t index, typename Value, typename ... Other>
-        void fill_hash_inputs(MultiHashInput* inputs, const Value& value, const Other& ... other)
+        void absorb_raw(HashValueBuilder& builder, const HashValueInput& input)
         {
-            inputs[index] = MultiHashInput{ .data = (void*)&value, .size = sizeof(Value) };
-            fill_hash_inputs<index + 1, Other...>(inputs, other...);
+            MeowAbsorb(&builder, input.size, input.data);
         }
+
+        template<typename T>
+        void absorb(HashValueBuilder& builder, const T& input)
+        {
+            hash_value::builder::absorb_raw(builder, { (void*)&input, sizeof(T) });
+        }
+
+        HashValue end(HashValueBuilder& builder)
+        {
+            return MeowEnd(&builder, nullptr);
+        }
+    }
+
+    HashValue generate_raw(const HashValueInput& input)
+    {
+        return MeowHash(MeowDefaultSeed, input.size, input.data);
     }
 
     template<typename Value>
     HashValue generate(const Value& value)
     {
         return MeowHash(MeowDefaultSeed, sizeof(Value), (void*)&value);
-    }
-
-    template<typename Value, typename ... Other>
-    HashValue generate(const Value& value, const Other& ... other)
-    {
-        constexpr size_t numInputs = 1 + sizeof...(Other);
-        impl::MultiHashInput inputs[numInputs];
-        impl::fill_hash_inputs<0>(inputs, value, other...);
-        meow_state state = { };
-        MeowBegin(&state, MeowDefaultSeed);
-        for (size_t it = 0; it < numInputs; it++)
-        {
-            MeowAbsorb(&state, inputs[it].size, inputs[it].data);
-        }
-        return MeowEnd(&state, nullptr);
     }
 
     inline bool is_equal(const HashValue& first, const HashValue& second)
@@ -766,7 +843,7 @@ struct HashTableIterator
     Table* table;
     size_t index;
 
-    bool                                        operator != (const HashTableIterator& other);
+    bool                                        operator != (const HashTableIterator& other) const;
     HashTableIteratorValue<Key, Value, Table>   operator *  ();
     HashTableIterator&                          operator ++ ();
 };
@@ -802,7 +879,7 @@ HashTableIterator<Key, const Value, const HashTable<Key, Value>> end(const HashT
 }
 
 template<typename Key, typename Value, typename Table>
-bool HashTableIterator<Key, Value, Table>::operator != (const HashTableIterator<Key, Value, Table>& other)
+bool HashTableIterator<Key, Value, Table>::operator != (const HashTableIterator<Key, Value, Table>& other) const
 {
     return (table != other.table) || (index != other.index);
 }

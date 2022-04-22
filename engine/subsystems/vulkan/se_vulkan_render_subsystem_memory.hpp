@@ -52,8 +52,7 @@ struct SeVkMemoryManager
     DynamicArray<SeVkCpuAllocation>             cpu_allocations;
     struct SeAllocatorBindings*                 cpu_persistentAllocator;
     struct SeAllocatorBindings*                 cpu_frameAllocator;
-    const struct SePlatformSubsystemInterface*  platform;
-    DynamicArray<TypelessObjectPool>            cpu_pools;
+    struct SeVkMemoryObjectPools*               cpu_objectPools;
 
     struct SeVkDevice*                          device;
     DynamicArray<SeVkGpuMemoryChunk>            gpu_chunks;
@@ -65,11 +64,10 @@ void            se_vk_memory_manager_free_gpu_memory(SeVkMemoryManager* manager)
 void            se_vk_memory_manager_free_cpu_memory(SeVkMemoryManager* manager);
 
 void            se_vk_memory_manager_set_device(SeVkMemoryManager* manager, struct SeVkDevice* device);
-bool            se_vk_memory_manager_is_valid_memory(const SeVkMemory memory);
-SeVkMemory      se_vk_memory_manager_allocate(SeVkMemoryManager* manager, const SeVkGpuAllocationRequest request);
-void            se_vk_memory_manager_deallocate(SeVkMemoryManager* manager, const SeVkMemory allocation);
+bool            se_vk_memory_manager_is_valid_memory(SeVkMemory memory);
+SeVkMemory      se_vk_memory_manager_allocate(SeVkMemoryManager* manager, SeVkGpuAllocationRequest request);
+void            se_vk_memory_manager_deallocate(SeVkMemoryManager* manager, SeVkMemory allocation);
 
-template<typename T> ObjectPool<T>& se_vk_memory_manager_create_pool(SeVkMemoryManager* manager);
 template<typename T> ObjectPool<T>& se_vk_memory_manager_get_pool(SeVkMemoryManager* manager);
 
 VkAllocationCallbacks* se_vk_memory_manager_get_callbacks(SeVkMemoryManager* manager);

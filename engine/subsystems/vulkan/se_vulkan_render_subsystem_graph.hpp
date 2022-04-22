@@ -48,14 +48,6 @@ struct SeVkGraphPass
     DynamicArray<SeVkGraphCommand> commands;
 };
 
-template<typename T>
-struct SeVkGraphTimed
-{
-    using Type = T;
-    T* handle;
-    size_t lastFrame;
-};
-
 struct SeVkGraphTextureInfoIndexed
 {
     SeVkTextureInfo info;
@@ -83,26 +75,40 @@ struct SeVkGraphDescriptorPoolArray
 
 struct SeVkGraph
 {
-    struct SeVkDevice*                                                  device;
-    SeVkGraphContextType                                                context;
+    struct SeVkDevice*                                      device;
+    SeVkGraphContextType                                    context;
 
-    DynamicArray<DynamicArray<SeVkCommandBuffer*>>                      frameCommandBuffers;
+    DynamicArray<DynamicArray<SeVkCommandBuffer*>>          frameCommandBuffers;
 
-    DynamicArray<SeVkTextureInfo>                                       textureInfos;           // Requested textures
-    DynamicArray<SeVkGraphPass>                                         passes;                 // Started passes
-    DynamicArray<SeGraphicsPipelineInfo>                                graphicsPipelineInfos;  // Used pipeline infos (graphics)
-    DynamicArray<SeComputePipelineInfo>                                 computePipelineInfos;   // Used pipeline infos (compute)
-    DynamicArray<SeVkMemoryBufferView>                                  scratchBufferViews;     // Requested buffers
+    DynamicArray<SeVkTextureInfo>                           textureInfos;           // Requested textures
+    DynamicArray<SeVkGraphPass>                             passes;                 // Started passes
+    DynamicArray<SeGraphicsPipelineInfo>                    graphicsPipelineInfos;  // Used pipeline infos (graphics)
+    DynamicArray<SeComputePipelineInfo>                     computePipelineInfos;   // Used pipeline infos (compute)
+    DynamicArray<SeVkMemoryBufferView>                      scratchBufferViews;     // Requested buffers
 
-    HashTable<SeVkTextureInfo, size_t>                                  textureUsageCountTable; // Mapps SeVkTextureInfo to count value (this is required to support multiple textures of exactly the same format)
-    HashTable<SeVkGraphTextureInfoIndexed, SeVkGraphTimed<SeVkTexture>> textureTable;           // Mapps { SeVkTextureInfo, usageCount } to actual SeVkTexture pointer
-    HashTable<SeVkProgramInfo, SeVkGraphTimed<SeVkProgram>>             programTable;
-    HashTable<SeVkRenderPassInfo, SeVkGraphTimed<SeVkRenderPass>>       renderPassTable;
-    HashTable<SeVkFramebufferInfo, SeVkGraphTimed<SeVkFramebuffer>>     framebufferTable;
-    HashTable<SeVkGraphicsPipelineInfo, SeVkGraphTimed<SeVkPipeline>>   graphicsPipelineTable;
-    HashTable<SeVkComputePipelineInfo, SeVkGraphTimed<SeVkPipeline>>    computePipelineTable;
-    HashTable<SeVkSamplerInfo, SeVkGraphTimed<SeVkSampler>>             samplerTable;
-    HashTable<SeVkGraphPipelineWithFrame, SeVkGraphDescriptorPoolArray> descriptorPoolsTable;   // Mapps { SeVkPipeline, frameIndex } to SeVkGraphDescriptorPoolArray
+    HashTable<SeVkTextureInfo, size_t>                      textureInfoToCount;
+    HashTable<SeVkGraphTextureInfoIndexed, SeVkTexture*>    textureInfoIndexedToTexture;
+    HashTable<SeVkGraphTextureInfoIndexed, size_t>          textureInfoIndexedToFrame;
+
+    HashTable<SeVkProgramInfo, SeVkProgram*>                programInfoToProgram;
+    HashTable<SeVkProgramInfo, size_t>                      programInfoToFrame;
+
+    HashTable<SeVkRenderPassInfo, SeVkRenderPass*>          renderPassInfoToRenderPass;
+    HashTable<SeVkRenderPassInfo, size_t>                   renderPassInfoToFrame;
+
+    HashTable<SeVkFramebufferInfo, SeVkFramebuffer*>        framebufferInfoToFramebuffer;
+    HashTable<SeVkFramebufferInfo, size_t>                  framebufferInfoToFrame;
+
+    HashTable<SeVkGraphicsPipelineInfo, SeVkPipeline*>      graphicsPipelineInfoToGraphicsPipeline;
+    HashTable<SeVkGraphicsPipelineInfo, size_t>             graphicsPipelineInfoToFrame;
+
+    HashTable<SeVkComputePipelineInfo, SeVkPipeline*>       computePipelineInfoToComputePipeline;
+    HashTable<SeVkComputePipelineInfo, size_t>              computePipelineInfoToFrame;
+
+    HashTable<SeVkSamplerInfo, SeVkSampler*>                samplerInfoToSampler;
+    HashTable<SeVkSamplerInfo, size_t>                      samplerInfoToFrame;
+
+    HashTable<SeVkGraphPipelineWithFrame, SeVkGraphDescriptorPoolArray> pipelineToDescriptorPools;
 };
 
 struct SeVkGraphInfo
@@ -132,32 +138,37 @@ void        se_vk_graph_command_draw(SeVkGraph* graph, const SeCommandDrawInfo& 
 
 namespace hash_value
 {
-    template<>
-    HashValue generate<SeVkGraphPipelineWithFrame>(const SeVkGraphPipelineWithFrame& pipelineWithFrame)
+    namespace builder
     {
-        const SeVkPipeline* pipeline = pipelineWithFrame.pipeline;
-        if (pipeline->bindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS)
+        template<>
+        void absorb<SeVkGraphTextureInfoIndexed>(HashValueBuilder& builder, const SeVkGraphTextureInfoIndexed& value)
         {
-            return hash_value::generate
-            (
-                *pipeline,
-                *pipeline->dependencies.graphics.vertexProgram,
-                *pipeline->dependencies.graphics.fragmentProgram,
-                *pipeline->dependencies.graphics.pass,
-                pipelineWithFrame.frame
-            );
+            hash_value::builder::absorb(builder, value.info);
+            hash_value::builder::absorb_raw(builder, { (void*)&value.index, sizeof(value.index) });
         }
-        else if (pipeline->bindPoint == VK_PIPELINE_BIND_POINT_COMPUTE)
+
+        template<>
+        void absorb<SeVkGraphPipelineWithFrame>(HashValueBuilder& builder, const SeVkGraphPipelineWithFrame& value)
         {
-            return hash_value::generate
-            (
-                *pipeline,
-                *pipeline->dependencies.compute.program,
-                pipelineWithFrame.frame
-            );
+            hash_value::builder::absorb(builder, *value.pipeline);
+            hash_value::builder::absorb(builder, value.frame);
         }
-        else { se_assert(!"Unsupported pipeline type"); }
-        return {};
+    }
+
+    template<>
+    HashValue generate<SeVkGraphTextureInfoIndexed>(const SeVkGraphTextureInfoIndexed& value)
+    {
+        HashValueBuilder builder = hash_value::builder::create();
+        hash_value::builder::absorb(builder, value);
+        return hash_value::builder::end(builder);
+    }
+
+    template<>
+    HashValue generate<SeVkGraphPipelineWithFrame>(const SeVkGraphPipelineWithFrame& value)
+    {
+        HashValueBuilder builder = hash_value::builder::create();
+        hash_value::builder::absorb(builder, value);
+        return hash_value::builder::end(builder);
     }
 }
 

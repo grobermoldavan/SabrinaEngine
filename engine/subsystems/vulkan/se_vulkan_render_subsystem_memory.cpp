@@ -1,5 +1,7 @@
 
 #include <string.h>
+#include <type_traits>
+
 #include "se_vulkan_render_subsystem_memory.hpp"
 #include "se_vulkan_render_subsystem_device.hpp"
 #include "se_vulkan_render_subsystem_frame_manager.hpp"
@@ -17,6 +19,18 @@
 
 #define SE_VK_GPU_MEMORY_BLOCK_SIZE_BYTES   64ull
 #define SE_VK_GPU_DEFAULT_CHUNK_SIZE_BYTES  (32ull * 1024ull * 1024ull)
+
+struct SeVkMemoryObjectPools
+{
+    ObjectPool<SeVkCommandBuffer>   commandBufferPool;
+    ObjectPool<SeVkFramebuffer>     framebufferPool;
+    ObjectPool<SeVkMemoryBuffer>    memoryBufferPool;
+    ObjectPool<SeVkPipeline>        pipelinePool;
+    ObjectPool<SeVkProgram>         propgramPool;
+    ObjectPool<SeVkRenderPass>      renderPassPool;
+    ObjectPool<SeVkSampler>         samplerPool;
+    ObjectPool<SeVkTexture>         texturePool;
+};
 
 static size_t g_memoryManagerPoolIndex = 0;
 
@@ -151,6 +165,7 @@ static size_t se_vk_memory_chunk_find_aligned_free_space(SeVkGpuMemoryChunk* chu
 
 void se_vk_memory_manager_construct(SeVkMemoryManager* manager, SeVkMemoryManagerCreateInfo* createInfo)
 {
+    SeAllocatorBindings allocator = *createInfo->persistentAllocator;
     *manager = SeVkMemoryManager
     {
         .cpu_allocationCallbacks    =
@@ -165,12 +180,19 @@ void se_vk_memory_manager_construct(SeVkMemoryManager* manager, SeVkMemoryManage
         .cpu_allocations            = dynamic_array::create<SeVkCpuAllocation>(*createInfo->persistentAllocator, 4096),
         .cpu_persistentAllocator    = createInfo->persistentAllocator,
         .cpu_frameAllocator         = createInfo->frameAllocator,
-        .platform                   = createInfo->platform,
-        .cpu_pools                  = dynamic_array::create<TypelessObjectPool>(*createInfo->persistentAllocator, 32),
+        .cpu_objectPools            = (SeVkMemoryObjectPools*)allocator.alloc(allocator.allocator, sizeof(SeVkMemoryObjectPools), se_default_alignment, se_alloc_tag),
         .device                     = nullptr,
         .gpu_chunks                 = dynamic_array::create<SeVkGpuMemoryChunk>(*createInfo->persistentAllocator, 64),
         .memoryProperties           = nullptr,
     };
+    object_pool::construct(manager->cpu_objectPools->commandBufferPool , createInfo->platform);
+    object_pool::construct(manager->cpu_objectPools->framebufferPool   , createInfo->platform);
+    object_pool::construct(manager->cpu_objectPools->memoryBufferPool  , createInfo->platform);
+    object_pool::construct(manager->cpu_objectPools->pipelinePool      , createInfo->platform);
+    object_pool::construct(manager->cpu_objectPools->propgramPool      , createInfo->platform);
+    object_pool::construct(manager->cpu_objectPools->renderPassPool    , createInfo->platform);
+    object_pool::construct(manager->cpu_objectPools->samplerPool       , createInfo->platform);
+    object_pool::construct(manager->cpu_objectPools->texturePool       , createInfo->platform);
 }
 
 void se_vk_memory_manager_free_gpu_memory(SeVkMemoryManager* manager)
@@ -195,8 +217,14 @@ void se_vk_memory_manager_free_cpu_memory(SeVkMemoryManager* manager)
         allocator->dealloc(allocator->allocator, manager->cpu_allocations[it].ptr, manager->cpu_allocations[it].size);
     dynamic_array::destroy(manager->cpu_allocations);
 
-    for (auto it : manager->cpu_pools)
-        object_pool::destroy(iter::value(it));
+    object_pool::destroy(manager->cpu_objectPools->commandBufferPool);
+    object_pool::destroy(manager->cpu_objectPools->framebufferPool);
+    object_pool::destroy(manager->cpu_objectPools->memoryBufferPool);
+    object_pool::destroy(manager->cpu_objectPools->pipelinePool);
+    object_pool::destroy(manager->cpu_objectPools->propgramPool);
+    object_pool::destroy(manager->cpu_objectPools->renderPassPool);
+    object_pool::destroy(manager->cpu_objectPools->samplerPool);
+    object_pool::destroy(manager->cpu_objectPools->texturePool);
 }
 
 void se_vk_memory_manager_set_device(SeVkMemoryManager* manager, SeVkDevice* device)
@@ -205,12 +233,12 @@ void se_vk_memory_manager_set_device(SeVkMemoryManager* manager, SeVkDevice* dev
     manager->memoryProperties = se_vk_device_get_memory_properties(device);
 }
 
-bool se_vk_memory_manager_is_valid_memory(const SeVkMemory memory)
+bool se_vk_memory_manager_is_valid_memory(SeVkMemory memory)
 {
     return memory.memory != VK_NULL_HANDLE;
 }
 
-SeVkMemory se_vk_memory_manager_allocate(SeVkMemoryManager* manager, const SeVkGpuAllocationRequest request)
+SeVkMemory se_vk_memory_manager_allocate(SeVkMemoryManager* manager, SeVkGpuAllocationRequest request)
 {
     const size_t requiredNumberOfBlocks = 1 + ((request.size - 1) / SE_VK_GPU_MEMORY_BLOCK_SIZE_BYTES);
     uint32_t memoryTypeIndex = 0;
@@ -285,7 +313,7 @@ SeVkMemory se_vk_memory_manager_allocate(SeVkMemoryManager* manager, const SeVkG
     }
 }
 
-void se_vk_memory_manager_deallocate(SeVkMemoryManager* manager, const SeVkMemory allocation)
+void se_vk_memory_manager_deallocate(SeVkMemoryManager* manager, SeVkMemory allocation)
 {
     const size_t numChunks = dynamic_array::size(manager->gpu_chunks);
     for (size_t it = 0; it < numChunks; it++)
@@ -308,26 +336,21 @@ void se_vk_memory_manager_deallocate(SeVkMemoryManager* manager, const SeVkMemor
 }
 
 template<typename T>
-ObjectPool<T>& se_vk_memory_manager_create_pool(SeVkMemoryManager* manager)
-{
-    const size_t index = se_vk_memory_manager_get_pool_index<T>();
-    if (index == dynamic_array::size(manager->cpu_pools))
-    {
-        dynamic_array::push(manager->cpu_pools, object_pool::create_typeless(manager->platform));
-    }
-    else
-    {
-        se_assert(index < dynamic_array::size(manager->cpu_pools));
-    }
-    return object_pool::from_typeless<T>(manager->cpu_pools[index]);
-}
-
-template<typename T>
 ObjectPool<T>& se_vk_memory_manager_get_pool(SeVkMemoryManager* manager)
 {
-    const size_t index = se_vk_memory_manager_get_pool_index<T>();
-    se_assert(index < dynamic_array::size(manager->cpu_pools));
-    return object_pool::from_typeless<T>(manager->cpu_pools[index]);
+    if      constexpr (std::is_same<SeVkCommandBuffer, T>::value)   return manager->cpu_objectPools->commandBufferPool;
+    else if constexpr (std::is_same<SeVkFramebuffer, T>::value)     return manager->cpu_objectPools->framebufferPool;
+    else if constexpr (std::is_same<SeVkMemoryBuffer, T>::value)    return manager->cpu_objectPools->memoryBufferPool;
+    else if constexpr (std::is_same<SeVkPipeline, T>::value)        return manager->cpu_objectPools->pipelinePool;
+    else if constexpr (std::is_same<SeVkProgram, T>::value)         return manager->cpu_objectPools->propgramPool;
+    else if constexpr (std::is_same<SeVkRenderPass, T>::value)      return manager->cpu_objectPools->renderPassPool;
+    else if constexpr (std::is_same<SeVkSampler, T>::value)         return manager->cpu_objectPools->samplerPool;
+    else if constexpr (std::is_same<SeVkTexture, T>::value)         return manager->cpu_objectPools->texturePool;
+    else
+    {
+        static_assert(false, "Invalid code path");
+        return nullptr;
+    }
 }
 
 VkAllocationCallbacks* se_vk_memory_manager_get_callbacks(SeVkMemoryManager* manager)

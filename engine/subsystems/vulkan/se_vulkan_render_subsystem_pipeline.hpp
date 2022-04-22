@@ -3,6 +3,8 @@
 
 #include "se_vulkan_render_subsystem_base.hpp"
 #include "se_vulkan_render_subsystem_program.hpp"
+#include "se_vulkan_render_subsystem_render_pass.hpp"
+#include "engine/containers.hpp"
 
 #define SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS 8
 
@@ -48,10 +50,10 @@ struct SeVkPipeline
 struct SeVkGraphicsPipelineInfo
 {
     struct SeVkDevice*          device;
-    struct SeVkRenderPass*      pass;
-    uint32_t                    subpassIndex;
+    SeVkRenderPass*             pass;
     SeVkProgramWithConstants    vertexProgram;
     SeVkProgramWithConstants    fragmentProgram;
+    uint32_t                    subpassIndex;
     VkBool32                    isStencilTestEnabled;
     VkStencilOpState            frontStencilOpState;
     VkStencilOpState            backStencilOpState;
@@ -87,10 +89,53 @@ void se_vk_destroy<SeVkPipeline>(SeVkPipeline* res)
 
 namespace hash_value
 {
-    template<>
-    HashValue generate<SeVkGraphicsPipelineInfo>(const SeVkGraphicsPipelineInfo& info)
+    namespace builder
     {
-        return hash_value::generate(info, *info.pass);
+        template<>
+        void absorb<SeVkGraphicsPipelineInfo>(HashValueBuilder& builder, const SeVkGraphicsPipelineInfo& value)
+        {
+            hash_value::builder::absorb(builder, *value.pass);
+            hash_value::builder::absorb(builder, value.vertexProgram);
+            hash_value::builder::absorb(builder, value.fragmentProgram);
+            const size_t absorbOffset = (size_t)&(((SeVkGraphicsPipelineInfo*)0)->subpassIndex);
+            const size_t absorbSize = sizeof(SeVkGraphicsPipelineInfo) - absorbOffset;
+            void* data = (void*)(((uint8_t*)&value) + absorbOffset);
+            hash_value::builder::absorb_raw(builder, { data, absorbSize });
+        }
+
+        template<>
+        void absorb<SeVkComputePipelineInfo>(HashValueBuilder& builder, const SeVkComputePipelineInfo& value)
+        {
+            hash_value::builder::absorb(builder, value.program);
+        }
+
+        template<>
+        void absorb<SeVkPipeline>(HashValueBuilder& builder, const SeVkPipeline& value)
+        {
+            hash_value::builder::absorb_raw(builder, { (void*)&value.object, sizeof(value.object) });
+        }
+    }
+
+    template<>
+    HashValue generate<SeVkComputePipelineInfo>(const SeVkComputePipelineInfo& value)
+    {
+        HashValueBuilder builder = hash_value::builder::create();
+        hash_value::builder::absorb(builder, value);
+        return hash_value::builder::end(builder);
+    }
+
+    template<>
+    HashValue generate<SeVkGraphicsPipelineInfo>(const SeVkGraphicsPipelineInfo& value)
+    {
+        HashValueBuilder builder = hash_value::builder::create();
+        hash_value::builder::absorb(builder, value);
+        return hash_value::builder::end(builder);
+    }
+
+    template<>
+    HashValue generate<SeVkPipeline>(const SeVkPipeline& value)
+    {
+        return hash_value::generate_raw({ (void*)&value.object, sizeof(value.object) });
     }
 }
 
