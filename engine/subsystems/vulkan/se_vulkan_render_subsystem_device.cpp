@@ -120,7 +120,7 @@ static VkPhysicalDevice se_vk_gpu_pick_physical_device(VkInstance instance, VkSu
     return device;
 }
 
-static void se_vk_device_swap_chain_create(SeVkDevice* device, SeWindowHandle window, bool allocateNewTextures)
+static void se_vk_device_swap_chain_create(SeVkDevice* device, SeWindowHandle window)
 {
     SeVkMemoryManager* memoryManager = &device->memoryManager;
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
@@ -176,7 +176,6 @@ static void se_vk_device_swap_chain_create(SeVkDevice* device, SeWindowHandle wi
         uint32_t swapChainImageCount;
         se_vk_check(vkGetSwapchainImagesKHR(device->gpu.logicalHandle, device->swapChain.handle, &swapChainImageCount, nullptr));
         se_assert(swapChainImageCount < SE_VK_MAX_SWAP_CHAIN_IMAGES);
-        se_assert(allocateNewTextures || swapChainImageCount == device->swapChain.numTextures);
         DynamicArray<VkImage> swapChainImageHandles;
         dynamic_array::construct(swapChainImageHandles, *memoryManager->cpu_frameAllocator, swapChainImageCount);
         dynamic_array::force_set_size(swapChainImageHandles, swapChainImageCount);
@@ -224,35 +223,20 @@ static void se_vk_device_swap_chain_create(SeVkDevice* device, SeWindowHandle wi
         {
             SeVkSwapChainImage* image = &device->swapChain.images[it];
             ObjectPool<SeVkTexture>& pool = se_vk_memory_manager_get_pool<SeVkTexture>(memoryManager);
-            if (allocateNewTextures)
-            {
-                SeVkTexture* texture = object_pool::take(pool);
-                se_vk_texture_construct_from_swap_chain(texture, device, &device->swapChain.extent, image->handle, image->view, device->swapChain.surfaceFormat.format);
-                device->swapChain.textures[it] = texture;
-            }
-            else
-            {
-                SeVkTexture* texture = device->swapChain.textures[it];
-                se_vk_texture_destroy(texture);
-                se_vk_texture_construct_from_swap_chain(texture, device, &device->swapChain.extent, image->handle, image->view, device->swapChain.surfaceFormat.format);
-            }
+            SeVkTexture* texture = object_pool::take(pool);
+            se_vk_texture_construct_from_swap_chain(texture, device, &device->swapChain.extent, image->handle, image->view, device->swapChain.surfaceFormat.format);
+            device->swapChain.textures[it] = object_pool::to_ref(pool, texture);
         }
     }
 }
 
-static void se_vk_device_swap_chain_destroy(SeVkDevice* device, bool deallocateTextures)
+static void se_vk_device_swap_chain_destroy(SeVkDevice* device)
 {
     for (size_t it = 0; it < device->swapChain.numTextures; it++)
     {
-        if (deallocateTextures)
-        {
-            se_vk_texture_destroy(device->swapChain.textures[it]);
-            object_pool::release(se_vk_memory_manager_get_pool<SeVkTexture>(&device->memoryManager), device->swapChain.textures[it]);
-        }
-        else
-        {
-            se_vk_texture_destroy(device->swapChain.textures[it]);
-        }
+        SeVkTexture* tex = *device->swapChain.textures[it];
+        se_vk_texture_destroy(tex);
+        object_pool::release(se_vk_memory_manager_get_pool<SeVkTexture>(&device->memoryManager), tex);
     }
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(&device->memoryManager);
     for (size_t it = 0; it < device->swapChain.numTextures; it++)
@@ -262,10 +246,11 @@ static void se_vk_device_swap_chain_destroy(SeVkDevice* device, bool deallocateT
 
 static void se_vk_device_handle_window_resized(SeWindowHandle window, void* userData)
 {
-    // SeVkDevice* device = (SeVkDevice*)userData;
-    // SeVkMemoryManager* memoryManager = &device->memoryManager;
+    SeVkDevice* device = (SeVkDevice*)userData;
 
-    se_assert(!"todo : is this really needed?");
+    vkDeviceWaitIdle(device->gpu.logicalHandle);
+    se_vk_device_swap_chain_destroy(device);
+    se_vk_device_swap_chain_create(device, device->windowHandle);
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL se_vk_debug_callback(
@@ -503,7 +488,20 @@ SeDeviceHandle se_vk_device_create(const SeDeviceInfo& deviceInfo)
     //
     // Swap chain
     //
-    se_vk_device_swap_chain_create(device, deviceInfo.window, true);
+    se_vk_device_swap_chain_create(device, deviceInfo.window);
+    //
+    // Resize callback
+    //
+    {
+        device->windowHandle = deviceInfo.window;
+        SeWindowResizeCallbackInfo resizeCallbackInfo
+        {
+            .userData = device,
+            .callback = se_vk_device_handle_window_resized,
+            .priority = SE_WINDOW_RESIZE_CALLBACK_PRIORITY_INTERNAL_SYSTEM,
+        };
+        device->resizeCallbackHandle = g_windowIface->add_resize_callback(deviceInfo.window, &resizeCallbackInfo);
+    }
     //
     // Frame manager
     //
@@ -554,9 +552,13 @@ void se_vk_device_destroy(SeDeviceHandle _device)
     //
     se_vk_frame_manager_destroy(&device->frameManager);
     //
+    // Callback
+    //
+    g_windowIface->remove_resize_callback(device->windowHandle, device->resizeCallbackHandle);
+    //
     // Swap Chain
     //
-    se_vk_device_swap_chain_destroy(device, true);
+    se_vk_device_swap_chain_destroy(device);
     //
     // Gpu
     //

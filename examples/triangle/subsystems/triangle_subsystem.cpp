@@ -60,7 +60,7 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
     {
         .name           = "Sabrina engine - triangle example",
         .isFullscreen   = false,
-        .isResizable    = false,
+        .isResizable    = true,
         .width          = 640,
         .height         = 480,
     };

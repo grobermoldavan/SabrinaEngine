@@ -18,6 +18,7 @@ void se_vk_framebuffer_construct(SeVkFramebuffer* framebuffer, SeVkFramebufferIn
     
     // @NOTE : currently we assuming, that all framebuffer attachments have the same extent
     // @TODO : support 3D textures
+    SeVkTexture* tex = *info->textures[0];
     *framebuffer =
     {
         .object         = { SE_VK_TYPE_FRAMEBUFFER, g_framebufferIndex++ },
@@ -26,7 +27,7 @@ void se_vk_framebuffer_construct(SeVkFramebuffer* framebuffer, SeVkFramebufferIn
         .textures       = {0},
         .numTextures    = info->numTextures,
         .handle         = VK_NULL_HANDLE,
-        .extent         = { info->textures[0]->extent.width, info->textures[0]->extent.height },
+        .extent         = { tex->extent.width, tex->extent.height },
     };
 
     VkImageView attachmentViews[SE_VK_FRAMEBUFFER_MAX_TEXTURES];

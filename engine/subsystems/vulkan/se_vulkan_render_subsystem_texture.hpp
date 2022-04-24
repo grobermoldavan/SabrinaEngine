@@ -55,9 +55,13 @@ namespace hash_value
         }
 
         template<>
-        void absorb<SeVkTexture>(HashValueBuilder& builder, const SeVkTexture& info)
+        void absorb<SeVkTexture>(HashValueBuilder& builder, const SeVkTexture& tex)
         {
-            hash_value::builder::absorb_raw(builder, { (void*)&info.object, sizeof(info.object) });
+            hash_value::builder::absorb(builder, tex.object);
+            hash_value::builder::absorb(builder, tex.extent);
+            hash_value::builder::absorb(builder, tex.format);
+            hash_value::builder::absorb(builder, tex.image);
+            hash_value::builder::absorb(builder, tex.object);
         }
     }
 
@@ -68,9 +72,11 @@ namespace hash_value
     }
 
     template<>
-    HashValue generate<SeVkTexture>(const SeVkTexture& info)
+    HashValue generate<SeVkTexture>(const SeVkTexture& tex)
     {
-        return hash_value::generate_raw({ (void*)&info.object, sizeof(info.object) });
+        HashValueBuilder builder = hash_value::builder::create();
+        hash_value::builder::absorb(builder, tex);
+        return hash_value::builder::end(builder);
     }
 }
 

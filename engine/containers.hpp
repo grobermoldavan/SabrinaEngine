@@ -357,7 +357,19 @@ struct ObjectPool
 {
     ExpandableVirtualMemory<uint8_t> ledger;
     ExpandableVirtualMemory<ObjectPoolEntry<T>> objectMemory;
-    size_t currentCapacity;
+};
+
+template<typename T>
+struct ObjectPoolEntryRef
+{
+    ObjectPool<T>* pool;
+    uint32_t index;
+    uint32_t generation;
+
+    T* operator -> ();
+    const T* operator -> () const;
+    T* operator * ();
+    const T* operator * () const;
 };
 
 namespace object_pool
@@ -369,7 +381,6 @@ namespace object_pool
         {
             .ledger             = expandable_virtual_memory::create<uint8_t>(platform, se_gigabytes(16)),
             .objectMemory       = expandable_virtual_memory::create<ObjectPoolEntry<T>>(platform, se_gigabytes(16)),
-            .currentCapacity    = 0,
         };
     }
 
@@ -380,7 +391,6 @@ namespace object_pool
         {
             .ledger             = expandable_virtual_memory::create<uint8_t>(platform, se_gigabytes(16)),
             .objectMemory       = expandable_virtual_memory::create<ObjectPoolEntry<T>>(platform, se_gigabytes(16)),
-            .currentCapacity    = 0,
         };
     }
 
@@ -473,6 +483,69 @@ namespace object_pool
         se_assert_msg(*ledgerByte & (1 << (index % 8)), "Can't return object to the pool : object is already returned");
         *ledgerByte &= ~(1 << (index % 8));
     }
+
+    template<typename T>
+    ObjectPoolEntryRef<T> to_ref(ObjectPool<T>& pool, const T* object)
+    {
+        const size_t index = object_pool::index_of(pool, object);
+        const ObjectPoolEntry<T>* entry = expandable_virtual_memory::raw(pool.objectMemory) + index;
+        return
+        {
+            &pool,
+            (uint32_t)index,
+            entry->generation,
+        };
+    }
+
+    template<typename T>
+    ObjectPoolEntryRef<T> to_ref(ObjectPool<T>& pool, size_t index)
+    {
+        const ObjectPoolEntry<T>* entry = expandable_virtual_memory::raw(pool.objectMemory) + index;
+        return
+        {
+            &pool,
+            (uint32_t)index,
+            entry->generation,
+        };
+    }
+
+    template<typename T>
+    T* from_ref(ObjectPool<T>& pool, ObjectPoolEntryRef<T> ref)
+    {
+        ObjectPoolEntry<T>* entry = expandable_virtual_memory::raw(pool.objectMemory) + ref.index;
+        return (entry->generation != ref.generation) || !object_pool::is_taken(pool, ref.index) ? nullptr : &entry->value;
+    }
+
+    template<typename T>
+    const T* from_ref(const ObjectPool<T>& pool, ObjectPoolEntryRef<T> ref)
+    {
+        const ObjectPoolEntry<T>* entry = expandable_virtual_memory::raw(pool.objectMemory) + ref.index;
+        return (entry->generation != ref.generation) || !object_pool::is_taken(pool, ref.index) ? nullptr : &entry->value;
+    }
+}
+
+template<typename T>
+T* ObjectPoolEntryRef<T>::operator -> ()
+{
+    return object_pool::from_ref(*pool, *this);
+}
+
+template<typename T>
+const T* ObjectPoolEntryRef<T>::operator -> () const
+{
+    return object_pool::from_ref(*pool, *this);;
+}
+
+template<typename T>
+T* ObjectPoolEntryRef<T>::operator * ()
+{
+    return object_pool::from_ref(*pool, *this);
+}
+
+template<typename T>
+const T* ObjectPoolEntryRef<T>::operator * () const
+{
+    return object_pool::from_ref(*pool, *this);;
 }
 
 template<typename T>
@@ -563,7 +636,6 @@ namespace iter
         return val.val;
     }
 }
-
 
 /*
     Hash table.
@@ -683,11 +755,13 @@ namespace hash_table
             dataToRemove->isOccupied = false;
             table.size -= 1;
             Entry* dataToReplace = dataToRemove;
-            for (size_t currentPosition = ((index + 1) % table.capacity); currentPosition != index; currentPosition = ((currentPosition + 1) % table.capacity))
+            for (size_t currentPosition = ((index + 1) % table.capacity);
+                currentPosition != index;
+                currentPosition = ((currentPosition + 1) % table.capacity))
             {
                 Entry* data = &table.memory[currentPosition];
                 if (!data->isOccupied) break;
-                if (hash_to_index(data->hash, table.capacity) <= hash_to_index(dataToReplace->hash, table.capacity))
+                if (impl::hash_to_index(data->hash, table.capacity) <= impl::hash_to_index(dataToReplace->hash, table.capacity))
                 {
                     __se_memcpy(dataToReplace, data, sizeof(Entry));
                     data->isOccupied = false;
@@ -700,6 +774,7 @@ namespace hash_table
     template<typename Key, typename Value>
     void construct(HashTable<Key, Value>& table, SeAllocatorBindings& allocator, size_t capacity = 4)
     {
+        using Entry = HashTable<Key, Value>::Entry;
         table =
         {
             .allocator  = allocator,
@@ -707,14 +782,15 @@ namespace hash_table
             .capacity   = capacity,
             .size       = 0,
         };
-        const size_t allocSize = sizeof(HashTable<Key, Value>::Entry) * capacity;
-        table.memory = (typename HashTable<Key, Value>::Entry*)allocator.alloc(allocator.allocator, allocSize, se_default_alignment, se_alloc_tag);
+        const size_t allocSize = sizeof(Entry) * capacity;
+        table.memory = (Entry*)allocator.alloc(allocator.allocator, allocSize, se_default_alignment, se_alloc_tag);
         __se_memset(table.memory, 0, allocSize);
     }
 
     template<typename Key, typename Value>
     HashTable<Key, Value> create(SeAllocatorBindings& allocator, size_t capacity = 4)
     {
+        using Entry = HashTable<Key, Value>::Entry;
         HashTable<Key, Value> result =
         {
             .allocator  = allocator,
@@ -722,8 +798,8 @@ namespace hash_table
             .capacity   = capacity,
             .size       = 0,
         };
-        const size_t allocSize = sizeof(HashTable<Key, Value>::Entry) * capacity;
-        result.memory = (typename HashTable<Key, Value>::Entry*)allocator.alloc(allocator.allocator, allocSize, se_default_alignment, se_alloc_tag);
+        const size_t allocSize = sizeof(Entry) * capacity;
+        result.memory = (Entry*)allocator.alloc(allocator.allocator, allocSize, se_default_alignment, se_alloc_tag);
         __se_memset(result.memory, 0, allocSize);
         return result;
     }
@@ -763,7 +839,7 @@ namespace hash_table
         size_t currentPosition = initialPosition;
         do
         {
-            Entry& entry = table.memory[currentPosition];
+            const Entry& entry = table.memory[currentPosition];
             if (!entry.isOccupied)
             {
                 break;

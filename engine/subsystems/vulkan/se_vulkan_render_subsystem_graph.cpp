@@ -35,21 +35,26 @@ static VkStencilOpState se_vk_graph_pipeline_stencil_op_state(const SeStencilOpS
 template <typename Key, typename Value>
 void se_vk_graph_free_old_resources(HashTable<Key, Value*>& valueTable, HashTable<Key, size_t>& frameTable, size_t currentFrame, SeVkMemoryManager* memoryManager)
 {
+    DynamicArray<Key> toRemove = dynamic_array::create<Key>(*memoryManager->cpu_frameAllocator);
     ObjectPool<Value>& pool = se_vk_memory_manager_get_pool<Value>(memoryManager);
     for (auto kv : frameTable)
     {
-        const size_t frame = iter::value(kv);
-        if ((currentFrame - frame) > SE_VK_GRAPH_OBJECT_LIFETIME)
+        se_assert_msg(hash_table::get(frameTable, iter::key(kv)), "Probably hash table key contains pointer to value that was changed after hash_table::set");
+        if ((currentFrame - iter::value(kv)) > SE_VK_GRAPH_OBJECT_LIFETIME)
         {
-            Value** value = hash_table::get(valueTable, iter::key(kv));
-            se_assert(value);
-            se_vk_destroy(*value);
-            object_pool::release<Value>(pool, *value);
-
-            iter::remove(kv);
-            hash_table::remove(valueTable, iter::key(kv));
+            dynamic_array::push(toRemove, iter::key(kv));
         }
     }
+    for (auto it : toRemove)
+    {
+        Value** value = hash_table::get(valueTable, iter::value(it));
+        se_assert(value);
+        se_vk_destroy(*value);
+        object_pool::release<Value>(pool, *value);
+        hash_table::remove(valueTable, iter::value(it));
+        hash_table::remove(frameTable, iter::value(it));
+    }
+    dynamic_array::destroy(toRemove);
 }
 
 void se_vk_graph_construct(SeVkGraph* graph, SeVkGraphInfo* info)
@@ -156,13 +161,6 @@ void se_vk_graph_begin_frame(SeVkGraph* graph)
     const size_t frameIndex = se_vk_frame_manager_get_active_frame_index(frameManager);
 
     hash_table::reset(graph->textureInfoToCount);
-    se_vk_graph_free_old_resources(graph->textureInfoIndexedToTexture, graph->textureInfoIndexedToFrame, currentFrame, memoryManager);
-    se_vk_graph_free_old_resources(graph->programInfoToProgram, graph->programInfoToFrame, currentFrame, memoryManager);
-    se_vk_graph_free_old_resources(graph->renderPassInfoToRenderPass, graph->renderPassInfoToFrame, currentFrame, memoryManager);
-    se_vk_graph_free_old_resources(graph->framebufferInfoToFramebuffer, graph->framebufferInfoToFrame, currentFrame, memoryManager);
-    se_vk_graph_free_old_resources(graph->graphicsPipelineInfoToGraphicsPipeline, graph->graphicsPipelineInfoToFrame, currentFrame, memoryManager);
-    se_vk_graph_free_old_resources(graph->computePipelineInfoToComputePipeline, graph->computePipelineInfoToFrame, currentFrame, memoryManager);
-    se_vk_graph_free_old_resources(graph->samplerInfoToSampler, graph->samplerInfoToFrame, currentFrame, memoryManager);
     for (auto kv : graph->pipelineToDescriptorPools)
     {
         auto& pools = iter::value(kv);
@@ -171,6 +169,13 @@ void se_vk_graph_begin_frame(SeVkGraph* graph)
             vkDestroyDescriptorPool(logicalHandle, pools.pools[it].handle, callbacks);
         iter::remove(kv);
     }
+    se_vk_graph_free_old_resources(graph->graphicsPipelineInfoToGraphicsPipeline, graph->graphicsPipelineInfoToFrame, currentFrame, memoryManager);
+    se_vk_graph_free_old_resources(graph->computePipelineInfoToComputePipeline, graph->computePipelineInfoToFrame, currentFrame, memoryManager);
+    se_vk_graph_free_old_resources(graph->framebufferInfoToFramebuffer, graph->framebufferInfoToFrame, currentFrame, memoryManager);
+    se_vk_graph_free_old_resources(graph->textureInfoIndexedToTexture, graph->textureInfoIndexedToFrame, currentFrame, memoryManager);
+    se_vk_graph_free_old_resources(graph->programInfoToProgram, graph->programInfoToFrame, currentFrame, memoryManager);
+    se_vk_graph_free_old_resources(graph->renderPassInfoToRenderPass, graph->renderPassInfoToFrame, currentFrame, memoryManager);
+    se_vk_graph_free_old_resources(graph->samplerInfoToSampler, graph->samplerInfoToFrame, currentFrame, memoryManager);
 
     graph->context = SE_VK_GRAPH_CONTEXT_TYPE_IN_FRAME;
 }
@@ -277,7 +282,6 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
     //
     // Framebuffers
     //
-
     DynamicArray<SeVkFramebuffer*> frameFramebuffers = dynamic_array::create<SeVkFramebuffer*>(*memoryManager->cpu_frameAllocator, numPasses);
     for (size_t it = 0; it < numPasses; it++)
     {
@@ -291,7 +295,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
             SeVkFramebufferInfo info
             {
                 .device         = graph->device,
-                .pass           = frameRenderPasses[it],
+                .pass           = object_pool::to_ref(renderPassPool, frameRenderPasses[it]),
                 .textures       = { },
                 .numTextures    = pass->renderPassInfo.numColorAttachments + (pass->renderPassInfo.hasDepthStencilAttachment ? 1 : 0),
             };
@@ -301,10 +305,10 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
                 if (se_vk_ref_flags(textureRef) & SE_VK_GRAPH_TEXTURE_FROM_SWAP_CHAIN)
                     info.textures[textureIt] = se_vk_device_get_swap_chain_texture(graph->device, swapChainTextureIndex);
                 else
-                    info.textures[textureIt] = frameTextures[se_vk_ref_index(textureRef)];
+                    info.textures[textureIt] = object_pool::to_ref(texturePool, frameTextures[se_vk_ref_index(textureRef)]);
             }
             if (pass->renderPassInfo.hasDepthStencilAttachment)
-                info.textures[info.numTextures - 1] = frameTextures[se_vk_ref_index(pass->info.depthStencilTarget.texture)];
+                info.textures[info.numTextures - 1] = object_pool::to_ref(texturePool, frameTextures[se_vk_ref_index(pass->info.depthStencilTarget.texture)]);
 
             SeVkFramebuffer** framebuffer = hash_table::get(graph->framebufferInfoToFramebuffer, info);
             if (!framebuffer)
@@ -478,7 +482,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
             VkPipelineStageFlags dstPipelineStageFlags = 0;
             for (size_t texIt = 0; texIt < framebuffer->numTextures; texIt++)
             {
-                SeVkTexture* texture = framebuffer->textures[texIt];
+                SeVkTexture* texture = *framebuffer->textures[texIt];
                 const VkImageLayout initialLayout = renderPass->attachmentLayoutInfos[texIt].initialLayout;
                 if (texture->currentLayout != initialLayout)
                 {
@@ -728,7 +732,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
         //
         // Transition swap chain image layout
         //
-        SeVkTexture* swapChainTexture = se_vk_device_get_swap_chain_texture(graph->device, swapChainTextureIndex);
+        SeVkTexture* swapChainTexture = *se_vk_device_get_swap_chain_texture(graph->device, swapChainTextureIndex);
         SeVkCommandBuffer* transitionCmd = getNewCmd();
         SeVkCommandBufferInfo cmdInfo
         {

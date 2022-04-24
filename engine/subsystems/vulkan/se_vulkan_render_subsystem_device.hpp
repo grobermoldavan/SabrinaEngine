@@ -76,12 +76,12 @@ struct SeVkSwapChainImage
 
 struct SeVkSwapChain
 {
-    VkSwapchainKHR      handle;
-    VkSurfaceFormatKHR  surfaceFormat;
-    VkExtent2D          extent;
-    SeVkSwapChainImage  images[SE_VK_MAX_SWAP_CHAIN_IMAGES];
-    SeVkTexture*        textures[SE_VK_MAX_SWAP_CHAIN_IMAGES];
-    size_t              numTextures;
+    VkSwapchainKHR                  handle;
+    VkSurfaceFormatKHR              surfaceFormat;
+    VkExtent2D                      extent;
+    SeVkSwapChainImage              images[SE_VK_MAX_SWAP_CHAIN_IMAGES];
+    ObjectPoolEntryRef<SeVkTexture> textures[SE_VK_MAX_SWAP_CHAIN_IMAGES];
+    size_t                          numTextures;
 };
 
 struct SeVkDevice
@@ -94,6 +94,7 @@ struct SeVkDevice
     SeVkGpu                         gpu;
     SeVkSwapChain                   swapChain;
     SeVkDeviceFlags                 flags;
+    SeWindowHandle                  windowHandle;
     SeWindowResizeCallbackHandle    resizeCallbackHandle;
     SeVkFrameManager                frameManager;
     SeVkGraph                       graph;
