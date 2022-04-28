@@ -55,6 +55,7 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
     render = se_get_subsystem_interface<SeRenderAbstractionSubsystemInterface>(engine);
     allocatorsInterface = se_get_subsystem_interface<SeApplicationAllocatorsSubsystemInterface>(engine);
     platformInterface = se_get_subsystem_interface<SePlatformSubsystemInterface>(engine);
+    SE_STRING_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeStringSubsystemInterface>(engine);
     
     SeWindowSubsystemCreateInfo windowInfo
     {

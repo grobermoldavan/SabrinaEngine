@@ -9,9 +9,10 @@
 #include "containers.hpp"
 #include "render_abstraction_interface.hpp"
 #include "subsystems/se_platform_subsystem.hpp"
-#include "subsystems/se_application_allocators_subsystem.hpp"
 #include "subsystems/se_stack_allocator_subsystem.hpp"
 #include "subsystems/se_pool_allocator_subsystem.hpp"
+#include "subsystems/se_application_allocators_subsystem.hpp"
+#include "subsystems/se_string_subsystem.hpp"
 #include "subsystems/se_window_subsystem.hpp"
 #include "subsystems/se_vulkan_render_abstraction_subsystem.hpp"
 
