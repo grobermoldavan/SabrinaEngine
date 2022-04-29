@@ -45,9 +45,9 @@ static void se_string_deallocate_buffer(SeAllocatorBindings* allocator, const ch
     allocator->dealloc(allocator->allocator, (void*)buffer, length + 1);
 }
 
-static SeString se_string_create(size_t length, const char* source)
+static SeString se_string_create(bool isTmp, size_t length, const char* source)
 {
-    SeAllocatorBindings* allocator = g_applicationAllocators->persistentAllocator;
+    SeAllocatorBindings* allocator = isTmp ? g_applicationAllocators->frameAllocator : g_applicationAllocators->persistentAllocator;
     char* memory = source
         ? se_string_allocate_new_buffer(allocator, length, strlen(source), source)
         : se_string_allocate_new_buffer(allocator, length);
@@ -60,19 +60,10 @@ static SeString se_string_create(size_t length, const char* source)
     return { memory, length, data };
 }
 
-static SeString se_string_create_from_source(const char* source)
+static SeString se_string_create_from_source(bool isTmp, const char* source)
 {
     se_assert(source);
-    return se_string_create(strlen(source), source);
-}
-
-static SeString se_string_create_tmp(size_t length, const char* source)
-{
-    SeAllocatorBindings* allocator = g_applicationAllocators->frameAllocator;
-    char* memory = source
-        ? se_string_allocate_new_buffer(allocator, length, strlen(source), source)
-        : se_string_allocate_new_buffer(allocator, length);
-    return { memory, length, nullptr };
+    return se_string_create(isTmp, strlen(source), source);
 }
 
 static void se_string_data_destroy(const SeStringData* data)
@@ -90,9 +81,9 @@ static void se_string_destroy(const SeString& string)
     object_pool::release(g_strings, data);
 }
 
-static SeStringBuilder se_string_builder_begin(size_t capacity, const char* source)
+static SeStringBuilder se_string_builder_begin(bool isTmp, size_t capacity, const char* source)
 {
-    SeAllocatorBindings* allocator = g_applicationAllocators->persistentAllocator;
+    SeAllocatorBindings* allocator = isTmp ? g_applicationAllocators->frameAllocator : g_applicationAllocators->persistentAllocator;
     const size_t sourceLength = source ? strlen(source) : 0;
     char* memory = source
         ? se_string_allocate_new_buffer(allocator, capacity, sourceLength, source)
@@ -100,10 +91,9 @@ static SeStringBuilder se_string_builder_begin(size_t capacity, const char* sour
     return { memory, sourceLength, capacity };
 }
 
-static SeStringBuilder se_string_builder_begin_from_source(const char* source)
+static SeStringBuilder se_string_builder_begin_from_source(bool isTmp, const char* source)
 {
-    se_assert(source);
-    return se_string_builder_begin(strlen(source), source);
+    return se_string_builder_begin(isTmp, source ? strlen(source) : 32, source);
 }
 
 static void se_string_builder_append(SeStringBuilder& builder, const char* source)
@@ -136,6 +126,21 @@ static SeString se_string_builder_end(SeStringBuilder& builder)
     return { builder.memory, builder.length, data };
 }
 
+void se_string_from_int64(int64_t value, char* buffer, size_t bufferSize)
+{
+    snprintf(buffer, bufferSize, "%lld", value);
+}
+
+void se_string_from_uint64(uint64_t value, char* buffer, size_t bufferSize)
+{
+    snprintf(buffer, bufferSize, "%llu", value);
+}
+
+void se_string_from_double(double value, char* buffer, size_t bufferSize)
+{
+    snprintf(buffer, bufferSize, "%f", value);
+}
+
 SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
 {
     g_iface =
@@ -143,11 +148,13 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
         .create                     = se_string_create,
         .create_from_source         = se_string_create_from_source,
         .destroy                    = se_string_destroy,
-        .create_tmp                 = se_string_create_tmp,
         .builder_begin              = se_string_builder_begin,
         .builder_begin_from_source  = se_string_builder_begin_from_source,
         .builder_append             = se_string_builder_append,
         .builder_end                = se_string_builder_end,
+        .int64_to_cstr              = se_string_from_int64,
+        .uint64_to_cstr             = se_string_from_uint64,
+        .double_to_cstr             = se_string_from_double,
     };
 
     g_platformIface = se_get_subsystem_interface<SePlatformSubsystemInterface>(engine);
