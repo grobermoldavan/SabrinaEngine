@@ -79,4 +79,19 @@ se_qsort_is_greater_def(size_t)
 se_qsort_is_greater_def(float)
 se_qsort_is_greater_def(double)
 
+namespace utils
+{
+    template<size_t value>
+    inline size_t power_of_two()
+    {
+        static_assert(((value - 1) & value) == 0);
+        return value;
+    }
+
+    inline bool is_power_of_two(size_t value)
+    {
+        return ((value - 1) & value) == 0;
+    }
+}
+
 #endif

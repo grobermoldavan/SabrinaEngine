@@ -61,10 +61,10 @@ uint64_t se_platform_atomic_64_bit_load(const uint64_t* val, SeMemoryOrder memor
 {
     se_assert
     (
-        memoryOrder != SE_RELAXED &&
-        memoryOrder != SE_CONSUME &&
-        memoryOrder != SE_ACQUIRE &&
-        memoryOrder != SE_SEQUENTIALLY_CONSISTENT
+        memoryOrder == SE_RELAXED ||
+        memoryOrder == SE_CONSUME ||
+        memoryOrder == SE_ACQUIRE ||
+        memoryOrder == SE_SEQUENTIALLY_CONSISTENT
     );
     const uint64_t loaded = *val;
     if (memoryOrder == SE_SEQUENTIALLY_CONSISTENT) MemoryBarrier();
@@ -75,9 +75,9 @@ uint64_t se_platform_atomic_64_bit_store(uint64_t* val, uint64_t newValue, SeMem
 {
     se_assert
     (
-        memoryOrder != SE_RELAXED &&
-        memoryOrder != SE_RELEASE &&
-        memoryOrder != SE_SEQUENTIALLY_CONSISTENT
+        memoryOrder == SE_RELAXED ||
+        memoryOrder == SE_RELEASE ||
+        memoryOrder == SE_SEQUENTIALLY_CONSISTENT
     );
     *val = newValue;
     if (memoryOrder == SE_SEQUENTIALLY_CONSISTENT) MemoryBarrier();
@@ -111,10 +111,10 @@ uint32_t se_platform_atomic_32_bit_load(const uint32_t* val, SeMemoryOrder memor
 {
     se_assert
     (
-        memoryOrder != SE_RELAXED &&
-        memoryOrder != SE_CONSUME &&
-        memoryOrder != SE_ACQUIRE &&
-        memoryOrder != SE_SEQUENTIALLY_CONSISTENT
+        memoryOrder == SE_RELAXED ||
+        memoryOrder == SE_CONSUME ||
+        memoryOrder == SE_ACQUIRE ||
+        memoryOrder == SE_SEQUENTIALLY_CONSISTENT
     );
     const uint32_t loaded = *val;
     if (memoryOrder == SE_SEQUENTIALLY_CONSISTENT) MemoryBarrier();
@@ -125,9 +125,9 @@ uint32_t se_platform_atomic_32_bit_store(uint32_t* val, uint32_t newValue, SeMem
 {
     se_assert
     (
-        memoryOrder != SE_RELAXED &&
-        memoryOrder != SE_RELEASE &&
-        memoryOrder != SE_SEQUENTIALLY_CONSISTENT
+        memoryOrder == SE_RELAXED ||
+        memoryOrder == SE_RELEASE ||
+        memoryOrder == SE_SEQUENTIALLY_CONSISTENT
     );
     *val = newValue;
     if (memoryOrder == SE_SEQUENTIALLY_CONSISTENT) MemoryBarrier();

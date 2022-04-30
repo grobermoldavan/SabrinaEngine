@@ -8,7 +8,7 @@
 
 #include "common_includes.hpp"
 #include "allocator_bindings.hpp"
-#include "debug.hpp"
+#include "engine/debug.hpp"
 #include "engine/subsystems/se_platform_subsystem.hpp"
 #include "engine/libs/meow_hash/meow_hash_x64_aesni.h"
 
@@ -1005,6 +1005,156 @@ namespace iter
     {
         hash_table::remove(*val.iterator->table, val.key);
         val.iterator->index -= 1;
+    }
+}
+
+/*
+    Thread-safe queue
+
+    Implementation is taken from http://rsdn.org/forum/cpp/3730905.1
+*/
+
+template<typename T>
+struct ThreadSafeQueue
+{
+    struct Cell
+    {
+        uint64_t sequence;
+        T data;
+    };
+    typedef uint8_t CachelinePadding[64];
+
+    SeAllocatorBindings allocator;
+    const SePlatformSubsystemInterface* platform;
+
+    CachelinePadding    pad0;
+    Cell*               buffer;
+    uint64_t            bufferMask;
+    CachelinePadding    pad1;
+    uint64_t            enqueuePos;
+    CachelinePadding    pad2; 
+    uint64_t            dequeuePos;
+    CachelinePadding    pad3;
+};
+
+namespace thread_safe_queue
+{
+    template<typename T>
+    void construct(ThreadSafeQueue<T>& queue, SeAllocatorBindings& allocator, const SePlatformSubsystemInterface* platform, size_t capacity)
+    {
+        se_assert(utils::is_power_of_two(capacity));
+
+        using Cell = ThreadSafeQueue<T>::Cell;
+        Cell* memory = (Cell*)allocator.alloc(allocator.allocator, capacity * sizeof(Cell), se_default_alignment, se_alloc_tag);
+        memset(memory, 0, capacity * sizeof(Cell));
+        for (size_t it = 0; it < capacity; it++) memory[it].sequence = (uint64_t)it;
+        queue =
+        {
+            .allocator  = allocator,
+            .platform   = platform,
+            .pad0       = { },
+            .buffer     = memory,
+            .bufferMask = (uint64_t)(capacity - 1),
+            .pad1       = { },
+            .enqueuePos = 0,
+            .pad2       = { },
+            .dequeuePos = 0,
+            .pad3       = { },
+        };
+    }
+
+    template<typename T>
+    void destroy(ThreadSafeQueue<T>& queue)
+    {
+        using Cell = ThreadSafeQueue<T>::Cell;
+        SeAllocatorBindings& allocator = queue.allocator;
+        allocator.dealloc(allocator.allocator, (void*)queue.buffer, (queue.bufferMask + 1) * sizeof(Cell));
+    }
+
+    template<typename T>
+    bool enqueue(ThreadSafeQueue<T>& queue, const T& data)
+    {
+        typename ThreadSafeQueue<T>::Cell* cell;
+        // Load current enqueue position
+        uint64_t pos = queue.platform->atomic_64_bit_load(&queue.enqueuePos, SE_RELAXED);
+        while(true)
+        {
+            // Get current cell
+            cell = &queue.buffer[pos & queue.bufferMask];
+            // Load sequence of current cell
+            uint64_t seq = queue.platform->atomic_64_bit_load(&cell->sequence, SE_ACQUIRE);
+            intptr_t diff = static_cast<intptr_t>(seq) - static_cast<intptr_t>(pos);
+            // Cell is ready for write
+            if (diff == 0)
+            {
+                // Try to increment enqueue position
+                if (queue.platform->atomic_64_bit_cas(&queue.enqueuePos, &pos, pos + 1, SE_RELAXED))
+                {
+                    // If success, quit from the loop
+                    break;
+                }
+                // Else try again
+            }
+            // Queue is full
+            else if (diff < 0)
+            {
+                return false;
+            }
+            // Cell was changed by some other thread
+            else
+            {
+                // Load current enqueue position and try again
+                pos = queue.platform->atomic_64_bit_load(&queue.enqueuePos, SE_RELAXED);
+            }
+        }
+        // Write data
+        cell->data = data;
+        // Update sequence
+        queue.platform->atomic_64_bit_store(&cell->sequence, pos + 1, SE_RELEASE);
+        return true;
+    }
+
+    template<typename T>
+    bool dequeue(ThreadSafeQueue<T>& queue, T* data)
+    {
+        typename ThreadSafeQueue<T>::Cell* cell;
+        // Load current dequeue position
+        uint64_t pos = queue.platform->atomic_64_bit_load(&queue.dequeuePos, SE_RELAXED);
+        while(true)
+        {
+            // Get current cell
+            cell = &queue.buffer[pos & queue.bufferMask];
+            // Load sequence of current cell
+            uint64_t seq = queue.platform->atomic_64_bit_load(&cell->sequence, SE_ACQUIRE);
+            intptr_t diff = static_cast<intptr_t>(seq) - static_cast<intptr_t>(pos + 1);
+            // Cell is ready for read
+            if (diff == 0)
+            {
+                // Try to increment dequeue position
+                if (queue.platform->atomic_64_bit_cas(&queue.dequeuePos, &pos, pos + 1, SE_RELAXED))
+                {
+                    // If success, quit from the loop
+                    break;
+                }
+                // Else try again
+            }
+            // Queue is empty
+            else if (diff < 0)
+            {
+                return false;
+            }
+            // Cell was changed by some other thread
+            else
+            {
+                // Load current dequeue position and try again
+                pos = queue.platform->atomic_64_bit_load(&queue.dequeuePos, SE_RELAXED);
+            }
+        }
+        // Read data
+        *data = cell->data;
+        // Update sequence
+        queue.platform->atomic_64_bit_store(&cell->sequence, pos + queue.bufferMask + 1, SE_RELEASE);
+        return true;
     }
 }
 
