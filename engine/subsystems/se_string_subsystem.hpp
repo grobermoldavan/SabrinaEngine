@@ -118,8 +118,8 @@ namespace string
     SeString cast(const T& value, SeStringLifetime lifetime = SeStringLifetime::Temporary)
     {
         char buffer[32];
-        SE_STRING_SUBSYSTEM_GLOBAL_NAME->uint64_to_cstr(value, buffer);
-        return string::create(buffer, lifetime, sizeof(buffer));
+        SE_STRING_SUBSYSTEM_GLOBAL_NAME->uint64_to_cstr(value, buffer, sizeof(buffer));
+        return string::create(buffer, lifetime);
     }
 
     template<std::signed_integral T>
