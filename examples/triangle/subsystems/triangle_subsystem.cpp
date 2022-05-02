@@ -23,9 +23,7 @@ struct InputInstanceData
 };
 
 const SePlatformSubsystemInterface*               platformInterface;
-const SeWindowSubsystemInterface*                 windowInterface;
 const SeRenderAbstractionSubsystemInterface*      render;
-const SeApplicationAllocatorsSubsystemInterface*  allocatorsInterface;
 
 SeWindowHandle window;
 SeDeviceHandle device;
@@ -35,10 +33,11 @@ SeRenderRef fragmentProgram;
 
 SeRenderRef sync_load_shader(const char* path)
 {
+    SeAllocatorBindings allocator = app_allocators::frame();
     SeFile shader = { };
     SeFileContent content = { };
     platformInterface->file_load(&shader, path, SE_FILE_READ);
-    platformInterface->file_read(&content, &shader, allocatorsInterface->frameAllocator);
+    platformInterface->file_read(&content, &shader, &allocator);
     SeRenderRef program = render->program(device,
     {
         .bytecode       = (uint32_t*)content.memory,
@@ -51,9 +50,9 @@ SeRenderRef sync_load_shader(const char* path)
 
 SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 {
-    windowInterface = se_get_subsystem_interface<SeWindowSubsystemInterface>(engine);
+    SE_WINDOW_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeWindowSubsystemInterface>(engine);
     render = se_get_subsystem_interface<SeRenderAbstractionSubsystemInterface>(engine);
-    allocatorsInterface = se_get_subsystem_interface<SeApplicationAllocatorsSubsystemInterface>(engine);
+    SE_APPLICATION_ALLOCATORS_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeApplicationAllocatorsSubsystemInterface>(engine);
     platformInterface = se_get_subsystem_interface<SePlatformSubsystemInterface>(engine);
     SE_STRING_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeStringSubsystemInterface>(engine);
     SE_LOGGING_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeLoggingSubsystemInterface>(engine);
@@ -66,7 +65,7 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
         .width          = 640,
         .height         = 480,
     };
-    window = windowInterface->create(&windowInfo);
+    window = win::create(windowInfo);
     device = render->device_create({ .window = window });
     vertexProgram = sync_load_shader("assets/default/shaders/flat_color.vert.spv");
     fragmentProgram = sync_load_shader("assets/default/shaders/flat_color.frag.spv");
@@ -75,13 +74,13 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
 {
     render->device_destroy(device);
-    windowInterface->destroy(window);
+    win::destroy(window);
 }
 
 SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
 {
-    const SeWindowSubsystemInput* input = windowInterface->get_input(window);
-    if (input->isCloseButtonPressed || se_is_keyboard_button_pressed(input, SE_ESCAPE)) engine->shouldRun = false;
+    const SeWindowSubsystemInput* input = win::get_input(window);
+    if (input->isCloseButtonPressed || win::is_keyboard_button_pressed(input, SE_ESCAPE)) engine->shouldRun = false;
 
     const InputInstanceData instances[] =
     {
@@ -93,7 +92,7 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
         { .positionLS = {  1, -1, 3 }, .uv = { 1, 1 }, .color = { 0.7f, 0.5f, 0.5f, 1.0f, } },
         { .positionLS = {  0,  1, 3 }, .uv = { 1, 0 }, .color = { 0.7f, 0.5f, 0.5f, 1.0f, } },
     };
-    const float aspect = ((float)windowInterface->get_width(window)) / ((float)windowInterface->get_height(window));
+    const float aspect = ((float)win::get_width(window)) / ((float)win::get_height(window));
     const FrameData frameData
     {
         .viewProjection = se_f4x4_transposed

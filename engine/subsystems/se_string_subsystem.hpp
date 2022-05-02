@@ -4,10 +4,6 @@
 #include "engine/common_includes.hpp"
 #include <concepts>
 
-#define SE_STRING_SUBSYSTEM_GLOBAL_NAME g_stringSubsystemIface
-
-const struct SeStringSubsystemInterface* SE_STRING_SUBSYSTEM_GLOBAL_NAME = nullptr;
-
 enum struct SeStringLifetime
 {
     Temporary,
@@ -26,6 +22,7 @@ struct SeStringBuilder
     char*   memory;
     size_t  length;
     size_t  capacity;
+    bool    isTmp;
 };
 
 struct SeStringSubsystemInterface
@@ -51,6 +48,9 @@ struct SeStringSubsystem
     using Interface = SeStringSubsystemInterface;
     static constexpr const char* NAME = "se_string_subsystem";
 };
+
+#define SE_STRING_SUBSYSTEM_GLOBAL_NAME g_stringSubsystemIface
+const struct SeStringSubsystemInterface* SE_STRING_SUBSYSTEM_GLOBAL_NAME = nullptr;
 
 namespace string_builder
 {

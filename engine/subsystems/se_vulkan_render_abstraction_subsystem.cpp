@@ -19,10 +19,8 @@
 #include "engine/subsystems/se_platform_subsystem.hpp"
 #include "engine/engine.hpp"
 
-static SeRenderAbstractionSubsystemInterface            g_Iface;
-static const SeWindowSubsystemInterface*                g_windowIface;
-static const SeApplicationAllocatorsSubsystemInterface* g_allocatorsIface;
-static const SePlatformSubsystemInterface*              g_platformIface;
+static SeRenderAbstractionSubsystemInterface    g_iface;
+static const SePlatformSubsystemInterface*      g_platformIface;
 
 static SeFloat4x4 se_vk_perspective_projection_matrix(float fovDeg, float aspect, float nearPlane, float farPlane)
 {
@@ -97,7 +95,7 @@ static void se_vk_command_draw_call(SeDeviceHandle _device, const SeCommandDrawI
 
 SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
 {
-    g_Iface =
+    g_iface =
     {
         .device_create                  = se_vk_device_create,
         .device_destroy                 = se_vk_device_destroy,
@@ -117,8 +115,8 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
         .dispatch                       = nullptr,
         .perspective_projection_matrix  = se_vk_perspective_projection_matrix,
     };
-    g_windowIface = se_get_subsystem_interface<SeWindowSubsystemInterface>(engine);
-    g_allocatorsIface = se_get_subsystem_interface<SeApplicationAllocatorsSubsystemInterface>(engine);
+    SE_WINDOW_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeWindowSubsystemInterface>(engine);
+    SE_APPLICATION_ALLOCATORS_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeApplicationAllocatorsSubsystemInterface>(engine);
     g_platformIface = se_get_subsystem_interface<SePlatformSubsystemInterface>(engine);
 }
 
@@ -129,7 +127,7 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 
 SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
 {
-    return &g_Iface;
+    return &g_iface;
 }
 
 #define VOLK_IMPLEMENTATION

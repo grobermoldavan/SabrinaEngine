@@ -3,6 +3,7 @@
 #include "se_vulkan_render_subsystem_device.hpp"
 #include "se_vulkan_render_subsystem_frame_manager.hpp"
 #include "se_vulkan_render_subsystem_utils.hpp"
+#include "engine/subsystems/se_application_allocators_subsystem.hpp"
 #include "engine/containers.hpp"
 
 static constexpr size_t SE_VK_GRAPH_MAX_SETS_IN_DESCRIPTOR_POOL = 64;
@@ -35,7 +36,9 @@ static VkStencilOpState se_vk_graph_pipeline_stencil_op_state(const SeStencilOpS
 template <typename Key, typename Value>
 void se_vk_graph_free_old_resources(HashTable<Key, Value*>& valueTable, HashTable<Key, size_t>& frameTable, size_t currentFrame, SeVkMemoryManager* memoryManager)
 {
-    DynamicArray<Key> toRemove = dynamic_array::create<Key>(*memoryManager->cpu_frameAllocator);
+    SeAllocatorBindings frameAllocator = app_allocators::frame();
+
+    DynamicArray<Key> toRemove = dynamic_array::create<Key>(frameAllocator);
     ObjectPool<Value>& pool = se_vk_memory_manager_get_pool<Value>(memoryManager);
     for (auto kv : frameTable)
     {
@@ -59,18 +62,20 @@ void se_vk_graph_free_old_resources(HashTable<Key, Value*>& valueTable, HashTabl
 
 void se_vk_graph_construct(SeVkGraph* graph, SeVkGraphInfo* info)
 {
-    SeVkMemoryManager* memoryManager = &info->device->memoryManager;
+    SeAllocatorBindings persistentAllocator = app_allocators::persistent();
+    SeAllocatorBindings frameAllocator = app_allocators::frame();
+
     const size_t INITIAL_CAPACITY = 32;
     *graph =
     {
         .device                     = info->device,
         .context                    = SE_VK_GRAPH_CONTEXT_TYPE_BETWEEN_FRAMES,
-        .frameCommandBuffers        = dynamic_array::create<DynamicArray<SeVkCommandBuffer*>>(*memoryManager->cpu_persistentAllocator, info->numFrames),
-        .textureInfos               = dynamic_array::create<SeVkTextureInfo>(*memoryManager->cpu_frameAllocator, INITIAL_CAPACITY),
-        .passes                     = dynamic_array::create<SeVkGraphPass>(*memoryManager->cpu_frameAllocator, INITIAL_CAPACITY),
-        .graphicsPipelineInfos      = dynamic_array::create<SeGraphicsPipelineInfo>(*memoryManager->cpu_frameAllocator, INITIAL_CAPACITY),
-        .computePipelineInfos       = dynamic_array::create<SeComputePipelineInfo>(*memoryManager->cpu_frameAllocator, INITIAL_CAPACITY),
-        .scratchBufferViews         = dynamic_array::create<SeVkMemoryBufferView>(*memoryManager->cpu_frameAllocator, INITIAL_CAPACITY),
+        .frameCommandBuffers        = dynamic_array::create<DynamicArray<SeVkCommandBuffer*>>(persistentAllocator, info->numFrames),
+        .textureInfos               = dynamic_array::create<SeVkTextureInfo>(frameAllocator, INITIAL_CAPACITY),
+        .passes                     = dynamic_array::create<SeVkGraphPass>(frameAllocator, INITIAL_CAPACITY),
+        .graphicsPipelineInfos      = dynamic_array::create<SeGraphicsPipelineInfo>(frameAllocator, INITIAL_CAPACITY),
+        .computePipelineInfos       = dynamic_array::create<SeComputePipelineInfo>(frameAllocator, INITIAL_CAPACITY),
+        .scratchBufferViews         = dynamic_array::create<SeVkMemoryBufferView>(frameAllocator, INITIAL_CAPACITY),
         .textureInfoToCount                     = { },
         .textureInfoIndexedToTexture            = { },
         .textureInfoIndexedToFrame              = { },
@@ -89,24 +94,24 @@ void se_vk_graph_construct(SeVkGraph* graph, SeVkGraphInfo* info)
         .pipelineToDescriptorPools              = { },
     };
     for (size_t it = 0; it < info->numFrames; it++)
-        dynamic_array::push(graph->frameCommandBuffers, dynamic_array::create<SeVkCommandBuffer*>(*memoryManager->cpu_persistentAllocator, INITIAL_CAPACITY));
+        dynamic_array::push(graph->frameCommandBuffers, dynamic_array::create<SeVkCommandBuffer*>(persistentAllocator, INITIAL_CAPACITY));
 
-    hash_table::construct(graph->textureInfoToCount, *memoryManager->cpu_persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->textureInfoIndexedToTexture, *memoryManager->cpu_persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->textureInfoIndexedToFrame, *memoryManager->cpu_persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->programInfoToProgram, *memoryManager->cpu_persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->programInfoToFrame, *memoryManager->cpu_persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->renderPassInfoToRenderPass, *memoryManager->cpu_persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->renderPassInfoToFrame, *memoryManager->cpu_persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->framebufferInfoToFramebuffer, *memoryManager->cpu_persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->framebufferInfoToFrame, *memoryManager->cpu_persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->graphicsPipelineInfoToGraphicsPipeline, *memoryManager->cpu_persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->graphicsPipelineInfoToFrame, *memoryManager->cpu_persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->computePipelineInfoToComputePipeline, *memoryManager->cpu_persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->computePipelineInfoToFrame, *memoryManager->cpu_persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->samplerInfoToSampler, *memoryManager->cpu_persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->samplerInfoToFrame, *memoryManager->cpu_persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->pipelineToDescriptorPools, *memoryManager->cpu_persistentAllocator, INITIAL_CAPACITY);
+    hash_table::construct(graph->textureInfoToCount, persistentAllocator, INITIAL_CAPACITY);
+    hash_table::construct(graph->textureInfoIndexedToTexture, persistentAllocator, INITIAL_CAPACITY);
+    hash_table::construct(graph->textureInfoIndexedToFrame, persistentAllocator, INITIAL_CAPACITY);
+    hash_table::construct(graph->programInfoToProgram, persistentAllocator, INITIAL_CAPACITY);
+    hash_table::construct(graph->programInfoToFrame, persistentAllocator, INITIAL_CAPACITY);
+    hash_table::construct(graph->renderPassInfoToRenderPass, persistentAllocator, INITIAL_CAPACITY);
+    hash_table::construct(graph->renderPassInfoToFrame, persistentAllocator, INITIAL_CAPACITY);
+    hash_table::construct(graph->framebufferInfoToFramebuffer, persistentAllocator, INITIAL_CAPACITY);
+    hash_table::construct(graph->framebufferInfoToFrame, persistentAllocator, INITIAL_CAPACITY);
+    hash_table::construct(graph->graphicsPipelineInfoToGraphicsPipeline, persistentAllocator, INITIAL_CAPACITY);
+    hash_table::construct(graph->graphicsPipelineInfoToFrame, persistentAllocator, INITIAL_CAPACITY);
+    hash_table::construct(graph->computePipelineInfoToComputePipeline, persistentAllocator, INITIAL_CAPACITY);
+    hash_table::construct(graph->computePipelineInfoToFrame, persistentAllocator, INITIAL_CAPACITY);
+    hash_table::construct(graph->samplerInfoToSampler, persistentAllocator, INITIAL_CAPACITY);
+    hash_table::construct(graph->samplerInfoToFrame, persistentAllocator, INITIAL_CAPACITY);
+    hash_table::construct(graph->pipelineToDescriptorPools, persistentAllocator, INITIAL_CAPACITY);
 }
 
 void se_vk_graph_destroy(SeVkGraph* graph)
@@ -186,6 +191,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
 
     VkDevice logicalHandle = se_vk_device_get_logical_handle(graph->device);
     SeVkMemoryManager* memoryManager = &graph->device->memoryManager;
+    SeAllocatorBindings frameAllocator = app_allocators::frame();
 
     ObjectPool<SeVkTexture>&        texturePool         = se_vk_memory_manager_get_pool<SeVkTexture>(memoryManager);
     ObjectPool<SeVkRenderPass>&     renderPassPool      = se_vk_memory_manager_get_pool<SeVkRenderPass>(memoryManager);
@@ -227,7 +233,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
     //
 
     const size_t numTextureInfos = dynamic_array::size(graph->textureInfos);
-    DynamicArray<SeVkTexture*> frameTextures = dynamic_array::create<SeVkTexture*>(*memoryManager->cpu_frameAllocator, numTextureInfos);
+    DynamicArray<SeVkTexture*> frameTextures = dynamic_array::create<SeVkTexture*>(frameAllocator, numTextureInfos);
     for (size_t it = 0; it < numTextureInfos; it++)
     {
         SeVkTextureInfo& info = graph->textureInfos[it];
@@ -255,7 +261,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
     //
 
     const size_t numPasses = dynamic_array::size(graph->passes);
-    DynamicArray<SeVkRenderPass*> frameRenderPasses = dynamic_array::create<SeVkRenderPass*>(*memoryManager->cpu_frameAllocator, numPasses);
+    DynamicArray<SeVkRenderPass*> frameRenderPasses = dynamic_array::create<SeVkRenderPass*>(frameAllocator, numPasses);
     for (size_t it = 0; it < numPasses; it++)
     {
         const SeVkType pipelineType = se_vk_ref_type(graph->passes[it].info.pipeline);
@@ -282,7 +288,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
     //
     // Framebuffers
     //
-    DynamicArray<SeVkFramebuffer*> frameFramebuffers = dynamic_array::create<SeVkFramebuffer*>(*memoryManager->cpu_frameAllocator, numPasses);
+    DynamicArray<SeVkFramebuffer*> frameFramebuffers = dynamic_array::create<SeVkFramebuffer*>(frameAllocator, numPasses);
     for (size_t it = 0; it < numPasses; it++)
     {
         if (se_vk_ref_type(graph->passes[it].info.pipeline) == SE_VK_TYPE_COMPUTE_PIPELINE)
@@ -326,7 +332,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
     // Pipelines
     //
 
-    DynamicArray<SeVkPipeline*> framePipelines = dynamic_array::create<SeVkPipeline*>(*memoryManager->cpu_frameAllocator, numPasses);
+    DynamicArray<SeVkPipeline*> framePipelines = dynamic_array::create<SeVkPipeline*>(frameAllocator, numPasses);
     for (size_t it = 0; it < numPasses; it++)
     {
         SeVkPipeline* pipeline = nullptr;
@@ -837,13 +843,12 @@ void se_vk_graph_begin_pass(SeVkGraph* graph, const SeBeginPassInfo& info)
     se_assert(graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_FRAME);
 
     SeVkDevice* device = graph->device;
-    SeVkMemoryManager* memoryManager = &device->memoryManager;
 
     SeVkGraphPass pass
     {
         .info           = info,
         .renderPassInfo = { },
-        .commands       = dynamic_array::create<SeVkGraphCommand>(*memoryManager->cpu_frameAllocator, 64),
+        .commands       = dynamic_array::create<SeVkGraphCommand>(app_allocators::frame(), 64),
     };
 
     se_assert(se_vk_ref_type(info.pipeline) == SE_VK_TYPE_GRAPHICS_PIPELINE || se_vk_ref_type(info.pipeline) == SE_VK_TYPE_COMPUTE_PIPELINE);

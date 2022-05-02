@@ -4,11 +4,6 @@
 #include <inttypes.h>
 #include <stdbool.h>
 
-#define __se_is_keyboard_button_pressed(keyboardFlags, keyFlag) (keyboardFlags[keyFlag / 64] & (1ull << (keyFlag - (keyFlag / 64) * 64)))
-#define se_is_keyboard_button_pressed(inputPtr, keyFlag) __se_is_keyboard_button_pressed(input->keyboardButtonsCurrent, keyFlag)
-#define se_is_keyboard_button_just_pressed(inputPtr, keyFlag) ((__se_is_keyboard_button_pressed(input->keyboardButtonsCurrent, keyFlag)) && !(__se_is_keyboard_button_pressed(input->keyboardButtonsPrevious, keyFlag)))
-#define se_is_mouse_button_pressed(inputPtr, keyFlag) (input->mouseButtons & (1ull << keyFlag))
-
 enum SeMouseInput
 {
     SE_LMB,
@@ -96,13 +91,13 @@ struct SeWindowSubsystemInterface
 {
     static constexpr const char* NAME = "SeWindowSubsystemInterface";
 
-    SeWindowHandle                  (*create)(SeWindowSubsystemCreateInfo* createInfo);
+    SeWindowHandle                  (*create)(const SeWindowSubsystemCreateInfo& createInfo);
     void                            (*destroy)(SeWindowHandle handle);
     const SeWindowSubsystemInput*   (*get_input)(SeWindowHandle handle);
     uint32_t                        (*get_width)(SeWindowHandle handle);
     uint32_t                        (*get_height)(SeWindowHandle handle);
     void*                           (*get_native_handle)(SeWindowHandle handle);
-    SeWindowResizeCallbackHandle    (*add_resize_callback)(SeWindowHandle handle, SeWindowResizeCallbackInfo* callbackInfo);
+    SeWindowResizeCallbackHandle    (*add_resize_callback)(SeWindowHandle handle, const SeWindowResizeCallbackInfo& callbackInfo);
     void                            (*remove_resize_callback)(SeWindowHandle handle, SeWindowResizeCallbackHandle cbHandle);
 };
 
@@ -111,5 +106,72 @@ struct SeWindowSubsystem
     using Interface = SeWindowSubsystemInterface;
     static constexpr const char* NAME = "se_window_subsystem";
 };
+
+#define SE_WINDOW_SUBSYSTEM_GLOBAL_NAME g_windowSubsystemIface
+const struct SeWindowSubsystemInterface* SE_WINDOW_SUBSYSTEM_GLOBAL_NAME;
+
+namespace win
+{
+    inline SeWindowHandle create(const SeWindowSubsystemCreateInfo& createInfo)
+    {
+        return SE_WINDOW_SUBSYSTEM_GLOBAL_NAME->create(createInfo);
+    }
+
+    inline void destroy(SeWindowHandle handle)
+    {
+        SE_WINDOW_SUBSYSTEM_GLOBAL_NAME->destroy(handle);
+    }
+
+    inline const SeWindowSubsystemInput* get_input(SeWindowHandle handle)
+    {
+        return SE_WINDOW_SUBSYSTEM_GLOBAL_NAME->get_input(handle);
+    }
+
+    inline uint32_t get_width(SeWindowHandle handle)
+    {
+        return SE_WINDOW_SUBSYSTEM_GLOBAL_NAME->get_width(handle);
+    }
+
+    inline uint32_t get_height(SeWindowHandle handle)
+    {
+        return SE_WINDOW_SUBSYSTEM_GLOBAL_NAME->get_height(handle);
+    }
+
+    inline void* get_native_handle(SeWindowHandle handle)
+    {
+        return SE_WINDOW_SUBSYSTEM_GLOBAL_NAME->get_native_handle(handle);
+    }
+
+    inline SeWindowResizeCallbackHandle add_resize_callback(SeWindowHandle handle, const SeWindowResizeCallbackInfo& callbackInfo)
+    {
+        return SE_WINDOW_SUBSYSTEM_GLOBAL_NAME->add_resize_callback(handle, callbackInfo);
+    }
+
+    inline void remove_resize_callback(SeWindowHandle handle, SeWindowResizeCallbackHandle cbHandle)
+    {
+        SE_WINDOW_SUBSYSTEM_GLOBAL_NAME->remove_resize_callback(handle, cbHandle);
+    }
+
+    inline bool is_keyboard_button_pressed(const uint64_t* keyboardFlags, SeKeyboardInput keyFlag)
+    {
+        return keyboardFlags[keyFlag / 64] & (1ull << (keyFlag - (keyFlag / 64) * 64));
+    }
+
+    inline bool is_keyboard_button_pressed(const SeWindowSubsystemInput* inputPtr, SeKeyboardInput keyFlag)
+    {
+        return win::is_keyboard_button_pressed(inputPtr->keyboardButtonsCurrent, keyFlag);
+    }
+
+    inline bool is_keyboard_button_just_pressed(const SeWindowSubsystemInput* inputPtr, SeKeyboardInput keyFlag)
+    {
+        return win::is_keyboard_button_pressed(inputPtr->keyboardButtonsCurrent, keyFlag) &&
+              !win::is_keyboard_button_pressed(inputPtr->keyboardButtonsPrevious, keyFlag);
+    }
+
+    inline bool is_mouse_button_pressed(const SeWindowSubsystemInput* inputPtr, SeMouseInput keyFlag)
+    {
+        return inputPtr->mouseButtons & (1ull << keyFlag);
+    }
+}
 
 #endif

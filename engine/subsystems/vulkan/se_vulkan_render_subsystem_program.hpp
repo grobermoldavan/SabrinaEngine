@@ -29,7 +29,7 @@ struct SeVkProgramWithConstants
 void se_vk_program_construct(SeVkProgram* program, SeVkProgramInfo* info);
 void se_vk_program_destroy(SeVkProgram* program);
 
-VkPipelineShaderStageCreateInfo se_vk_program_get_shader_stage_create_info(struct SeVkDevice* device, SeVkProgramWithConstants* pipelineProgram, SeAllocatorBindings* allocator);
+VkPipelineShaderStageCreateInfo se_vk_program_get_shader_stage_create_info(struct SeVkDevice* device, SeVkProgramWithConstants* pipelineProgram, SeAllocatorBindings& allocator);
 
 template<>
 void se_vk_destroy<SeVkProgram>(SeVkProgram* res)

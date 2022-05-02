@@ -22,7 +22,6 @@ void se_log_thread_yeild()
 
 static SeLoggingSubsystemInterface g_iface;
 static const SePlatformSubsystemInterface* g_platformIface;
-static const SeApplicationAllocatorsSubsystemInterface* g_allocatorsIface;
 
 struct SeLogEntry
 {
@@ -136,7 +135,7 @@ static void se_log_submit(const char* fmt, const char** args, size_t numArgs)
 SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
 {
     g_platformIface = se_get_subsystem_interface<SePlatformSubsystemInterface>(engine);
-    g_allocatorsIface = se_get_subsystem_interface<SeApplicationAllocatorsSubsystemInterface>(engine);
+    SE_APPLICATION_ALLOCATORS_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeApplicationAllocatorsSubsystemInterface>(engine);
     g_iface =
     {
         .print = se_log_submit,
@@ -146,7 +145,7 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
 
 SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 {
-    thread_safe_queue::construct(g_logQueue, *g_allocatorsIface->persistentAllocator, g_platformIface, utils::power_of_two<4096>());
+    thread_safe_queue::construct(g_logQueue, app_allocators::persistent(), g_platformIface, utils::power_of_two<4096>());
 }
 
 SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)

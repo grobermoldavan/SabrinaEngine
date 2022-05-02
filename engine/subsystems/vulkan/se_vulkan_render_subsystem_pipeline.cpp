@@ -6,6 +6,7 @@
 #include "se_vulkan_render_subsystem_utils.hpp"
 #include "se_vulkan_render_subsystem_program.hpp"
 #include "se_vulkan_render_subsystem_render_pass.hpp"
+#include "engine/subsystems/se_application_allocators_subsystem.hpp"
 #include "engine/libs/ssr/simple_spirv_reflection.h"
 #include "engine/allocator_bindings.hpp"
 #include "engine/containers.hpp"
@@ -30,7 +31,7 @@ static bool se_vk_pipeline_has_vertex_input(const SimpleSpirvReflection* reflect
     return false;
 }
 
-static SeVkDescriptorSetLayoutCreateInfos se_vk_pipeline_get_discriptor_set_layout_create_infos(SeAllocatorBindings* allocator, const SimpleSpirvReflection** programReflections, size_t numProgramReflections)
+static SeVkDescriptorSetLayoutCreateInfos se_vk_pipeline_get_discriptor_set_layout_create_infos(SeAllocatorBindings& allocator, const SimpleSpirvReflection** programReflections, size_t numProgramReflections)
 {
     SeVkGeneralBitmask setBindingMasks[SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS] = {0};
     //
@@ -69,8 +70,8 @@ static SeVkDescriptorSetLayoutCreateInfos se_vk_pipeline_get_discriptor_set_layo
     }
     DynamicArray<VkDescriptorSetLayoutCreateInfo> layoutCreateInfos;
     DynamicArray<VkDescriptorSetLayoutBinding> bindings;
-    dynamic_array::construct(layoutCreateInfos, *allocator, numLayouts);
-    dynamic_array::construct(bindings, *allocator, numBindings);
+    dynamic_array::construct(layoutCreateInfos, allocator, numLayouts);
+    dynamic_array::construct(bindings, allocator, numBindings);
     // ~((uint32_t)0) is an unused binding
     for (size_t it = 0; it < numBindings; it++)
     {
@@ -190,11 +191,12 @@ static void se_vk_pipeline_create_descriptor_sets_and_layout(SeVkPipeline* pipel
     VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
     SeVkMemoryManager* memoryManager = &device->memoryManager;
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
+    SeAllocatorBindings frameAllocator = app_allocators::frame();
     //
     // Descriptor set layouts and pools
     //
     {
-        SeVkDescriptorSetLayoutCreateInfos layoutCreateInfos = se_vk_pipeline_get_discriptor_set_layout_create_infos(memoryManager->cpu_frameAllocator, reflections, numReflections);
+        SeVkDescriptorSetLayoutCreateInfos layoutCreateInfos = se_vk_pipeline_get_discriptor_set_layout_create_infos(frameAllocator, reflections, numReflections);
         pipeline->numDescriptorSetLayouts = dynamic_array::size(layoutCreateInfos.createInfos);
         for (size_t it = 0; it < pipeline->numDescriptorSetLayouts; it++)
         {
@@ -295,6 +297,7 @@ void se_vk_pipeline_graphics_construct(SeVkPipeline* pipeline, SeVkGraphicsPipel
     VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
     SeVkMemoryManager* memoryManager = &device->memoryManager;
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
+    SeAllocatorBindings frameAllocator = app_allocators::frame();
 
     SeVkProgram* vertexProgram = info->vertexProgram.program;
     SeVkProgram* fragmentProgram = info->fragmentProgram.program;
@@ -324,8 +327,8 @@ void se_vk_pipeline_graphics_construct(SeVkPipeline* pipeline, SeVkGraphicsPipel
     
     const VkPipelineShaderStageCreateInfo shaderStages[] =
     {
-        se_vk_program_get_shader_stage_create_info(device, &info->vertexProgram, memoryManager->cpu_frameAllocator),
-        se_vk_program_get_shader_stage_create_info(device, &info->fragmentProgram, memoryManager->cpu_frameAllocator),
+        se_vk_program_get_shader_stage_create_info(device, &info->vertexProgram, frameAllocator),
+        se_vk_program_get_shader_stage_create_info(device, &info->fragmentProgram, frameAllocator),
     };
     const VkExtent2D swapChainExtent = se_vk_device_get_swap_chain_extent(device);
     const VkPipelineVertexInputStateCreateInfo vertexInputInfo = se_vk_utils_vertex_input_state_create_info(0, nullptr, 0, nullptr);
@@ -391,6 +394,7 @@ void se_vk_pipeline_compute_construct(SeVkPipeline* pipeline, SeVkComputePipelin
     VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
     SeVkMemoryManager* memoryManager = &device->memoryManager;
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
+    SeAllocatorBindings frameAllocator = app_allocators::frame();
     
     SeVkProgram* program = info->program.program;
     *pipeline =
@@ -414,7 +418,7 @@ void se_vk_pipeline_compute_construct(SeVkPipeline* pipeline, SeVkComputePipelin
         .sType              = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
         .pNext              = nullptr,
         .flags              = 0,
-        .stage              = se_vk_program_get_shader_stage_create_info(device, &info->program, memoryManager->cpu_frameAllocator),
+        .stage              = se_vk_program_get_shader_stage_create_info(device, &info->program, frameAllocator),
         .layout             = pipeline->layout,
         .basePipelineHandle = VK_NULL_HANDLE,
         .basePipelineIndex  = -1,

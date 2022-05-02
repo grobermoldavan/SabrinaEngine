@@ -3,10 +3,6 @@
 
 #include "se_string_subsystem.hpp"
 
-#define SE_LOGGING_SUBSYSTEM_GLOBAL_NAME g_loggingSubsystemIface
-
-const struct SeLoggingSubsystemInterface* SE_LOGGING_SUBSYSTEM_GLOBAL_NAME;
-
 struct SeLoggingSubsystemInterface
 {
     static constexpr const char* NAME = "SeLoggingSubsystemInterface";
@@ -19,6 +15,9 @@ struct SeLoggingSubsystem
     using Interface = SeLoggingSubsystemInterface;
     static constexpr const char* NAME = "se_logging_subsystem";
 };
+
+#define SE_LOGGING_SUBSYSTEM_GLOBAL_NAME g_loggingSubsystemIface
+const struct SeLoggingSubsystemInterface* SE_LOGGING_SUBSYSTEM_GLOBAL_NAME;
 
 namespace logger
 {

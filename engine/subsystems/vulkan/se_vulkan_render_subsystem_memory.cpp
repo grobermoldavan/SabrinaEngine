@@ -14,6 +14,7 @@
 #include "se_vulkan_render_subsystem_memory_buffer.hpp"
 #include "se_vulkan_render_subsystem_sampler.hpp"
 #include "se_vulkan_render_subsystem_command_buffer.hpp"
+#include "engine/subsystems/se_application_allocators_subsystem.hpp"
 #include "engine/allocator_bindings.hpp"
 #include "engine/common_includes.hpp"
 
@@ -43,26 +44,26 @@ static size_t se_vk_memory_manager_get_pool_index()
 
 static void* se_vk_memory_manager_alloc(void* pUserData, size_t size, size_t alignment, VkSystemAllocationScope allocationScope)
 {
+    SeAllocatorBindings allocator = app_allocators::persistent();
     SeVkMemoryManager* manager = (SeVkMemoryManager*)pUserData;
-    SeAllocatorBindings* allocator = manager->cpu_persistentAllocator;
-    void* result = allocator->alloc(allocator->allocator, size, alignment, se_alloc_tag);
+    void* result = allocator.alloc(allocator.allocator, size, alignment, se_alloc_tag);
     dynamic_array::push(manager->cpu_allocations, { result, size });
     return result;
 }
 
 static void* se_vk_memory_manager_realloc(void* pUserData, void* pOriginal, size_t size, size_t alignment, VkSystemAllocationScope allocationScope)
 {
+    SeAllocatorBindings allocator = app_allocators::persistent();
     SeVkMemoryManager* manager = (SeVkMemoryManager*)pUserData;
-    SeAllocatorBindings* allocator = manager->cpu_persistentAllocator;
     const size_t numAllocations = dynamic_array::size(manager->cpu_allocations);
     void* result = nullptr;
     for (size_t it = 0; it < numAllocations; it++)
     {
         if (manager->cpu_allocations[it].ptr == pOriginal)
         {
-            result = allocator->alloc(allocator->allocator, size, alignment, se_alloc_tag);
+            result = allocator.alloc(allocator.allocator, size, alignment, se_alloc_tag);
             memcpy(result, pOriginal, manager->cpu_allocations[it].size);
-            allocator->dealloc(allocator->allocator, manager->cpu_allocations[it].ptr, manager->cpu_allocations[it].size);
+            allocator.dealloc(allocator.allocator, manager->cpu_allocations[it].ptr, manager->cpu_allocations[it].size);
             manager->cpu_allocations[it] = { result, size, };
             break;
         }
@@ -73,14 +74,14 @@ static void* se_vk_memory_manager_realloc(void* pUserData, void* pOriginal, size
 
 static void se_vk_memory_manager_dealloc(void* pUserData, void* pMemory)
 {
+    SeAllocatorBindings allocator = app_allocators::persistent();
     SeVkMemoryManager* manager = (SeVkMemoryManager*)pUserData;
-    SeAllocatorBindings* allocator = manager->cpu_persistentAllocator;
     const size_t numAllocations = dynamic_array::size(manager->cpu_allocations);
     for (size_t it = 0; it < numAllocations; it++)
     {
         if (manager->cpu_allocations[it].ptr == pMemory)
         {
-            allocator->dealloc(allocator->allocator, manager->cpu_allocations[it].ptr, manager->cpu_allocations[it].size);
+            allocator.dealloc(allocator.allocator, manager->cpu_allocations[it].ptr, manager->cpu_allocations[it].size);
             dynamic_array::remove(manager->cpu_allocations, it);
             break;
         }
@@ -163,9 +164,11 @@ static size_t se_vk_memory_chunk_find_aligned_free_space(SeVkGpuMemoryChunk* chu
     return startBlock;
 }
 
-void se_vk_memory_manager_construct(SeVkMemoryManager* manager, SeVkMemoryManagerCreateInfo* createInfo)
+extern const SePlatformSubsystemInterface* g_platformIface;
+
+void se_vk_memory_manager_construct(SeVkMemoryManager* manager)
 {
-    SeAllocatorBindings allocator = *createInfo->persistentAllocator;
+    SeAllocatorBindings allocator = app_allocators::persistent();
     *manager = SeVkMemoryManager
     {
         .cpu_allocationCallbacks    =
@@ -177,44 +180,43 @@ void se_vk_memory_manager_construct(SeVkMemoryManager* manager, SeVkMemoryManage
             .pfnInternalAllocation  = nullptr,
             .pfnInternalFree        = nullptr,
         },
-        .cpu_allocations            = dynamic_array::create<SeVkCpuAllocation>(*createInfo->persistentAllocator, 4096),
-        .cpu_persistentAllocator    = createInfo->persistentAllocator,
-        .cpu_frameAllocator         = createInfo->frameAllocator,
+        .cpu_allocations            = dynamic_array::create<SeVkCpuAllocation>(allocator, 4096),
         .cpu_objectPools            = (SeVkMemoryObjectPools*)allocator.alloc(allocator.allocator, sizeof(SeVkMemoryObjectPools), se_default_alignment, se_alloc_tag),
         .device                     = nullptr,
-        .gpu_chunks                 = dynamic_array::create<SeVkGpuMemoryChunk>(*createInfo->persistentAllocator, 64),
+        .gpu_chunks                 = dynamic_array::create<SeVkGpuMemoryChunk>(allocator, 64),
         .memoryProperties           = nullptr,
     };
-    object_pool::construct(manager->cpu_objectPools->commandBufferPool , createInfo->platform);
-    object_pool::construct(manager->cpu_objectPools->framebufferPool   , createInfo->platform);
-    object_pool::construct(manager->cpu_objectPools->memoryBufferPool  , createInfo->platform);
-    object_pool::construct(manager->cpu_objectPools->pipelinePool      , createInfo->platform);
-    object_pool::construct(manager->cpu_objectPools->propgramPool      , createInfo->platform);
-    object_pool::construct(manager->cpu_objectPools->renderPassPool    , createInfo->platform);
-    object_pool::construct(manager->cpu_objectPools->samplerPool       , createInfo->platform);
-    object_pool::construct(manager->cpu_objectPools->texturePool       , createInfo->platform);
+    object_pool::construct(manager->cpu_objectPools->commandBufferPool , g_platformIface);
+    object_pool::construct(manager->cpu_objectPools->framebufferPool   , g_platformIface);
+    object_pool::construct(manager->cpu_objectPools->memoryBufferPool  , g_platformIface);
+    object_pool::construct(manager->cpu_objectPools->pipelinePool      , g_platformIface);
+    object_pool::construct(manager->cpu_objectPools->propgramPool      , g_platformIface);
+    object_pool::construct(manager->cpu_objectPools->renderPassPool    , g_platformIface);
+    object_pool::construct(manager->cpu_objectPools->samplerPool       , g_platformIface);
+    object_pool::construct(manager->cpu_objectPools->texturePool       , g_platformIface);
 }
 
 void se_vk_memory_manager_free_gpu_memory(SeVkMemoryManager* manager)
 {
+    SeAllocatorBindings allocator = app_allocators::persistent();
     VkDevice logicalHandle = se_vk_device_get_logical_handle(manager->device);
     const size_t numChunks = dynamic_array::size(manager->gpu_chunks);
     for (size_t it = 0; it < numChunks; it++)
     {
         SeVkGpuMemoryChunk* chunk = &manager->gpu_chunks[it];
         vkFreeMemory(logicalHandle, manager->gpu_chunks[it].memory, se_vk_memory_manager_get_callbacks(manager));
-        manager->cpu_persistentAllocator->dealloc(manager->cpu_persistentAllocator->allocator, chunk->ledger, chunk->ledgerSize);
+        allocator.dealloc(allocator.allocator, chunk->ledger, chunk->ledgerSize);
     }
     dynamic_array::destroy(manager->gpu_chunks);
 }
 
 void se_vk_memory_manager_free_cpu_memory(SeVkMemoryManager* manager)
 {
-    SeAllocatorBindings* allocator = manager->cpu_persistentAllocator;
+    SeAllocatorBindings allocator = app_allocators::persistent();
 
     const size_t numAllocations = dynamic_array::size(manager->cpu_allocations);
     for (size_t it = 0; it < numAllocations; it++)
-        allocator->dealloc(allocator->allocator, manager->cpu_allocations[it].ptr, manager->cpu_allocations[it].size);
+        allocator.dealloc(allocator.allocator, manager->cpu_allocations[it].ptr, manager->cpu_allocations[it].size);
     dynamic_array::destroy(manager->cpu_allocations);
 
     object_pool::destroy(manager->cpu_objectPools->commandBufferPool);
@@ -240,6 +242,8 @@ bool se_vk_memory_manager_is_valid_memory(SeVkMemory memory)
 
 SeVkMemory se_vk_memory_manager_allocate(SeVkMemoryManager* manager, SeVkGpuAllocationRequest request)
 {
+    SeAllocatorBindings allocator = app_allocators::persistent();
+
     const size_t requiredNumberOfBlocks = 1 + ((request.size - 1) / SE_VK_GPU_MEMORY_BLOCK_SIZE_BYTES);
     uint32_t memoryTypeIndex = 0;
     if (!se_vk_utils_get_memory_type_index(manager->memoryProperties, request.memoryTypeBits, request.properties, &memoryTypeIndex))
@@ -290,7 +294,7 @@ SeVkMemory se_vk_memory_manager_allocate(SeVkMemoryManager* manager, SeVkGpuAllo
         if (request.properties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
             vkMapMemory(logicalHandle, newChunk.memory, 0, newChunk.memorySize, 0, &newChunk.mappedMemory);
         newChunk.ledgerSize = chunkNumberOfBlocks / 8;
-        newChunk.ledger = (uint8_t*)manager->cpu_persistentAllocator->alloc(manager->cpu_persistentAllocator->allocator, newChunk.ledgerSize, se_default_alignment, se_alloc_tag);
+        newChunk.ledger = (uint8_t*)allocator.alloc(allocator.allocator, newChunk.ledgerSize, se_default_alignment, se_alloc_tag);
         memset(newChunk.ledger, 0, newChunk.ledgerSize);
         newChunk.memoryTypeIndex = memoryTypeIndex;
         dynamic_array::push(manager->gpu_chunks, newChunk);
@@ -315,6 +319,8 @@ SeVkMemory se_vk_memory_manager_allocate(SeVkMemoryManager* manager, SeVkGpuAllo
 
 void se_vk_memory_manager_deallocate(SeVkMemoryManager* manager, SeVkMemory allocation)
 {
+    SeAllocatorBindings allocator = app_allocators::persistent();
+
     const size_t numChunks = dynamic_array::size(manager->gpu_chunks);
     for (size_t it = 0; it < numChunks; it++)
     {
@@ -328,7 +334,7 @@ void se_vk_memory_manager_deallocate(SeVkMemoryManager* manager, SeVkMemory allo
             // Chunk is empty, so we free it
             VkDevice logicalHandle = se_vk_device_get_logical_handle(manager->device);
             vkFreeMemory(logicalHandle, chunk->memory, se_vk_memory_manager_get_callbacks(manager));
-            manager->cpu_persistentAllocator->dealloc(manager->cpu_persistentAllocator->allocator, chunk->ledger, chunk->ledgerSize);
+            allocator.dealloc(allocator.allocator, chunk->ledger, chunk->ledgerSize);
             dynamic_array::remove(manager->gpu_chunks, chunk);
         }
         break;

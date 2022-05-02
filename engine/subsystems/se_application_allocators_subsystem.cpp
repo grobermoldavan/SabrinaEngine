@@ -7,51 +7,35 @@
 static SeStackAllocator frameAllocator;
 static SePoolAllocator persistentAllocator;
 
-static SeAllocatorBindings frameAllocatorBindings;
-static SeAllocatorBindings persistentAllocatorBindings;
-
-static SeApplicationAllocatorsSubsystemInterface g_Iface;
-
-SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
-{
-    g_Iface =
-    {
-        .frameAllocator = &frameAllocatorBindings,
-        .persistentAllocator = &persistentAllocatorBindings,
-    };
-}
+static SeApplicationAllocatorsSubsystemInterface g_iface;
 
 SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 {
-    const SeStackAllocatorSubsystemInterface* stackIface = se_get_subsystem_interface<SeStackAllocatorSubsystemInterface>(engine);
-    const SePoolAllocatorSubsystemInterface* poolIface = se_get_subsystem_interface<SePoolAllocatorSubsystemInterface>(engine);
+    SE_STACK_ALLOCATOR_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeStackAllocatorSubsystemInterface>(engine);
+    SE_POOL_ALLOCATOR_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SePoolAllocatorSubsystemInterface>(engine);
 
-    stackIface->construct(&frameAllocator, se_gigabytes(64));
-    SePoolAllocatorCreateInfo poolCreateInfo
+    frameAllocator = stack_allocator::create(se_gigabytes(64));
+    persistentAllocator = pool_allocator::create({ .buckets = { { .blockSize = 8 }, { .blockSize = 32 }, { .blockSize = 256 } }, });
+
+    g_iface =
     {
-        .buckets = { { .blockSize = 8 }, { .blockSize = 32 }, { .blockSize = 256 } },
+        .frameAllocator      = stack_allocator::to_bindings(frameAllocator),
+        .persistentAllocator = pool_allocator::to_bindings(persistentAllocator),
     };
-    poolIface->construct(&persistentAllocator, &poolCreateInfo);
-
-    stackIface->to_allocator_bindings(&frameAllocator, &frameAllocatorBindings);
-    poolIface->to_allocator_bindings(&persistentAllocator, &persistentAllocatorBindings);
 }
 
 SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
 {
-    const SeStackAllocatorSubsystemInterface* stackIface = se_get_subsystem_interface<SeStackAllocatorSubsystemInterface>(engine);
-    const SePoolAllocatorSubsystemInterface* poolIface = se_get_subsystem_interface<SePoolAllocatorSubsystemInterface>(engine);
-
-    poolIface->destroy(&persistentAllocator);
-    stackIface->destroy(&frameAllocator);
+    pool_allocator::destroy(persistentAllocator);
+    stack_allocator::destroy(frameAllocator);
 }
 
 SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
 {
-    frameAllocator.reset(&frameAllocator);
+    stack_allocator::reset(frameAllocator);
 }
 
 SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
 {
-    return &g_Iface;
+    return &g_iface;
 }

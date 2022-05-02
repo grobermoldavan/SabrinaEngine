@@ -3,15 +3,8 @@
 
 #include <inttypes.h>
 #include "se_vulkan_render_subsystem_base.hpp"
+#include "engine/allocator_bindings.hpp"
 #include "engine/containers.hpp"
-
-struct SeVkMemoryManagerCreateInfo
-{
-    struct SeAllocatorBindings*                 persistentAllocator;
-    struct SeAllocatorBindings*                 frameAllocator;
-    const struct SePlatformSubsystemInterface*  platform;
-    size_t                                      numFrames;
-};
 
 struct SeVkGpuAllocationRequest
 {
@@ -48,18 +41,16 @@ struct SeVkCpuAllocation
 
 struct SeVkMemoryManager
 {
-    VkAllocationCallbacks                       cpu_allocationCallbacks;
-    DynamicArray<SeVkCpuAllocation>             cpu_allocations;
-    struct SeAllocatorBindings*                 cpu_persistentAllocator;
-    struct SeAllocatorBindings*                 cpu_frameAllocator;
-    struct SeVkMemoryObjectPools*               cpu_objectPools;
+    VkAllocationCallbacks               cpu_allocationCallbacks;
+    DynamicArray<SeVkCpuAllocation>     cpu_allocations;
+    struct SeVkMemoryObjectPools*       cpu_objectPools;
 
-    struct SeVkDevice*                          device;
-    DynamicArray<SeVkGpuMemoryChunk>            gpu_chunks;
-    VkPhysicalDeviceMemoryProperties*           memoryProperties;
+    struct SeVkDevice*                  device;
+    DynamicArray<SeVkGpuMemoryChunk>    gpu_chunks;
+    VkPhysicalDeviceMemoryProperties*   memoryProperties;
 };
 
-void            se_vk_memory_manager_construct(SeVkMemoryManager* manager, SeVkMemoryManagerCreateInfo* createInfo);
+void            se_vk_memory_manager_construct(SeVkMemoryManager* manager);
 void            se_vk_memory_manager_free_gpu_memory(SeVkMemoryManager* manager);
 void            se_vk_memory_manager_free_cpu_memory(SeVkMemoryManager* manager);
 

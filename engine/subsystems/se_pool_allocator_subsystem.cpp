@@ -13,31 +13,8 @@ struct SePoolMemoryBucketCompareInfo
     size_t memoryWasted;
 };
 
-void se_pool_allocator_construct(SePoolAllocator* allocator, SePoolAllocatorCreateInfo* createInfo);
-void se_pool_allocator_destroy(SePoolAllocator* allocator);
-void se_pool_allocator_to_allocator_bindings(SePoolAllocator* allocator, SeAllocatorBindings* bindings);
-
-void* se_pool_allocator_alloc(SePoolAllocator* allocator, size_t allocationSize, size_t alignment, const char* allocTag);
-void se_pool_allocator_dealloc(SePoolAllocator* allocator, void* ptr, size_t size);
-
 static SePoolAllocatorSubsystemInterface g_iface;
 static const SePlatformSubsystemInterface* g_platformIface;
-
-SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
-{
-    g_iface =
-    {
-        .construct              = se_pool_allocator_construct,
-        .destroy                = se_pool_allocator_destroy,
-        .to_allocator_bindings  = se_pool_allocator_to_allocator_bindings,
-    };
-    g_platformIface = se_get_subsystem_interface<SePlatformSubsystemInterface>(engine);
-}
-
-SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
-{
-    return &g_iface;
-}
 
 void se_pool_allocator_memory_bucket_source_construct(SePoolMemoryBucketSource* source)
 {
@@ -66,42 +43,6 @@ void se_pool_allocator_memory_bucket_source_add_memory(SePoolMemoryBucketSource*
 void se_pool_allocator_memory_bucket_source_destroy(SePoolMemoryBucketSource* source)
 {
     g_platformIface->mem_release(source->base, source->reserved);
-}
-
-void se_pool_allocator_construct(SePoolAllocator* allocator, SePoolAllocatorCreateInfo* createInfo)
-{
-    *allocator = {0};
-    for (size_t it = 0; it < SE_POOL_ALLOCATOR_SUBSYSTEM_MAX_BUCKETS; it++)
-    {
-        const SePoolMemoryBucketConfig* config = &createInfo->buckets[it];
-        if (config->blockSize == 0) break;
-        SePoolMemoryBucket* bucket = &allocator->buckets[allocator->numBuckets++];
-        bucket->blockSize = config->blockSize;
-        se_pool_allocator_memory_bucket_source_construct(&bucket->memory);
-        se_pool_allocator_memory_bucket_source_construct(&bucket->ledger);
-    }
-}
-
-void se_pool_allocator_destroy(SePoolAllocator* allocator)
-{
-    for (size_t it = 0; it < allocator->numBuckets; it++)
-    {
-        SePoolMemoryBucket* bucket = &allocator->buckets[it];
-        se_pool_allocator_memory_bucket_source_destroy(&bucket->memory);
-        se_pool_allocator_memory_bucket_source_destroy(&bucket->ledger);
-    }
-    *allocator = {0};
-}
-
-void se_pool_allocator_to_allocator_bindings(SePoolAllocator* allocator, SeAllocatorBindings* bindings)
-{
-
-    *bindings =
-    {
-        .allocator  = allocator,
-        .alloc      = [](void* allocator, size_t size, size_t alignment, const char* tag) { return se_pool_allocator_alloc((SePoolAllocator*)allocator, size, alignment, tag); },
-        .dealloc    = [](void* allocator, void* ptr, size_t size) { se_pool_allocator_dealloc((SePoolAllocator*)allocator, ptr, size); },
-    };
 }
 
 bool se_pool_allocator_compare_infos_is_greater(void* _infos, size_t oneIndex, size_t otherIndex)
@@ -256,4 +197,54 @@ void se_pool_allocator_dealloc(SePoolAllocator* allocator, void* ptr, size_t siz
             break;
         }
     }
+}
+
+void se_pool_allocator_construct(SePoolAllocator& allocator, const SePoolAllocatorCreateInfo& createInfo)
+{
+    allocator = { };
+    for (size_t it = 0; it < SE_POOL_ALLOCATOR_SUBSYSTEM_MAX_BUCKETS; it++)
+    {
+        const SePoolMemoryBucketConfig* config = &createInfo.buckets[it];
+        if (config->blockSize == 0) break;
+        SePoolMemoryBucket* bucket = &allocator.buckets[allocator.numBuckets++];
+        bucket->blockSize = config->blockSize;
+        se_pool_allocator_memory_bucket_source_construct(&bucket->memory);
+        se_pool_allocator_memory_bucket_source_construct(&bucket->ledger);
+    }
+}
+
+void se_pool_allocator_destroy(SePoolAllocator& allocator)
+{
+    for (size_t it = 0; it < allocator.numBuckets; it++)
+    {
+        SePoolMemoryBucket* bucket = &allocator.buckets[it];
+        se_pool_allocator_memory_bucket_source_destroy(&bucket->memory);
+        se_pool_allocator_memory_bucket_source_destroy(&bucket->ledger);
+    }
+}
+
+SeAllocatorBindings se_pool_allocator_to_allocator_bindings(SePoolAllocator& allocator)
+{
+    return
+    {
+        .allocator  = &allocator,
+        .alloc      = [](void* allocator, size_t size, size_t alignment, const char* tag) { return se_pool_allocator_alloc((SePoolAllocator*)allocator, size, alignment, tag); },
+        .dealloc    = [](void* allocator, void* ptr, size_t size) { se_pool_allocator_dealloc((SePoolAllocator*)allocator, ptr, size); },
+    };
+}
+
+SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
+{
+    g_iface =
+    {
+        .construct              = se_pool_allocator_construct,
+        .destroy                = se_pool_allocator_destroy,
+        .to_allocator_bindings  = se_pool_allocator_to_allocator_bindings,
+    };
+    g_platformIface = se_get_subsystem_interface<SePlatformSubsystemInterface>(engine);
+}
+
+SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
+{
+    return &g_iface;
 }

@@ -3,61 +3,8 @@
 #include "se_stack_allocator_subsystem.hpp"
 #include "engine/engine.hpp"
 
-static void se_stack_construct_allocator(SeStackAllocator* allocator, size_t capacity);
-static void se_stack_destruct_allocator(SeStackAllocator* allocator);
-static void se_stack_to_allocator_bindings(SeStackAllocator* allocator, SeAllocatorBindings* bindings);
-
-static void* se_stack_alloc(SeStackAllocator* allocator, size_t size, size_t alignment, const char* allocTag);
-static void se_stack_reset(SeStackAllocator* allocator);
-static void se_stack_dealloc(SeStackAllocator* allocator, void* ptr, size_t size);
-
-static SeStackAllocatorSubsystemInterface g_Iface;
+static SeStackAllocatorSubsystemInterface g_iface;
 static const SePlatformSubsystemInterface* g_platformIface;
-
-SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
-{
-    g_Iface =
-    {
-        .construct = se_stack_construct_allocator,
-        .destroy = se_stack_destruct_allocator,
-        .to_allocator_bindings = se_stack_to_allocator_bindings,
-    };
-    g_platformIface = se_get_subsystem_interface<SePlatformSubsystemInterface>(engine);
-}
-
-SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
-{
-    return &g_Iface;
-}
-
-static void se_stack_construct_allocator(SeStackAllocator* allocator, size_t capacity)
-{
-    *allocator =
-    {
-        .base           = (intptr_t)g_platformIface->mem_reserve(capacity),
-        .cur            = 0,
-        .reservedMax    = capacity,
-        .commitedMax    = 0,
-        .alloc          = se_stack_alloc,
-        .reset          = se_stack_reset,
-    };
-}
-
-static void se_stack_destruct_allocator(SeStackAllocator* allocator)
-{
-    g_platformIface->mem_release((void*)allocator->base, allocator->reservedMax);
-    memset(allocator, 0, sizeof(SeStackAllocator));
-}
-
-static void se_stack_to_allocator_bindings(SeStackAllocator* allocator, SeAllocatorBindings* bindings)
-{
-    *bindings =
-    {
-        .allocator  = allocator,
-        .alloc      = [](void* allocator, size_t size, size_t alignment, const char* tag) { return se_stack_alloc((SeStackAllocator*)allocator, size, alignment, tag); },
-        .dealloc    = [](void* allocator, void* ptr, size_t size) { se_stack_dealloc((SeStackAllocator*)allocator, ptr, size); },
-    };
-}
 
 static void* se_stack_alloc(SeStackAllocator* allocator, size_t size, size_t alignment, const char* allocTag)
 {
@@ -90,12 +37,56 @@ static void* se_stack_alloc(SeStackAllocator* allocator, size_t size, size_t ali
     return (void*)alignedPtr;
 }
 
-static void se_stack_reset(SeStackAllocator* allocator)
+static void se_stack_reset(SeStackAllocator& allocator)
 {
-    allocator->cur = 0;
+    allocator.cur = 0;
 }
 
 static void se_stack_dealloc(SeStackAllocator* allocator, void* ptr, size_t size)
 {
     // nothing
+}
+
+static void se_stack_construct_allocator(SeStackAllocator& allocator, size_t capacity)
+{
+    allocator =
+    {
+        .base           = (intptr_t)g_platformIface->mem_reserve(capacity),
+        .cur            = 0,
+        .reservedMax    = capacity,
+        .commitedMax    = 0,
+    };
+}
+
+static void se_stack_destruct_allocator(SeStackAllocator& allocator)
+{
+    g_platformIface->mem_release((void*)allocator.base, allocator.reservedMax);
+    memset(&allocator, 0, sizeof(SeStackAllocator));
+}
+
+static SeAllocatorBindings se_stack_to_allocator_bindings(SeStackAllocator& allocator)
+{
+    return
+    {
+        .allocator  = &allocator,
+        .alloc      = [](void* allocator, size_t size, size_t alignment, const char* tag) { return se_stack_alloc((SeStackAllocator*)allocator, size, alignment, tag); },
+        .dealloc    = [](void* allocator, void* ptr, size_t size) { se_stack_dealloc((SeStackAllocator*)allocator, ptr, size); },
+    };
+}
+
+SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
+{
+    g_iface =
+    {
+        .construct              = se_stack_construct_allocator,
+        .destroy                = se_stack_destruct_allocator,
+        .to_allocator_bindings  = se_stack_to_allocator_bindings,
+        .reset                  = se_stack_reset,
+    };
+    g_platformIface = se_get_subsystem_interface<SePlatformSubsystemInterface>(engine);
+}
+
+SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
+{
+    return &g_iface;
 }

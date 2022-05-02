@@ -4,20 +4,33 @@
 #include "se_vulkan_render_subsystem_device.hpp"
 #include "se_vulkan_render_subsystem_memory.hpp"
 #include "se_vulkan_render_subsystem_utils.hpp"
+#include "engine/subsystems/se_application_allocators_subsystem.hpp"
 #include "engine/allocator_bindings.hpp"
 
 static size_t g_programIndex = 0;
 
-static void* se_vk_ssr_alloc(void* userData, size_t size)
+static void* se_vk_ssr_alloc_persistent(void* userData, size_t size)
 {
-    SeAllocatorBindings* allocator = (SeAllocatorBindings*)userData;
-    return allocator->alloc(allocator->allocator, size, se_default_alignment, se_alloc_tag);
+    SeAllocatorBindings allocator = app_allocators::persistent();
+    return allocator.alloc(allocator.allocator, size, se_default_alignment, se_alloc_tag);
 }
 
-static void se_vk_ssr_free(void* userData, void* ptr, size_t size)
+static void se_vk_ssr_free_persistent(void* userData, void* ptr, size_t size)
 {
-    SeAllocatorBindings* allocator = (SeAllocatorBindings*)userData;
-    allocator->dealloc(allocator->allocator, ptr, size);
+    SeAllocatorBindings allocator = app_allocators::persistent();
+    allocator.dealloc(allocator.allocator, ptr, size);
+}
+
+static void* se_vk_ssr_alloc_frame(void* userData, size_t size)
+{
+    SeAllocatorBindings allocator = app_allocators::frame();
+    return allocator.alloc(allocator.allocator, size, se_default_alignment, se_alloc_tag);
+}
+
+static void se_vk_ssr_free_frame(void* userData, void* ptr, size_t size)
+{
+    SeAllocatorBindings allocator = app_allocators::frame();
+    allocator.dealloc(allocator.allocator, ptr, size);
 }
 
 void se_vk_program_construct(SeVkProgram* program, SeVkProgramInfo* info)
@@ -32,19 +45,19 @@ void se_vk_program_construct(SeVkProgram* program, SeVkProgramInfo* info)
         .object     = { SE_VK_TYPE_PROGRAM, g_programIndex++ },
         .device     = info->device,
         .handle     = se_vk_utils_create_shader_module(logicalHandle, info->bytecode, info->bytecodeSize, callbacks),
-        .reflection = {0},
+        .reflection = { },
     };
     SsrAllocator ssrPersistentAllocator
     {
-        .userData   = memoryManager->cpu_persistentAllocator,
-        .alloc      = se_vk_ssr_alloc,
-        .free       = se_vk_ssr_free,
+        .userData   = nullptr,
+        .alloc      = se_vk_ssr_alloc_persistent,
+        .free       = se_vk_ssr_free_persistent,
     };
     SsrAllocator ssrFrameAllocator
     {
-        .userData   = memoryManager->cpu_frameAllocator,
-        .alloc      = se_vk_ssr_alloc,
-        .free       = se_vk_ssr_free,
+        .userData   = nullptr,
+        .alloc      = se_vk_ssr_alloc_frame,
+        .free       = se_vk_ssr_free_frame,
     };
     SsrCreateInfo reflectionCreateInfo
     {
@@ -66,7 +79,7 @@ void se_vk_program_destroy(SeVkProgram* program)
     se_vk_utils_destroy_shader_module(logicalHandle, program->handle, callbacks);
 }
 
-VkPipelineShaderStageCreateInfo se_vk_program_get_shader_stage_create_info(SeVkDevice* device, SeVkProgramWithConstants* pipelineProgram, SeAllocatorBindings* allocator)
+VkPipelineShaderStageCreateInfo se_vk_program_get_shader_stage_create_info(SeVkDevice* device, SeVkProgramWithConstants* pipelineProgram, SeAllocatorBindings& allocator)
 {
     const SeVkProgram* program = pipelineProgram->program;
     const SimpleSpirvReflection* reflection = &program->reflection;
@@ -76,23 +89,23 @@ VkPipelineShaderStageCreateInfo se_vk_program_get_shader_stage_create_info(SeVkD
         reflection->shaderType == SSR_SHADER_TYPE_COMPUTE   ? (VkShaderStageFlagBits)VK_SHADER_STAGE_COMPUTE_BIT :
         (VkShaderStageFlagBits)0;
     
-    VkSpecializationMapEntry* specializationEntries = (VkSpecializationMapEntry*)allocator->alloc
+    VkSpecializationMapEntry* specializationEntries = (VkSpecializationMapEntry*)allocator.alloc
     (
-        allocator->allocator,
+        allocator.allocator,
         sizeof(VkSpecializationMapEntry) * pipelineProgram->numSpecializationConstants,
         se_default_alignment,
         se_alloc_tag
     );
-    char* data = (char*)allocator->alloc
+    char* data = (char*)allocator.alloc
     (
-        allocator->allocator,
+        allocator.allocator,
         4 * pipelineProgram->numSpecializationConstants,
         se_default_alignment,
         se_alloc_tag
     );
-    VkSpecializationInfo* specializationInfo = (VkSpecializationInfo*)allocator->alloc
+    VkSpecializationInfo* specializationInfo = (VkSpecializationInfo*)allocator.alloc
     (
-        allocator->allocator,
+        allocator.allocator,
         sizeof(VkSpecializationInfo),
         se_default_alignment,
         se_alloc_tag

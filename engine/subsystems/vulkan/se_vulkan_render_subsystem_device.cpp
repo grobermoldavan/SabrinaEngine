@@ -1,14 +1,14 @@
 
 #include "se_vulkan_render_subsystem_device.hpp"
 #include "se_vulkan_render_subsystem_utils.hpp"
+#include "engine/subsystems/se_window_subsystem.hpp"
+#include "engine/subsystems/se_application_allocators_subsystem.hpp"
 #include "engine/allocator_bindings.hpp"
 #include "engine/debug.hpp"
 
 #define SE_VK_INVALID_DEVICE_RATING -1.0f
 
-extern const SeWindowSubsystemInterface*                  g_windowIface;
-extern const SeApplicationAllocatorsSubsystemInterface*   g_allocatorsIface;
-extern const SePlatformSubsystemInterface*                g_platformIface;
+extern const SePlatformSubsystemInterface* g_platformIface;
 
 static size_t g_deviceIndex = 0;
 
@@ -122,12 +122,13 @@ static VkPhysicalDevice se_vk_gpu_pick_physical_device(VkInstance instance, VkSu
 
 static void se_vk_device_swap_chain_create(SeVkDevice* device, SeWindowHandle window)
 {
+    SeAllocatorBindings frameAllocator = app_allocators::frame();
     SeVkMemoryManager* memoryManager = &device->memoryManager;
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
     {
-        const uint32_t windowWidth = g_windowIface->get_width(window);
-        const uint32_t windowHeight = g_windowIface->get_height(window);;
-        SeVkSwapChainSupportDetails supportDetails = se_vk_utils_create_swap_chain_support_details(device->surface, device->gpu.physicalHandle, *memoryManager->cpu_frameAllocator);
+        const uint32_t windowWidth = win::get_width(window);
+        const uint32_t windowHeight = win::get_height(window);;
+        SeVkSwapChainSupportDetails supportDetails = se_vk_utils_create_swap_chain_support_details(device->surface, device->gpu.physicalHandle, frameAllocator);
         VkSurfaceFormatKHR  surfaceFormat   = se_vk_utils_choose_swap_chain_surface_format(supportDetails.formats);
         VkPresentModeKHR    presentMode     = se_vk_utils_choose_swap_chain_surface_present_mode(supportDetails.presentModes);
         VkExtent2D          extent          = se_vk_utils_choose_swap_chain_extent(windowWidth, windowHeight, &supportDetails.capabilities);
@@ -177,7 +178,7 @@ static void se_vk_device_swap_chain_create(SeVkDevice* device, SeWindowHandle wi
         se_vk_check(vkGetSwapchainImagesKHR(device->gpu.logicalHandle, device->swapChain.handle, &swapChainImageCount, nullptr));
         se_assert(swapChainImageCount < SE_VK_MAX_SWAP_CHAIN_IMAGES);
         DynamicArray<VkImage> swapChainImageHandles;
-        dynamic_array::construct(swapChainImageHandles, *memoryManager->cpu_frameAllocator, swapChainImageCount);
+        dynamic_array::construct(swapChainImageHandles, frameAllocator, swapChainImageCount);
         dynamic_array::force_set_size(swapChainImageHandles, swapChainImageCount);
         // It seems like this vkGetSwapchainImagesKHR call leaks memory
         se_vk_check(vkGetSwapchainImagesKHR(device->gpu.logicalHandle, device->swapChain.handle, &swapChainImageCount, dynamic_array::raw(swapChainImageHandles)));
@@ -265,24 +266,16 @@ VKAPI_ATTR VkBool32 VKAPI_CALL se_vk_debug_callback(
 
 SeDeviceHandle se_vk_device_create(const SeDeviceInfo& deviceInfo)
 {
-    SeAllocatorBindings* allocator = g_allocatorsIface->persistentAllocator;
-    SeVkDevice* device = (SeVkDevice*)allocator->alloc(allocator->allocator, sizeof(SeVkDevice), se_default_alignment, se_alloc_tag);
+    SeAllocatorBindings persistentAllocator = app_allocators::persistent();
+    SeAllocatorBindings frameAllocator = app_allocators::frame();
+
+    SeVkDevice* device = (SeVkDevice*)persistentAllocator.alloc(persistentAllocator.allocator, sizeof(SeVkDevice), se_default_alignment, se_alloc_tag);
     device->object = { SE_VK_TYPE_DEVICE, g_deviceIndex++ };
     const size_t NUM_FRAMES = 3;
     //
     // Memory manager
     //
-    {
-        SeVkMemoryManagerCreateInfo createInfo =
-        {
-            .persistentAllocator    = g_allocatorsIface->persistentAllocator,
-            .frameAllocator         = g_allocatorsIface->frameAllocator,
-            .platform               = g_platformIface,
-            .numFrames              = NUM_FRAMES,
-        };
-        se_vk_memory_manager_construct(&device->memoryManager, &createInfo);
-
-    }
+    se_vk_memory_manager_construct(&device->memoryManager);
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(&device->memoryManager);
     //
     // Instance and debug messenger
@@ -294,7 +287,7 @@ SeDeviceHandle se_vk_device_create(const SeDeviceInfo& deviceInfo)
         //
         size_t numValidationLayers = 0;
         const char** validationLayers = se_vk_utils_get_required_validation_layers(&numValidationLayers);
-        DynamicArray<VkLayerProperties> availableValidationLayers = se_vk_utils_get_available_validation_layers(*device->memoryManager.cpu_frameAllocator);
+        DynamicArray<VkLayerProperties> availableValidationLayers = se_vk_utils_get_available_validation_layers(frameAllocator);
         for (size_t requiredIt = 0; requiredIt < numValidationLayers; requiredIt++)
         {
             const char* requiredLayerName = validationLayers[requiredIt];
@@ -317,7 +310,7 @@ SeDeviceHandle se_vk_device_create(const SeDeviceInfo& deviceInfo)
         //
         size_t numInstanceExtensions = 0;
         const char** instanceExtensions = se_vk_utils_get_required_instance_extensions(&numInstanceExtensions);
-        DynamicArray<VkExtensionProperties> availableInstanceExtensions = se_vk_utils_get_available_instance_extensions(*device->memoryManager.cpu_frameAllocator);
+        DynamicArray<VkExtensionProperties> availableInstanceExtensions = se_vk_utils_get_available_instance_extensions(frameAllocator);
         for (size_t requiredIt = 0; requiredIt < numInstanceExtensions; requiredIt++)
         {
             const char* requiredExtensionName = instanceExtensions[requiredIt];
@@ -386,7 +379,7 @@ SeDeviceHandle se_vk_device_create(const SeDeviceInfo& deviceInfo)
     //
     {
 #ifdef _WIN32
-        HWND windowHandle = (HWND)g_windowIface->get_native_handle(deviceInfo.window);
+        HWND windowHandle = (HWND)win::get_native_handle(deviceInfo.window);
         VkWin32SurfaceCreateInfoKHR surfaceCreateInfo =
         {
             .sType      = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
@@ -405,12 +398,12 @@ SeDeviceHandle se_vk_device_create(const SeDeviceInfo& deviceInfo)
     //
     {
         VkPhysicalDeviceFeatures featuresToEnable = {0};
-        device->gpu.physicalHandle = se_vk_gpu_pick_physical_device(device->instance, device->surface, *g_allocatorsIface->frameAllocator, &featuresToEnable);
+        device->gpu.physicalHandle = se_vk_gpu_pick_physical_device(device->instance, device->surface, frameAllocator, &featuresToEnable);
         device->gpu.enabledFeatures = featuresToEnable;
         //
         // Get command queue infos
         //
-        DynamicArray<VkQueueFamilyProperties> familyProperties = se_vk_utils_get_physical_device_queue_family_properties(device->gpu.physicalHandle, *g_allocatorsIface->frameAllocator);
+        DynamicArray<VkQueueFamilyProperties> familyProperties = se_vk_utils_get_physical_device_queue_family_properties(device->gpu.physicalHandle, frameAllocator);
         uint32_t queuesFamilyIndices[] =
         {
             se_vk_utils_pick_graphics_queue(familyProperties),
@@ -418,7 +411,7 @@ SeDeviceHandle se_vk_device_create(const SeDeviceInfo& deviceInfo)
             se_vk_utils_pick_transfer_queue(familyProperties),
             se_vk_utils_pick_compute_queue(familyProperties),
         };
-        DynamicArray<VkDeviceQueueCreateInfo> queueCreateInfos = se_vk_utils_get_queue_create_infos(queuesFamilyIndices, se_array_size(queuesFamilyIndices), *g_allocatorsIface->frameAllocator);
+        DynamicArray<VkDeviceQueueCreateInfo> queueCreateInfos = se_vk_utils_get_queue_create_infos(queuesFamilyIndices, se_array_size(queuesFamilyIndices), frameAllocator);
         //
         // Create logical device
         //
@@ -500,7 +493,7 @@ SeDeviceHandle se_vk_device_create(const SeDeviceInfo& deviceInfo)
             .callback = se_vk_device_handle_window_resized,
             .priority = SE_WINDOW_RESIZE_CALLBACK_PRIORITY_INTERNAL_SYSTEM,
         };
-        device->resizeCallbackHandle = g_windowIface->add_resize_callback(deviceInfo.window, &resizeCallbackInfo);
+        device->resizeCallbackHandle = win::add_resize_callback(deviceInfo.window, resizeCallbackInfo);
     }
     //
     // Frame manager
@@ -554,7 +547,7 @@ void se_vk_device_destroy(SeDeviceHandle _device)
     //
     // Callback
     //
-    g_windowIface->remove_resize_callback(device->windowHandle, device->resizeCallbackHandle);
+    win::remove_resize_callback(device->windowHandle, device->resizeCallbackHandle);
     //
     // Swap Chain
     //
@@ -581,7 +574,9 @@ void se_vk_device_destroy(SeDeviceHandle _device)
 #endif
     vkDestroyInstance(device->instance, callbacks);
     se_vk_memory_manager_free_cpu_memory(&device->memoryManager);
-    device->memoryManager.cpu_persistentAllocator->dealloc(device->memoryManager.cpu_persistentAllocator->allocator, device, sizeof(SeVkDevice));
+
+    SeAllocatorBindings allocator = app_allocators::persistent();
+    allocator.dealloc(allocator.allocator, device, sizeof(SeVkDevice));
 }
 
 void se_vk_device_begin_frame(SeDeviceHandle _device)

@@ -42,7 +42,7 @@ struct DynamicArray
 namespace dynamic_array
 {
     template<typename T>
-    void construct(DynamicArray<T>& array, SeAllocatorBindings& allocator, size_t capacity = 4)
+    void construct(DynamicArray<T>& array, SeAllocatorBindings allocator, size_t capacity = 4)
     {
         array =
         {
@@ -54,7 +54,7 @@ namespace dynamic_array
     }
 
     template<typename T>
-    DynamicArray<T> create(SeAllocatorBindings& allocator, size_t capacity = 4)
+    DynamicArray<T> create(SeAllocatorBindings allocator, size_t capacity = 4)
     {
         return
         {
@@ -66,7 +66,7 @@ namespace dynamic_array
     }
 
     template<typename T>
-    DynamicArray<T> create_zeroed(SeAllocatorBindings& allocator, size_t capacity = 4)
+    DynamicArray<T> create_zeroed(SeAllocatorBindings allocator, size_t capacity = 4)
     {
         DynamicArray<T> result
         {
@@ -773,7 +773,7 @@ namespace hash_table
     }
 
     template<typename Key, typename Value>
-    void construct(HashTable<Key, Value>& table, SeAllocatorBindings& allocator, size_t capacity = 4)
+    void construct(HashTable<Key, Value>& table, SeAllocatorBindings allocator, size_t capacity = 4)
     {
         using Entry = HashTable<Key, Value>::Entry;
         table =
@@ -789,7 +789,7 @@ namespace hash_table
     }
 
     template<typename Key, typename Value>
-    HashTable<Key, Value> create(SeAllocatorBindings& allocator, size_t capacity = 4)
+    HashTable<Key, Value> create(SeAllocatorBindings allocator, size_t capacity = 4)
     {
         using Entry = HashTable<Key, Value>::Entry;
         HashTable<Key, Value> result =
@@ -1040,7 +1040,7 @@ struct ThreadSafeQueue
 namespace thread_safe_queue
 {
     template<typename T>
-    void construct(ThreadSafeQueue<T>& queue, SeAllocatorBindings& allocator, const SePlatformSubsystemInterface* platform, size_t capacity)
+    void construct(ThreadSafeQueue<T>& queue, SeAllocatorBindings allocator, const SePlatformSubsystemInterface* platform, size_t capacity)
     {
         se_assert(utils::is_power_of_two(capacity));
 
