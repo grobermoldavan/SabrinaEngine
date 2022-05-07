@@ -15,8 +15,7 @@ struct SeStringData
     size_t capacity;
 };
 
-static          SeStringSubsystemInterface      g_iface;
-static const    SePlatformSubsystemInterface*   g_platformIface;
+static SeStringSubsystemInterface g_iface;
 
 static ObjectPool<SeStringData> g_strings;
 
@@ -155,12 +154,13 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
         .uint64_to_cstr             = se_string_from_uint64,
         .double_to_cstr             = se_string_from_double,
     };
-    g_platformIface = se_get_subsystem_interface<SePlatformSubsystemInterface>(engine);
+    SE_APPLICATION_ALLOCATORS_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeApplicationAllocatorsSubsystemInterface>(engine);
+    SE_PLATFORM_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SePlatformSubsystemInterface>(engine);
 }
 
 SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 {
-    object_pool::construct(g_strings, g_platformIface);
+    object_pool::construct(g_strings, platform::get());
 }
 
 SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)

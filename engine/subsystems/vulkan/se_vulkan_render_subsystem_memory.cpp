@@ -14,6 +14,7 @@
 #include "se_vulkan_render_subsystem_memory_buffer.hpp"
 #include "se_vulkan_render_subsystem_sampler.hpp"
 #include "se_vulkan_render_subsystem_command_buffer.hpp"
+#include "engine/subsystems/se_platform_subsystem.hpp"
 #include "engine/subsystems/se_application_allocators_subsystem.hpp"
 #include "engine/allocator_bindings.hpp"
 #include "engine/common_includes.hpp"
@@ -164,8 +165,6 @@ static size_t se_vk_memory_chunk_find_aligned_free_space(SeVkGpuMemoryChunk* chu
     return startBlock;
 }
 
-extern const SePlatformSubsystemInterface* g_platformIface;
-
 void se_vk_memory_manager_construct(SeVkMemoryManager* manager)
 {
     SeAllocatorBindings allocator = app_allocators::persistent();
@@ -186,14 +185,14 @@ void se_vk_memory_manager_construct(SeVkMemoryManager* manager)
         .gpu_chunks                 = dynamic_array::create<SeVkGpuMemoryChunk>(allocator, 64),
         .memoryProperties           = nullptr,
     };
-    object_pool::construct(manager->cpu_objectPools->commandBufferPool , g_platformIface);
-    object_pool::construct(manager->cpu_objectPools->framebufferPool   , g_platformIface);
-    object_pool::construct(manager->cpu_objectPools->memoryBufferPool  , g_platformIface);
-    object_pool::construct(manager->cpu_objectPools->pipelinePool      , g_platformIface);
-    object_pool::construct(manager->cpu_objectPools->propgramPool      , g_platformIface);
-    object_pool::construct(manager->cpu_objectPools->renderPassPool    , g_platformIface);
-    object_pool::construct(manager->cpu_objectPools->samplerPool       , g_platformIface);
-    object_pool::construct(manager->cpu_objectPools->texturePool       , g_platformIface);
+    object_pool::construct(manager->cpu_objectPools->commandBufferPool , platform::get());
+    object_pool::construct(manager->cpu_objectPools->framebufferPool   , platform::get());
+    object_pool::construct(manager->cpu_objectPools->memoryBufferPool  , platform::get());
+    object_pool::construct(manager->cpu_objectPools->pipelinePool      , platform::get());
+    object_pool::construct(manager->cpu_objectPools->propgramPool      , platform::get());
+    object_pool::construct(manager->cpu_objectPools->renderPassPool    , platform::get());
+    object_pool::construct(manager->cpu_objectPools->samplerPool       , platform::get());
+    object_pool::construct(manager->cpu_objectPools->texturePool       , platform::get());
 }
 
 void se_vk_memory_manager_free_gpu_memory(SeVkMemoryManager* manager)

@@ -8,8 +8,6 @@
 
 #define SE_VK_INVALID_DEVICE_RATING -1.0f
 
-extern const SePlatformSubsystemInterface* g_platformIface;
-
 static size_t g_deviceIndex = 0;
 
 static void se_vk_gpu_fill_required_physical_deivce_features(VkPhysicalDeviceFeatures* features)

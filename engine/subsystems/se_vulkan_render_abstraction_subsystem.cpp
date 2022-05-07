@@ -19,8 +19,7 @@
 #include "engine/subsystems/se_platform_subsystem.hpp"
 #include "engine/engine.hpp"
 
-static SeRenderAbstractionSubsystemInterface    g_iface;
-static const SePlatformSubsystemInterface*      g_platformIface;
+static SeRenderAbstractionSubsystemInterface g_iface;
 
 static SeFloat4x4 se_vk_perspective_projection_matrix(float fovDeg, float aspect, float nearPlane, float farPlane)
 {
@@ -117,7 +116,7 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
     };
     SE_WINDOW_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeWindowSubsystemInterface>(engine);
     SE_APPLICATION_ALLOCATORS_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeApplicationAllocatorsSubsystemInterface>(engine);
-    g_platformIface = se_get_subsystem_interface<SePlatformSubsystemInterface>(engine);
+    SE_PLATFORM_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SePlatformSubsystemInterface>(engine);
 }
 
 SE_DLL_EXPORT void se_init(SabrinaEngine* engine)

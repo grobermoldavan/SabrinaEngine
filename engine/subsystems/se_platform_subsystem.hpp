@@ -83,4 +83,15 @@ struct SePlatformSubsystem
     static constexpr const char* NAME = "se_platform_subsystem";
 };
 
+#define SE_PLATFORM_SUBSYSTEM_GLOBAL_NAME g_platformIface
+const SePlatformSubsystemInterface* SE_PLATFORM_SUBSYSTEM_GLOBAL_NAME;
+
+namespace platform
+{
+    inline const SePlatformSubsystemInterface* get()
+    {
+        return SE_PLATFORM_SUBSYSTEM_GLOBAL_NAME;
+    }
+}
+
 #endif

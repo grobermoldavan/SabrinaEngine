@@ -14,12 +14,11 @@ struct SePoolMemoryBucketCompareInfo
 };
 
 static SePoolAllocatorSubsystemInterface g_iface;
-static const SePlatformSubsystemInterface* g_platformIface;
 
 void se_pool_allocator_memory_bucket_source_construct(SePoolMemoryBucketSource* source)
 {
     const size_t reserveSize = se_gigabytes(32);
-    source->base = g_platformIface->mem_reserve(reserveSize);
+    source->base = platform::get()->mem_reserve(reserveSize);
     source->reserved = reserveSize;
     source->commited = 0;
     source->used = 0;
@@ -31,18 +30,18 @@ void se_pool_allocator_memory_bucket_source_add_memory(SePoolMemoryBucketSource*
     if (source->used > source->commited)
     {
         const size_t requiredCommit = source->used - source->commited;
-        const size_t memPageSize = g_platformIface->get_mem_page_size();
+        const size_t memPageSize = platform::get()->get_mem_page_size();
         const size_t numPagesToCommit = 1 + ((requiredCommit - 1) / memPageSize);
         const size_t actualCommitSize = numPagesToCommit * memPageSize;
         se_assert((source->commited + actualCommitSize) <= source->reserved);
-        g_platformIface->mem_commit(((char*)source->base) + source->commited, actualCommitSize);
+        platform::get()->mem_commit(((char*)source->base) + source->commited, actualCommitSize);
         source->commited += actualCommitSize;
     }
 }
 
 void se_pool_allocator_memory_bucket_source_destroy(SePoolMemoryBucketSource* source)
 {
-    g_platformIface->mem_release(source->base, source->reserved);
+    platform::get()->mem_release(source->base, source->reserved);
 }
 
 bool se_pool_allocator_compare_infos_is_greater(void* _infos, size_t oneIndex, size_t otherIndex)
@@ -241,7 +240,7 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
         .destroy                = se_pool_allocator_destroy,
         .to_allocator_bindings  = se_pool_allocator_to_allocator_bindings,
     };
-    g_platformIface = se_get_subsystem_interface<SePlatformSubsystemInterface>(engine);
+    SE_PLATFORM_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SePlatformSubsystemInterface>(engine);
 }
 
 SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
