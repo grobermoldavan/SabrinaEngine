@@ -1,4 +1,4 @@
-
+﻿
 #include <string.h>
 #include "triangle_subsystem.hpp"
 #include "engine/engine.hpp"
@@ -95,12 +95,12 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
     const float aspect = ((float)win::get_width(window)) / ((float)win::get_height(window));
     const FrameData frameData
     {
-        .viewProjection = se_f4x4_transposed
+        .viewProjection = float4x4::transposed
         (
-            se_f4x4_mul_f4x4
+            float4x4::mul
             (
                 render->perspective_projection_matrix(60, aspect, 0.1f, 100.0f),
-                se_f4x4_inverted(se_look_at({ 0, 0, 0 }, { 0, 0, 1 }, { 0, 1, 0 }))
+                float4x4::inverted(float4x4::look_at({ 0, 0, 0 }, { 0, 0, 1 }, { 0, 1, 0 }))
             )
         ),
     };
