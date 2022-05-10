@@ -26,6 +26,7 @@ struct SeVkFrameManager
     size_t              imageToFrame[SE_VK_FRAME_MANAGER_MAX_NUM_FRAMES];
     size_t              numFrames;
     size_t              frameNumber;
+    size_t              scratchBufferAlignment;
 };
 
 struct SeVkFrameManagerCreateInfo

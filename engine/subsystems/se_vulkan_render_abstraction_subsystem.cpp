@@ -17,6 +17,7 @@
 #include "engine/subsystems/se_window_subsystem.hpp"
 #include "engine/subsystems/se_application_allocators_subsystem.hpp"
 #include "engine/subsystems/se_platform_subsystem.hpp"
+#include "engine/subsystems/se_string_subsystem.hpp"
 #include "engine/engine.hpp"
 
 static SeRenderAbstractionSubsystemInterface g_iface;
@@ -31,10 +32,10 @@ static SeFloat4x4 se_vk_perspective_projection_matrix(float fovDeg, float aspect
     // @NOTE : This matrix works for coordinate system used in se_math.h (forward == positive z)
     //
     const float focalLength = 1.0f / tanf(se_to_radians(fovDeg) / 2.0f);
-    const float x  =  focalLength / aspect;
-    const float y  = -focalLength;
-    const float A  = nearPlane / (nearPlane - farPlane);
-    const float B  = A * -farPlane;
+    const float x =  focalLength / aspect;
+    const float y = -focalLength;
+    const float A = nearPlane / (nearPlane - farPlane);
+    const float B = A * -farPlane;
     return
     {
         x,    0.0f,  0.0f, 0.0f,
@@ -62,6 +63,12 @@ static SeRenderRef se_vk_program_call(SeDeviceHandle _device, const SeProgramInf
     return se_vk_graph_program(&device->graph, info);
 }
 
+static SeRenderRef se_vk_texture_call(SeDeviceHandle _device, const SeTextureInfo& info)
+{
+    SeVkDevice* device = (SeVkDevice*)_device;
+    return se_vk_graph_texture(&device->graph, info);
+}
+
 static SeRenderRef se_vk_swap_chain_texture_call(SeDeviceHandle _device)
 {
     SeVkDevice* device = (SeVkDevice*)_device;
@@ -78,6 +85,12 @@ static SeRenderRef se_vk_memory_buffer_call(SeDeviceHandle _device, const SeMemo
 {
     SeVkDevice* device = (SeVkDevice*)_device;
     return se_vk_graph_memory_buffer(&device->graph, info);
+}
+
+static SeRenderRef se_vk_sampler_call(SeDeviceHandle _device, const SeSamplerInfo& info)
+{
+    SeVkDevice* device = (SeVkDevice*)_device;
+    return se_vk_graph_sampler(&device->graph, info);
 }
 
 static void se_vk_command_bind_call(SeDeviceHandle _device, const SeCommandBindInfo& info)
@@ -103,12 +116,12 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
         .begin_pass                     = se_vk_begin_pass_call,
         .end_pass                       = se_vk_end_pass_call,
         .program                        = se_vk_program_call,
-        .texture                        = nullptr,
+        .texture                        = se_vk_texture_call,
         .swap_chain_texture             = se_vk_swap_chain_texture_call,
         .graphics_pipeline              = se_vk_graphics_pipeline_call,
         .compute_pipeline               = nullptr,
         .memory_buffer                  = se_vk_memory_buffer_call,
-        .sampler                        = nullptr,
+        .sampler                        = se_vk_sampler_call,
         .bind                           = se_vk_command_bind_call,
         .draw                           = se_vk_command_draw_call,
         .dispatch                       = nullptr,
@@ -117,6 +130,7 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
     SE_WINDOW_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeWindowSubsystemInterface>(engine);
     SE_APPLICATION_ALLOCATORS_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeApplicationAllocatorsSubsystemInterface>(engine);
     SE_PLATFORM_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SePlatformSubsystemInterface>(engine);
+    SE_STRING_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeStringSubsystemInterface>(engine);
 }
 
 SE_DLL_EXPORT void se_init(SabrinaEngine* engine)

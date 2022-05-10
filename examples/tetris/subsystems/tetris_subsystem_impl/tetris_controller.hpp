@@ -1,5 +1,5 @@
-#ifndef _TETRIS_CONTROLLER_H_
-#define _TETRIS_CONTROLLER_H_
+#ifndef _TETRIS_CONTROLLER_HPP_
+#define _TETRIS_CONTROLLER_HPP_
 
 /*
     Field bottom left corner is [0, 0], top right corner is [TETRIS_FIELD_WIDTH, TETRIS_FIELD_HEIGHT]
@@ -14,7 +14,7 @@
 #define TETRIS_FILLED_ACTIVE_FIGURE_SQUARE '@'
 
 // https://tetris.fandom.com/wiki/Tetromino
-typedef enum TetrisFigureType
+enum TetrisFigureType
 {
     TETRIS_FIGURE_TYPE_UNDEFINED,
     TETRIS_FIGURE_TYPE_I,
@@ -25,32 +25,32 @@ typedef enum TetrisFigureType
     TETRIS_FIGURE_TYPE_Z,
     TETRIS_FIGURE_TYPE_T,
     TETRIS_FIGURE_TYPE_COUNT,
-} TetrisFigureType;
+};
 
-typedef enum TetrisFigureRotation
+enum TetrisFigureRotation
 {
     TETRIS_FIGURE_ROTATION_UP,
     TETRIS_FIGURE_ROTATION_RIGHT,
     TETRIS_FIGURE_ROTATION_DOWN,
     TETRIS_FIGURE_ROTATION_LEFT,
     TETRIS_FIGURE_ROTATION_COUNT,
-} TetrisFigureRotation;
+};
 
-typedef struct TetrisActiveFigure
+struct TetrisActiveFigure
 {
     TetrisFigureType type;
     TetrisFigureRotation rotation;
     int bottomLeftPointPosX;
     int bottomLeftPointPosY;
-} TetrisActiveFigure;
+};
 
-typedef struct TetrisState
+struct TetrisState
 {
     double elapsedTimeSec;
     TetrisActiveFigure activeFigure;
     char field[TETRIS_FIELD_WIDTH][TETRIS_FIELD_HEIGHT];
-} TetrisState;
+};
 
-void tetris_controller_update(TetrisState* state, const struct SeWindowSubsystemInput* input, float dt);
+void tetris_controller_update(const struct SeWindowSubsystemInput* input, float dt);
 
 #endif

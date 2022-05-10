@@ -22,8 +22,7 @@ struct InputInstanceData
     SeFloat4x4 trfWS;
 };
 
-const SePlatformSubsystemInterface*               platformInterface;
-const SeRenderAbstractionSubsystemInterface*      render;
+const SeRenderAbstractionSubsystemInterface* render;
 
 SeWindowHandle window;
 SeDeviceHandle device;
@@ -36,15 +35,15 @@ SeRenderRef sync_load_shader(const char* path)
     SeAllocatorBindings allocator = app_allocators::frame();
     SeFile shader = { };
     SeFileContent content = { };
-    platformInterface->file_load(&shader, path, SE_FILE_READ);
-    platformInterface->file_read(&content, &shader, &allocator);
+    platform::get()->file_load(&shader, path, SE_FILE_READ);
+    platform::get()->file_read(&content, &shader, &allocator);
     SeRenderRef program = render->program(device,
     {
         .bytecode       = (uint32_t*)content.memory,
         .bytecodeSize   = content.size,
     });
-    platformInterface->file_free_content(&content);
-    platformInterface->file_unload(&shader);
+    platform::get()->file_free_content(&content);
+    platform::get()->file_unload(&shader);
     return program;
 }
 
@@ -53,7 +52,7 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
     SE_WINDOW_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeWindowSubsystemInterface>(engine);
     render = se_get_subsystem_interface<SeRenderAbstractionSubsystemInterface>(engine);
     SE_APPLICATION_ALLOCATORS_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeApplicationAllocatorsSubsystemInterface>(engine);
-    platformInterface = se_get_subsystem_interface<SePlatformSubsystemInterface>(engine);
+    SE_PLATFORM_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SePlatformSubsystemInterface>(engine);
     SE_STRING_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeStringSubsystemInterface>(engine);
     SE_LOGGING_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeLoggingSubsystemInterface>(engine);
     

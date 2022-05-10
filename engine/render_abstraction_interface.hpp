@@ -8,6 +8,7 @@
 #include "engine/subsystems/se_window_subsystem.hpp"
 
 #define SE_MAX_SPECIALIZATION_CONSTANTS 8
+#define SE_MAX_BINDINGS 8
 
 enum SePassRenderTargetLoadOp
 {
@@ -243,7 +244,7 @@ struct SeCommandBindInfo
 {
     SeDeviceHandle  device;
     uint32_t        set;
-    SeBinding       bindings[8];
+    SeBinding       bindings[SE_MAX_BINDINGS];
     uint32_t        numBindings;
 };
 

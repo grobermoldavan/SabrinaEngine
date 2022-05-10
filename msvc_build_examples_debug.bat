@@ -20,24 +20,27 @@ cd %bat_file_dir%\examples
 
 call :message "[MESSAGE] Build example subsysteams"
 REM for /r %%f in (subsystems\*.c) do call :build_single_subsystem %build_folder_examples%\subsystems\application\ %%f %bat_file_dir%
-for /r %%f in (triangle\subsystems\*.cpp) do call :build_single_subsystem %build_folder_examples%\subsystems\application\ %%f %bat_file_dir%
+for /r %%f in (tetris\subsystems\*.cpp) do call :build_single_subsystem %build_folder_examples%\subsystems\application\ %%f %bat_file_dir%
 
 call :message "[MESSAGE] Build example exes"
 REM for /r %%f in (*.c) do if %%~nf == main call :build_exe %build_folder_examples% %%f %bat_file_dir%
-for /r %%f in (triangle\*.cpp) do if %%~nf == main call :build_exe %build_folder_examples% %%f %bat_file_dir%
+for /r %%f in (tetris\*.cpp) do if %%~nf == main call :build_exe %build_folder_examples% %%f %bat_file_dir%
 
 call :message "[MESSAGE] Copy default assets"
 md %build_folder_examples%\assets\default
 xcopy %bat_file_dir%\engine\assets %build_folder_examples%\assets\default /s /e /y
-REM 
-REM call :message "[MESSAGE] Copy example assets"
-REM md %build_folder_examples%\assets\application
-REM for /r %%f in (*.c) do if %%~nf == main (
-REM     if exist %%~pfassets (
-REM         xcopy %%~pfassets %build_folder_examples%\assets\application /s /e
-REM     )
-REM )
-REM
+
+call :message "[MESSAGE] Copy example assets"
+md %build_folder_examples%\assets\application
+for /r %%f in (*.cpp) do (
+    call :message %%f
+    if %%~nf == main (
+        if exist %%~pfassets (
+            xcopy %%~pfassets %build_folder_examples%\assets\application /s /e
+        )
+    )
+)
+
 call :message "[MESSAGE] Build shaders"
 cd %build_folder_examples%\assets
 for /r %%f in (\*.vert) do glslangValidator %%f -o %%f.spv -V -S vert

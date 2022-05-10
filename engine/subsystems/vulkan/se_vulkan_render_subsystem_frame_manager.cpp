@@ -5,14 +5,24 @@
 void se_vk_frame_manager_construct(SeVkFrameManager* manager, SeVkFrameManagerCreateInfo* createInfo)
 {
     se_assert(createInfo->numFrames <= SE_VK_FRAME_MANAGER_MAX_NUM_FRAMES);
+
+    SeVkDevice* device = createInfo->device;
+    const size_t texelAlignment = device->gpu.deviceProperties_10.limits.minTexelBufferOffsetAlignment;
+    const size_t uniformAlignment = device->gpu.deviceProperties_10.limits.minUniformBufferOffsetAlignment;
+    const size_t storageAlignment = device->gpu.deviceProperties_10.limits.minStorageBufferOffsetAlignment;
+    size_t scratchBufferAlignment = texelAlignment > uniformAlignment ? texelAlignment : uniformAlignment;
+    scratchBufferAlignment = scratchBufferAlignment > storageAlignment ? scratchBufferAlignment : storageAlignment;
+
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(&createInfo->device->memoryManager);
     VkDevice logicalHandle = se_vk_device_get_logical_handle(createInfo->device);
-    *manager =
+    *manager = 
     {
-        .device         = createInfo->device,
-        .frames         = {0},
-        .numFrames      = createInfo->numFrames,
-        .frameNumber    = 0,
+        .device                 = device,
+        .frames                 = { },
+        .imageToFrame           = { },
+        .numFrames              = createInfo->numFrames,
+        .frameNumber            = 0,
+        .scratchBufferAlignment = scratchBufferAlignment,
     };
     for (size_t it = 0; it < manager->numFrames; it++)
     {
@@ -70,15 +80,22 @@ void se_vk_frame_manager_advance(SeVkFrameManager* manager)
 
 SeVkMemoryBufferView se_vk_frame_manager_alloc_scratch_buffer(SeVkFrameManager* manager, size_t size)
 {
+    se_assert(size > 0);
+    
     SeVkFrame* frame = se_vk_frame_manager_get_active_frame(manager);
-    se_assert_msg((frame->scratchBuffer->memory.size - frame->scratchBufferTop) >= size, "todo : expand frame memory");
+    const size_t alignedBase = (frame->scratchBufferTop % manager->scratchBufferAlignment) == 0
+        ? frame->scratchBufferTop
+        : (frame->scratchBufferTop / manager->scratchBufferAlignment) * manager->scratchBufferAlignment + manager->scratchBufferAlignment;
+
+    se_assert_msg((frame->scratchBuffer->memory.size - alignedBase) >= size, "todo : expand frame memory");
+
     SeVkMemoryBufferView view
     {
         .buffer         = frame->scratchBuffer,
-        .offset         = frame->scratchBufferTop,
+        .offset         = alignedBase,
         .size           = size,
-        .mappedMemory   = frame->scratchBuffer->memory.mappedMemory ? ((char*)frame->scratchBuffer->memory.mappedMemory) + frame->scratchBufferTop : nullptr,
+        .mappedMemory   = frame->scratchBuffer->memory.mappedMemory ? ((char*)frame->scratchBuffer->memory.mappedMemory) + alignedBase : nullptr,
     };
-    frame->scratchBufferTop += size;
+    frame->scratchBufferTop = alignedBase + size;
     return view;
 }

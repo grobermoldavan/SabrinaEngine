@@ -8,6 +8,7 @@
 
 static constexpr size_t SE_VK_GRAPH_MAX_SETS_IN_DESCRIPTOR_POOL = 64;
 static constexpr size_t SE_VK_GRAPH_OBJECT_LIFETIME = 5;
+static constexpr size_t CONTAINERS_INITIAL_CAPACITY = 32;
 
 enum SeVkGraphTextureFlags
 {
@@ -65,17 +66,16 @@ void se_vk_graph_construct(SeVkGraph* graph, SeVkGraphInfo* info)
     SeAllocatorBindings persistentAllocator = app_allocators::persistent();
     SeAllocatorBindings frameAllocator = app_allocators::frame();
 
-    const size_t INITIAL_CAPACITY = 32;
     *graph =
     {
         .device                     = info->device,
         .context                    = SE_VK_GRAPH_CONTEXT_TYPE_BETWEEN_FRAMES,
         .frameCommandBuffers        = dynamic_array::create<DynamicArray<SeVkCommandBuffer*>>(persistentAllocator, info->numFrames),
-        .textureInfos               = dynamic_array::create<SeVkTextureInfo>(frameAllocator, INITIAL_CAPACITY),
-        .passes                     = dynamic_array::create<SeVkGraphPass>(frameAllocator, INITIAL_CAPACITY),
-        .graphicsPipelineInfos      = dynamic_array::create<SeGraphicsPipelineInfo>(frameAllocator, INITIAL_CAPACITY),
-        .computePipelineInfos       = dynamic_array::create<SeComputePipelineInfo>(frameAllocator, INITIAL_CAPACITY),
-        .scratchBufferViews         = dynamic_array::create<SeVkMemoryBufferView>(frameAllocator, INITIAL_CAPACITY),
+        .textureInfos               = { }, // @NOTE : constructed at begin frame
+        .passes                     = { }, // @NOTE : constructed at begin frame
+        .graphicsPipelineInfos      = { }, // @NOTE : constructed at begin frame
+        .computePipelineInfos       = { }, // @NOTE : constructed at begin frame
+        .scratchBufferViews         = { }, // @NOTE : constructed at begin frame
         .textureInfoToCount                     = { },
         .textureInfoIndexedToTexture            = { },
         .textureInfoIndexedToFrame              = { },
@@ -94,24 +94,24 @@ void se_vk_graph_construct(SeVkGraph* graph, SeVkGraphInfo* info)
         .pipelineToDescriptorPools              = { },
     };
     for (size_t it = 0; it < info->numFrames; it++)
-        dynamic_array::push(graph->frameCommandBuffers, dynamic_array::create<SeVkCommandBuffer*>(persistentAllocator, INITIAL_CAPACITY));
+        dynamic_array::push(graph->frameCommandBuffers, dynamic_array::create<SeVkCommandBuffer*>(persistentAllocator, CONTAINERS_INITIAL_CAPACITY));
 
-    hash_table::construct(graph->textureInfoToCount, persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->textureInfoIndexedToTexture, persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->textureInfoIndexedToFrame, persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->programInfoToProgram, persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->programInfoToFrame, persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->renderPassInfoToRenderPass, persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->renderPassInfoToFrame, persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->framebufferInfoToFramebuffer, persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->framebufferInfoToFrame, persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->graphicsPipelineInfoToGraphicsPipeline, persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->graphicsPipelineInfoToFrame, persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->computePipelineInfoToComputePipeline, persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->computePipelineInfoToFrame, persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->samplerInfoToSampler, persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->samplerInfoToFrame, persistentAllocator, INITIAL_CAPACITY);
-    hash_table::construct(graph->pipelineToDescriptorPools, persistentAllocator, INITIAL_CAPACITY);
+    hash_table::construct(graph->textureInfoToCount, persistentAllocator, CONTAINERS_INITIAL_CAPACITY);
+    hash_table::construct(graph->textureInfoIndexedToTexture, persistentAllocator, CONTAINERS_INITIAL_CAPACITY);
+    hash_table::construct(graph->textureInfoIndexedToFrame, persistentAllocator, CONTAINERS_INITIAL_CAPACITY);
+    hash_table::construct(graph->programInfoToProgram, persistentAllocator, CONTAINERS_INITIAL_CAPACITY);
+    hash_table::construct(graph->programInfoToFrame, persistentAllocator, CONTAINERS_INITIAL_CAPACITY);
+    hash_table::construct(graph->renderPassInfoToRenderPass, persistentAllocator, CONTAINERS_INITIAL_CAPACITY);
+    hash_table::construct(graph->renderPassInfoToFrame, persistentAllocator, CONTAINERS_INITIAL_CAPACITY);
+    hash_table::construct(graph->framebufferInfoToFramebuffer, persistentAllocator, CONTAINERS_INITIAL_CAPACITY);
+    hash_table::construct(graph->framebufferInfoToFrame, persistentAllocator, CONTAINERS_INITIAL_CAPACITY);
+    hash_table::construct(graph->graphicsPipelineInfoToGraphicsPipeline, persistentAllocator, CONTAINERS_INITIAL_CAPACITY);
+    hash_table::construct(graph->graphicsPipelineInfoToFrame, persistentAllocator, CONTAINERS_INITIAL_CAPACITY);
+    hash_table::construct(graph->computePipelineInfoToComputePipeline, persistentAllocator, CONTAINERS_INITIAL_CAPACITY);
+    hash_table::construct(graph->computePipelineInfoToFrame, persistentAllocator, CONTAINERS_INITIAL_CAPACITY);
+    hash_table::construct(graph->samplerInfoToSampler, persistentAllocator, CONTAINERS_INITIAL_CAPACITY);
+    hash_table::construct(graph->samplerInfoToFrame, persistentAllocator, CONTAINERS_INITIAL_CAPACITY);
+    hash_table::construct(graph->pipelineToDescriptorPools, persistentAllocator, CONTAINERS_INITIAL_CAPACITY);
 }
 
 void se_vk_graph_destroy(SeVkGraph* graph)
@@ -181,6 +181,12 @@ void se_vk_graph_begin_frame(SeVkGraph* graph)
     se_vk_graph_free_old_resources(graph->programInfoToProgram, graph->programInfoToFrame, currentFrame, memoryManager);
     se_vk_graph_free_old_resources(graph->renderPassInfoToRenderPass, graph->renderPassInfoToFrame, currentFrame, memoryManager);
     se_vk_graph_free_old_resources(graph->samplerInfoToSampler, graph->samplerInfoToFrame, currentFrame, memoryManager);
+
+    dynamic_array::construct(graph->textureInfos, app_allocators::frame(), CONTAINERS_INITIAL_CAPACITY);
+    dynamic_array::construct(graph->passes, app_allocators::frame(), CONTAINERS_INITIAL_CAPACITY);
+    dynamic_array::construct(graph->graphicsPipelineInfos, app_allocators::frame(), CONTAINERS_INITIAL_CAPACITY);
+    dynamic_array::construct(graph->computePipelineInfos, app_allocators::frame(), CONTAINERS_INITIAL_CAPACITY);
+    dynamic_array::construct(graph->scratchBufferViews, app_allocators::frame(), CONTAINERS_INITIAL_CAPACITY);
 
     graph->context = SE_VK_GRAPH_CONTEXT_TYPE_IN_FRAME;
 }
@@ -288,16 +294,17 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
     //
     // Framebuffers
     //
+
     DynamicArray<SeVkFramebuffer*> frameFramebuffers = dynamic_array::create<SeVkFramebuffer*>(frameAllocator, numPasses);
     for (size_t it = 0; it < numPasses; it++)
     {
-        if (se_vk_ref_type(graph->passes[it].info.pipeline) == SE_VK_TYPE_COMPUTE_PIPELINE)
+        const SeVkGraphPass* pass = &graph->passes[it];
+        if (se_vk_ref_type(pass->info.pipeline) == SE_VK_TYPE_COMPUTE_PIPELINE)
         {
             dynamic_array::push(frameFramebuffers, nullptr);
         }
         else
         {
-            const SeVkGraphPass* pass = &graph->passes[it];
             SeVkFramebufferInfo info
             {
                 .device         = graph->device,
@@ -449,6 +456,11 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
         queuePresentDependencies |= 1ull << it;
         SeVkGraphPass* graphPass = &graph->passes[it];
         SeVkPipeline* pipeline = framePipelines[it];
+        SeVkFramebuffer* framebuffer = frameFramebuffers[it];
+        SeVkRenderPass* renderPass = frameRenderPasses[it];
+        //
+        // Get or allocate descriptor pool
+        //
         SeVkGraphDescriptorPoolArray* descriptorPools = nullptr;
         {
             SeVkGraphPipelineWithFrame pipelineWithFrame
@@ -476,56 +488,101 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
         };
         se_vk_command_buffer_construct(commandBuffer, &cmdInfo);
         //
-        // Prepare render targets and begin pass if needed
+        // Get list of all texture layout transitions necessary for this pass
         //
+        HashTable<SeVkTexture*, VkImageLayout> transitions;
+        hash_table::construct(transitions, app_allocators::frame(), SE_VK_FRAMEBUFFER_MAX_TEXTURES + SE_MAX_BINDINGS);
         if (se_vk_ref_type(graphPass->info.pipeline) == SE_VK_TYPE_GRAPHICS_PIPELINE)
         {
-            SeVkFramebuffer* framebuffer = frameFramebuffers[it];
-            SeVkRenderPass* renderPass = frameRenderPasses[it];
-            VkImageMemoryBarrier imageBarriers[SE_VK_FRAMEBUFFER_MAX_TEXTURES];
-            uint32_t numImageBarriers = 0;
-            VkPipelineStageFlags srcPipelineStageFlags = 0;
-            VkPipelineStageFlags dstPipelineStageFlags = 0;
             for (size_t texIt = 0; texIt < framebuffer->numTextures; texIt++)
             {
                 SeVkTexture* texture = *framebuffer->textures[texIt];
-                const VkImageLayout initialLayout = renderPass->attachmentLayoutInfos[texIt].initialLayout;
-                if (texture->currentLayout != initialLayout)
+                hash_table::set(transitions, texture, renderPass->attachmentLayoutInfos[texIt].initialLayout);
+            }
+        }
+        for (auto cmdIt : graphPass->commands)
+        {
+            const SeVkGraphCommand& command = iter::value(cmdIt);
+            if (command.type == SE_VK_GRAPH_COMMAND_TYPE_BIND)
+            {
+                const size_t numBindings = command.info.bind.numBindings;
+                for (size_t bindingIt = 0; bindingIt < numBindings; bindingIt++)
                 {
-                    imageBarriers[numImageBarriers++] =
+                    const SeBinding& binding = command.info.bind.bindings[bindingIt];
+                    if (se_vk_ref_type(binding.object) == SE_VK_TYPE_TEXTURE)
                     {
-                        .sType                  = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-                        .pNext                  = nullptr,
-                        .srcAccessMask          = se_vk_utils_image_layout_to_access_flags(texture->currentLayout),
-                        .dstAccessMask          = se_vk_utils_image_layout_to_access_flags(initialLayout),
-                        .oldLayout              = texture->currentLayout,
-                        .newLayout              = initialLayout,
-                        .srcQueueFamilyIndex    = VK_QUEUE_FAMILY_IGNORED,
-                        .dstQueueFamilyIndex    = VK_QUEUE_FAMILY_IGNORED,
-                        .image                  = texture->image,
-                        .subresourceRange       = texture->fullSubresourceRange,
-                    };
-                    srcPipelineStageFlags |= se_vk_utils_image_layout_to_pipeline_stage_flags(texture->currentLayout);
-                    dstPipelineStageFlags |= se_vk_utils_image_layout_to_pipeline_stage_flags(initialLayout);
-                    texture->currentLayout = initialLayout;
+                        SeVkTexture* texture = frameTextures[se_vk_ref_index(binding.object)];
+                        const bool isDepth = se_vk_utils_is_depth_stencil_format(texture->format);
+                        VkImageLayout* layout = hash_table::get(transitions, texture);
+                        if (!layout)
+                        {
+                            // @TODO : use more precise layout pick logic (different layouts for depth- or stencil-only formats) :
+                            // https://vulkan.lunarg.com/doc/view/1.2.198.1/windows/1.2-extensions/vkspec.html#descriptorsets-combinedimagesample
+                            const VkImageLayout newLayout = se_vk_utils_is_depth_stencil_format(texture->format)
+                                ? VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
+                                : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                            hash_table::set(transitions, texture, newLayout);
+                        }
+                        else
+                        {
+                            *layout = VK_IMAGE_LAYOUT_GENERAL; // Is this correct ?
+                        }
+                    }
                 }
             }
-            if (numImageBarriers)
+        }
+        //
+        // Transition image layouts
+        //
+        VkImageMemoryBarrier imageBarriers[SE_VK_FRAMEBUFFER_MAX_TEXTURES + SE_MAX_BINDINGS];
+        uint32_t numImageBarriers = 0;
+        VkPipelineStageFlags srcPipelineStageFlags = 0;
+        VkPipelineStageFlags dstPipelineStageFlags = 0;
+        for (auto transitionIt : transitions)
+        {
+            SeVkTexture* texture = iter::key(transitionIt);
+            VkImageLayout layout = iter::value(transitionIt);
+            if (texture->currentLayout != layout)
             {
-                vkCmdPipelineBarrier
-                (
-                    commandBuffer->handle,
-                    srcPipelineStageFlags,
-                    dstPipelineStageFlags,
-                    0,
-                    0,
-                    nullptr,
-                    0,
-                    nullptr,
-                    numImageBarriers,
-                    imageBarriers
-                );
+                imageBarriers[numImageBarriers++] =
+                {
+                    .sType                  = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                    .pNext                  = nullptr,
+                    .srcAccessMask          = se_vk_utils_image_layout_to_access_flags(texture->currentLayout),
+                    .dstAccessMask          = se_vk_utils_image_layout_to_access_flags(layout),
+                    .oldLayout              = texture->currentLayout,
+                    .newLayout              = layout,
+                    .srcQueueFamilyIndex    = VK_QUEUE_FAMILY_IGNORED,
+                    .dstQueueFamilyIndex    = VK_QUEUE_FAMILY_IGNORED,
+                    .image                  = texture->image,
+                    .subresourceRange       = texture->fullSubresourceRange,
+                };
+                srcPipelineStageFlags |= se_vk_utils_image_layout_to_pipeline_stage_flags(texture->currentLayout);
+                dstPipelineStageFlags |= se_vk_utils_image_layout_to_pipeline_stage_flags(layout);
+                texture->currentLayout = layout;
             }
+        }
+        if (numImageBarriers)
+        {
+            vkCmdPipelineBarrier
+            (
+                commandBuffer->handle,
+                srcPipelineStageFlags,
+                dstPipelineStageFlags,
+                0,
+                0,
+                nullptr,
+                0,
+                nullptr,
+                numImageBarriers,
+                imageBarriers
+            );
+        }
+        //
+        // Begin pass
+        //
+        if (se_vk_ref_type(graphPass->info.pipeline) == SE_VK_TYPE_GRAPHICS_PIPELINE)
+        {
             VkViewport viewport
             {
                 .x          = 0.0f,
@@ -558,25 +615,24 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
         //
         // Record commands
         //
-        const size_t numCommands = dynamic_array::size(graphPass->commands);
-        for (size_t cmdIt = 0; cmdIt < numCommands; cmdIt++)
+        for (auto cmdIt : graphPass->commands)
         {
-            SeVkGraphCommand* command = &graphPass->commands[cmdIt];
-            switch (command->type)
+            SeVkGraphCommand& command = iter::value(cmdIt);
+            switch (command.type)
             {
                 case SE_VK_GRAPH_COMMAND_TYPE_DRAW:
                 {
-                    SeCommandDrawInfo* draw = &command->info.draw;
+                    SeCommandDrawInfo* draw = &command.info.draw;
                     vkCmdDraw(commandBuffer->handle, draw->numVertices, draw->numInstances, 0, 0);
                 } break;
                 case SE_VK_GRAPH_COMMAND_TYPE_DISPATCH:
                 {
-                    SeCommandDispatchInfo* dispatch = &command->info.dispatch;
+                    SeCommandDispatchInfo* dispatch = &command.info.dispatch;
                     vkCmdDispatch(commandBuffer->handle, dispatch->groupCountX, dispatch->groupCountY, dispatch->groupCountZ);
                 } break;
                 case SE_VK_GRAPH_COMMAND_TYPE_BIND:
                 {
-                    SeCommandBindInfo* bindCommandInfo = &command->info.bind;
+                    SeCommandBindInfo* bindCommandInfo = &command.info.bind;
                     se_assert(bindCommandInfo->numBindings);
                     se_assert(pipeline->numDescriptorSetLayouts > bindCommandInfo->set);
                     //
@@ -704,7 +760,6 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
         {
             for (size_t depIt = 0; depIt < SE_MAX_PASS_DEPENDENCIES; depIt++)
             {
-                queuePresentDependencies &= ~(1ull << depIt);
                 if (graphPass->info.dependencies & (1ull << depIt))
                 {
                     se_assert(depIt < it);
@@ -712,6 +767,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
                     waitSemaphores[numWaitSemaphores] = depCmd->semaphore;
                     waitStages[numWaitSemaphores] = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT; // @TODO : optimize
                     numWaitSemaphores += 1;
+                    queuePresentDependencies &= ~(1ull << depIt);
                 }
             }
         }
@@ -828,15 +884,14 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
     dynamic_array::destroy(frameRenderPasses);
     dynamic_array::destroy(frameTextures);
 
-    dynamic_array::reset(graph->textureInfos);
-    dynamic_array::reset(graph->passes);
-    dynamic_array::reset(graph->graphicsPipelineInfos);
-    dynamic_array::reset(graph->computePipelineInfos);
-    dynamic_array::reset(graph->scratchBufferViews);
+    dynamic_array::destroy(graph->textureInfos);
+    dynamic_array::destroy(graph->passes);
+    dynamic_array::destroy(graph->graphicsPipelineInfos);
+    dynamic_array::destroy(graph->computePipelineInfos);
+    dynamic_array::destroy(graph->scratchBufferViews);
 
     graph->context = SE_VK_GRAPH_CONTEXT_TYPE_BETWEEN_FRAMES;
 }
-
 
 void se_vk_graph_begin_pass(SeVkGraph* graph, const SeBeginPassInfo& info)
 {
@@ -981,7 +1036,6 @@ SeRenderRef se_vk_graph_program(SeVkGraph* graph, const SeProgramInfo& info)
             se_vk_program_construct(*hashedProgram, &vkInfo);
         }
         hash_table::set(graph->programInfoToFrame, vkInfo, frameManager->frameNumber);
-        
         program = *hashedProgram;
     }
     else
@@ -1019,7 +1073,7 @@ SeRenderRef se_vk_graph_swap_chain_texture(SeVkGraph* graph)
 
 SeRenderRef se_vk_graph_memory_buffer(SeVkGraph* graph, const SeMemoryBufferInfo& info)
 {
-    se_assert(graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_FRAME);
+    se_assert(graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_FRAME || graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_PASS);
 
     // @TODO : create persistent buffer if se_vk_graph_memory_buffer call was done outside of begin-end pass region
     SeVkFrameManager* frameManager = &graph->device->frameManager;
@@ -1050,7 +1104,7 @@ SeRenderRef se_vk_graph_compute_pipeline(SeVkGraph* graph, const SeComputePipeli
 
 SeRenderRef se_vk_graph_sampler(SeVkGraph* graph, const SeSamplerInfo& info)
 {
-    se_assert(graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_FRAME);
+    se_assert(graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_FRAME || graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_PASS);
 
     SeVkMemoryManager* memoryManager = &graph->device->memoryManager;
     ObjectPool<SeVkSampler>& samplerPool = se_vk_memory_manager_get_pool<SeVkSampler>(memoryManager);
