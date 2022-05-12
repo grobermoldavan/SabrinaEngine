@@ -53,10 +53,13 @@ static uint64_t se_get_perf_frequency()
 
 void se_initialize(SabrinaEngine* engine)
 {
-    engine->load_dynamic_library = se_load_dynamic_library;
-    engine->find_function_address = se_get_dynamic_library_function_address;
-    engine->subsystemStorage = { };
-    engine->shouldRun = true;
+    *engine =
+    {
+        .load_dynamic_library   = se_load_dynamic_library,
+        .find_function_address  = se_get_dynamic_library_function_address,
+        .subsystemStorage       = { },
+        .shouldRun              = true,
+    };
 }
 
 void se_run(SabrinaEngine* engine)

@@ -3,7 +3,6 @@
 
 #include <string.h>
 #include "common_includes.hpp"
-#include "debug.hpp"
 #include "se_math.hpp"
 #include "allocator_bindings.hpp"
 #include "containers.hpp"
@@ -12,8 +11,8 @@
 #include "subsystems/se_stack_allocator_subsystem.hpp"
 #include "subsystems/se_pool_allocator_subsystem.hpp"
 #include "subsystems/se_application_allocators_subsystem.hpp"
-#include "subsystems/se_logging_subsystem.hpp"
 #include "subsystems/se_string_subsystem.hpp"
+#include "subsystems/se_debug_subsystem.hpp"
 #include "subsystems/se_window_subsystem.hpp"
 #include "subsystems/se_vulkan_render_abstraction_subsystem.hpp"
 
@@ -48,13 +47,15 @@ struct SeSubsystemStorage
 struct SabrinaEngine
 {
     SeLibraryHandle (*load_dynamic_library)(const char* name);
-    void* (*find_function_address)(SeLibraryHandle lib, const char* name);
+    void*           (*find_function_address)(SeLibraryHandle lib, const char* name);
 
     SeSubsystemStorage subsystemStorage;
     bool shouldRun;
 };
 
 void se_initialize(SabrinaEngine* engine);
+
+void se_run(SabrinaEngine* engine);
 
 template<typename Subsystem>
 void se_add_subsystem(SabrinaEngine* engine)
@@ -105,7 +106,26 @@ const Iterface* se_get_subsystem_interface(SabrinaEngine* engine)
     return nullptr;
 }
 
+void se_add_default_subsystems(SabrinaEngine* engine)
+{
+    se_add_subsystem<SePlatformSubsystem>(engine);
+    se_add_subsystem<SeStackAllocatorSubsystem>(engine);
+    se_add_subsystem<SePoolAllocatorSubsystem>(engine);
+    se_add_subsystem<SeApplicationAllocatorsSubsystem>(engine);
+    se_add_subsystem<SeStringSubsystem>(engine);
+    se_add_subsystem<SeDebugSubsystem>(engine);
+    se_add_subsystem<SeWindowSubsystem>(engine);
+}
 
-void se_run(SabrinaEngine* engine);
+void se_init_global_subsystem_pointers(SabrinaEngine* engine)
+{
+    SE_PLATFORM_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SePlatformSubsystemInterface>(engine);
+    SE_STACK_ALLOCATOR_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeStackAllocatorSubsystemInterface>(engine);
+    SE_POOL_ALLOCATOR_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SePoolAllocatorSubsystemInterface>(engine);
+    SE_APPLICATION_ALLOCATORS_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeApplicationAllocatorsSubsystemInterface>(engine);
+    SE_STRING_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeStringSubsystemInterface>(engine);
+    SE_DEBUG_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeDebugSubsystemInterface>(engine);
+    SE_WINDOW_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeWindowSubsystemInterface>(engine);
+}
 
 #endif

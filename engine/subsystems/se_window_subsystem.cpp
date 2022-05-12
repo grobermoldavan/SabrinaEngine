@@ -11,6 +11,7 @@ static SeWindowSubsystemInterface g_iface;
 SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
 {
     fill_iface(&g_iface);
+    se_init_global_subsystem_pointers(engine);
 }
 
 SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)

@@ -1,9 +1,5 @@
 
 #include "se_pool_allocator_subsystem.hpp"
-#include "se_platform_subsystem.hpp"
-#include "engine/common_includes.hpp"
-#include "engine/allocator_bindings.hpp"
-#include "engine/debug.hpp"
 #include "engine/engine.hpp"
 
 struct SePoolMemoryBucketCompareInfo
@@ -240,7 +236,7 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
         .destroy                = se_pool_allocator_destroy,
         .to_allocator_bindings  = se_pool_allocator_to_allocator_bindings,
     };
-    SE_PLATFORM_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SePlatformSubsystemInterface>(engine);
+    se_init_global_subsystem_pointers(engine);
 }
 
 SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)

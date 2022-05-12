@@ -6,7 +6,7 @@
 #define WIN32_LEAN_AND_MEAN 
 #include <Windows.h>
 #include <string.h>
-#include "engine/debug.hpp"
+#include "engine/engine.hpp"
 
 static HANDLE se_platform_handle_from_se_handle(SeFileHandle handle)
 {
@@ -235,7 +235,7 @@ void se_platform_file_write(SeFile* file, const void* data, size_t size)
 
 static SePlatformSubsystemInterface g_iface;
 
-SE_DLL_EXPORT void se_load(struct SabrinaEngine* engine)
+SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
 {
     g_iface =
     {
@@ -263,9 +263,10 @@ SE_DLL_EXPORT void se_load(struct SabrinaEngine* engine)
         .file_free_content          = se_platform_file_free_content,
         .file_write                 = se_platform_file_write,
     };
+    se_init_global_subsystem_pointers(engine);
 }
 
-SE_DLL_EXPORT void* se_get_interface(struct SabrinaEngine* engine)
+SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
 {
     return &g_iface;
 }

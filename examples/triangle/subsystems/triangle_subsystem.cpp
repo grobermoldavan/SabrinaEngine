@@ -49,12 +49,8 @@ SeRenderRef sync_load_shader(const char* path)
 
 SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 {
-    SE_WINDOW_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeWindowSubsystemInterface>(engine);
+    se_init_global_subsystem_pointers(engine);
     render = se_get_subsystem_interface<SeRenderAbstractionSubsystemInterface>(engine);
-    SE_APPLICATION_ALLOCATORS_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeApplicationAllocatorsSubsystemInterface>(engine);
-    SE_PLATFORM_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SePlatformSubsystemInterface>(engine);
-    SE_STRING_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeStringSubsystemInterface>(engine);
-    SE_LOGGING_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeLoggingSubsystemInterface>(engine);
     
     SeWindowSubsystemCreateInfo windowInfo
     {

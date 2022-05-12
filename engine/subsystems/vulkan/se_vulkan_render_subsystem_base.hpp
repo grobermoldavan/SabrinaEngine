@@ -14,7 +14,7 @@
 
 #include "engine/libs/volk/volk.h"
 #include "engine/render_abstraction_interface.hpp"
-#include "engine/debug.hpp"
+#include "engine/subsystems/se_debug_subsystem.hpp"
 
 enum SeVkType
 {

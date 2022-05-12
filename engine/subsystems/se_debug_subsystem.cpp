@@ -1,10 +1,5 @@
 
-#include <locale.h>
-#include "se_logging_subsystem.hpp"
-#include "se_platform_subsystem.hpp"
-#include "se_application_allocators_subsystem.hpp"
-#include "engine/containers.hpp"
-#include "engine/debug.hpp"
+#include "se_debug_subsystem.hpp"
 #include "engine/engine.hpp"
 
 #ifdef _WIN32
@@ -14,18 +9,18 @@
 
 static HANDLE g_outputHandle = INVALID_HANDLE_VALUE;
 
-void se_log_platform_init()
+void se_debug_platform_init()
 {
     SetConsoleOutputCP(CP_UTF8);
     g_outputHandle = GetStdHandle(STD_OUTPUT_HANDLE);
 }
 
-void se_log_platform_terminate()
+void se_debug_platform_terminate()
 {
     g_outputHandle = INVALID_HANDLE_VALUE;
 }
 
-void se_log_platform_output(const char* str)
+void se_debug_platform_output(const char* str)
 {
     static const char* nextLine = "\n";
     static const DWORD nextLineLen = (DWORD)strlen(nextLine);
@@ -33,7 +28,7 @@ void se_log_platform_output(const char* str)
     WriteFile(g_outputHandle, nextLine, nextLineLen, NULL, NULL);
 }
 
-void se_log_platform_thread_yeild()
+void se_debug_platform_thread_yeild()
 {
     SwitchToThread();
 }
@@ -42,7 +37,7 @@ void se_log_platform_thread_yeild()
 #   error Unsupported platform
 #endif
 
-static SeLoggingSubsystemInterface g_iface;
+static SeDebugSubsystemInterface g_iface;
 
 struct SeLogEntry
 {
@@ -53,15 +48,15 @@ struct SeLogEntry
 static ThreadSafeQueue<SeLogEntry> g_logQueue;
 static uint64_t g_isFlushing;
 
-static void se_log_wait_for_flush()
+static void se_debug_wait_for_flush()
 {
     while (platform::get()->atomic_64_bit_load(&g_isFlushing, SE_ACQUIRE))
     {
-        se_log_platform_thread_yeild();
+        se_debug_platform_thread_yeild();
     }
 }
 
-static bool se_log_try_flush()
+static bool se_debug_try_flush()
 {
     uint64_t expected = 0;
     // Try to lock the writing flag
@@ -71,7 +66,7 @@ static bool se_log_try_flush()
         SeLogEntry entry;
         while (thread_safe_queue::dequeue(g_logQueue, &entry))
         {
-            se_log_platform_output(entry.memory);
+            se_debug_platform_output(entry.memory);
         }
         platform::get()->atomic_64_bit_store(&g_isFlushing, 0, SE_RELEASE);
         return true;
@@ -80,7 +75,7 @@ static bool se_log_try_flush()
     return false;
 }
 
-static void se_log_submit(const char* fmt, const char** args, size_t numArgs)
+static void se_debug_submit(const char* fmt, const char** args, size_t numArgs)
 {
     //
     // Prepare log entry
@@ -140,31 +135,40 @@ static void se_log_submit(const char* fmt, const char** args, size_t numArgs)
     // Push entry to log queue
     //
 
-    se_log_wait_for_flush();
+    se_debug_wait_for_flush();
     while (!thread_safe_queue::enqueue(g_logQueue, entry))
     {
-        if (!se_log_try_flush())
+        if (!se_debug_try_flush())
         {
-            se_log_wait_for_flush();
+            se_debug_wait_for_flush();
         }
     }
 }
 
+static void se_debug_abort()
+{
+    se_debug_try_flush();
+    int* crash = 0;
+    *crash = 0;
+}
+
 SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
 {
-    SE_PLATFORM_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SePlatformSubsystemInterface>(engine);
-    SE_APPLICATION_ALLOCATORS_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeApplicationAllocatorsSubsystemInterface>(engine);
     g_iface =
     {
-        .print = se_log_submit,
+        .print      = se_debug_submit,
+        .abort      = se_debug_abort,
+        .isInited   = false,
     };
     g_isFlushing = 0;
+    se_init_global_subsystem_pointers(engine);
 }
 
 SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 {
-    se_log_platform_init();
+    se_debug_platform_init();
     thread_safe_queue::construct(g_logQueue, app_allocators::persistent(), platform::get(), utils::power_of_two<4096>());
+    g_iface.isInited = true;
 }
 
 SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
@@ -174,12 +178,12 @@ SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
 
 SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* updateInfo)
 {
-    se_log_try_flush();
+    se_debug_try_flush();
 }
 
 SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
 {
-    se_log_try_flush();
+    se_debug_try_flush();
     thread_safe_queue::destroy(g_logQueue);
-    se_log_platform_terminate();
+    se_debug_platform_terminate();
 }

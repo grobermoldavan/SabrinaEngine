@@ -1,13 +1,9 @@
 
 #include "se_string_subsystem.hpp"
-#include "se_platform_subsystem.hpp"
-#include "se_application_allocators_subsystem.hpp"
-#include "engine/containers.hpp"
-#include "engine/se_math.hpp"
-#include "engine/debug.hpp"
 #include "engine/engine.hpp"
 
-#include <cstring>
+#include <string.h>
+#include <stdio.h>
 
 struct SeStringData
 {
@@ -154,8 +150,7 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
         .uint64_to_cstr             = se_string_from_uint64,
         .double_to_cstr             = se_string_from_double,
     };
-    SE_APPLICATION_ALLOCATORS_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeApplicationAllocatorsSubsystemInterface>(engine);
-    SE_PLATFORM_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SePlatformSubsystemInterface>(engine);
+    se_init_global_subsystem_pointers(engine);
 }
 
 SE_DLL_EXPORT void se_init(SabrinaEngine* engine)

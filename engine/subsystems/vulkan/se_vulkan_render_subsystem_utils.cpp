@@ -5,7 +5,6 @@
 #include "engine/render_abstraction_interface.hpp"
 #include "engine/se_math.hpp"
 #include "engine/containers.hpp"
-#include "engine/debug.hpp"
 
 const char** se_vk_utils_get_required_validation_layers(size_t* outNum)
 {

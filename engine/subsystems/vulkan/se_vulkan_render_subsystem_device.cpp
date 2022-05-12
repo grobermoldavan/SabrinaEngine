@@ -4,7 +4,6 @@
 #include "engine/subsystems/se_window_subsystem.hpp"
 #include "engine/subsystems/se_application_allocators_subsystem.hpp"
 #include "engine/allocator_bindings.hpp"
-#include "engine/debug.hpp"
 
 #define SE_VK_INVALID_DEVICE_RATING -1.0f
 
@@ -299,7 +298,7 @@ SeDeviceHandle se_vk_device_create(const SeDeviceInfo& deviceInfo)
                     break;
                 }
             }
-            se_assert(isFound && "Required validation layer is not supported");
+            se_assert_msg(isFound, "Required validation layer is not supported");
         }
         dynamic_array::destroy(availableValidationLayers);
 #endif
@@ -322,7 +321,7 @@ SeDeviceHandle se_vk_device_create(const SeDeviceInfo& deviceInfo)
                     break;
                 }
             }
-            se_assert(isFound && "Required instance extension is not supported");
+            se_assert_msg(isFound, "Required instance extension is not supported");
         }
         dynamic_array::destroy(availableInstanceExtensions);
         VkApplicationInfo applicationInfo =

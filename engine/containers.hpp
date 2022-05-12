@@ -8,7 +8,7 @@
 
 #include "common_includes.hpp"
 #include "allocator_bindings.hpp"
-#include "engine/debug.hpp"
+#include "engine/subsystems/se_debug_subsystem.hpp"
 #include "engine/subsystems/se_platform_subsystem.hpp"
 #include "engine/libs/meow_hash/meow_hash_x64_aesni.h"
 

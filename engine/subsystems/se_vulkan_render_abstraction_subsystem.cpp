@@ -14,10 +14,6 @@
 #include "vulkan/se_vulkan_render_subsystem_texture.hpp"
 #include "vulkan/se_vulkan_render_subsystem_command_buffer.hpp"
 #include "vulkan/se_vulkan_render_subsystem_utils.hpp"
-#include "engine/subsystems/se_window_subsystem.hpp"
-#include "engine/subsystems/se_application_allocators_subsystem.hpp"
-#include "engine/subsystems/se_platform_subsystem.hpp"
-#include "engine/subsystems/se_string_subsystem.hpp"
 #include "engine/engine.hpp"
 
 static SeRenderAbstractionSubsystemInterface g_iface;
@@ -127,10 +123,7 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
         .dispatch                       = nullptr,
         .perspective_projection_matrix  = se_vk_perspective_projection_matrix,
     };
-    SE_WINDOW_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeWindowSubsystemInterface>(engine);
-    SE_APPLICATION_ALLOCATORS_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeApplicationAllocatorsSubsystemInterface>(engine);
-    SE_PLATFORM_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SePlatformSubsystemInterface>(engine);
-    SE_STRING_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeStringSubsystemInterface>(engine);
+    se_init_global_subsystem_pointers(engine);
 }
 
 SE_DLL_EXPORT void se_init(SabrinaEngine* engine)

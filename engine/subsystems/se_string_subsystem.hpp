@@ -3,6 +3,7 @@
 
 #include "engine/common_includes.hpp"
 #include <concepts>
+#include <type_traits>
 
 enum struct SeStringLifetime
 {
@@ -136,6 +137,15 @@ namespace string
         char buffer[64];
         SE_STRING_SUBSYSTEM_GLOBAL_NAME->double_to_cstr(value, buffer, sizeof(buffer));
         return string::create(buffer, lifetime);
+    }
+
+    template <class T>
+    concept cstring = std::is_same_v<T, const char*> || std::is_same_v<T, char*>;
+
+    template<cstring T>
+    SeString cast(const T& value, SeStringLifetime lifetime = SeStringLifetime::Temporary)
+    {
+        return string::create(value, lifetime);
     }
 }
 

@@ -82,7 +82,7 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
         .to_allocator_bindings  = se_stack_to_allocator_bindings,
         .reset                  = se_stack_reset,
     };
-    SE_PLATFORM_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SePlatformSubsystemInterface>(engine);
+    se_init_global_subsystem_pointers(engine);
 }
 
 SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
