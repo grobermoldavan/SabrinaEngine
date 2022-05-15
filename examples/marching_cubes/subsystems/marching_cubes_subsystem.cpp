@@ -1,7 +1,7 @@
 
-#include "marching_cubes_subsystem.h"
-#include "camera/debug_camera.h"
-#include "engine/engine.h"
+#include "marching_cubes_subsystem.hpp"
+#include "camera/debug_camera.hpp"
+#include "engine/engine.hpp"
 
 //
 // Based on http://paulbourke.net/geometry/polygonise/
@@ -9,52 +9,30 @@
 
 #define CHUNK_DIM 64
 
-typedef struct Vertex
+struct Vertex
 {
     SeFloat4 position;
     SeFloat4 normal;
-} Vertex;
+};
 
-typedef struct FrameData
+struct FrameData
 {
     SeFloat4x4 viewProjection;
     float time;
     float isoLevel;
     float _pad[2];
-} FrameData;
+};
 
-const SeWindowSubsystemInterface* windowIface;
-const SeApplicationAllocatorsSubsystemInterface* allocators;
-const SeRenderAbstractionSubsystemInterface* render;
-const SePlatformSubsystemInterface* platform;
+const SeRenderAbstractionSubsystemInterface* g_render;
 
-SeWindowHandle window;
-
-SeRenderObject* device;
-
-SeRenderObject* clearChunkCs;
-SeRenderObject* generateChunkCs;
-SeRenderObject* triangulateChunkCs;
-SeRenderObject* renderChunkVs;
-SeRenderObject* renderChunkFs;
-
-SeRenderObject* renderChunkPass;
-
-SeRenderObject* clearChunkPipeline;
-SeRenderObject* generateChunkPipeline;
-SeRenderObject* triangulateChunkPipeline;
-SeRenderObject* renderChunkPipeline;
-
-SeRenderObject* depthTexture;
-se_sbuffer(SeRenderObject*) renderChunkFramebuffers;
-
-SeRenderObject* chunkGridValuesBuffer;
-SeRenderObject* chunkGeometryBuffer;
-SeRenderObject* edgeTableBuffer;
-SeRenderObject* triangleTableBuffer;
-SeRenderObject* frameDataBuffer;
-
-DebugCamera camera;
+SeWindowHandle  g_window;
+SeDeviceHandle  g_device;
+SeRenderRef     g_clearChunkCs;
+SeRenderRef     g_generateChunkCs;
+SeRenderRef     g_triangulateChunkCs;
+SeRenderRef     g_renderChunkVs;
+SeRenderRef     g_renderChunkFs;
+DebugCamera     g_camera;
 
 const int32_t EDGE_TABLE[256] =
 {
@@ -352,34 +330,32 @@ const int32_t TRIANGLE_TABLE[256][16] =
     {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
 };
 
-SeRenderObject* sync_load_shader(const char* path)
+SeRenderRef sync_load_shader(const char* path)
 {
-    SeFile shader = {0};
-    SeFileContent content = {0};
-    platform->file_load(&shader, path, SE_FILE_READ);
-    platform->file_read(&content, &shader, allocators->frameAllocator);
-    SeRenderProgramCreateInfo createInfo = (SeRenderProgramCreateInfo)
+    SeFile shader = { };
+    SeFileContent content = { };
+    platform::get()->file_load(&shader, path, SE_FILE_READ);
+    SeAllocatorBindings allocator = app_allocators::frame();
+    platform::get()->file_read(&content, &shader, &allocator);
+    SeProgramInfo createInfo
     {
-        .device = device,
         .bytecode = (uint32_t*)content.memory,
-        .codeSizeBytes = content.size,
+        .bytecodeSize = content.size,
     };
-    SeRenderObject* program = render->program_create(&createInfo);
-    platform->file_free_content(&content);
-    platform->file_unload(&shader);
+    SeRenderRef program = g_render->program(g_device, createInfo);
+    platform::get()->file_free_content(&content);
+    platform::get()->file_unload(&shader);
     return program;
 }
 
 SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 {
-    windowIface = se_get_subsystem_interface<SeWindowSubsystemInterface>(engine);
-    allocators = se_get_subsystem_interface<SeApplicationAllocatorsSubsystemInterface>(engine);
-    render = se_get_subsystem_interface<SeRenderAbstractionSubsystemInterface>(engine);
-    platform = &engine->platformIface;
+    se_init_global_subsystem_pointers(engine);
+    g_render = se_get_subsystem_interface<SeRenderAbstractionSubsystemInterface>(engine);
     //
     // Create window
     //
-    window = windowIface->create(&(SeWindowSubsystemCreateInfo)
+    g_window = win::create(
     {
         .name           = "Sabrina engine - marching cubes example",
         .isFullscreen   = false,
@@ -390,379 +366,160 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
     //
     // Create device
     //
-    device = render->device_create(&(SeRenderDeviceCreateInfo)
-    {
-        .window                 = &window,
-        .platform               = platform,
-    });
+    g_device = g_render->device_create({ g_window });
     //
     // Load shaders
     //
-    clearChunkCs        = sync_load_shader("assets/application/shaders/clear_chunk.comp.spv");
-    generateChunkCs     = sync_load_shader("assets/application/shaders/generate_chunk.comp.spv");
-    triangulateChunkCs  = sync_load_shader("assets/application/shaders/triangulate_chunk.comp.spv");
-    renderChunkVs       = sync_load_shader("assets/application/shaders/render_chunk.vert.spv");
-    renderChunkFs       = sync_load_shader("assets/application/shaders/render_chunk.frag.spv");
-    //
-    // Create render pass
-    //
-    {
-        SeRenderPassAttachment colorAttachments[] =
-        {
-            {
-                .format     = SE_TEXTURE_FORMAT_SWAP_CHAIN,
-                .loadOp     = SE_ATTACHMENT_LOAD_OP_CLEAR,
-                .storeOp    = SE_ATTACHMENT_STORE_OP_STORE,
-                .sampling   = SE_SAMPLING_1,
-            },
-        };
-        SeRenderPassAttachment depthAttachment = (SeRenderPassAttachment)
-        {
-            .format     = SE_TEXTURE_FORMAT_DEPTH_STENCIL,
-            .loadOp     = SE_ATTACHMENT_LOAD_OP_CLEAR,
-            .storeOp    = SE_ATTACHMENT_STORE_OP_STORE,
-            .sampling   = SE_SAMPLING_1,
-        };
-        uint32_t colorRefs[] = { 0 };
-        SeRenderPassSubpass subpasses[] =
-        {
-            {
-                .colorRefs      = colorRefs,
-                .numColorRefs   = se_array_size(colorRefs),
-                .inputRefs      = NULL,
-                .numInputRefs   = 0,
-                .resolveRefs    = NULL,
-                .numResolveRefs = 0,
-                .depthOp        = SE_DEPTH_OP_READ_WRITE,
-            }
-        };
-        renderChunkPass = render->render_pass_create(&(SeRenderPassCreateInfo)
-        {
-            .subpasses              = subpasses,
-            .numSubpasses           = se_array_size(subpasses),
-            .colorAttachments       = colorAttachments,
-            .numColorAttachments    = se_array_size(colorAttachments),
-            .depthStencilAttachment = &depthAttachment,
-            .device                 = device,
-        });
-    }
-    //
-    // Create pipelines
-    //
-    SeSpecializationConstant specConstants[] =
-    {
-        { .constantId = 0, .asUint = CHUNK_DIM, },
-        { .constantId = 1, .asUint = CHUNK_DIM, },
-        { .constantId = 2, .asUint = CHUNK_DIM, },
-    };
-    clearChunkPipeline = render->render_pipeline_compute_create(&(SeComputeRenderPipelineCreateInfo)
-    {
-        .device = device,
-        .program = (SeProgramWithConstants)
-        {
-            .program                    = clearChunkCs,
-            .specializationConstants    = specConstants,
-            .numSpecializationConstants = se_array_size(specConstants),
-        },
-    });
-    generateChunkPipeline = render->render_pipeline_compute_create(&(SeComputeRenderPipelineCreateInfo)
-    {
-        .device = device,
-        .program = (SeProgramWithConstants)
-        {
-            .program                    = generateChunkCs,
-            .specializationConstants    = specConstants,
-            .numSpecializationConstants = se_array_size(specConstants),
-        },
-    });
-    triangulateChunkPipeline = render->render_pipeline_compute_create(&(SeComputeRenderPipelineCreateInfo)
-    {
-        .device = device,
-        .program = (SeProgramWithConstants)
-        {
-            .program                    = triangulateChunkCs,
-            .specializationConstants    = specConstants,
-            .numSpecializationConstants = se_array_size(specConstants),
-        },
-    });
-    renderChunkPipeline = render->render_pipeline_graphics_create(&(SeGraphicsRenderPipelineCreateInfo)
-    {
-        .device                 = device,
-        .renderPass             = renderChunkPass,
-        .vertexProgram          = { renderChunkVs },
-        .fragmentProgram        = { renderChunkFs },
-        .frontStencilOpState    = NULL,
-        .backStencilOpState     = NULL,
-        .depthTestState         = &(SeDepthTestState)
-        {
-            .isTestEnabled  = true,
-            .isWriteEnabled = true,
-        },
-        .subpassIndex           = 0,
-        .poligonMode            = SE_PIPELINE_POLIGON_FILL_MODE_FILL,
-        .cullMode               = SE_PIPELINE_CULL_MODE_BACK,
-        .frontFace              = SE_PIPELINE_FRONT_FACE_COUNTER_CLOCKWISE,
-        .samplingType           = SE_SAMPLING_1,
-    });
-    //
-    // Create textures
-    //
-    depthTexture = render->texture_create(&(SeTextureCreateInfo)
-    {
-        .device = device,
-        .width  = (SeSizeParamater) { .type = SE_SIZE_PARAMETER_DYNAMIC, .dynamicSize = se_size_parameter_dynamic_default_width },
-        .height = (SeSizeParamater) { .type = SE_SIZE_PARAMETER_DYNAMIC, .dynamicSize = se_size_parameter_dynamic_default_height },
-        .usage  = SE_TEXTURE_USAGE_RENDER_PASS_ATTACHMENT,
-        .format = SE_TEXTURE_FORMAT_DEPTH_STENCIL,
-    });
-    //
-    // Create framebuffers
-    //
-    {
-        const size_t numSwapChainTextures = render->get_swap_chain_textures_num(device);
-        se_sbuffer_construct(renderChunkFramebuffers, numSwapChainTextures, allocators->persistentAllocator);
-        for (size_t it = 0; it < numSwapChainTextures; it++)
-        {
-            SeRenderObject* attachments[] = { render->get_swap_chain_texture(device, it), depthTexture };
-            SeRenderObject* fb = render->framebuffer_create(&(SeFramebufferCreateInfo)
-            {
-                .attachmentsPtr = attachments,
-                .numAttachments = se_array_size(attachments),
-                .renderPass     = renderChunkPass,
-                .device         = device,
-            });
-            se_sbuffer_push(renderChunkFramebuffers, fb);
-        }
-    }
-    //
-    // Create buffers
-    //
-    chunkGridValuesBuffer = render->memory_buffer_create(&(SeMemoryBufferCreateInfo)
-    {
-        .device     = device,
-        .size       = sizeof(float) * CHUNK_DIM * CHUNK_DIM * CHUNK_DIM,
-        .usage      = SE_MEMORY_BUFFER_USAGE_STORAGE_BUFFER,
-        .visibility = SE_MEMORY_BUFFER_VISIBILITY_GPU,
-    });
-    chunkGeometryBuffer = render->memory_buffer_create(&(SeMemoryBufferCreateInfo)
-    {
-        .device     = device,
-        .size       = sizeof(Vertex) * 5 * 3 * (CHUNK_DIM - 1) * (CHUNK_DIM - 1) * (CHUNK_DIM - 1),
-        .usage      = SE_MEMORY_BUFFER_USAGE_STORAGE_BUFFER,
-        .visibility = SE_MEMORY_BUFFER_VISIBILITY_GPU,
-    });
-    edgeTableBuffer = render->memory_buffer_create(&(SeMemoryBufferCreateInfo)
-    {
-        .device     = device,
-        .size       = sizeof(EDGE_TABLE),
-        .usage      = SE_MEMORY_BUFFER_USAGE_STORAGE_BUFFER,
-        .visibility = SE_MEMORY_BUFFER_VISIBILITY_GPU_AND_CPU,
-    });
-    render->memory_buffer_copy_from(edgeTableBuffer, &(SeMemoryBufferCopyInfo)
-    {
-        .type       = SE_MEMORY_BUFFER_COPY_TYPE_FROM_CPU,
-        .source     = EDGE_TABLE,
-        .srcOffset  = 0,
-        .dstOffset  = 0,
-        .size       = sizeof(EDGE_TABLE),
-    });
-    triangleTableBuffer = render->memory_buffer_create(&(SeMemoryBufferCreateInfo)
-    {
-        .device     = device,
-        .size       = sizeof(TRIANGLE_TABLE),
-        .usage      = SE_MEMORY_BUFFER_USAGE_STORAGE_BUFFER,
-        .visibility = SE_MEMORY_BUFFER_VISIBILITY_GPU_AND_CPU,
-    });
-    render->memory_buffer_copy_from(triangleTableBuffer, &(SeMemoryBufferCopyInfo)
-    {
-        .type       = SE_MEMORY_BUFFER_COPY_TYPE_FROM_CPU,
-        .source     = TRIANGLE_TABLE,
-        .srcOffset  = 0,
-        .dstOffset  = 0,
-        .size       = sizeof(TRIANGLE_TABLE),
-    });
-    frameDataBuffer = render->memory_buffer_create(&(SeMemoryBufferCreateInfo)
-    {
-        .device     = device,
-        .size       = sizeof(FrameData),
-        .usage      = SE_MEMORY_BUFFER_USAGE_UNIFORM_BUFFER,
-        .visibility = SE_MEMORY_BUFFER_VISIBILITY_GPU_AND_CPU,
-    });
+    g_clearChunkCs          = sync_load_shader("assets/application/shaders/clear_chunk.comp.spv");
+    g_generateChunkCs       = sync_load_shader("assets/application/shaders/generate_chunk.comp.spv");
+    g_triangulateChunkCs    = sync_load_shader("assets/application/shaders/triangulate_chunk.comp.spv");
+    g_renderChunkVs         = sync_load_shader("assets/application/shaders/render_chunk.vert.spv");
+    g_renderChunkFs         = sync_load_shader("assets/application/shaders/render_chunk.frag.spv");
     //
     // Init camera
     //
-    debug_camera_construct(&camera, (SeFloat3){ CHUNK_DIM / 2, CHUNK_DIM, -8 });
+    debug_camera_construct(&g_camera, { CHUNK_DIM / 2, CHUNK_DIM, -8 });
 }
 
 SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
 {
-    device->destroy(device);
-    windowIface->destroy(window);
+    g_render->device_destroy(g_device);
+    win::destroy(g_window);
 }
 
 SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* updateInfo)
 {
-    const SeWindowSubsystemInput* input = windowIface->get_input(window);
-    if (input->isCloseButtonPressed || se_is_keyboard_button_pressed(input, SE_ESCAPE)) engine->shouldRun = false;
+    const SeWindowSubsystemInput* input = win::get_input(g_window);
+    if (input->isCloseButtonPressed || win::is_keyboard_button_pressed(input, SE_ESCAPE)) engine->shouldRun = false;
     //
     // Fill frame data
     //
+    static float time = 0.0f;
+    static float isoLevel = 0.5f;
+    time += updateInfo->dt;
+    isoLevel += ((float)input->mouseWheel) * 0.01f;
+    const SeFloat4x4 projection = g_render->perspective_projection_matrix
+    (
+        90,
+        ((float)win::get_width(g_window)) / ((float)win::get_height(g_window)),
+        0.1f,
+        200.0f
+    );
+    debug_camera_update(&g_camera, input, updateInfo->dt);
+    const FrameData frameData
     {
-        static float time = 0.0f;
-        static float isoLevel = 0.5f;
-        time += updateInfo->dt;
-        isoLevel += ((float)input->mouseWheel) * 0.01f;
-        SeFloat4x4 projection;
-        render->perspective_projection_matrix
-        (
-            &projection,
-            90,
-            ((float)windowIface->get_width(window)) / ((float)windowIface->get_height(window)),
-            0.1f,
-            200.0f
-        );
-        debug_camera_update(&camera, input, updateInfo->dt);
-        const SeFloat4x4 vp = se_f4x4_transposed(se_f4x4_mul_f4x4
-        (
-            projection,
-            se_f4x4_inverted(camera.trf)
-        ));
-        FrameData data = (FrameData)
+        .viewProjection = float4x4::transposed(projection * float4x4::inverted(g_camera.trf)),
+        .time           = time,
+        .isoLevel       = isoLevel,
+    };
+
+    g_render->begin_frame(g_device);
+    {
+        constexpr uint32_t numVerts = (CHUNK_DIM - 1) * (CHUNK_DIM - 1) * (CHUNK_DIM - 1) * 5 * 3;
+        SeRenderRef frameDataBuffer = g_render->memory_buffer(g_device, { g_device, sizeof(frameData), &frameData });
+        SeRenderRef edgeTableBuffer = g_render->memory_buffer(g_device, { g_device, sizeof(EDGE_TABLE), EDGE_TABLE });
+        SeRenderRef triangleTableBuffer = g_render->memory_buffer(g_device, { g_device, sizeof(TRIANGLE_TABLE), TRIANGLE_TABLE });
+        SeRenderRef gridValuesBuffer = g_render->memory_buffer(g_device, { g_device, sizeof(float) * CHUNK_DIM * CHUNK_DIM * CHUNK_DIM, nullptr });
+        SeRenderRef geometryBuffer = g_render->memory_buffer(g_device, { g_device, sizeof(Vertex) * numVerts, nullptr });
+        SeProgramWithConstants computeProgramInfo
         {
-            .viewProjection = vp,
-            .time           = time,
-            .isoLevel       = isoLevel,
+            .program = { /* filled later */ },
+            .specializationConstants =
+            {
+                { .constantId = 0, .asUint = CHUNK_DIM, },
+                { .constantId = 1, .asUint = CHUNK_DIM, },
+                { .constantId = 2, .asUint = CHUNK_DIM, },
+            },
+            .numSpecializationConstants = 3,
         };
-        render->memory_buffer_copy_from(frameDataBuffer, &(SeMemoryBufferCopyInfo)
+        auto executeComputePass = [&](SeRenderRef program)
         {
-            .type       = SE_MEMORY_BUFFER_COPY_TYPE_FROM_CPU,
-            .source     = &data,
-            .srcOffset  = 0,
-            .dstOffset  = 0,
-            .size       = sizeof(FrameData),
+            g_render->bind(g_device, { .device = g_device, .set = 0, .bindings = { { 0, frameDataBuffer } }, .numBindings = 1 });
+            g_render->bind(g_device,
+            {
+                .device = g_device,
+                .set = 1,
+                .bindings = { { 0, gridValuesBuffer }, { 1, geometryBuffer }, { 2, edgeTableBuffer }, { 3, triangleTableBuffer } },
+                .numBindings = 4
+            });
+            const SeComputeWorkgroupSize workgroupSize = g_render->workgroup_size(g_device, program);
+            g_render->dispatch(g_device,
+            {
+                g_device,
+                1 + ((CHUNK_DIM - 1) / workgroupSize.x),
+                1 + ((CHUNK_DIM - 1) / workgroupSize.y),
+                1 + ((CHUNK_DIM - 1) / workgroupSize.z),   
+            });
+        };
+        enum
+        {
+            CLEAR_CHUNK_PASS,
+            GENERATE_CHUNK_PASS,
+            TRIANGULATE_CHUNK_PASS,
+        };
+        //
+        // Clear pass
+        //
+        computeProgramInfo.program = g_clearChunkCs;
+        SeRenderRef clearChunkPipeline = g_render->compute_pipeline(g_device, { g_device, computeProgramInfo });
+        g_render->begin_pass(g_device, { .id = CLEAR_CHUNK_PASS, .dependencies = 0, .pipeline = clearChunkPipeline });
+        executeComputePass(g_clearChunkCs);
+        g_render->end_pass(g_device);
+        //
+        // Generate pass
+        //
+        computeProgramInfo.program = g_generateChunkCs;
+        SeRenderRef generateChunkPipeline = g_render->compute_pipeline(g_device, { g_device, computeProgramInfo });
+        g_render->begin_pass(g_device, { .id = GENERATE_CHUNK_PASS, .dependencies = (1 << CLEAR_CHUNK_PASS), .pipeline = generateChunkPipeline });
+        executeComputePass(g_generateChunkCs);
+        g_render->end_pass(g_device);
+        //
+        // Triangulate pass
+        //
+        computeProgramInfo.program = g_triangulateChunkCs;
+        SeRenderRef triangulateChunkPipeline = g_render->compute_pipeline(g_device, { g_device, computeProgramInfo });
+        g_render->begin_pass(g_device, { .id = TRIANGULATE_CHUNK_PASS, .dependencies = (1 << GENERATE_CHUNK_PASS), .pipeline = triangulateChunkPipeline });
+        executeComputePass(g_triangulateChunkCs);
+        g_render->end_pass(g_device);
+        //
+        // Draw pass
+        //
+        SeRenderRef pipeline = g_render->graphics_pipeline(g_device,
+        {
+            .device                 = g_device,
+            .vertexProgram          = { .program = g_renderChunkVs, },
+            .fragmentProgram        = { .program = g_renderChunkFs, },
+            .frontStencilOpState    = { .isEnabled = false, },
+            .backStencilOpState     = { .isEnabled = false, },
+            .depthState             = { .isTestEnabled = true, .isWriteEnabled = true },
+            .polygonMode            = SE_PIPELINE_POLYGON_FILL_MODE_FILL,
+            .cullMode               = SE_PIPELINE_CULL_MODE_BACK,
+            .frontFace              = SE_PIPELINE_FRONT_FACE_COUNTER_CLOCKWISE,
+            .samplingType           = SE_SAMPLING_1,
         });
+        SeRenderRef depthTexture = g_render->texture(g_device,
+        {
+            .device = g_device,
+            .width  = win::get_width(g_window),
+            .height = win::get_height(g_window),
+            .format = SE_TEXTURE_FORMAT_DEPTH_STENCIL,
+        });
+        g_render->begin_pass(g_device,
+        {
+            .id                 = 0,
+            .dependencies       = 0,
+            .pipeline           = pipeline,
+            .renderTargets      = { { g_render->swap_chain_texture(g_device), SE_PASS_RENDER_TARGET_LOAD_OP_CLEAR } },
+            .numRenderTargets   = 1,
+            .depthStencilTarget = { depthTexture, SE_PASS_RENDER_TARGET_LOAD_OP_CLEAR },
+            .hasDepthStencil    = true,
+        });
+        {
+            g_render->bind(g_device, { .set = 0, .bindings = { { 0, frameDataBuffer } }, .numBindings = 1 });
+            g_render->bind(g_device, { .set = 1, .bindings = { { 0, geometryBuffer } }, .numBindings = 1 });
+            g_render->draw(g_device, { .numVertices = numVerts, .numInstances = 1 });
+        }
+        g_render->end_pass(g_device);
     }
-    //
-    // Draw stuff
-    //
-    render->begin_frame(device);
-    {
-        SeRenderObject* computeSet0 = NULL;
-        SeRenderObject* computeSet1 = NULL;
-        {
-            SeResourceSetBinding bindings[] = { { frameDataBuffer } };
-            computeSet0 = render->resource_set_request(&(SeResourceSetRequestInfo)
-            {
-                .device         = device,
-                .pipeline       = generateChunkPipeline,
-                .set            = 0,
-                .bindings       = (bindings),
-                .numBindings    = se_array_size(bindings),
-            });
-        }
-        {
-            SeResourceSetBinding bindings[] = { { chunkGridValuesBuffer }, { chunkGeometryBuffer }, { edgeTableBuffer }, { triangleTableBuffer } };
-            computeSet1 = render->resource_set_request(&(SeResourceSetRequestInfo)
-            {
-                .device         = device,
-                .pipeline       = generateChunkPipeline,
-                .set            = 1,
-                .bindings       = bindings,
-                .numBindings    = se_array_size(bindings),
-            });
-        }
-        const SeComputeDispatchLimits limits = render->get_dispatch_limits(device);
-        {
-            SeRenderObject* cmd = render->command_buffer_request(&(SeCommandBufferRequestInfo){ device, SE_COMMAND_BUFFER_USAGE_COMPUTE });
-            render->command_bind_pipeline(cmd, &(SeCommandBindPipelineInfo){ clearChunkPipeline });
-            render->command_bind_resource_set(cmd, &(SeCommandBindResourceSetInfo){ computeSet0 });
-            render->command_bind_resource_set(cmd, &(SeCommandBindResourceSetInfo){ computeSet1 });
-            const SeRenderProgramComputeWorkGroupSize workgroupSize = render->program_get_compute_work_group_size(clearChunkCs);
-            SeCommandDispatchInfo dispatch = (SeCommandDispatchInfo)
-            {
-                1 + ((CHUNK_DIM - 1) / workgroupSize.x),
-                1 + ((CHUNK_DIM - 1) / workgroupSize.y),
-                1 + ((CHUNK_DIM - 1) / workgroupSize.z),
-            };
-            se_assert(dispatch.groupCountX <= limits.maxWorkgroupCountX);
-            se_assert(dispatch.groupCountY <= limits.maxWorkgroupCountY);
-            se_assert(dispatch.groupCountZ <= limits.maxWorkgroupCountZ);
-            render->command_dispatch(cmd, &dispatch);
-            render->command_buffer_submit(cmd);
-        }
-        {
-            SeRenderObject* cmd = render->command_buffer_request(&(SeCommandBufferRequestInfo){ device, SE_COMMAND_BUFFER_USAGE_COMPUTE });
-            render->command_bind_pipeline(cmd, &(SeCommandBindPipelineInfo){ generateChunkPipeline });
-            render->command_bind_resource_set(cmd, &(SeCommandBindResourceSetInfo){ computeSet0 });
-            render->command_bind_resource_set(cmd, &(SeCommandBindResourceSetInfo){ computeSet1 });
-            const SeRenderProgramComputeWorkGroupSize workgroupSize = render->program_get_compute_work_group_size(generateChunkCs);
-            SeCommandDispatchInfo dispatch = (SeCommandDispatchInfo)
-            {
-                1 + ((CHUNK_DIM - 1) / workgroupSize.x),
-                1 + ((CHUNK_DIM - 1) / workgroupSize.y),
-                1 + ((CHUNK_DIM - 1) / workgroupSize.z),
-            };
-            se_assert(dispatch.groupCountX <= limits.maxWorkgroupCountX);
-            se_assert(dispatch.groupCountY <= limits.maxWorkgroupCountY);
-            se_assert(dispatch.groupCountZ <= limits.maxWorkgroupCountZ);
-            render->command_dispatch(cmd, &dispatch);
-            render->command_buffer_submit(cmd);
-        }
-        {
-            SeRenderObject* cmd = render->command_buffer_request(&(SeCommandBufferRequestInfo){ device, SE_COMMAND_BUFFER_USAGE_COMPUTE });
-            render->command_bind_pipeline(cmd, &(SeCommandBindPipelineInfo){ triangulateChunkPipeline });
-            render->command_bind_resource_set(cmd, &(SeCommandBindResourceSetInfo){ computeSet0 });
-            render->command_bind_resource_set(cmd, &(SeCommandBindResourceSetInfo){ computeSet1 });
-            const SeRenderProgramComputeWorkGroupSize workgroupSize = render->program_get_compute_work_group_size(triangulateChunkCs);
-            SeCommandDispatchInfo dispatch = (SeCommandDispatchInfo)
-            {
-                1 + ((CHUNK_DIM - 1) / workgroupSize.x),
-                1 + ((CHUNK_DIM - 1) / workgroupSize.y),
-                1 + ((CHUNK_DIM - 1) / workgroupSize.z),
-            };
-            se_assert(dispatch.groupCountX <= limits.maxWorkgroupCountX);
-            se_assert(dispatch.groupCountY <= limits.maxWorkgroupCountY);
-            se_assert(dispatch.groupCountZ <= limits.maxWorkgroupCountZ);
-            render->command_dispatch(cmd, &dispatch);
-            render->command_buffer_submit(cmd);
-        }
-        SeRenderObject* drawSet0 = NULL;
-        SeRenderObject* drawSet1 = NULL;
-        {
-            SeResourceSetBinding bindings[] = { { frameDataBuffer } };
-            drawSet0 = render->resource_set_request(&(SeResourceSetRequestInfo)
-            {
-                .device         = device,
-                .pipeline       = renderChunkPipeline,
-                .set            = 0,
-                .bindings       = (bindings),
-                .numBindings    = se_array_size(bindings),
-            });
-        }
-        {
-            SeResourceSetBinding bindings[] = { { chunkGeometryBuffer } };
-            drawSet1 = render->resource_set_request(&(SeResourceSetRequestInfo)
-            {
-                .device         = device,
-                .pipeline       = renderChunkPipeline,
-                .set            = 1,
-                .bindings       = bindings,
-                .numBindings    = se_array_size(bindings),
-            });
-        }
-        {
-            SeRenderObject* framebuffer = renderChunkFramebuffers[render->get_active_swap_chain_texture_index(device)];
-            SeRenderObject* cmd = render->command_buffer_request(&(SeCommandBufferRequestInfo){ device, SE_COMMAND_BUFFER_USAGE_GRAPHICS });
-            render->command_bind_pipeline(cmd, &(SeCommandBindPipelineInfo){ renderChunkPipeline, framebuffer });
-            render->command_bind_resource_set(cmd, &(SeCommandBindResourceSetInfo){ drawSet0 });
-            render->command_bind_resource_set(cmd, &(SeCommandBindResourceSetInfo){ drawSet1 });
-            render->command_draw(cmd, &(SeCommandDrawInfo)
-            { 
-                (CHUNK_DIM - 1) * (CHUNK_DIM - 1) * (CHUNK_DIM - 1) * 5 * 3,
-                1,
-            });
-            render->command_buffer_submit(cmd);
-        }
-    }
-    render->end_frame(device);
+    g_render->end_frame(g_device);
 }

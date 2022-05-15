@@ -135,6 +135,7 @@ SeRenderRef se_vk_graph_compute_pipeline(SeVkGraph* graph, const SeComputePipeli
 SeRenderRef se_vk_graph_sampler(SeVkGraph* graph, const SeSamplerInfo& info);
 void        se_vk_graph_command_bind(SeVkGraph* graph, const SeCommandBindInfo& info);
 void        se_vk_graph_command_draw(SeVkGraph* graph, const SeCommandDrawInfo& info);
+void        se_vk_graph_command_dispatch(SeVkGraph* graph, const SeCommandDispatchInfo& info);
 
 namespace hash_value
 {

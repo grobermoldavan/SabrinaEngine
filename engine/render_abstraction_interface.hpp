@@ -263,6 +263,13 @@ struct SeCommandDispatchInfo
     uint32_t        groupCountZ;
 };
 
+struct SeComputeWorkgroupSize
+{
+    uint32_t x;
+    uint32_t y;
+    uint32_t z;
+};
+
 struct SeRenderAbstractionSubsystemInterface
 {
     static constexpr const char* NAME = "SeRenderAbstractionSubsystemInterface";
@@ -285,6 +292,7 @@ struct SeRenderAbstractionSubsystemInterface
     void                                (*draw)                                 (SeDeviceHandle device, const SeCommandDrawInfo& info);
     void                                (*dispatch)                             (SeDeviceHandle device, const SeCommandDispatchInfo& info);
     SeFloat4x4                          (*perspective_projection_matrix)        (float fovDeg, float aspect, float nearPlane, float farPlane);
+    SeComputeWorkgroupSize              (*workgroup_size)                       (SeDeviceHandle device, SeRenderRef program);
 };
 
 #endif

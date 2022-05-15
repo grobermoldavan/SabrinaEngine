@@ -77,6 +77,12 @@ static SeRenderRef se_vk_graphics_pipeline_call(SeDeviceHandle _device, const Se
     return se_vk_graph_graphics_pipeline(&device->graph, info);
 }
 
+static SeRenderRef se_vk_graphics_pipeline_call(SeDeviceHandle _device, const SeComputePipelineInfo& info)
+{
+    SeVkDevice* device = (SeVkDevice*)_device;
+    return se_vk_graph_compute_pipeline(&device->graph, info);
+}
+
 static SeRenderRef se_vk_memory_buffer_call(SeDeviceHandle _device, const SeMemoryBufferInfo& info)
 {
     SeVkDevice* device = (SeVkDevice*)_device;
@@ -101,6 +107,25 @@ static void se_vk_command_draw_call(SeDeviceHandle _device, const SeCommandDrawI
     se_vk_graph_command_draw(&device->graph, info);
 }
 
+static void se_vk_command_dispatch_call(SeDeviceHandle _device, const SeCommandDispatchInfo& info)
+{
+    SeVkDevice* device = (SeVkDevice*)_device;
+    se_vk_graph_command_dispatch(&device->graph, info);
+}
+
+static SeComputeWorkgroupSize se_vk_compute_workgroup_size_call(SeDeviceHandle _device, SeRenderRef ref)
+{
+    SeVkDevice* device = (SeVkDevice*)_device;
+    const ObjectPool<SeVkProgram>& programPool = se_vk_memory_manager_get_pool<SeVkProgram>(&device->memoryManager);
+    const SeVkProgram* program = object_pool::access(programPool, se_vk_ref_index(ref));
+    return
+    {
+        program->reflection.computeWorkGroupSizeX,
+        program->reflection.computeWorkGroupSizeY,
+        program->reflection.computeWorkGroupSizeZ,
+    };
+}
+
 SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
 {
     g_iface =
@@ -115,13 +140,14 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
         .texture                        = se_vk_texture_call,
         .swap_chain_texture             = se_vk_swap_chain_texture_call,
         .graphics_pipeline              = se_vk_graphics_pipeline_call,
-        .compute_pipeline               = nullptr,
+        .compute_pipeline               = se_vk_graphics_pipeline_call,
         .memory_buffer                  = se_vk_memory_buffer_call,
         .sampler                        = se_vk_sampler_call,
         .bind                           = se_vk_command_bind_call,
         .draw                           = se_vk_command_draw_call,
-        .dispatch                       = nullptr,
+        .dispatch                       = se_vk_command_dispatch_call,
         .perspective_projection_matrix  = se_vk_perspective_projection_matrix,
+        .workgroup_size                 = se_vk_compute_workgroup_size_call,
     };
     se_init_global_subsystem_pointers(engine);
 }

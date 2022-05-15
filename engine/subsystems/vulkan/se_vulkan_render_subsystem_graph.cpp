@@ -343,14 +343,37 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
     for (size_t it = 0; it < numPasses; it++)
     {
         SeVkPipeline* pipeline = nullptr;
-        if (se_vk_ref_type(graph->passes[it].info.pipeline) == SE_VK_TYPE_COMPUTE_PIPELINE)
+        SeRenderRef pipelineRef = graph->passes[it].info.pipeline;
+        if (se_vk_ref_type(pipelineRef) == SE_VK_TYPE_COMPUTE_PIPELINE)
         {
-            se_assert(!"todo");
+            se_assert(!frameRenderPasses[it]);
+            const SeComputePipelineInfo* seInfo = &graph->computePipelineInfos[se_vk_ref_index(pipelineRef)];
+            SeVkProgramWithConstants program
+            {
+                .program                    = object_pool::access(programPool, se_vk_ref_index(seInfo->program.program)),
+                .constants                  = { },
+                .numSpecializationConstants = seInfo->program.numSpecializationConstants,
+            };
+            memcpy(program.constants, seInfo->program.specializationConstants, sizeof(SeSpecializationConstant) * seInfo->program.numSpecializationConstants);
+            SeVkComputePipelineInfo vkInfo
+            {
+                .device = graph->device,
+                .program = program,
+            };
+            SeVkPipeline** pipelineTimed = hash_table::get(graph->computePipelineInfoToComputePipeline, vkInfo);
+            if (!pipelineTimed)
+            {
+                pipelineTimed = hash_table::set(graph->computePipelineInfoToComputePipeline, vkInfo, object_pool::take(pipelinePool));
+                se_vk_pipeline_compute_construct(*pipelineTimed, &vkInfo);
+            }
+            hash_table::set(graph->computePipelineInfoToFrame, vkInfo, currentFrame);
+
+            pipeline = *pipelineTimed;
         }
         else
         {
             se_assert(frameRenderPasses[it]);
-            const SeGraphicsPipelineInfo* seInfo = &graph->graphicsPipelineInfos[se_vk_ref_index(graph->passes[it].info.pipeline)];
+            const SeGraphicsPipelineInfo* seInfo = &graph->graphicsPipelineInfos[se_vk_ref_index(pipelineRef)];
             SeVkProgramWithConstants vertexProgram
             {
                 .program                    = object_pool::access(programPool, se_vk_ref_index(seInfo->vertexProgram.program)),
@@ -1075,16 +1098,11 @@ SeRenderRef se_vk_graph_memory_buffer(SeVkGraph* graph, const SeMemoryBufferInfo
 {
     se_assert(graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_FRAME || graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_PASS);
 
-    // @TODO : create persistent buffer if se_vk_graph_memory_buffer call was done outside of begin-end pass region
     SeVkFrameManager* frameManager = &graph->device->frameManager;
     SeVkMemoryBufferView view = se_vk_frame_manager_alloc_scratch_buffer(frameManager, info.size);
     dynamic_array::push(graph->scratchBufferViews, view);
     se_assert_msg(view.mappedMemory, "todo : support copies for non host-visible memory buffers");
-    if (view.mappedMemory && info.data)
-    {
-        memcpy(view.mappedMemory, info.data, info.size);
-    }
-
+    if (view.mappedMemory && info.data) memcpy(view.mappedMemory, info.data, info.size);
     return se_vk_ref(SE_VK_TYPE_MEMORY_BUFFER, SE_VK_GRAPH_MEMORY_BUFFER_SCRATCH, dynamic_array::size(graph->scratchBufferViews) - 1);
 }
 
@@ -1172,5 +1190,17 @@ void se_vk_graph_command_draw(SeVkGraph* graph, const SeCommandDrawInfo& info)
     {
         .type = SE_VK_GRAPH_COMMAND_TYPE_DRAW,
         .info = { .draw = info },
+    });
+}
+
+void se_vk_graph_command_dispatch(SeVkGraph* graph, const SeCommandDispatchInfo& info)
+{
+    se_assert(graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_PASS);
+
+    SeVkGraphPass* pass = &graph->passes[dynamic_array::size(graph->passes) - 1];
+    dynamic_array::push(pass->commands,
+    {
+        .type = SE_VK_GRAPH_COMMAND_TYPE_DISPATCH,
+        .info = { .dispatch = info },
     });
 }

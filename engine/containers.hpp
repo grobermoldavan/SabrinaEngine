@@ -141,6 +141,7 @@ namespace dynamic_array
     static T& push(DynamicArray<T>& array, nullptr_t)
     {
         T& pushed = dynamic_array::add(array);
+        pushed = nullptr;
         return pushed;
     }
 
