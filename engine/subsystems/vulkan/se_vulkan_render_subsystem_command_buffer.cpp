@@ -78,14 +78,22 @@ void se_vk_command_buffer_submit(SeVkCommandBuffer* buffer, SeVkCommandBufferSub
 {
     se_vk_check(vkEndCommandBuffer(buffer->handle));
     uint32_t waitSemaphoreCount = 0;
-    VkSemaphore waitSemaphores[SE_VK_COMMAND_BUFFER_EXECUTE_AFTER_MAX];
+    VkSemaphore waitSemaphores[SE_VK_COMMAND_BUFFER_EXECUTE_AFTER_MAX + SE_VK_COMMAND_BUFFER_WAIT_SEMAPHORES_MAX];
+    VkPipelineStageFlags waitStages[SE_VK_COMMAND_BUFFER_EXECUTE_AFTER_MAX + SE_VK_COMMAND_BUFFER_WAIT_SEMAPHORES_MAX];
     for (size_t it = 0; it < SE_VK_COMMAND_BUFFER_EXECUTE_AFTER_MAX; it++)
     {
         if (!info->executeAfter[it]) break;
-        waitSemaphores[it] = info->executeAfter[it]->semaphore;
+        waitSemaphores[waitSemaphoreCount] = info->executeAfter[it]->semaphore;
+        waitStages[waitSemaphoreCount] = { VK_PIPELINE_STAGE_ALL_COMMANDS_BIT }; // TODO : optimize this
         waitSemaphoreCount += 1;
     }
-    const VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_ALL_COMMANDS_BIT }; // TODO : optimize this
+    for (size_t it = 0; it < SE_VK_COMMAND_BUFFER_WAIT_SEMAPHORES_MAX; it++)
+    {
+        if (!info->waitSemaphores[it]) break;
+        waitSemaphores[waitSemaphoreCount] = info->waitSemaphores[it];
+        waitStages[waitSemaphoreCount] = { VK_PIPELINE_STAGE_ALL_COMMANDS_BIT }; // TODO : optimize this
+        waitSemaphoreCount += 1;
+    }
     const VkSubmitInfo submitInfo =
     {
         .sType                  = VK_STRUCTURE_TYPE_SUBMIT_INFO,

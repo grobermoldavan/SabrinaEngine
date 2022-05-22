@@ -100,10 +100,10 @@ namespace dynamic_array
         }
     }
 
-    template<typename T>
-    inline size_t size(const DynamicArray<T>& array)
+    template<typename Size = size_t, typename T>
+    inline Size size(const DynamicArray<T>& array)
     {
-        return array.size;
+        return (Size)array.size;
     }
 
     template<typename T>

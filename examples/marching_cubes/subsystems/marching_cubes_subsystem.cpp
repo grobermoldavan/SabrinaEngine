@@ -32,6 +32,12 @@ SeRenderRef     g_generateChunkCs;
 SeRenderRef     g_triangulateChunkCs;
 SeRenderRef     g_renderChunkVs;
 SeRenderRef     g_renderChunkFs;
+
+SeRenderRef     g_edgeTableBuffer;
+SeRenderRef     g_triangleTableBuffer;
+SeRenderRef     g_gridValuesBuffer;
+SeRenderRef     g_geometryBuffer;
+
 DebugCamera     g_camera;
 
 const int32_t EDGE_TABLE[256] =
@@ -376,6 +382,14 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
     g_renderChunkVs         = sync_load_shader("assets/application/shaders/render_chunk.vert.spv");
     g_renderChunkFs         = sync_load_shader("assets/application/shaders/render_chunk.frag.spv");
     //
+    // Allocate buffers
+    //
+    constexpr uint32_t numVerts = (CHUNK_DIM - 1) * (CHUNK_DIM - 1) * (CHUNK_DIM - 1) * 5 * 3;
+    g_edgeTableBuffer = g_render->memory_buffer(g_device, { g_device, sizeof(EDGE_TABLE), EDGE_TABLE });
+    g_triangleTableBuffer = g_render->memory_buffer(g_device, { g_device, sizeof(TRIANGLE_TABLE), TRIANGLE_TABLE });
+    g_gridValuesBuffer = g_render->memory_buffer(g_device, { g_device, sizeof(float) * CHUNK_DIM * CHUNK_DIM * CHUNK_DIM, nullptr });
+    g_geometryBuffer = g_render->memory_buffer(g_device, { g_device, sizeof(Vertex) * numVerts, nullptr });
+    //
     // Init camera
     //
     debug_camera_construct(&g_camera, { CHUNK_DIM / 2, CHUNK_DIM, -8 });
@@ -417,10 +431,6 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* updateIn
     {
         constexpr uint32_t numVerts = (CHUNK_DIM - 1) * (CHUNK_DIM - 1) * (CHUNK_DIM - 1) * 5 * 3;
         SeRenderRef frameDataBuffer = g_render->memory_buffer(g_device, { g_device, sizeof(frameData), &frameData });
-        SeRenderRef edgeTableBuffer = g_render->memory_buffer(g_device, { g_device, sizeof(EDGE_TABLE), EDGE_TABLE });
-        SeRenderRef triangleTableBuffer = g_render->memory_buffer(g_device, { g_device, sizeof(TRIANGLE_TABLE), TRIANGLE_TABLE });
-        SeRenderRef gridValuesBuffer = g_render->memory_buffer(g_device, { g_device, sizeof(float) * CHUNK_DIM * CHUNK_DIM * CHUNK_DIM, nullptr });
-        SeRenderRef geometryBuffer = g_render->memory_buffer(g_device, { g_device, sizeof(Vertex) * numVerts, nullptr });
         SeProgramWithConstants computeProgramInfo
         {
             .program = { /* filled later */ },
@@ -439,7 +449,7 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* updateIn
             {
                 .device = g_device,
                 .set = 1,
-                .bindings = { { 0, gridValuesBuffer }, { 1, geometryBuffer }, { 2, edgeTableBuffer }, { 3, triangleTableBuffer } },
+                .bindings = { { 0, g_gridValuesBuffer }, { 1, g_geometryBuffer }, { 2, g_edgeTableBuffer }, { 3, g_triangleTableBuffer } },
                 .numBindings = 4
             });
             const SeComputeWorkgroupSize workgroupSize = g_render->workgroup_size(g_device, program);
@@ -516,7 +526,7 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* updateIn
         });
         {
             g_render->bind(g_device, { .set = 0, .bindings = { { 0, frameDataBuffer } }, .numBindings = 1 });
-            g_render->bind(g_device, { .set = 1, .bindings = { { 0, geometryBuffer } }, .numBindings = 1 });
+            g_render->bind(g_device, { .set = 1, .bindings = { { 0, g_geometryBuffer } }, .numBindings = 1 });
             g_render->draw(g_device, { .numVertices = numVerts, .numInstances = 1 });
         }
         g_render->end_pass(g_device);

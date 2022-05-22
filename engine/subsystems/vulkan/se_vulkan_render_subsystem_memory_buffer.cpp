@@ -18,7 +18,7 @@ void se_vk_memory_buffer_construct(SeVkMemoryBuffer* buffer, SeVkMemoryBufferInf
         .object = { SE_VK_TYPE_MEMORY_BUFFER, g_memoryBufferIndex++ },
         .device = device,
         .handle = VK_NULL_HANDLE,
-        .memory = {0},
+        .memory = { },
     };
     //
     // Create buffer handle
@@ -46,7 +46,7 @@ void se_vk_memory_buffer_construct(SeVkMemoryBuffer* buffer, SeVkMemoryBufferInf
     //
     // Allocate memory
     //
-    VkMemoryRequirements requirements{0};
+    VkMemoryRequirements requirements = { };
     vkGetBufferMemoryRequirements(logicalHandle, buffer->handle, &requirements);
     SeVkGpuAllocationRequest allocationRequest
     {

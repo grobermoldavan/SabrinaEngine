@@ -73,6 +73,13 @@ struct SeVkGraphDescriptorPoolArray
     size_t lastFrame;
 };
 
+template<typename T>
+struct SeVkGraphWithFrame
+{
+    T* object;
+    size_t frame;
+};
+
 struct SeVkGraph
 {
     struct SeVkDevice*                                      device;
@@ -80,35 +87,24 @@ struct SeVkGraph
 
     DynamicArray<DynamicArray<SeVkCommandBuffer*>>          frameCommandBuffers;
 
-    DynamicArray<SeVkTextureInfo>                           textureInfos;           // Requested textures
-    DynamicArray<SeVkGraphPass>                             passes;                 // Started passes
-    DynamicArray<SeGraphicsPipelineInfo>                    graphicsPipelineInfos;  // Used pipeline infos (graphics)
-    DynamicArray<SeComputePipelineInfo>                     computePipelineInfos;   // Used pipeline infos (compute)
-    DynamicArray<SeVkMemoryBufferView>                      scratchBufferViews;     // Requested buffers
+    DynamicArray<SeVkTextureInfo>                           textureInfos;
+    DynamicArray<SeVkGraphPass>                             passes;
+    DynamicArray<SeGraphicsPipelineInfo>                    graphicsPipelineInfos;
+    DynamicArray<SeComputePipelineInfo>                     computePipelineInfos;
+    DynamicArray<SeVkMemoryBufferView>                      scratchBufferViews;
 
-    HashTable<SeVkTextureInfo, size_t>                      textureInfoToCount;
-    HashTable<SeVkGraphTextureInfoIndexed, SeVkTexture*>    textureInfoIndexedToTexture;
-    HashTable<SeVkGraphTextureInfoIndexed, size_t>          textureInfoIndexedToFrame;
-
-    HashTable<SeVkProgramInfo, SeVkProgram*>                programInfoToProgram;
-    HashTable<SeVkProgramInfo, size_t>                      programInfoToFrame;
-
-    HashTable<SeVkRenderPassInfo, SeVkRenderPass*>          renderPassInfoToRenderPass;
-    HashTable<SeVkRenderPassInfo, size_t>                   renderPassInfoToFrame;
-
-    HashTable<SeVkFramebufferInfo, SeVkFramebuffer*>        framebufferInfoToFramebuffer;
-    HashTable<SeVkFramebufferInfo, size_t>                  framebufferInfoToFrame;
-
-    HashTable<SeVkGraphicsPipelineInfo, SeVkPipeline*>      graphicsPipelineInfoToGraphicsPipeline;
-    HashTable<SeVkGraphicsPipelineInfo, size_t>             graphicsPipelineInfoToFrame;
-
-    HashTable<SeVkComputePipelineInfo, SeVkPipeline*>       computePipelineInfoToComputePipeline;
-    HashTable<SeVkComputePipelineInfo, size_t>              computePipelineInfoToFrame;
-
-    HashTable<SeVkSamplerInfo, SeVkSampler*>                samplerInfoToSampler;
-    HashTable<SeVkSamplerInfo, size_t>                      samplerInfoToFrame;
+    HashTable<SeVkTextureInfo, size_t>                                      textureInfoToCount;
+    HashTable<SeVkGraphTextureInfoIndexed, SeVkGraphWithFrame<SeVkTexture>> textureInfoIndexedToTexture;
+    HashTable<SeVkProgramInfo, SeVkGraphWithFrame<SeVkProgram>>             programInfoToProgram;
+    HashTable<SeVkRenderPassInfo, SeVkGraphWithFrame<SeVkRenderPass>>       renderPassInfoToRenderPass;
+    HashTable<SeVkFramebufferInfo, SeVkGraphWithFrame<SeVkFramebuffer>>     framebufferInfoToFramebuffer;
+    HashTable<SeVkGraphicsPipelineInfo, SeVkGraphWithFrame<SeVkPipeline>>   graphicsPipelineInfoToGraphicsPipeline;
+    HashTable<SeVkComputePipelineInfo, SeVkGraphWithFrame<SeVkPipeline>>    computePipelineInfoToComputePipeline;
+    HashTable<SeVkSamplerInfo, SeVkGraphWithFrame<SeVkSampler>>             samplerInfoToSampler;
 
     HashTable<SeVkGraphPipelineWithFrame, SeVkGraphDescriptorPoolArray> pipelineToDescriptorPools;
+
+    SeVkMemoryBuffer* stagingBuffer;
 };
 
 struct SeVkGraphInfo

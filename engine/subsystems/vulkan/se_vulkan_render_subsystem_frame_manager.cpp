@@ -37,7 +37,7 @@ void se_vk_frame_manager_construct(SeVkFrameManager* manager, SeVkFrameManagerCr
         SeVkMemoryBufferInfo bufferInfo
         {
             .device     = manager->device,
-            .size       = se_megabytes(128 /* temporary */),
+            .size       = se_megabytes(16),
             .usage      = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | 
                           VK_BUFFER_USAGE_TRANSFER_DST_BIT   | 
