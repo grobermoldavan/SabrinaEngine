@@ -39,11 +39,9 @@ SeRenderRef     g_presentFs;
 
 SeRenderRef sync_load_shader(const char* path)
 {
-    SeFile shader = { };
-    SeFileContent content = { };
+    SeFile shader;
     platform::get()->file_load(&shader, path, SE_FILE_READ);
-    SeAllocatorBindings allocator = app_allocators::frame();
-    platform::get()->file_read(&content, &shader, &allocator);
+    SeFileContent content = platform::get()->file_read(&shader, app_allocators::frame());
     SeProgramInfo createInfo
     {
         .bytecode = (uint32_t*)content.memory,

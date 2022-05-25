@@ -27,7 +27,7 @@ void se_vk_texture_construct(SeVkTexture* texture, SeVkTextureInfo* info)
             .format                 = info->format,
             .currentLayout          = VK_IMAGE_LAYOUT_UNDEFINED,
             .image                  = VK_NULL_HANDLE,
-            .memory                 = {0},
+            .memory                 = { },
             .view                   = VK_NULL_HANDLE,
             .fullSubresourceRange   = { aspect, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS },
             .flags                  = 0,
@@ -64,7 +64,7 @@ void se_vk_texture_construct(SeVkTexture* texture, SeVkTextureInfo* info)
         se_vk_check(vkCreateImage(logicalHandle, &imageCreateInfo, callbacks, &texture->image));
     }
     {
-        VkMemoryRequirements memRequirements = {0};
+        VkMemoryRequirements memRequirements = { };
         vkGetImageMemoryRequirements(logicalHandle, texture->image, &memRequirements);
         SeVkGpuAllocationRequest request =
         {

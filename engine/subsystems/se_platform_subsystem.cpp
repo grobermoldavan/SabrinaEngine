@@ -10,7 +10,7 @@
 
 static HANDLE se_platform_handle_from_se_handle(SeFileHandle handle)
 {
-    HANDLE result = {0};
+    HANDLE result;
     memcpy(&result, &handle, sizeof(result));
     return result;
 }
@@ -142,15 +142,6 @@ bool se_platform_atomic_32_bit_cas(uint32_t* atomic, uint32_t* expected, uint32_
     return val == *expected;
 }
 
-void se_platform_file_get_std_out(SeFile* file)
-{
-    memset(file, 0, sizeof(SeFile));
-    const HANDLE handle = GetStdHandle(STD_OUTPUT_HANDLE);
-    file->loadMode = SE_FILE_WRITE;
-    file->flags = SE_FILE_STD_HANDLE;
-    memcpy(&file->handle, &handle, sizeof(HANDLE));
-}
-
 void se_platform_file_load(SeFile* file, const char* path, SeFileLoadMode loadMode)
 {
     memset(file, 0, sizeof(SeFile));
@@ -181,17 +172,17 @@ bool se_platform_file_is_valid(const SeFile* file)
     return handle != INVALID_HANDLE_VALUE && file->flags & SE_FILE_IS_LOADED;
 }
 
-void se_platform_file_read(SeFileContent* content, SeFile* file, SeAllocatorBindings* allocator)
+SeFileContent se_platform_file_read(SeFile* file, SeAllocatorBindings allocator)
 {
     HANDLE handle = se_platform_handle_from_se_handle(file->handle);
     uint64_t fileSize = 0;
     {
-        LARGE_INTEGER size = {0};
+        LARGE_INTEGER size = { };
         const BOOL result = GetFileSizeEx(handle, &size);
         se_assert(result);
         fileSize = size.QuadPart;
     }
-    void* buffer = allocator->alloc(allocator->allocator, fileSize + 1, se_default_alignment, se_alloc_tag);
+    void* buffer = allocator.alloc(allocator.allocator, fileSize + 1, se_default_alignment, se_alloc_tag);
     {
         DWORD bytesRead = 0;
         const BOOL result = ReadFile
@@ -205,9 +196,12 @@ void se_platform_file_read(SeFileContent* content, SeFile* file, SeAllocatorBind
         se_assert(result);
     }
     ((char*)buffer)[fileSize] = 0;
-    content->allocator = *allocator;
-    content->memory = buffer;
-    content->size = fileSize;
+    return
+    {
+        allocator,
+        buffer,
+        fileSize,
+    };
 }
 
 void se_platform_file_free_content(SeFileContent* content)
@@ -255,7 +249,6 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
         .atomic_32_bit_load         = se_platform_atomic_32_bit_load,
         .atomic_32_bit_store        = se_platform_atomic_32_bit_store,
         .atomic_32_bit_cas          = se_platform_atomic_32_bit_cas,
-        .file_get_std_out           = se_platform_file_get_std_out,
         .file_load                  = se_platform_file_load,
         .file_unload                = se_platform_file_unload,
         .file_is_valid              = se_platform_file_is_valid,

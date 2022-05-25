@@ -32,11 +32,9 @@ SeRenderRef fragmentProgram;
 
 SeRenderRef sync_load_shader(const char* path)
 {
-    SeAllocatorBindings allocator = app_allocators::frame();
-    SeFile shader = { };
-    SeFileContent content = { };
+    SeFile shader;
     platform::get()->file_load(&shader, path, SE_FILE_READ);
-    platform::get()->file_read(&content, &shader, &allocator);
+    SeFileContent content = platform::get()->file_read(&shader, app_allocators::frame());
     SeRenderRef program = render->program(device,
     {
         .bytecode       = (uint32_t*)content.memory,

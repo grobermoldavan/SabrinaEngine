@@ -19,12 +19,10 @@ call :build_subsystems %build_folder_examples%\subsystems\default\ %bat_file_dir
 cd %bat_file_dir%\examples
 
 call :message "[MESSAGE] Build example subsysteams"
-REM for /r %%f in (subsystems\*.c) do call :build_single_subsystem %build_folder_examples%\subsystems\application\ %%f %bat_file_dir%
-for /r %%f in (marching_cubes\subsystems\*.cpp) do call :build_single_subsystem %build_folder_examples%\subsystems\application\ %%f %bat_file_dir%
+for /r %%f in (subsystems\*.cpp) do call :build_single_subsystem %build_folder_examples%\subsystems\application\ %%f %bat_file_dir%
 
 call :message "[MESSAGE] Build example exes"
-REM for /r %%f in (*.c) do if %%~nf == main call :build_exe %build_folder_examples% %%f %bat_file_dir%
-for /r %%f in (marching_cubes\*.cpp) do if %%~nf == main call :build_exe %build_folder_examples% %%f %bat_file_dir%
+for /r %%f in (*.cpp) do if %%~nf == main call :build_exe %build_folder_examples% %%f %bat_file_dir%
 
 call :message "[MESSAGE] Copy default assets"
 md %build_folder_examples%\assets\default
