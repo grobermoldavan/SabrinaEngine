@@ -2,6 +2,8 @@
 #define _SE_STRING_SUBSYSTEM_HPP_
 
 #include "engine/common_includes.hpp"
+#include "engine/hash.hpp"
+#include "engine/utils.hpp"
 #include <concepts>
 #include <type_traits>
 
@@ -146,6 +148,33 @@ namespace string
     SeString cast(const T& value, SeStringLifetime lifetime = SeStringLifetime::Temporary)
     {
         return string::create(value, lifetime);
+    }
+}
+
+namespace utils
+{
+    template<>
+    bool compare<SeString>(const SeString& first, const SeString& second)
+    {
+        return first.length == second.length && compare_raw(first.memory, second.memory, first.length);
+    }
+}
+
+namespace hash_value
+{
+    namespace builder
+    {
+        template<>
+        void absorb<SeString>(HashValueBuilder& builder, const SeString& value)
+        {
+            hash_value::builder::absorb_raw(builder, { value.memory, value.length });
+        }
+    }
+
+    template<>
+    HashValue generate<SeString>(const SeString& value)
+    {
+        return hash_value::generate_raw({ value.memory, value.length });
     }
 }
 

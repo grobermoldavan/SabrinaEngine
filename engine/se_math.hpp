@@ -1,5 +1,5 @@
-#ifndef _SE_MATH_H_
-#define _SE_MATH_H_
+#ifndef _SE_MATH_HPP_
+#define _SE_MATH_HPP_
 
 /*
     Sabrina Engine math library.

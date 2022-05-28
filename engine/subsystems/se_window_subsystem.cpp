@@ -19,7 +19,7 @@ SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
     destroy_windows();
 }
 
-SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
+SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* info)
 {
     process_windows();
 }

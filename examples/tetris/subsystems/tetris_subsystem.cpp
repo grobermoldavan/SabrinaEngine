@@ -29,7 +29,7 @@ SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
     win::destroy(g_window);
 }
 
-SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
+SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* info)
 {
     const SeWindowSubsystemInput* input = win::get_input(g_window);
     if (input->isCloseButtonPressed || win::is_keyboard_button_pressed(input, SE_ESCAPE)) engine->shouldRun = false;

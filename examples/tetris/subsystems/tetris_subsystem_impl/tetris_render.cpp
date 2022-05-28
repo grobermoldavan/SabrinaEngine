@@ -39,8 +39,7 @@ SeRenderRef     g_presentFs;
 
 SeRenderRef sync_load_shader(const char* path)
 {
-    SeFile shader;
-    platform::get()->file_load(&shader, path, SE_FILE_READ);
+    SeFile shader = platform::get()->file_load(path, SE_FILE_READ);
     SeFileContent content = platform::get()->file_read(&shader, app_allocators::frame());
     SeProgramInfo createInfo
     {
@@ -205,17 +204,17 @@ void tetris_render_update(const SeWindowSubsystemInput* input, float dt)
         });
         const SeRenderRef colorTexture = g_render->texture(g_device,
         {
-            .device = g_device,
             .width  = win::get_width(g_window),
             .height = win::get_height(g_window),
             .format = SE_TEXTURE_FORMAT_RGBA_8,
+            .data   = { },
         });
         const SeRenderRef depthTexture = g_render->texture(g_device,
         {
-            .device = g_device,
             .width  = win::get_width(g_window),
             .height = win::get_height(g_window),
             .format = SE_TEXTURE_FORMAT_DEPTH_STENCIL,
+            .data   = { },
         });
         g_render->begin_pass(g_device,
         {
@@ -228,16 +227,16 @@ void tetris_render_update(const SeWindowSubsystemInput* input, float dt)
             .hasDepthStencil    = true,
         });
         {
-            const SeRenderRef gridVerticesBuffer    = g_render->memory_buffer(g_device, { .size = sizeof(gridVertices), .data = gridVertices });
-            const SeRenderRef gridIndicesBuffer     = g_render->memory_buffer(g_device, { .size = sizeof(gridIndices), .data = gridIndices });
-            const SeRenderRef gridInstancesBuffer   = g_render->memory_buffer(g_device, { .size = sizeof(gridInstances), .data = gridInstances });
-            const SeRenderRef frameDataBuffer       = g_render->memory_buffer(g_device, { .size = sizeof(frameData), .data = &frameData });
+            const SeRenderRef gridVerticesBuffer    = g_render->memory_buffer(g_device, { data_provider::from_memory(gridVertices, sizeof(gridVertices)) });
+            const SeRenderRef gridIndicesBuffer     = g_render->memory_buffer(g_device, { data_provider::from_memory(gridIndices, sizeof(gridIndices)) });
+            const SeRenderRef gridInstancesBuffer   = g_render->memory_buffer(g_device, { data_provider::from_memory(gridInstances, sizeof(gridInstances)) });
+            const SeRenderRef frameDataBuffer       = g_render->memory_buffer(g_device, { data_provider::from_memory(&frameData, sizeof(frameData)) });
             g_render->bind(g_device, { .set = 0, .bindings = { { 0, frameDataBuffer } }, .numBindings = 1 });
             if (numCubeInstances)
             {
-                const SeRenderRef cubeVerticesBuffer    = g_render->memory_buffer(g_device, { .size = sizeof(cubeVertices), .data = cubeVertices });
-                const SeRenderRef cubeIndicesBuffer     = g_render->memory_buffer(g_device, { .size = sizeof(cubeIndices), .data = cubeIndices });
-                const SeRenderRef cubeInstancesBuffer   = g_render->memory_buffer(g_device, { .size = numCubeInstances * sizeof(InputInstance), .data = cubeInstances });
+                const SeRenderRef cubeVerticesBuffer    = g_render->memory_buffer(g_device, { data_provider::from_memory(cubeVertices, sizeof(cubeVertices)) });
+                const SeRenderRef cubeIndicesBuffer     = g_render->memory_buffer(g_device, { data_provider::from_memory(cubeIndices, sizeof(cubeIndices)) });
+                const SeRenderRef cubeInstancesBuffer   = g_render->memory_buffer(g_device, { data_provider::from_memory(cubeInstances, numCubeInstances * sizeof(InputInstance)) });
                 g_render->bind(g_device, { .set = 1, .bindings =
                 { 
                     { 0, cubeVerticesBuffer  },

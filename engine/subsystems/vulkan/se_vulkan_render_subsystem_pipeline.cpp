@@ -31,7 +31,7 @@ static bool se_vk_pipeline_has_vertex_input(const SimpleSpirvReflection* reflect
     return false;
 }
 
-static SeVkDescriptorSetLayoutCreateInfos se_vk_pipeline_get_discriptor_set_layout_create_infos(SeAllocatorBindings& allocator, const SimpleSpirvReflection** programReflections, size_t numProgramReflections)
+static SeVkDescriptorSetLayoutCreateInfos se_vk_pipeline_get_discriptor_set_layout_create_infos(AllocatorBindings& allocator, const SimpleSpirvReflection** programReflections, size_t numProgramReflections)
 {
     SeVkGeneralBitmask setBindingMasks[SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS] = {0};
     //
@@ -191,7 +191,7 @@ static void se_vk_pipeline_create_descriptor_sets_and_layout(SeVkPipeline* pipel
     VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
     SeVkMemoryManager* memoryManager = &device->memoryManager;
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    SeAllocatorBindings frameAllocator = app_allocators::frame();
+    AllocatorBindings frameAllocator = app_allocators::frame();
     //
     // Descriptor set layouts and pools
     //
@@ -297,7 +297,7 @@ void se_vk_pipeline_graphics_construct(SeVkPipeline* pipeline, SeVkGraphicsPipel
     VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
     SeVkMemoryManager* memoryManager = &device->memoryManager;
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    SeAllocatorBindings frameAllocator = app_allocators::frame();
+    AllocatorBindings frameAllocator = app_allocators::frame();
 
     SeVkProgram* vertexProgram = info->vertexProgram.program;
     SeVkProgram* fragmentProgram = info->fragmentProgram.program;
@@ -394,7 +394,7 @@ void se_vk_pipeline_compute_construct(SeVkPipeline* pipeline, SeVkComputePipelin
     VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
     SeVkMemoryManager* memoryManager = &device->memoryManager;
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    SeAllocatorBindings frameAllocator = app_allocators::frame();
+    AllocatorBindings frameAllocator = app_allocators::frame();
     
     SeVkProgram* program = info->program.program;
     *pipeline =

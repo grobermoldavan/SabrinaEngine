@@ -11,25 +11,25 @@ static size_t g_programIndex = 0;
 
 static void* se_vk_ssr_alloc_persistent(void* userData, size_t size)
 {
-    SeAllocatorBindings allocator = app_allocators::persistent();
+    AllocatorBindings allocator = app_allocators::persistent();
     return allocator.alloc(allocator.allocator, size, se_default_alignment, se_alloc_tag);
 }
 
 static void se_vk_ssr_free_persistent(void* userData, void* ptr, size_t size)
 {
-    SeAllocatorBindings allocator = app_allocators::persistent();
+    AllocatorBindings allocator = app_allocators::persistent();
     allocator.dealloc(allocator.allocator, ptr, size);
 }
 
 static void* se_vk_ssr_alloc_frame(void* userData, size_t size)
 {
-    SeAllocatorBindings allocator = app_allocators::frame();
+    AllocatorBindings allocator = app_allocators::frame();
     return allocator.alloc(allocator.allocator, size, se_default_alignment, se_alloc_tag);
 }
 
 static void se_vk_ssr_free_frame(void* userData, void* ptr, size_t size)
 {
-    SeAllocatorBindings allocator = app_allocators::frame();
+    AllocatorBindings allocator = app_allocators::frame();
     allocator.dealloc(allocator.allocator, ptr, size);
 }
 
@@ -79,7 +79,7 @@ void se_vk_program_destroy(SeVkProgram* program)
     se_vk_utils_destroy_shader_module(logicalHandle, program->handle, callbacks);
 }
 
-VkPipelineShaderStageCreateInfo se_vk_program_get_shader_stage_create_info(SeVkDevice* device, SeVkProgramWithConstants* pipelineProgram, SeAllocatorBindings& allocator)
+VkPipelineShaderStageCreateInfo se_vk_program_get_shader_stage_create_info(SeVkDevice* device, SeVkProgramWithConstants* pipelineProgram, AllocatorBindings& allocator)
 {
     const SeVkProgram* program = pipelineProgram->program;
     const SimpleSpirvReflection* reflection = &program->reflection;

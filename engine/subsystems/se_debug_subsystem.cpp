@@ -167,7 +167,7 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
 SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 {
     se_debug_platform_init();
-    thread_safe_queue::construct(g_logQueue, app_allocators::persistent(), platform::get(), utils::power_of_two<4096>());
+    thread_safe_queue::construct(g_logQueue, app_allocators::persistent(), utils::power_of_two<4096>());
     g_iface.isInited = true;
 }
 
@@ -176,7 +176,7 @@ SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
     return &g_iface;
 }
 
-SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* updateInfo)
+SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* updateInfo)
 {
     se_debug_try_flush();
 }

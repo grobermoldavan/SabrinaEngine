@@ -1,5 +1,5 @@
-#ifndef _SE_ALLOCATOR_BINDINGS_H_
-#define _SE_ALLOCATOR_BINDINGS_H_
+#ifndef _SE_ALLOCATOR_BINDINGS_HPP_
+#define _SE_ALLOCATOR_BINDINGS_HPP_
 
 #include "common_includes.hpp"
 
@@ -12,7 +12,7 @@
 #define __STR(s) __STR2(s)
 #define se_alloc_tag __PP_CAT("File: " , __PP_CAT(__PP_CAT(__FILE__, ". Line: "), __STR(__LINE__)))
 
-struct SeAllocatorBindings
+struct AllocatorBindings
 {
     void* allocator;
     void* (*alloc)(void* allocator, size_t size, size_t alignment, const char* allocTag);

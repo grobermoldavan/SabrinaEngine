@@ -142,10 +142,8 @@ bool se_platform_atomic_32_bit_cas(uint32_t* atomic, uint32_t* expected, uint32_
     return val == *expected;
 }
 
-void se_platform_file_load(SeFile* file, const char* path, SeFileLoadMode loadMode)
+SeFile se_platform_file_load(const char* path, SeFileLoadMode loadMode)
 {
-    memset(file, 0, sizeof(SeFile));
-    file->loadMode = loadMode;
     const HANDLE handle = CreateFileA
     (
         path,
@@ -157,13 +155,29 @@ void se_platform_file_load(SeFile* file, const char* path, SeFileLoadMode loadMo
         nullptr
     );
     se_assert_msg(handle != INVALID_HANDLE_VALUE, path);
-    file->flags = SE_FILE_IS_LOADED;
-    memcpy(&file->handle, &handle, sizeof(HANDLE));
+    SeFileHandle seHandle;
+    memcpy(&seHandle, &handle, sizeof(HANDLE));
+
+    const size_t BUFFER_LENGTH = 256;
+    char buffer[BUFFER_LENGTH];
+    const DWORD result = GetFullPathNameA(path, BUFFER_LENGTH, buffer, nullptr);
+    se_assert_msg(result != 0, "GetFullPathNameA failed");
+    se_assert_msg(result != BUFFER_LENGTH, "wtf");
+    se_assert_msg(result < BUFFER_LENGTH, "Buffer is too small to hold full path name");
+
+    return
+    {
+        .fullPath   = string::create(buffer, SeStringLifetime::Persistent),
+        .handle     = seHandle,
+        .loadMode   = loadMode,
+        .flags      = SE_FILE_IS_LOADED,
+    };
 }
 
 void se_platform_file_unload(SeFile* file)
 {
     CloseHandle(se_platform_handle_from_se_handle(file->handle));
+    string::destroy(file->fullPath);
 }
 
 bool se_platform_file_is_valid(const SeFile* file)
@@ -172,7 +186,7 @@ bool se_platform_file_is_valid(const SeFile* file)
     return handle != INVALID_HANDLE_VALUE && file->flags & SE_FILE_IS_LOADED;
 }
 
-SeFileContent se_platform_file_read(SeFile* file, SeAllocatorBindings allocator)
+SeFileContent se_platform_file_read(const SeFile* file, AllocatorBindings allocator)
 {
     HANDLE handle = se_platform_handle_from_se_handle(file->handle);
     uint64_t fileSize = 0;
@@ -209,7 +223,7 @@ void se_platform_file_free_content(SeFileContent* content)
     content->allocator.dealloc(content->allocator.allocator, content->memory, content->size + 1);
 }
 
-void se_platform_file_write(SeFile* file, const void* data, size_t size)
+void se_platform_file_write(const SeFile* file, const void* data, size_t size)
 {
     DWORD bytesWritten;
     const BOOL result = WriteFile

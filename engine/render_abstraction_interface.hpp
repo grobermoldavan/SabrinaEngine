@@ -1,10 +1,11 @@
-#ifndef _SE_RENDER_ABSTRACTION_INTERFACE_H_
-#define _SE_RENDER_ABSTRACTION_INTERFACE_H_
+#ifndef _SE_RENDER_ABSTRACTION_INTERFACE_HPP_
+#define _SE_RENDER_ABSTRACTION_INTERFACE_HPP_
 
 #include <inttypes.h>
 #include <stdbool.h>
 
 #include "engine/se_math.hpp"
+#include "engine/data_providers.hpp"
 #include "engine/subsystems/se_window_subsystem.hpp"
 
 #define SE_MAX_SPECIALIZATION_CONSTANTS 8
@@ -145,10 +146,10 @@ struct SeRenderProgramComputeWorkGroupSize
 
 struct SeTextureInfo
 {
-    SeDeviceHandle  device;
     size_t          width;
     size_t          height;
     SeTextureFormat format;
+    DataProvider    data;
 };
 
 struct SeSamplerInfo
@@ -228,9 +229,7 @@ struct SeComputePipelineInfo
 
 struct SeMemoryBufferInfo
 {
-    SeDeviceHandle  device;
-    size_t          size;
-    const void*     data;
+    DataProvider data;
 };
 
 struct SeBinding

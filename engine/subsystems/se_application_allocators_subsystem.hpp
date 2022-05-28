@@ -7,8 +7,8 @@ struct SeApplicationAllocatorsSubsystemInterface
 {
     static constexpr const char* NAME = "SeApplicationAllocatorsSubsystemInterface";
 
-    SeAllocatorBindings frameAllocator;
-    SeAllocatorBindings persistentAllocator;
+    AllocatorBindings frameAllocator;
+    AllocatorBindings persistentAllocator;
 };
 
 struct SeApplicationAllocatorsSubsystem
@@ -22,12 +22,12 @@ const SeApplicationAllocatorsSubsystemInterface* SE_APPLICATION_ALLOCATORS_SUBSY
 
 namespace app_allocators
 {
-    inline SeAllocatorBindings frame()
+    inline AllocatorBindings frame()
     {
         return SE_APPLICATION_ALLOCATORS_SUBSYSTEM_GLOBAL_NAME->frameAllocator;
     }
 
-    inline SeAllocatorBindings persistent()
+    inline AllocatorBindings persistent()
     {
         return SE_APPLICATION_ALLOCATORS_SUBSYSTEM_GLOBAL_NAME->persistentAllocator;
     }

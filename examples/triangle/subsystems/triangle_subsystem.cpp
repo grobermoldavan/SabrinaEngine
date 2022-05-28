@@ -32,8 +32,7 @@ SeRenderRef fragmentProgram;
 
 SeRenderRef sync_load_shader(const char* path)
 {
-    SeFile shader;
-    platform::get()->file_load(&shader, path, SE_FILE_READ);
+    SeFile shader = platform::get()->file_load(path, SE_FILE_READ);
     SeFileContent content = platform::get()->file_read(&shader, app_allocators::frame());
     SeRenderRef program = render->program(device,
     {
@@ -70,7 +69,7 @@ SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
     win::destroy(window);
 }
 
-SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
+SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* info)
 {
     const SeWindowSubsystemInput* input = win::get_input(window);
     if (input->isCloseButtonPressed || win::is_keyboard_button_pressed(input, SE_ESCAPE)) engine->shouldRun = false;
@@ -100,9 +99,9 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
 
     render->begin_frame(device);
     {
-        const SeRenderRef frameDataBuffer = render->memory_buffer(device, { .size = sizeof(frameData), .data = &frameData });
-        const SeRenderRef instancesBuffer = render->memory_buffer(device, { .size = sizeof(instances), .data = instances });
-        const SeRenderRef verticesBuffer = render->memory_buffer(device, { .size = sizeof(vertices), .data = vertices });
+        const SeRenderRef frameDataBuffer = render->memory_buffer(device, { data_provider::from_memory(&frameData, sizeof(frameData)) });
+        const SeRenderRef instancesBuffer = render->memory_buffer(device, { data_provider::from_memory(instances, sizeof(instances)) });
+        const SeRenderRef verticesBuffer = render->memory_buffer(device, { data_provider::from_memory(vertices, sizeof(vertices)) });
         const SeRenderRef pipeline = render->graphics_pipeline(device,
         {
             .device                 = device,

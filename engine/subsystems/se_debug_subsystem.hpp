@@ -98,8 +98,8 @@ namespace debug
     #define se_assert(cond) ((!!(cond)) || (debug::assert_impl(cond, #cond, __FILE__, __LINE__), 0))
     #define se_assert_msg(cond, fmt, ...) ((!!(cond)) || (debug::assert_impl(cond, #cond, __FILE__, __LINE__, fmt, __VA_ARGS__), 0))
 #else
-    #define se_assert(cond)
-    #define se_assert_msg(cond, fmt, ...)
+    #define se_assert(cond) ((void)(cond))
+    #define se_assert_msg(cond, fmt, ...) ((void)(cond))
 #endif
 
 #endif

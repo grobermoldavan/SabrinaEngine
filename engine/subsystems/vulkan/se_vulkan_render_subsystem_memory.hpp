@@ -44,10 +44,12 @@ struct SeVkMemoryManager
     VkAllocationCallbacks               cpu_allocationCallbacks;
     DynamicArray<SeVkCpuAllocation>     cpu_allocations;
     struct SeVkMemoryObjectPools*       cpu_objectPools;
-
+    
     struct SeVkDevice*                  device;
     DynamicArray<SeVkGpuMemoryChunk>    gpu_chunks;
     VkPhysicalDeviceMemoryProperties*   memoryProperties;
+
+    struct SeVkMemoryBuffer* stagingBuffer;
 };
 
 void            se_vk_memory_manager_construct(SeVkMemoryManager* manager);
@@ -62,5 +64,7 @@ void            se_vk_memory_manager_deallocate(SeVkMemoryManager* manager, SeVk
 template<typename T> ObjectPool<T>& se_vk_memory_manager_get_pool(SeVkMemoryManager* manager);
 
 VkAllocationCallbacks* se_vk_memory_manager_get_callbacks(SeVkMemoryManager* manager);
+
+struct SeVkMemoryBuffer* se_vk_memory_manager_get_staging_buffer(SeVkMemoryManager* manager);
 
 #endif

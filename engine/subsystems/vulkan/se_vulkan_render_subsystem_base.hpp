@@ -11,9 +11,12 @@
 #include <vulkan/vulkan.h>
 #include <inttypes.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 #include "engine/libs/volk/volk.h"
+#include "engine/common_includes.hpp"
 #include "engine/render_abstraction_interface.hpp"
+#include "engine/utils.hpp"
 #include "engine/subsystems/se_debug_subsystem.hpp"
 
 enum SeVkType

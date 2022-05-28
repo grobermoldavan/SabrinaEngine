@@ -14,7 +14,7 @@ static void se_vk_gpu_fill_required_physical_deivce_features(VkPhysicalDeviceFea
     features->samplerAnisotropy = VK_TRUE;
 }
 
-static float se_vk_gpu_get_device_rating(VkPhysicalDevice device, VkSurfaceKHR surface, SeAllocatorBindings& bindings, VkPhysicalDeviceFeatures* featuresToEnable)
+static float se_vk_gpu_get_device_rating(VkPhysicalDevice device, VkSurfaceKHR surface, AllocatorBindings& bindings, VkPhysicalDeviceFeatures* featuresToEnable)
 {
     //
     // Get queues
@@ -84,7 +84,7 @@ static SeVkCommandQueue* se_vk_gpu_get_command_queue(SeVkGpu* gpu, SeVkCommandQu
     return nullptr;
 }
 
-static VkPhysicalDevice se_vk_gpu_pick_physical_device(VkInstance instance, VkSurfaceKHR surface, SeAllocatorBindings& bindings, VkPhysicalDeviceFeatures* featuresToEnable)
+static VkPhysicalDevice se_vk_gpu_pick_physical_device(VkInstance instance, VkSurfaceKHR surface, AllocatorBindings& bindings, VkPhysicalDeviceFeatures* featuresToEnable)
 {
     DynamicArray<VkPhysicalDevice> available = se_vk_utils_get_available_physical_devices(instance, bindings);
     const size_t numAvailableDevices = dynamic_array::size(available);
@@ -119,7 +119,7 @@ static VkPhysicalDevice se_vk_gpu_pick_physical_device(VkInstance instance, VkSu
 
 static void se_vk_device_swap_chain_create(SeVkDevice* device, SeWindowHandle window)
 {
-    SeAllocatorBindings frameAllocator = app_allocators::frame();
+    AllocatorBindings frameAllocator = app_allocators::frame();
     SeVkMemoryManager* memoryManager = &device->memoryManager;
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
     {
@@ -258,13 +258,14 @@ VKAPI_ATTR VkBool32 VKAPI_CALL se_vk_debug_callback(
                                             void* pUserData)
 {
     printf("Debug callback : %s\n", pCallbackData->pMessage);
+    se_assert(false);
     return VK_FALSE;
 }
 
 SeDeviceHandle se_vk_device_create(const SeDeviceInfo& deviceInfo)
 {
-    SeAllocatorBindings persistentAllocator = app_allocators::persistent();
-    SeAllocatorBindings frameAllocator = app_allocators::frame();
+    AllocatorBindings persistentAllocator = app_allocators::persistent();
+    AllocatorBindings frameAllocator = app_allocators::frame();
 
     SeVkDevice* device = (SeVkDevice*)persistentAllocator.alloc(persistentAllocator.allocator, sizeof(SeVkDevice), se_default_alignment, se_alloc_tag);
     device->object = { SE_VK_TYPE_DEVICE, g_deviceIndex++ };
@@ -572,7 +573,7 @@ void se_vk_device_destroy(SeDeviceHandle _device)
     vkDestroyInstance(device->instance, callbacks);
     se_vk_memory_manager_free_cpu_memory(&device->memoryManager);
 
-    SeAllocatorBindings allocator = app_allocators::persistent();
+    AllocatorBindings allocator = app_allocators::persistent();
     allocator.dealloc(allocator.allocator, device, sizeof(SeVkDevice));
 }
 

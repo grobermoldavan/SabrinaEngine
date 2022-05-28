@@ -4,12 +4,10 @@
 #include "se_vulkan_render_subsystem_frame_manager.hpp"
 #include "se_vulkan_render_subsystem_utils.hpp"
 #include "engine/subsystems/se_application_allocators_subsystem.hpp"
-#include "engine/containers.hpp"
 
 static constexpr size_t SE_VK_GRAPH_MAX_SETS_IN_DESCRIPTOR_POOL = 64;
-static constexpr size_t SE_VK_GRAPH_OBJECT_LIFETIME = 5;
-static constexpr size_t CONTAINERS_INITIAL_CAPACITY = 32;
-static constexpr size_t STAGING_BUFFER_SIZE = se_megabytes(16);
+static constexpr size_t SE_VK_GRAPH_OBJECT_LIFETIME             = 20;
+static constexpr size_t CONTAINERS_INITIAL_CAPACITY             = 32;
 
 enum SeVkRefFlags
 {
@@ -57,8 +55,8 @@ void se_vk_graph_free_old_resources(HashTable<Key, SeVkGraphWithFrame<Value>>& t
 
 void se_vk_graph_construct(SeVkGraph* graph, SeVkGraphInfo* info)
 {
-    SeAllocatorBindings persistentAllocator = app_allocators::persistent();
-    SeAllocatorBindings frameAllocator = app_allocators::frame();
+    AllocatorBindings persistentAllocator = app_allocators::persistent();
+    AllocatorBindings frameAllocator = app_allocators::frame();
 
     *graph =
     {
@@ -93,18 +91,6 @@ void se_vk_graph_construct(SeVkGraph* graph, SeVkGraphInfo* info)
     hash_table::construct(graph->computePipelineInfoToComputePipeline, persistentAllocator, CONTAINERS_INITIAL_CAPACITY);
     hash_table::construct(graph->samplerInfoToSampler, persistentAllocator, CONTAINERS_INITIAL_CAPACITY);
     hash_table::construct(graph->pipelineToDescriptorPools, persistentAllocator, CONTAINERS_INITIAL_CAPACITY);
-
-    ObjectPool<SeVkMemoryBuffer>& memoryBufferPool = se_vk_memory_manager_get_pool<SeVkMemoryBuffer>(&graph->device->memoryManager);
-    graph->stagingBuffer = object_pool::take(memoryBufferPool);
-    SeVkMemoryBufferInfo vkInfo
-    {
-        .device     = graph->device,
-        .size       = STAGING_BUFFER_SIZE,
-        .usage      = VK_BUFFER_USAGE_TRANSFER_DST_BIT   | 
-                      VK_BUFFER_USAGE_TRANSFER_SRC_BIT   ,
-        .visibility = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-    };
-    se_vk_memory_buffer_construct(graph->stagingBuffer, &vkInfo);
 }
 
 void se_vk_graph_destroy(SeVkGraph* graph)
@@ -183,7 +169,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
 
     VkDevice logicalHandle = se_vk_device_get_logical_handle(graph->device);
     SeVkMemoryManager* memoryManager = &graph->device->memoryManager;
-    SeAllocatorBindings frameAllocator = app_allocators::frame();
+    AllocatorBindings frameAllocator = app_allocators::frame();
 
     ObjectPool<SeVkTexture>&        texturePool         = se_vk_memory_manager_get_pool<SeVkTexture>(memoryManager);
     ObjectPool<SeVkRenderPass>&     renderPassPool      = se_vk_memory_manager_get_pool<SeVkRenderPass>(memoryManager);
@@ -1061,6 +1047,7 @@ SeRenderRef se_vk_graph_texture(SeVkGraph* graph, const SeTextureInfo& info)
         .extent     = { se_vk_safe_cast_size_t_to_uint32_t(info.width), se_vk_safe_cast_size_t_to_uint32_t(info.height), 1 },
         .usage      = 0,
         .sampling   = VK_SAMPLE_COUNT_1_BIT, // @TODO : support multisampling
+        .data       = info.data,
     });
 
     return se_vk_ref(SE_VK_TYPE_TEXTURE, SE_VK_REF_IS_IMMEDIATE, dynamic_array::size(graph->textureInfos) - 1);
@@ -1073,13 +1060,21 @@ SeRenderRef se_vk_graph_swap_chain_texture(SeVkGraph* graph)
 
 SeRenderRef se_vk_graph_memory_buffer(SeVkGraph* graph, const SeMemoryBufferInfo& info)
 {
+    se_assert(data_provider::is_valid(info.data));
+    auto [sourcePtr, sourceSize] = data_provider::get(info.data);
+
     if (graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_FRAME || graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_PASS)
     {
         SeVkFrameManager* frameManager = &graph->device->frameManager;
-        SeVkMemoryBufferView view = se_vk_frame_manager_alloc_scratch_buffer(frameManager, info.size);
+        SeVkMemoryBufferView view = se_vk_frame_manager_alloc_scratch_buffer(frameManager, sourceSize);
         dynamic_array::push(graph->scratchBufferViews, view);
-        se_assert_msg(view.mappedMemory, "todo : support copies for non host-visible scratch memory buffers");
-        if (view.mappedMemory && info.data) memcpy(view.mappedMemory, info.data, info.size);
+        
+        if (sourcePtr)
+        {
+            se_assert_msg(view.mappedMemory, "todo : support copies for non host-visible scratch memory buffers");
+            memcpy(view.mappedMemory, sourcePtr, sourceSize);
+        }
+
         return se_vk_ref(SE_VK_TYPE_MEMORY_BUFFER, SE_VK_REF_IS_IMMEDIATE, dynamic_array::size(graph->scratchBufferViews) - 1);
     }
     else
@@ -1089,7 +1084,7 @@ SeRenderRef se_vk_graph_memory_buffer(SeVkGraph* graph, const SeMemoryBufferInfo
         SeVkMemoryBufferInfo vkInfo
         {
             .device     = graph->device,
-            .size       = info.size,
+            .size       = sourceSize,
             .usage      = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | 
                           VK_BUFFER_USAGE_TRANSFER_DST_BIT   | 
@@ -1098,7 +1093,7 @@ SeRenderRef se_vk_graph_memory_buffer(SeVkGraph* graph, const SeMemoryBufferInfo
         };
         se_vk_memory_buffer_construct(memoryBuffer, &vkInfo);
 
-        if (info.data)
+        if (sourcePtr)
         {
             ObjectPool<SeVkCommandBuffer>& cmdPool = se_vk_memory_manager_get_pool<SeVkCommandBuffer>(&graph->device->memoryManager);
             SeVkCommandBuffer* cmd = object_pool::take(cmdPool);
@@ -1107,21 +1102,24 @@ SeRenderRef se_vk_graph_memory_buffer(SeVkGraph* graph, const SeMemoryBufferInfo
                 .device = graph->device,
                 .usage  = SE_VK_COMMAND_BUFFER_USAGE_TRANSFER,
             };
-            void* const stagingMemory = graph->stagingBuffer->memory.mappedMemory;
-            const size_t numCopies = (info.size / STAGING_BUFFER_SIZE) + (info.size % STAGING_BUFFER_SIZE ? 1 : 0);
+            SeVkMemoryBuffer* stagingBuffer = se_vk_memory_manager_get_staging_buffer(&graph->device->memoryManager);
+            const size_t stagingBufferSize = stagingBuffer->memory.size;
+            void* const stagingMemory = stagingBuffer->memory.mappedMemory;
+            
+            const size_t numCopies = (sourceSize / stagingBufferSize) + (sourceSize % stagingBufferSize ? 1 : 0);
             for (size_t it = 0; it < numCopies; it++)
             {
-                const size_t dataLeft = info.size - (it * STAGING_BUFFER_SIZE);
-                const size_t copySize = se_min(dataLeft, STAGING_BUFFER_SIZE);
-                memcpy(stagingMemory, ((char*)info.data) + it * STAGING_BUFFER_SIZE, copySize);
+                const size_t dataLeft = sourceSize - (it * stagingBufferSize);
+                const size_t copySize = se_min(dataLeft, stagingBufferSize);
+                memcpy(stagingMemory, ((char*)sourcePtr) + it * stagingBufferSize, copySize);
                 se_vk_command_buffer_construct(cmd, &cmdInfo);
                 VkBufferCopy copy
                 {
                     .srcOffset  = 0,
-                    .dstOffset  = it * STAGING_BUFFER_SIZE,
+                    .dstOffset  = it * stagingBufferSize,
                     .size       = copySize,
                 };
-                vkCmdCopyBuffer(cmd->handle, graph->stagingBuffer->handle, memoryBuffer->handle, 1, &copy);
+                vkCmdCopyBuffer(cmd->handle, stagingBuffer->handle, memoryBuffer->handle, 1, &copy);
                 SeVkCommandBufferSubmitInfo submit = { };
                 se_vk_command_buffer_submit(cmd, &submit);
                 vkWaitForFences(se_vk_device_get_logical_handle(graph->device), 1, &cmd->fence, VK_TRUE, UINT64_MAX);    

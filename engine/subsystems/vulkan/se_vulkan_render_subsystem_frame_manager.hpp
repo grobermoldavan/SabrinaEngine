@@ -3,7 +3,6 @@
 
 #include "se_vulkan_render_subsystem_base.hpp"
 #include "se_vulkan_render_subsystem_memory_buffer.hpp"
-#include "engine/containers.hpp"
 
 #define SE_VK_FRAME_MANAGER_MAX_NUM_FRAMES 6
 #define SE_VK_FRAME_MANAGER_INVALID_FRAME 0xDEAD

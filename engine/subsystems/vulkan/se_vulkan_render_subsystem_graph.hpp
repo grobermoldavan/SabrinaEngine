@@ -93,16 +93,15 @@ struct SeVkGraph
     DynamicArray<SeComputePipelineInfo>                     computePipelineInfos;
     DynamicArray<SeVkMemoryBufferView>                      scratchBufferViews;
 
-    HashTable<SeVkTextureInfo, size_t>                                      textureInfoToCount;
-    HashTable<SeVkGraphTextureInfoIndexed, SeVkGraphWithFrame<SeVkTexture>> textureInfoIndexedToTexture;
-    HashTable<SeVkProgramInfo, SeVkGraphWithFrame<SeVkProgram>>             programInfoToProgram;
-    HashTable<SeVkRenderPassInfo, SeVkGraphWithFrame<SeVkRenderPass>>       renderPassInfoToRenderPass;
-    HashTable<SeVkFramebufferInfo, SeVkGraphWithFrame<SeVkFramebuffer>>     framebufferInfoToFramebuffer;
-    HashTable<SeVkGraphicsPipelineInfo, SeVkGraphWithFrame<SeVkPipeline>>   graphicsPipelineInfoToGraphicsPipeline;
-    HashTable<SeVkComputePipelineInfo, SeVkGraphWithFrame<SeVkPipeline>>    computePipelineInfoToComputePipeline;
-    HashTable<SeVkSamplerInfo, SeVkGraphWithFrame<SeVkSampler>>             samplerInfoToSampler;
-
-    HashTable<SeVkGraphPipelineWithFrame, SeVkGraphDescriptorPoolArray> pipelineToDescriptorPools;
+    HashTable<SeVkTextureInfo               , size_t>                               textureInfoToCount;
+    HashTable<SeVkGraphTextureInfoIndexed   , SeVkGraphWithFrame<SeVkTexture>>      textureInfoIndexedToTexture;
+    HashTable<SeVkProgramInfo               , SeVkGraphWithFrame<SeVkProgram>>      programInfoToProgram;
+    HashTable<SeVkRenderPassInfo            , SeVkGraphWithFrame<SeVkRenderPass>>   renderPassInfoToRenderPass;
+    HashTable<SeVkFramebufferInfo           , SeVkGraphWithFrame<SeVkFramebuffer>>  framebufferInfoToFramebuffer;
+    HashTable<SeVkGraphicsPipelineInfo      , SeVkGraphWithFrame<SeVkPipeline>>     graphicsPipelineInfoToGraphicsPipeline;
+    HashTable<SeVkComputePipelineInfo       , SeVkGraphWithFrame<SeVkPipeline>>     computePipelineInfoToComputePipeline;
+    HashTable<SeVkSamplerInfo               , SeVkGraphWithFrame<SeVkSampler>>      samplerInfoToSampler;
+    HashTable<SeVkGraphPipelineWithFrame    , SeVkGraphDescriptorPoolArray>         pipelineToDescriptorPools;
 
     SeVkMemoryBuffer* stagingBuffer;
 };

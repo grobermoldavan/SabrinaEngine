@@ -1,6 +1,7 @@
 #ifndef _SE_PLATFORM_H_
 #define _SE_PLATFORM_H_
 
+#include "engine/subsystems/se_string_subsystem.hpp"
 #include "engine/common_includes.hpp"
 #include "engine/allocator_bindings.hpp"
 
@@ -14,13 +15,13 @@ enum SeMemoryOrder
     SE_SEQUENTIALLY_CONSISTENT,
 };
 
-enum SeFileLoadMode
+enum SeFileLoadMode : uint32_t
 {
     SE_FILE_READ,
     SE_FILE_WRITE,
 };
 
-enum SeFileFlags
+enum SeFileFlags : uint32_t
 {
     SE_FILE_IS_LOADED = 0x00000001,
     SE_FILE_STD_HANDLE = 0x00000002,
@@ -30,14 +31,15 @@ using SeFileHandle = uint64_t;
 
 struct SeFile
 {
-    SeFileHandle handle;
-    uint32_t     loadMode;
-    uint32_t     flags;
+    SeString        fullPath;
+    SeFileHandle    handle;
+    uint32_t        loadMode;
+    uint32_t        flags;
 };
 
 struct SeFileContent
 {
-    SeAllocatorBindings allocator;
+    AllocatorBindings   allocator;
     void*               memory;
     size_t              size;
 };
@@ -65,12 +67,12 @@ struct SePlatformSubsystemInterface
     uint32_t        (*atomic_32_bit_store)      (uint32_t* val, uint32_t newValue, SeMemoryOrder memoryOrder);
     bool            (*atomic_32_bit_cas)        (uint32_t* atomic, uint32_t* expected, uint32_t newValue, SeMemoryOrder memoryOrder);   
 
-    void            (*file_load)                (SeFile* file, const char* path, SeFileLoadMode loadMode);
+    SeFile          (*file_load)                (const char* path, SeFileLoadMode loadMode);
     void            (*file_unload)              (SeFile* file);
     bool            (*file_is_valid)            (const SeFile* file);
-    SeFileContent   (*file_read)                (SeFile* file, SeAllocatorBindings allocator);
+    SeFileContent   (*file_read)                (const SeFile* file, AllocatorBindings allocator);
     void            (*file_free_content)        (SeFileContent* content);
-    void            (*file_write)               (SeFile* file, const void* data, size_t size);
+    void            (*file_write)               (const SeFile* file, const void* data, size_t size);
 };
 
 struct SePlatformSubsystem

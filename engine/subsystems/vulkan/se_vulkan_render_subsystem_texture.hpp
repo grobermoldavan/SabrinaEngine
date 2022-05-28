@@ -3,6 +3,7 @@
 
 #include "se_vulkan_render_subsystem_base.hpp"
 #include "se_vulkan_render_subsystem_memory.hpp"
+#include "engine/data_providers.hpp"
 
 enum SeVkTextureFlags
 {
@@ -16,6 +17,7 @@ struct SeVkTextureInfo
     VkExtent3D              extent;
     VkImageUsageFlags       usage;
     VkSampleCountFlagBits   sampling;
+    DataProvider            data;
 };
 
 struct SeVkTexture
@@ -44,6 +46,15 @@ void se_vk_destroy<SeVkTexture>(SeVkTexture* res)
     se_vk_texture_destroy(res);
 }
 
+namespace utils
+{
+    template<>
+    bool compare<SeVkTextureInfo>(const SeVkTextureInfo& first, const SeVkTextureInfo& second)
+    {
+        return compare_raw(&first, &second, offsetof(SeVkTextureInfo, data)) && compare(first.data, second.data);
+    }
+}
+
 namespace hash_value
 {
     namespace builder
@@ -51,7 +62,8 @@ namespace hash_value
         template<>
         void absorb<SeVkTextureInfo>(HashValueBuilder& builder, const SeVkTextureInfo& info)
         {
-            hash_value::builder::absorb_raw(builder, { (void*)&info, sizeof(SeVkTextureInfo) });
+            hash_value::builder::absorb_raw(builder, { (void*)&info, offsetof(SeVkTextureInfo, data) });
+            hash_value::builder::absorb(builder, info.data);
         }
 
         template<>

@@ -338,8 +338,7 @@ const int32_t TRIANGLE_TABLE[256][16] =
 
 SeRenderRef sync_load_shader(const char* path)
 {
-    SeFile shader;
-    platform::get()->file_load(&shader, path, SE_FILE_READ);
+    SeFile shader = platform::get()->file_load(path, SE_FILE_READ);
     SeFileContent content = platform::get()->file_read(&shader, app_allocators::frame());
     SeProgramInfo createInfo
     {
@@ -383,10 +382,10 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
     // Allocate buffers
     //
     constexpr uint32_t numVerts = (CHUNK_DIM - 1) * (CHUNK_DIM - 1) * (CHUNK_DIM - 1) * 5 * 3;
-    g_edgeTableBuffer = g_render->memory_buffer(g_device, { g_device, sizeof(EDGE_TABLE), EDGE_TABLE });
-    g_triangleTableBuffer = g_render->memory_buffer(g_device, { g_device, sizeof(TRIANGLE_TABLE), TRIANGLE_TABLE });
-    g_gridValuesBuffer = g_render->memory_buffer(g_device, { g_device, sizeof(float) * CHUNK_DIM * CHUNK_DIM * CHUNK_DIM, nullptr });
-    g_geometryBuffer = g_render->memory_buffer(g_device, { g_device, sizeof(Vertex) * numVerts, nullptr });
+    g_edgeTableBuffer     = g_render->memory_buffer(g_device, { data_provider::from_memory(EDGE_TABLE, sizeof(EDGE_TABLE)) });
+    g_triangleTableBuffer = g_render->memory_buffer(g_device, { data_provider::from_memory(TRIANGLE_TABLE, sizeof(TRIANGLE_TABLE)) });
+    g_gridValuesBuffer    = g_render->memory_buffer(g_device, { data_provider::from_memory(nullptr, sizeof(float) * CHUNK_DIM * CHUNK_DIM * CHUNK_DIM) });
+    g_geometryBuffer      = g_render->memory_buffer(g_device, { data_provider::from_memory(nullptr, sizeof(Vertex) * numVerts) });
     //
     // Init camera
     //
@@ -399,7 +398,7 @@ SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
     win::destroy(g_window);
 }
 
-SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* updateInfo)
+SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* updateInfo)
 {
     const SeWindowSubsystemInput* input = win::get_input(g_window);
     if (input->isCloseButtonPressed || win::is_keyboard_button_pressed(input, SE_ESCAPE)) engine->shouldRun = false;
@@ -428,7 +427,7 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* updateIn
     g_render->begin_frame(g_device);
     {
         constexpr uint32_t numVerts = (CHUNK_DIM - 1) * (CHUNK_DIM - 1) * (CHUNK_DIM - 1) * 5 * 3;
-        SeRenderRef frameDataBuffer = g_render->memory_buffer(g_device, { g_device, sizeof(frameData), &frameData });
+        SeRenderRef frameDataBuffer = g_render->memory_buffer(g_device, { data_provider::from_memory(&frameData, sizeof(frameData)) });
         SeProgramWithConstants computeProgramInfo
         {
             .program = { /* filled later */ },
@@ -507,10 +506,10 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* updateIn
         });
         SeRenderRef depthTexture = g_render->texture(g_device,
         {
-            .device = g_device,
             .width  = win::get_width(g_window),
             .height = win::get_height(g_window),
             .format = SE_TEXTURE_FORMAT_DEPTH_STENCIL,
+            .data   = { },
         });
         g_render->begin_pass(g_device,
         {

@@ -1,20 +1,16 @@
-#ifndef _SE_CONTAINERS_H_
-#define _SE_CONTAINERS_H_
+#ifndef _SE_CONTAINERS_HPP_
+#define _SE_CONTAINERS_HPP_
 
-#include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <type_traits>
 
 #include "common_includes.hpp"
 #include "allocator_bindings.hpp"
-#include "engine/subsystems/se_debug_subsystem.hpp"
-#include "engine/subsystems/se_platform_subsystem.hpp"
-#include "engine/libs/meow_hash/meow_hash_x64_aesni.h"
-
-#define __se_memcpy(dst, src, size) memcpy(dst, src, size)
-#define __se_memset(dst, val, size) memset(dst, val, size)
-#define __se_memcmp(a, b, size)     (memcmp(a, b, size) == 0)
+#include "hash.hpp"
+#include "utils.hpp"
+#include "subsystems/se_debug_subsystem.hpp"
+#include "subsystems/se_platform_subsystem.hpp"
 
 /*
     Dynamic array
@@ -23,7 +19,7 @@
 template<typename T>
 struct DynamicArray
 {
-    SeAllocatorBindings allocator;
+    AllocatorBindings   allocator;
     T*                  memory;
     size_t              size;
     size_t              capacity;
@@ -42,7 +38,7 @@ struct DynamicArray
 namespace dynamic_array
 {
     template<typename T>
-    void construct(DynamicArray<T>& array, SeAllocatorBindings allocator, size_t capacity = 4)
+    void construct(DynamicArray<T>& array, AllocatorBindings allocator, size_t capacity = 4)
     {
         array =
         {
@@ -54,7 +50,7 @@ namespace dynamic_array
     }
 
     template<typename T>
-    DynamicArray<T> create(SeAllocatorBindings allocator, size_t capacity = 4)
+    DynamicArray<T> create(AllocatorBindings allocator, size_t capacity = 4)
     {
         return
         {
@@ -66,7 +62,7 @@ namespace dynamic_array
     }
 
     template<typename T>
-    DynamicArray<T> create_zeroed(SeAllocatorBindings allocator, size_t capacity = 4)
+    DynamicArray<T> create_zeroed(AllocatorBindings allocator, size_t capacity = 4)
     {
         DynamicArray<T> result
         {
@@ -75,7 +71,7 @@ namespace dynamic_array
             .size       = 0,
             .capacity   = capacity,
         };
-        __se_memset(result.memory, 0, sizeof(T) * capacity);
+        memset(result.memory, 0, sizeof(T) * capacity);
     }
 
     template<typename T>
@@ -89,11 +85,11 @@ namespace dynamic_array
     {
         if (array.capacity < capacity)
         {
-            SeAllocatorBindings& allocator = array.allocator;
+            AllocatorBindings& allocator = array.allocator;
             const size_t newCapacity = capacity;
             const size_t oldCapacity = array.capacity;
             T* newMemory = (T*)allocator.alloc(allocator.allocator, sizeof(T) * newCapacity, se_default_alignment, se_alloc_tag);
-            __se_memcpy(newMemory, array.memory, sizeof(T) * oldCapacity);
+            memcpy(newMemory, array.memory, sizeof(T) * oldCapacity);
             allocator.dealloc(allocator.allocator, array.memory, sizeof(T) * oldCapacity);
             array.memory = newMemory;
             array.capacity = newCapacity;
@@ -113,7 +109,7 @@ namespace dynamic_array
     }
 
     template<typename T>
-    inline SeAllocatorBindings& allocator(const DynamicArray<T>& array)
+    inline AllocatorBindings& allocator(const DynamicArray<T>& array)
     {
         return array.allocator;
     }
@@ -284,7 +280,6 @@ namespace iter
 template<typename T>
 struct ExpandableVirtualMemory
 {
-    const SePlatformSubsystemInterface* platform;
     T* base;
     size_t reservedRaw;
     size_t commitedRaw;
@@ -294,12 +289,11 @@ struct ExpandableVirtualMemory
 namespace expandable_virtual_memory
 {
     template<typename T>
-    ExpandableVirtualMemory<T> create(const SePlatformSubsystemInterface* platform, size_t size)
+    ExpandableVirtualMemory<T> create(size_t size)
     {
         return
         {
-            .platform       = platform,
-            .base           = (T*)platform->mem_reserve(size),
+            .base           = (T*)platform::get()->mem_reserve(size),
             .reservedRaw    = size,
             .commitedRaw    = 0,
             .usedRaw        = 0,
@@ -309,7 +303,7 @@ namespace expandable_virtual_memory
     template<typename T>
     void destroy(ExpandableVirtualMemory<T>& memory)
     {
-        memory.platform->mem_release(memory.base, memory.reservedRaw);
+        platform::get()->mem_release(memory.base, memory.reservedRaw);
     }
 
     template<typename T>
@@ -319,11 +313,11 @@ namespace expandable_virtual_memory
         se_assert(memory.usedRaw <= memory.reservedRaw);
         if (memory.usedRaw > memory.commitedRaw)
         {
-            const size_t memPageSize = memory.platform->get_mem_page_size();
+            const size_t memPageSize = platform::get()->get_mem_page_size();
             const size_t requredToCommit = memory.usedRaw - memory.commitedRaw;
             const size_t numPagesToCommit = 1 + ((requredToCommit - 1) / memPageSize);
             const size_t memoryToCommit = numPagesToCommit * memPageSize;
-            memory.platform->mem_commit(((uint8_t*)memory.base) + memory.commitedRaw, memoryToCommit);
+            platform::get()->mem_commit(((uint8_t*)memory.base) + memory.commitedRaw, memoryToCommit);
             memory.commitedRaw += memoryToCommit;
         }
     }
@@ -377,22 +371,22 @@ struct ObjectPoolEntryRef
 namespace object_pool
 {
     template<typename T>
-    inline void construct(ObjectPool<T>& pool, const SePlatformSubsystemInterface* platform)
+    inline void construct(ObjectPool<T>& pool)
     {
         pool =
         {
-            .ledger             = expandable_virtual_memory::create<uint8_t>(platform, se_gigabytes(16)),
-            .objectMemory       = expandable_virtual_memory::create<ObjectPoolEntry<T>>(platform, se_gigabytes(16)),
+            .ledger             = expandable_virtual_memory::create<uint8_t>(se_gigabytes(16)),
+            .objectMemory       = expandable_virtual_memory::create<ObjectPoolEntry<T>>(se_gigabytes(16)),
         };
     }
 
     template<typename T>
-    inline ObjectPool<T> create(const SePlatformSubsystemInterface* platform)
+    inline ObjectPool<T> create()
     {
         return
         {
-            .ledger             = expandable_virtual_memory::create<uint8_t>(platform, se_gigabytes(16)),
-            .objectMemory       = expandable_virtual_memory::create<ObjectPoolEntry<T>>(platform, se_gigabytes(16)),
+            .ledger             = expandable_virtual_memory::create<uint8_t>(se_gigabytes(16)),
+            .objectMemory       = expandable_virtual_memory::create<ObjectPoolEntry<T>>(se_gigabytes(16)),
         };
     }
 
@@ -406,7 +400,7 @@ namespace object_pool
     template<typename T>
     inline void reset(ObjectPool<T>& pool)
     {
-        __se_memset(expandable_virtual_memory::raw(pool.ledger), 0, expandable_virtual_memory::used(pool.ledger));
+        memset(expandable_virtual_memory::raw(pool.ledger), 0, expandable_virtual_memory::used(pool.ledger));
     }
 
     template<typename T>
@@ -437,6 +431,7 @@ namespace object_pool
         *byte |= 1;
         ObjectPoolEntry<T>* entry = expandable_virtual_memory::raw(pool.objectMemory) + indexOffset;
         entry->generation += 1;
+        entry->value = { };
         return &entry->value;
     }
 
@@ -645,60 +640,6 @@ namespace iter
     https://en.wikipedia.org/wiki/Linear_probing
 */
 
-using HashValue = meow_u128;
-using HashValueBuilder = meow_state;
-
-struct HashValueInput
-{
-    void* data;
-    size_t size;
-};
-
-namespace hash_value
-{
-    namespace builder
-    {
-        HashValueBuilder create()
-        {
-            HashValueBuilder result = { };
-            MeowBegin(&result, MeowDefaultSeed);
-            return result;
-        }
-
-        void absorb_raw(HashValueBuilder& builder, const HashValueInput& input)
-        {
-            MeowAbsorb(&builder, input.size, input.data);
-        }
-
-        template<typename T>
-        void absorb(HashValueBuilder& builder, const T& input)
-        {
-            hash_value::builder::absorb_raw(builder, { (void*)&input, sizeof(T) });
-        }
-
-        HashValue end(HashValueBuilder& builder)
-        {
-            return MeowEnd(&builder, nullptr);
-        }
-    }
-
-    HashValue generate_raw(const HashValueInput& input)
-    {
-        return MeowHash(MeowDefaultSeed, input.size, input.data);
-    }
-
-    template<typename Value>
-    HashValue generate(const Value& value)
-    {
-        return MeowHash(MeowDefaultSeed, sizeof(Value), (void*)&value);
-    }
-
-    inline bool is_equal(const HashValue& first, const HashValue& second)
-    {
-        return MeowHashesAreEqual(first, second);
-    }
-}
-
 template<typename Key, typename Value>
 struct HashTable
 {
@@ -712,7 +653,7 @@ struct HashTable
         bool        isOccupied;
     };
 
-    SeAllocatorBindings allocator;
+    AllocatorBindings   allocator;
     Entry*              memory;
     size_t              capacity;
     size_t              size;
@@ -738,7 +679,7 @@ namespace hash_table
             {
                 Entry& data = table.memory[currentPosition];
                 if (!data.isOccupied) break;
-                const bool isCorrectData = hash_value::is_equal(data.hash, hash) && __se_memcmp(&data.key, &key, sizeof(Key));
+                const bool isCorrectData = hash_value::is_equal(data.hash, hash) && utils::compare(data.key, key);
                 if (isCorrectData)
                 {
                     return currentPosition;
@@ -765,7 +706,7 @@ namespace hash_table
                 if (!data->isOccupied) break;
                 if (impl::hash_to_index(data->hash, table.capacity) <= impl::hash_to_index(dataToReplace->hash, table.capacity))
                 {
-                    __se_memcpy(dataToReplace, data, sizeof(Entry));
+                    memcpy(dataToReplace, data, sizeof(Entry));
                     data->isOccupied = false;
                     dataToReplace = data;
                 }
@@ -774,7 +715,7 @@ namespace hash_table
     }
 
     template<typename Key, typename Value>
-    void construct(HashTable<Key, Value>& table, SeAllocatorBindings allocator, size_t capacity = 4)
+    void construct(HashTable<Key, Value>& table, AllocatorBindings allocator, size_t capacity = 4)
     {
         using Entry = HashTable<Key, Value>::Entry;
         table =
@@ -786,11 +727,11 @@ namespace hash_table
         };
         const size_t allocSize = sizeof(Entry) * capacity;
         table.memory = (Entry*)allocator.alloc(allocator.allocator, allocSize, se_default_alignment, se_alloc_tag);
-        __se_memset(table.memory, 0, allocSize);
+        memset(table.memory, 0, allocSize);
     }
 
     template<typename Key, typename Value>
-    HashTable<Key, Value> create(SeAllocatorBindings allocator, size_t capacity = 4)
+    HashTable<Key, Value> create(AllocatorBindings allocator, size_t capacity = 4)
     {
         using Entry = HashTable<Key, Value>::Entry;
         HashTable<Key, Value> result =
@@ -802,7 +743,7 @@ namespace hash_table
         };
         const size_t allocSize = sizeof(Entry) * capacity;
         result.memory = (Entry*)allocator.alloc(allocator.allocator, allocSize, se_default_alignment, se_alloc_tag);
-        __se_memset(result.memory, 0, allocSize);
+        memset(result.memory, 0, allocSize);
         return result;
     }
 
@@ -846,7 +787,7 @@ namespace hash_table
             {
                 break;
             }
-            else if (hash_value::is_equal(entry.hash, hash) && __se_memcmp(&entry.key, &key, sizeof(Key)))
+            else if (hash_value::is_equal(entry.hash, hash) && utils::compare(entry.key, key))
             {
                 break;
             }
@@ -860,13 +801,13 @@ namespace hash_table
         {
             entry.hash = hash;
             entry.isOccupied = true;
-            __se_memcpy(&entry.key, &key, sizeof(Key));
-            __se_memcpy(&entry.value, &value, sizeof(Value));
+            memcpy(&entry.key, &key, sizeof(Key));
+            memcpy(&entry.value, &value, sizeof(Value));
             table.size += 1;
         }
         else 
         {
-            __se_memcpy(&entry.value, &value, sizeof(Value));
+            memcpy(&entry.value, &value, sizeof(Value));
         }
         return &entry.value;
     }
@@ -1025,8 +966,7 @@ struct ThreadSafeQueue
     };
     typedef uint8_t CachelinePadding[64];
 
-    SeAllocatorBindings allocator;
-    const SePlatformSubsystemInterface* platform;
+    AllocatorBindings   allocator;
 
     CachelinePadding    pad0;
     Cell*               buffer;
@@ -1041,7 +981,7 @@ struct ThreadSafeQueue
 namespace thread_safe_queue
 {
     template<typename T>
-    void construct(ThreadSafeQueue<T>& queue, SeAllocatorBindings allocator, const SePlatformSubsystemInterface* platform, size_t capacity)
+    void construct(ThreadSafeQueue<T>& queue, AllocatorBindings allocator, size_t capacity)
     {
         se_assert(utils::is_power_of_two(capacity));
 
@@ -1052,7 +992,6 @@ namespace thread_safe_queue
         queue =
         {
             .allocator  = allocator,
-            .platform   = platform,
             .pad0       = { },
             .buffer     = memory,
             .bufferMask = (uint64_t)(capacity - 1),
@@ -1068,7 +1007,7 @@ namespace thread_safe_queue
     void destroy(ThreadSafeQueue<T>& queue)
     {
         using Cell = ThreadSafeQueue<T>::Cell;
-        SeAllocatorBindings& allocator = queue.allocator;
+        AllocatorBindings& allocator = queue.allocator;
         allocator.dealloc(allocator.allocator, (void*)queue.buffer, (queue.bufferMask + 1) * sizeof(Cell));
     }
 
@@ -1077,19 +1016,20 @@ namespace thread_safe_queue
     {
         typename ThreadSafeQueue<T>::Cell* cell;
         // Load current enqueue position
-        uint64_t pos = queue.platform->atomic_64_bit_load(&queue.enqueuePos, SE_RELAXED);
+        const SePlatformSubsystemInterface* platform = platform::get();
+        uint64_t pos = platform->atomic_64_bit_load(&queue.enqueuePos, SE_RELAXED);
         while(true)
         {
             // Get current cell
             cell = &queue.buffer[pos & queue.bufferMask];
             // Load sequence of current cell
-            uint64_t seq = queue.platform->atomic_64_bit_load(&cell->sequence, SE_ACQUIRE);
+            uint64_t seq = platform->atomic_64_bit_load(&cell->sequence, SE_ACQUIRE);
             intptr_t diff = static_cast<intptr_t>(seq) - static_cast<intptr_t>(pos);
             // Cell is ready for write
             if (diff == 0)
             {
                 // Try to increment enqueue position
-                if (queue.platform->atomic_64_bit_cas(&queue.enqueuePos, &pos, pos + 1, SE_RELAXED))
+                if (platform->atomic_64_bit_cas(&queue.enqueuePos, &pos, pos + 1, SE_RELAXED))
                 {
                     // If success, quit from the loop
                     break;
@@ -1105,13 +1045,13 @@ namespace thread_safe_queue
             else
             {
                 // Load current enqueue position and try again
-                pos = queue.platform->atomic_64_bit_load(&queue.enqueuePos, SE_RELAXED);
+                pos = platform->atomic_64_bit_load(&queue.enqueuePos, SE_RELAXED);
             }
         }
         // Write data
         cell->data = data;
         // Update sequence
-        queue.platform->atomic_64_bit_store(&cell->sequence, pos + 1, SE_RELEASE);
+        platform->atomic_64_bit_store(&cell->sequence, pos + 1, SE_RELEASE);
         return true;
     }
 
@@ -1120,19 +1060,20 @@ namespace thread_safe_queue
     {
         typename ThreadSafeQueue<T>::Cell* cell;
         // Load current dequeue position
-        uint64_t pos = queue.platform->atomic_64_bit_load(&queue.dequeuePos, SE_RELAXED);
+        const SePlatformSubsystemInterface* platform = platform::get();
+        uint64_t pos = platform->atomic_64_bit_load(&queue.dequeuePos, SE_RELAXED);
         while(true)
         {
             // Get current cell
             cell = &queue.buffer[pos & queue.bufferMask];
             // Load sequence of current cell
-            uint64_t seq = queue.platform->atomic_64_bit_load(&cell->sequence, SE_ACQUIRE);
+            uint64_t seq = platform->atomic_64_bit_load(&cell->sequence, SE_ACQUIRE);
             intptr_t diff = static_cast<intptr_t>(seq) - static_cast<intptr_t>(pos + 1);
             // Cell is ready for read
             if (diff == 0)
             {
                 // Try to increment dequeue position
-                if (queue.platform->atomic_64_bit_cas(&queue.dequeuePos, &pos, pos + 1, SE_RELAXED))
+                if (platform->atomic_64_bit_cas(&queue.dequeuePos, &pos, pos + 1, SE_RELAXED))
                 {
                     // If success, quit from the loop
                     break;
@@ -1148,13 +1089,13 @@ namespace thread_safe_queue
             else
             {
                 // Load current dequeue position and try again
-                pos = queue.platform->atomic_64_bit_load(&queue.dequeuePos, SE_RELAXED);
+                pos = platform->atomic_64_bit_load(&queue.dequeuePos, SE_RELAXED);
             }
         }
         // Read data
         *data = cell->data;
         // Update sequence
-        queue.platform->atomic_64_bit_store(&cell->sequence, pos + queue.bufferMask + 1, SE_RELEASE);
+        platform->atomic_64_bit_store(&cell->sequence, pos + queue.bufferMask + 1, SE_RELEASE);
         return true;
     }
 }

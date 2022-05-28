@@ -1,35 +1,36 @@
-#ifndef _SE_ENGINE_H_
-#define _SE_ENGINE_H_
+#ifndef _SE_ENGINE_HPP_
+#define _SE_ENGINE_HPP_
 
 #include <string.h>
 #include "common_includes.hpp"
 #include "se_math.hpp"
 #include "allocator_bindings.hpp"
+#include "hash.hpp"
+#include "utils.hpp"
 #include "containers.hpp"
+#include "data_providers.hpp"
 #include "render_abstraction_interface.hpp"
 #include "subsystems/se_platform_subsystem.hpp"
-#include "subsystems/se_stack_allocator_subsystem.hpp"
-#include "subsystems/se_pool_allocator_subsystem.hpp"
 #include "subsystems/se_application_allocators_subsystem.hpp"
 #include "subsystems/se_string_subsystem.hpp"
 #include "subsystems/se_debug_subsystem.hpp"
 #include "subsystems/se_window_subsystem.hpp"
 #include "subsystems/se_vulkan_render_abstraction_subsystem.hpp"
 
-struct SeUpdateInfo
+struct UpdateInfo
 {
     float dt;
 };
 
 using SeSubsystemFunc           = void  (*)(struct SabrinaEngine*);
 using SeSubsystemReturnPtrFunc  = void* (*)(struct SabrinaEngine*);
-using SeSubsystemUpdateFunc     = void  (*)(struct SabrinaEngine*, const struct SeUpdateInfo* dt);
+using SeSubsystemUpdateFunc     = void  (*)(struct SabrinaEngine*, const struct UpdateInfo* dt);
 
-using SeLibraryHandle = uint64_t;
+using LibraryHandle = uint64_t;
 
-struct SeSubsystemStorageEntry
+struct SubsystemStorageEntry
 {
-    SeLibraryHandle             libraryHandle;
+    LibraryHandle               libraryHandle;
     SeSubsystemReturnPtrFunc    getInterface;
     SeSubsystemUpdateFunc       update;
     const char*                 subsystemName;
@@ -38,18 +39,18 @@ struct SeSubsystemStorageEntry
 
 static constexpr size_t SE_MAX_SUBSYSTEMS = 256;
 
-struct SeSubsystemStorage
+struct SubsystemStorage
 {
-    SeSubsystemStorageEntry storage[SE_MAX_SUBSYSTEMS];
+    SubsystemStorageEntry   storage[SE_MAX_SUBSYSTEMS];
     size_t                  size;
 };
 
 struct SabrinaEngine
 {
-    SeLibraryHandle (*load_dynamic_library)(const char* name);
-    void*           (*find_function_address)(SeLibraryHandle lib, const char* name);
+    LibraryHandle   (*load_dynamic_library)(const char* name);
+    void*           (*find_function_address)(LibraryHandle lib, const char* name);
 
-    SeSubsystemStorage subsystemStorage;
+    SubsystemStorage subsystemStorage;
     bool shouldRun;
 };
 
@@ -69,7 +70,7 @@ void se_add_subsystem(SabrinaEngine* engine)
     };
     const size_t nameLength = strlen(Subsystem::NAME);
     char buffer[BUFFER_SIZE];
-    SeLibraryHandle libHandle = { };
+    LibraryHandle libHandle = { };
     for (const char* path : POSSIBLE_LIB_PATHS)
     {
         const size_t pathLength = strlen(path);
@@ -109,8 +110,6 @@ const Iterface* se_get_subsystem_interface(SabrinaEngine* engine)
 void se_add_default_subsystems(SabrinaEngine* engine)
 {
     se_add_subsystem<SePlatformSubsystem>(engine);
-    se_add_subsystem<SeStackAllocatorSubsystem>(engine);
-    se_add_subsystem<SePoolAllocatorSubsystem>(engine);
     se_add_subsystem<SeApplicationAllocatorsSubsystem>(engine);
     se_add_subsystem<SeStringSubsystem>(engine);
     se_add_subsystem<SeDebugSubsystem>(engine);
@@ -120,8 +119,6 @@ void se_add_default_subsystems(SabrinaEngine* engine)
 void se_init_global_subsystem_pointers(SabrinaEngine* engine)
 {
     SE_PLATFORM_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SePlatformSubsystemInterface>(engine);
-    SE_STACK_ALLOCATOR_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeStackAllocatorSubsystemInterface>(engine);
-    SE_POOL_ALLOCATOR_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SePoolAllocatorSubsystemInterface>(engine);
     SE_APPLICATION_ALLOCATORS_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeApplicationAllocatorsSubsystemInterface>(engine);
     SE_STRING_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeStringSubsystemInterface>(engine);
     SE_DEBUG_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeDebugSubsystemInterface>(engine);
