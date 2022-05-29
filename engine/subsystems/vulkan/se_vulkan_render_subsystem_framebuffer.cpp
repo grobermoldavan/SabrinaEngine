@@ -24,7 +24,7 @@ void se_vk_framebuffer_construct(SeVkFramebuffer* framebuffer, SeVkFramebufferIn
         .object         = { SE_VK_TYPE_FRAMEBUFFER, g_framebufferIndex++ },
         .device         = info->device,
         .pass           = info->pass,
-        .textures       = {0},
+        .textures       = { },
         .numTextures    = info->numTextures,
         .handle         = VK_NULL_HANDLE,
         .extent         = { tex->extent.width, tex->extent.height },

@@ -36,7 +36,16 @@ void se_vk_graph_free_old_resources(HashTable<Key, SeVkGraphWithFrame<Value>>& t
     ObjectPool<Value>& pool = se_vk_memory_manager_get_pool<Value>(memoryManager);
     for (auto kv : table)
     {
-        se_assert_msg(hash_table::get(table, iter::key(kv)), "Probably hash table key contains pointer to value that was changed after hash_table::set");
+        if (!hash_table::get(table, iter::key(kv)))
+        {
+            debug::message("Probably hash table key contains pointer to value that was changed after hash_table::set. Key: {}", iter::key(kv));
+            debug::message("Table size: {}. Table members:", table.size);
+            for (auto it : table)
+            {
+                debug::message("[index: {}, key: {}, value: {}]", it.iterator->index, iter::key(it), iter::value(it));
+            }
+            se_assert(false);
+        }
         if ((currentFrame - iter::value(kv).frame) > SE_VK_GRAPH_OBJECT_LIFETIME)
         {
             dynamic_array::push(toRemove, iter::key(kv));
@@ -302,8 +311,9 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
             SeVkGraphWithFrame<SeVkFramebuffer>* framebuffer = hash_table::get(graph->framebufferInfoToFramebuffer, info);
             if (!framebuffer)
             {
-                framebuffer = hash_table::set(graph->framebufferInfoToFramebuffer, info, { object_pool::take(framebufferPool), currentFrame });
-                se_vk_framebuffer_construct(framebuffer->object, &info);
+                SeVkFramebuffer* _framebuffer = object_pool::take(framebufferPool);
+                se_vk_framebuffer_construct(_framebuffer, &info);
+                framebuffer = hash_table::set(graph->framebufferInfoToFramebuffer, info, { _framebuffer, currentFrame });
             }
             else
             {

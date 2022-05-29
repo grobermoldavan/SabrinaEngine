@@ -168,4 +168,19 @@ namespace hash_value
     }
 }
 
+namespace string
+{
+    template<>
+    SeString cast<SeVkGraphWithFrame<SeVkFramebuffer>>(const SeVkGraphWithFrame<SeVkFramebuffer>& value, SeStringLifetime lifetime)
+    {
+        SeStringBuilder builder = string_builder::begin(lifetime);
+        string_builder::append(builder, "[object: ");
+        string_builder::append(builder, string::cast(*value.object));
+        string_builder::append(builder, ", frame: ");
+        string_builder::append(builder, string::cast(value.frame));
+        string_builder::append(builder, "]");
+        return string_builder::end(builder);
+    }
+}
+
 #endif

@@ -58,4 +58,42 @@ namespace hash_value
     }
 }
 
+namespace string
+{
+    template<>
+    SeString cast<SeVkFramebufferInfo>(const SeVkFramebufferInfo& value, SeStringLifetime lifetime)
+    {
+        SeStringBuilder builder = string_builder::begin(lifetime);
+        string_builder::append(builder, "[Framebuffer info. ");
+        string_builder::append(builder, "Pass id: [");
+        string_builder::append(builder, string::cast(value.pass.generation));
+        string_builder::append(builder, ", ");
+        string_builder::append(builder, string::cast(value.pass.index));
+        string_builder::append(builder, "]. Textures: [num: ");
+        string_builder::append(builder, string::cast(value.numTextures));
+        string_builder::append(builder, ", ");
+        for (size_t it = 0; it < value.numTextures; it++)
+        {
+            string_builder::append(builder, "[");
+            string_builder::append(builder, string::cast(value.textures[it].generation));
+            string_builder::append(builder, ", ");
+            string_builder::append(builder, string::cast(value.textures[it].index));
+            string_builder::append(builder, "], ");
+        }
+        string_builder::append(builder, "]]");
+        return string_builder::end(builder);
+    }
+
+    template<>
+    SeString cast<SeVkFramebuffer>(const SeVkFramebuffer& value, SeStringLifetime lifetime)
+    {
+        SeStringBuilder builder = string_builder::begin(lifetime);
+        string_builder::append(builder, "Framebuffer. ");
+        string_builder::append(builder, "id: [");
+        string_builder::append(builder, string::cast(value.object.uniqueIndex));
+        string_builder::append(builder, "]");
+        return string_builder::end(builder);
+    }
+}
+
 #endif

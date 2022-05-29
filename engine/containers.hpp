@@ -698,17 +698,19 @@ namespace hash_table
             dataToRemove->isOccupied = false;
             table.size -= 1;
             Entry* dataToReplace = dataToRemove;
+            size_t lastReplacedPosition = index;
             for (size_t currentPosition = ((index + 1) % table.capacity);
                 currentPosition != index;
                 currentPosition = ((currentPosition + 1) % table.capacity))
             {
                 Entry* data = &table.memory[currentPosition];
                 if (!data->isOccupied) break;
-                if (impl::hash_to_index(data->hash, table.capacity) <= impl::hash_to_index(dataToReplace->hash, table.capacity))
+                if (impl::hash_to_index(data->hash, table.capacity) <= lastReplacedPosition)
                 {
                     memcpy(dataToReplace, data, sizeof(Entry));
                     data->isOccupied = false;
                     dataToReplace = data;
+                    lastReplacedPosition = currentPosition;
                 }
             }
         }
