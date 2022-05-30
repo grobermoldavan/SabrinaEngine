@@ -1046,7 +1046,7 @@ SeRenderRef se_vk_graph_program(SeVkGraph* graph, const SeProgramInfo& info)
 
 SeRenderRef se_vk_graph_texture(SeVkGraph* graph, const SeTextureInfo& info)
 {
-    se_assert(graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_FRAME);
+    se_assert(graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_FRAME || graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_PASS);
 
     // @NOTE : we can't create texture right here, because texture usage will be filled later
     SeVkDevice* device = graph->device;
@@ -1055,7 +1055,7 @@ SeRenderRef se_vk_graph_texture(SeVkGraph* graph, const SeTextureInfo& info)
         .device     = device,
         .format     = info.format == SE_TEXTURE_FORMAT_DEPTH_STENCIL ? se_vk_device_get_depth_stencil_format(device) : se_vk_utils_to_vk_format(info.format),
         .extent     = { se_vk_safe_cast_size_t_to_uint32_t(info.width), se_vk_safe_cast_size_t_to_uint32_t(info.height), 1 },
-        .usage      = 0,
+        .usage      = (VkImageUsageFlags)(data_provider::is_valid(info.data) ? VK_IMAGE_USAGE_TRANSFER_DST_BIT : 0),
         .sampling   = VK_SAMPLE_COUNT_1_BIT, // @TODO : support multisampling
         .data       = info.data,
     });

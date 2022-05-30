@@ -97,7 +97,7 @@ namespace data_provider
         };
     }
 
-    DataProvider from_file(SeFile& file)
+    DataProvider from_file(const SeFile& file)
     {
         return
         {

@@ -184,6 +184,49 @@ void se_vk_texture_construct(SeVkTexture* texture, SeVkTextureInfo* info)
     SeVkMemoryManager* memoryManager = &info->device->memoryManager;
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
     VkDevice logicalHandle = se_vk_device_get_logical_handle(info->device);
+    //
+    // Read data and process if it is an image file
+    //
+    VkExtent3D textureExtent = info->extent;
+    void* loadedTextureData = nullptr;
+    size_t loadedTextureDataSize = 0;
+    if (data_provider::is_valid(info->data))
+    {
+        auto [sourcePtr, sourceSize] = data_provider::get(info->data);
+        if (info->data.type == DataProvider::FROM_FILE)
+        {
+            const auto formatInfo = se_vk_texture_get_format_info(info->format);
+            int dimX = 0;
+            int dimY = 0;
+            int channels = 0;
+            void* loadedImagePtr = nullptr;
+            if (formatInfo.componentsSize == 8 && !formatInfo.isFloat)
+            {
+                loadedImagePtr = stbi_load_from_memory((const stbi_uc*)sourcePtr, (int)sourceSize, &dimX, &dimY, &channels, formatInfo.numComponents);
+            }
+            else if (formatInfo.componentsSize == 16 && !formatInfo.isFloat)
+            {
+                loadedImagePtr = stbi_load_16_from_memory((const stbi_uc*)sourcePtr, (int)sourceSize, &dimX, &dimY, &channels, formatInfo.numComponents);
+            }
+            else if (formatInfo.componentsSize == 32 && formatInfo.isFloat)
+            {
+                loadedImagePtr = stbi_loadf_from_memory((const stbi_uc*)sourcePtr, (int)sourceSize, &dimX, &dimY, &channels, formatInfo.numComponents);
+            }
+            else
+            {
+                se_assert_msg(false, "Unsupported file format for loading");
+            }
+            se_assert(loadedImagePtr);
+            loadedTextureData = loadedImagePtr;
+            loadedTextureDataSize = dimX * dimY * channels * formatInfo.componentsSize / 8;
+            textureExtent = { (uint32_t)dimX, (uint32_t)dimY, 1 };
+        }
+        else
+        {
+            loadedTextureData = sourcePtr;
+            loadedTextureDataSize = sourceSize;
+        }
+    }
     {
         const bool isDepthFormat = se_vk_utils_is_depth_format(info->format);
         const bool isStencilFormat = se_vk_utils_is_stencil_format(info->format);
@@ -195,7 +238,7 @@ void se_vk_texture_construct(SeVkTexture* texture, SeVkTextureInfo* info)
         {
             .object                 = { SE_VK_TYPE_TEXTURE, g_textureIndex++ },
             .device                 = info->device,
-            .extent                 = info->extent,
+            .extent                 = textureExtent,
             .format                 = info->format,
             .currentLayout          = VK_IMAGE_LAYOUT_UNDEFINED,
             .image                  = VK_NULL_HANDLE,
@@ -204,8 +247,9 @@ void se_vk_texture_construct(SeVkTexture* texture, SeVkTextureInfo* info)
             .fullSubresourceRange   = { aspect, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS },
             .flags                  = 0,
         };
-    }
-    {
+        //
+        // Create image
+        //
         uint32_t queueFamilyIndices[SE_VK_MAX_UNIQUE_COMMAND_QUEUES];
         VkImageCreateInfo imageCreateInfo =
         {
@@ -247,56 +291,22 @@ void se_vk_texture_construct(SeVkTexture* texture, SeVkTextureInfo* info)
         };
         texture->memory = se_vk_memory_manager_allocate(memoryManager, request);
         vkBindImageMemory(logicalHandle, texture->image, texture->memory.memory, texture->memory.offset);
-
         //
         // Copy data from provider
         //
-        if (data_provider::is_valid(info->data))
+        if (loadedTextureData)
         {
-            //
-            // Read data and process if it is an image file
-            //
-            auto [sourcePtr, sourceSize] = data_provider::get(info->data);
-            void* imagePtr = sourcePtr;
-            size_t imageSize = sourceSize;
-            if (info->data.type == DataProvider::FROM_FILE)
-            {
-                const auto formatInfo = se_vk_texture_get_format_info(info->format);
-                int dimX = 0;
-                int dimY = 0;
-                int channels = 0;
-                void* loadedImagePtr = nullptr;
-                if (formatInfo.componentsSize == 8 && !formatInfo.isFloat)
-                {
-                    loadedImagePtr = stbi_load_from_memory((const stbi_uc*)sourcePtr, (int)sourceSize, &dimX, &dimY, &channels, formatInfo.numComponents);
-                }
-                else if (formatInfo.componentsSize == 16 && !formatInfo.isFloat)
-                {
-                    loadedImagePtr = stbi_load_16_from_memory((const stbi_uc*)sourcePtr, (int)sourceSize, &dimX, &dimY, &channels, formatInfo.numComponents);
-                }
-                else if (formatInfo.componentsSize == 32 && formatInfo.isFloat)
-                {
-                    loadedImagePtr = stbi_loadf_from_memory((const stbi_uc*)sourcePtr, (int)sourceSize, &dimX, &dimY, &channels, formatInfo.numComponents);
-                }
-                else
-                {
-                    se_assert_msg(false, "Unsupported file format for loading");
-                }
-                se_assert(loadedImagePtr);
-                imagePtr = loadedImagePtr;
-                imageSize = dimX * dimY * channels * formatInfo.componentsSize / 8;
-            }
             //
             // Copy to staging memory
             //
             SeVkMemoryBuffer* stagingBuffer = se_vk_memory_manager_get_staging_buffer(memoryManager);
             const size_t stagingBufferSize = stagingBuffer->memory.size;
             void* const stagingMemory = stagingBuffer->memory.mappedMemory;
-            se_assert(stagingBufferSize >= imageSize);
-            memcpy(stagingMemory, imagePtr, imageSize);
+            se_assert(stagingBufferSize >= loadedTextureDataSize);
+            memcpy(stagingMemory, loadedTextureData, loadedTextureDataSize);
             if (info->data.type == DataProvider::FROM_FILE)
             {
-                stbi_image_free(imagePtr);
+                stbi_image_free(loadedTextureData);
             }
             //
             // Transition image layout and copy buffer
@@ -309,7 +319,9 @@ void se_vk_texture_construct(SeVkTexture* texture, SeVkTextureInfo* info)
                 .usage  = SE_VK_COMMAND_BUFFER_USAGE_TRANSFER,
             };
             se_vk_command_buffer_construct(cmd, &cmdInfo);
+            //
             // Transition
+            //
             const VkImageLayout newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
             VkImageMemoryBarrier imageBarrier
             {
@@ -338,7 +350,9 @@ void se_vk_texture_construct(SeVkTexture* texture, SeVkTextureInfo* info)
                 &imageBarrier
             );
             texture->currentLayout = newLayout;
+            //
             // Copy
+            //
             VkBufferImageCopy copy
             {
                 .bufferOffset       = 0,
@@ -346,16 +360,18 @@ void se_vk_texture_construct(SeVkTexture* texture, SeVkTextureInfo* info)
                 .bufferImageHeight  = 0,
                 .imageSubresource   =
                 {
-                    texture->fullSubresourceRange.aspectMask,
-                    texture->fullSubresourceRange.baseMipLevel,
-                    texture->fullSubresourceRange.baseArrayLayer,
-                    texture->fullSubresourceRange.layerCount,
+                    VK_IMAGE_ASPECT_COLOR_BIT,
+                    0,
+                    0,
+                    1,
                 },
                 .imageOffset        = { 0, 0, 0 },
                 .imageExtent        = texture->extent,
             };
             vkCmdCopyBufferToImage(cmd->handle, stagingBuffer->handle, texture->image, texture->currentLayout, 1, &copy);
+            //
             // Submit
+            //
             SeVkCommandBufferSubmitInfo submit = { };
             se_vk_command_buffer_submit(cmd, &submit);
             vkWaitForFences(logicalHandle, 1, &cmd->fence, VK_TRUE, UINT64_MAX);    
@@ -395,7 +411,7 @@ void se_vk_texture_construct_from_swap_chain(SeVkTexture* texture, SeVkDevice* d
         .format                 = format,
         .currentLayout          = VK_IMAGE_LAYOUT_UNDEFINED,
         .image                  = image,
-        .memory                 = {0},
+        .memory                 = { },
         .view                   = view,
         .fullSubresourceRange   = { VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS },
         .flags                  = SE_VK_TEXTURE_FROM_SWAP_CHAIN,

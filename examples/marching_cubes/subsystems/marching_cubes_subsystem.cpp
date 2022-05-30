@@ -38,6 +38,9 @@ SeRenderRef     g_triangleTableBuffer;
 SeRenderRef     g_gridValuesBuffer;
 SeRenderRef     g_geometryBuffer;
 
+DataProvider    g_grassTextureData;
+DataProvider    g_rockTextureData;
+
 DebugCamera     g_camera;
 
 const int32_t EDGE_TABLE[256] =
@@ -379,6 +382,11 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
     g_renderChunkVs         = sync_load_shader("assets/application/shaders/render_chunk.vert.spv");
     g_renderChunkFs         = sync_load_shader("assets/application/shaders/render_chunk.frag.spv");
     //
+    // Load textures
+    //
+    g_grassTextureData = data_provider::from_file(platform::get()->file_load("assets/application/textures/grass.png", SE_FILE_READ));
+    g_rockTextureData  = data_provider::from_file(platform::get()->file_load("assets/application/textures/rocks.png", SE_FILE_READ));
+    //
     // Allocate buffers
     //
     constexpr uint32_t numVerts = (CHUNK_DIM - 1) * (CHUNK_DIM - 1) * (CHUNK_DIM - 1) * 5 * 3;
@@ -521,9 +529,37 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* updateInfo
             .depthStencilTarget = { depthTexture, SE_PASS_RENDER_TARGET_LOAD_OP_CLEAR },
             .hasDepthStencil    = true,
         });
+        SeRenderRef grassTexture = g_render->texture(g_device,
+        {
+            .format = SE_TEXTURE_FORMAT_RGBA_8,
+            .data   = g_grassTextureData,
+        });
+        SeRenderRef rockTexture = g_render->texture(g_device,
+        {
+            .format = SE_TEXTURE_FORMAT_RGBA_8,
+            .data   = g_rockTextureData,
+        });
+        SeRenderRef sampler = g_render->sampler(g_device,
+        {
+            .device             = g_device,
+            .magFilter          = SE_SAMPLER_FILTER_LINEAR,
+            .minFilter          = SE_SAMPLER_FILTER_LINEAR,
+            .addressModeU       = SE_SAMPLER_ADDRESS_MODE_REPEAT,
+            .addressModeV       = SE_SAMPLER_ADDRESS_MODE_REPEAT,
+            .addressModeW       = SE_SAMPLER_ADDRESS_MODE_REPEAT,
+            .mipmapMode         = SE_SAMPLER_MIPMAP_MODE_LINEAR,
+            .mipLodBias         = 0.0f,
+            .minLod             = 0.0f,
+            .maxLod             = 0.0f,
+            .anisotropyEnable   = false,
+            .maxAnisotropy      = 0.0f,
+            .compareEnabled     = false,
+            .compareOp          = SE_COMPARE_OP_ALWAYS,
+        });
         {
             g_render->bind(g_device, { .set = 0, .bindings = { { 0, frameDataBuffer } }, .numBindings = 1 });
             g_render->bind(g_device, { .set = 1, .bindings = { { 0, g_geometryBuffer } }, .numBindings = 1 });
+            g_render->bind(g_device, { .set = 2, .bindings = { { 0, grassTexture, sampler }, { 1, rockTexture, sampler } }, .numBindings = 2 });
             g_render->draw(g_device, { .numVertices = numVerts, .numInstances = 1 });
         }
         g_render->end_pass(g_device);

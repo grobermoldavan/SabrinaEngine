@@ -18,11 +18,13 @@ layout (set = 1, binding = 0) buffer ChunkGeometry
     Vertex geometry[];
 };
 
-layout(location = 0) out vec4 normal;
+layout(location = 0) out vec4 position;
+layout(location = 1) out vec4 normal;
 
 void main()
 {
     Vertex vert = geometry[gl_VertexIndex];
     gl_Position = viewProjection * vert.position;
+    position = vert.position;
     normal = vert.normal;
 }

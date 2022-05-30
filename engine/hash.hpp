@@ -52,10 +52,20 @@ namespace hash_value
         return MeowHash(MeowDefaultSeed, sizeof(Value), (void*)&value);
     }
 
+// @NOTE : I have no idea why, but msvc's optimizations make this function crash (probably on _mm_cmpeq_epi8 instruction)
+#ifdef _MSC_VER
+#   pragma optimize("", off)
+#endif
+
     inline bool is_equal(const HashValue& first, const HashValue& second)
     {
         return MeowHashesAreEqual(first, second);
     }
+
+#ifdef _MSC_VER
+#   pragma optimize("", on)
+#endif
+
 }
 
 #endif

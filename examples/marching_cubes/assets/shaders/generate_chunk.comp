@@ -145,7 +145,7 @@ void main()
 
     const float timeModified = time * 0.1f;
     const vec3 position = vec3(float(x) * 0.01f + timeModified, float(y) * 0.01f, float(z) * 0.01f);
-    gridValues[map_3d_index_to_1d(uvec3(x, y, z))] = clamp(snoise(position) + mix(-1, 1.2, float(y) / float(CHUNK_BOUNDS_Y)), 0, 1);
+    gridValues[map_3d_index_to_1d(uvec3(x, y, z))] = clamp((snoise(position) + mix(-1, 1.2, float(y) / float(CHUNK_BOUNDS_Y))) * 3.0, 0, 1);
 
     //
     // Debug sphere
