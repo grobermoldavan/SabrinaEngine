@@ -1,0 +1,7 @@
+- sound system
+- mesh loading
+- font rendering and ui
+- resource system
+- ecs (?)
+- texture multisampling
+- texture mipmapping

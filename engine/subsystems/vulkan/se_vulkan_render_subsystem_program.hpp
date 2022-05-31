@@ -2,6 +2,8 @@
 #define _SE_VULKAN_RENDER_SUBSYSTEM_RENDER_PROGRAM_H_
 
 #include "se_vulkan_render_subsystem_base.hpp"
+
+#define ssr_assert se_assert
 #include "engine/libs/ssr/simple_spirv_reflection.h"
 
 struct SeVkProgramInfo

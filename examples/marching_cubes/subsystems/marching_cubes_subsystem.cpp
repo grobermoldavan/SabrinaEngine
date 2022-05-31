@@ -449,18 +449,15 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* updateInfo
         };
         auto executeComputePass = [&](SeRenderRef program)
         {
-            g_render->bind(g_device, { .device = g_device, .set = 0, .bindings = { { 0, frameDataBuffer } }, .numBindings = 1 });
+            g_render->bind(g_device, { .set = 0, .bindings = { { 0, frameDataBuffer } } });
             g_render->bind(g_device,
             {
-                .device = g_device,
                 .set = 1,
-                .bindings = { { 0, g_gridValuesBuffer }, { 1, g_geometryBuffer }, { 2, g_edgeTableBuffer }, { 3, g_triangleTableBuffer } },
-                .numBindings = 4
+                .bindings = { { 0, g_gridValuesBuffer }, { 1, g_geometryBuffer }, { 2, g_edgeTableBuffer }, { 3, g_triangleTableBuffer } }
             });
             const SeComputeWorkgroupSize workgroupSize = g_render->workgroup_size(g_device, program);
             g_render->dispatch(g_device,
             {
-                g_device,
                 1 + ((CHUNK_DIM - 1) / workgroupSize.x),
                 1 + ((CHUNK_DIM - 1) / workgroupSize.y),
                 1 + ((CHUNK_DIM - 1) / workgroupSize.z),   
@@ -476,7 +473,7 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* updateInfo
         // Clear pass
         //
         computeProgramInfo.program = g_clearChunkCs;
-        SeRenderRef clearChunkPipeline = g_render->compute_pipeline(g_device, { g_device, computeProgramInfo });
+        SeRenderRef clearChunkPipeline = g_render->compute_pipeline(g_device, { computeProgramInfo });
         g_render->begin_pass(g_device, { .id = CLEAR_CHUNK_PASS, .dependencies = 0, .pipeline = clearChunkPipeline });
         executeComputePass(g_clearChunkCs);
         g_render->end_pass(g_device);
@@ -484,7 +481,7 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* updateInfo
         // Generate pass
         //
         computeProgramInfo.program = g_generateChunkCs;
-        SeRenderRef generateChunkPipeline = g_render->compute_pipeline(g_device, { g_device, computeProgramInfo });
+        SeRenderRef generateChunkPipeline = g_render->compute_pipeline(g_device, { computeProgramInfo });
         g_render->begin_pass(g_device, { .id = GENERATE_CHUNK_PASS, .dependencies = (1 << CLEAR_CHUNK_PASS), .pipeline = generateChunkPipeline });
         executeComputePass(g_generateChunkCs);
         g_render->end_pass(g_device);
@@ -492,7 +489,7 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* updateInfo
         // Triangulate pass
         //
         computeProgramInfo.program = g_triangulateChunkCs;
-        SeRenderRef triangulateChunkPipeline = g_render->compute_pipeline(g_device, { g_device, computeProgramInfo });
+        SeRenderRef triangulateChunkPipeline = g_render->compute_pipeline(g_device, { computeProgramInfo });
         g_render->begin_pass(g_device, { .id = TRIANGULATE_CHUNK_PASS, .dependencies = (1 << GENERATE_CHUNK_PASS), .pipeline = triangulateChunkPipeline });
         executeComputePass(g_triangulateChunkCs);
         g_render->end_pass(g_device);
@@ -501,7 +498,6 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* updateInfo
         //
         SeRenderRef pipeline = g_render->graphics_pipeline(g_device,
         {
-            .device                 = g_device,
             .vertexProgram          = { .program = g_renderChunkVs, },
             .fragmentProgram        = { .program = g_renderChunkFs, },
             .frontStencilOpState    = { .isEnabled = false, },
@@ -541,7 +537,6 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* updateInfo
         });
         SeRenderRef sampler = g_render->sampler(g_device,
         {
-            .device             = g_device,
             .magFilter          = SE_SAMPLER_FILTER_LINEAR,
             .minFilter          = SE_SAMPLER_FILTER_LINEAR,
             .addressModeU       = SE_SAMPLER_ADDRESS_MODE_REPEAT,
@@ -557,9 +552,9 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* updateInfo
             .compareOp          = SE_COMPARE_OP_ALWAYS,
         });
         {
-            g_render->bind(g_device, { .set = 0, .bindings = { { 0, frameDataBuffer } }, .numBindings = 1 });
-            g_render->bind(g_device, { .set = 1, .bindings = { { 0, g_geometryBuffer } }, .numBindings = 1 });
-            g_render->bind(g_device, { .set = 2, .bindings = { { 0, grassTexture, sampler }, { 1, rockTexture, sampler } }, .numBindings = 2 });
+            g_render->bind(g_device, { .set = 0, .bindings = { { 0, frameDataBuffer } } });
+            g_render->bind(g_device, { .set = 1, .bindings = { { 0, g_geometryBuffer } } });
+            g_render->bind(g_device, { .set = 2, .bindings = { { 0, grassTexture, sampler }, { 1, rockTexture, sampler } } });
             g_render->draw(g_device, { .numVertices = numVerts, .numInstances = 1 });
         }
         g_render->end_pass(g_device);

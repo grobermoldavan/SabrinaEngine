@@ -15,6 +15,18 @@ enum SeVkRefFlags
     SE_VK_REF_IS_SWAP_CHAIN_TEXTURE = 0x00000002,
 };
 
+static uint32_t se_vk_graph_get_num_bindings(const SeCommandBindInfo& info)
+{
+    uint32_t result = 0;
+    for (size_t it = 0; it < SE_MAX_BINDINGS; it++)
+    {
+        const SeBinding& binding = info.bindings[it];
+        if (binding.binding == 0 && binding.object == 0 && binding.sampler == 0) break;
+        result += 1;
+    }
+    return result;
+}
+
 static VkStencilOpState se_vk_graph_pipeline_stencil_op_state(const SeStencilOpState* state)
 {
     return
@@ -520,7 +532,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
             const SeVkGraphCommand& command = iter::value(cmdIt);
             if (command.type == SE_VK_GRAPH_COMMAND_TYPE_BIND)
             {
-                const size_t numBindings = command.info.bind.numBindings;
+                const uint32_t numBindings = se_vk_graph_get_num_bindings(command.info.bind);
                 for (size_t bindingIt = 0; bindingIt < numBindings; bindingIt++)
                 {
                     const SeBinding& binding = command.info.bind.bindings[bindingIt];
@@ -648,7 +660,8 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
                 case SE_VK_GRAPH_COMMAND_TYPE_BIND:
                 {
                     SeCommandBindInfo* bindCommandInfo = &command.info.bind;
-                    se_assert(bindCommandInfo->numBindings);
+                    const uint32_t numBindings = se_vk_graph_get_num_bindings(*bindCommandInfo);
+                    se_assert(numBindings);
                     se_assert(pipeline->numDescriptorSetLayouts > bindCommandInfo->set);
                     //
                     // Allocate descriptor set
@@ -706,7 +719,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
                     VkDescriptorImageInfo imageInfos[SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS];
                     VkDescriptorBufferInfo bufferInfos[SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS];
                     VkWriteDescriptorSet writes[SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS];
-                    for (uint32_t bindingIt = 0; bindingIt < bindCommandInfo->numBindings; bindingIt++)
+                    for (uint32_t bindingIt = 0; bindingIt < numBindings; bindingIt++)
                     {
                         SeBinding* binding = &bindCommandInfo->bindings[bindingIt];
                         VkWriteDescriptorSet write
@@ -765,7 +778,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
                         }
                         writes[bindingIt] = write;
                     }
-                    vkUpdateDescriptorSets(logicalHandle, bindCommandInfo->numBindings, writes, 0, nullptr);
+                    vkUpdateDescriptorSets(logicalHandle, numBindings, writes, 0, nullptr);
                     vkCmdBindDescriptorSets(commandBuffer->handle, pipeline->bindPoint, pipeline->layout, bindCommandInfo->set, 1, &descriptorSet, 0, nullptr);
                 } break;
                 default: { se_assert(!"Unknown SeVkGraphCommand"); }
@@ -1200,15 +1213,17 @@ void se_vk_graph_command_bind(SeVkGraph* graph, const SeCommandBindInfo& info)
 {
     se_assert(graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_PASS);
 
+    const uint32_t numBindings = se_vk_graph_get_num_bindings(info);
+    se_assert(numBindings);
+
     SeVkGraphPass* pass = &graph->passes[dynamic_array::size(graph->passes) - 1];
-    se_assert(info.numBindings);
     dynamic_array::push(pass->commands,
     {
         .type = SE_VK_GRAPH_COMMAND_TYPE_BIND,
         .info = { .bind = info },
     });
 
-    for (size_t it = 0; it < info.numBindings; it++)
+    for (size_t it = 0; it < numBindings; it++)
     {
         const SeRenderRef object = info.bindings[it].object;
         const SeVkType type = se_vk_ref_type(object);

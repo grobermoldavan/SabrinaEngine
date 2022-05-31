@@ -104,7 +104,6 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* info)
         const SeRenderRef verticesBuffer = render->memory_buffer(device, { data_provider::from_memory(vertices, sizeof(vertices)) });
         const SeRenderRef pipeline = render->graphics_pipeline(device,
         {
-            .device                 = device,
             .vertexProgram          = { .program = vertexProgram, },
             .fragmentProgram        = { .program = fragmentProgram, },
             .frontStencilOpState    = { .isEnabled = false, },
@@ -126,8 +125,8 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* info)
             .hasDepthStencil    = false,
         });
         {
-            render->bind(device, { .set = 0, .bindings = { { 0, frameDataBuffer } }, .numBindings = 1 });
-            render->bind(device, { .set = 1, .bindings = { { 0, verticesBuffer }, { 1, instancesBuffer } }, .numBindings = 2 });
+            render->bind(device, { .set = 0, .bindings = { { 0, frameDataBuffer } } });
+            render->bind(device, { .set = 1, .bindings = { { 0, verticesBuffer }, { 1, instancesBuffer } } });
             render->draw(device, { .numVertices = se_array_size(vertices), .numInstances = se_array_size(instances) });
         }
         render->end_pass(device);

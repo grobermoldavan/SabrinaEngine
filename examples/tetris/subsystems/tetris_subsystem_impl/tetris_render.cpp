@@ -191,7 +191,6 @@ void tetris_render_update(const SeWindowSubsystemInput* input, float dt)
         //
         const SeRenderRef drawPipeline = g_render->graphics_pipeline(g_device,
         {
-            .device                 = g_device,
             .vertexProgram          = { .program = g_drawVs, },
             .fragmentProgram        = { .program = g_drawFs, },
             .frontStencilOpState    = { .isEnabled = false, },
@@ -231,7 +230,7 @@ void tetris_render_update(const SeWindowSubsystemInput* input, float dt)
             const SeRenderRef gridIndicesBuffer     = g_render->memory_buffer(g_device, { data_provider::from_memory(gridIndices, sizeof(gridIndices)) });
             const SeRenderRef gridInstancesBuffer   = g_render->memory_buffer(g_device, { data_provider::from_memory(gridInstances, sizeof(gridInstances)) });
             const SeRenderRef frameDataBuffer       = g_render->memory_buffer(g_device, { data_provider::from_memory(&frameData, sizeof(frameData)) });
-            g_render->bind(g_device, { .set = 0, .bindings = { { 0, frameDataBuffer } }, .numBindings = 1 });
+            g_render->bind(g_device, { .set = 0, .bindings = { { 0, frameDataBuffer } } });
             if (numCubeInstances)
             {
                 const SeRenderRef cubeVerticesBuffer    = g_render->memory_buffer(g_device, { data_provider::from_memory(cubeVertices, sizeof(cubeVertices)) });
@@ -242,7 +241,7 @@ void tetris_render_update(const SeWindowSubsystemInput* input, float dt)
                     { 0, cubeVerticesBuffer  },
                     { 1, cubeIndicesBuffer   },
                     { 2, cubeInstancesBuffer }, 
-                }, .numBindings = 3 });
+                } });
                 g_render->draw(g_device, { .numVertices = se_array_size(cubeIndices), .numInstances = numCubeInstances });
             }
             g_render->bind(g_device, { .set = 1, .bindings =
@@ -250,7 +249,7 @@ void tetris_render_update(const SeWindowSubsystemInput* input, float dt)
                 { 0, gridVerticesBuffer  },
                 { 1, gridIndicesBuffer   },
                 { 2, gridInstancesBuffer }, 
-            }, .numBindings = 3 });
+            } });
             g_render->draw(g_device, { .numVertices = se_array_size(gridIndices), .numInstances = se_array_size(gridInstances) });
         }
         g_render->end_pass(g_device);
@@ -259,7 +258,6 @@ void tetris_render_update(const SeWindowSubsystemInput* input, float dt)
         //
         const SeRenderRef presentPipeline = g_render->graphics_pipeline(g_device,
         {
-            .device                 = g_device,
             .vertexProgram          = { .program = g_presentVs, },
             .fragmentProgram        = { .program = g_presentFs, },
             .frontStencilOpState    = { .isEnabled = false, },
@@ -272,7 +270,6 @@ void tetris_render_update(const SeWindowSubsystemInput* input, float dt)
         });
         const SeRenderRef sampler = g_render->sampler(g_device,
         {
-            .device             = g_device,
             .magFilter          = SE_SAMPLER_FILTER_LINEAR,
             .minFilter          = SE_SAMPLER_FILTER_LINEAR,
             .addressModeU       = SE_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
@@ -298,7 +295,7 @@ void tetris_render_update(const SeWindowSubsystemInput* input, float dt)
             .hasDepthStencil    = false,
         });
         {
-            g_render->bind(g_device, { .set = 0, .bindings = { { 0, colorTexture, sampler } }, .numBindings = 1 });
+            g_render->bind(g_device, { .set = 0, .bindings = { { 0, colorTexture, sampler } }  });
             g_render->draw(g_device, { .numVertices = 4, .numInstances = 1 });
         }
         g_render->end_pass(g_device);

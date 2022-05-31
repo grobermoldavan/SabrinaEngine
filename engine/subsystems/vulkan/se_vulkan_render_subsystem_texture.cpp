@@ -62,6 +62,7 @@ void se_vk_texture_stbi_free(void* ptr)
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define STBI_NO_STDIO
+#define STBI_ASSERT se_assert
 #include "engine/libs/stb/stb_image.h"
 
 static size_t g_textureIndex = 0;

@@ -8,8 +8,9 @@
 #include "engine/data_providers.hpp"
 #include "engine/subsystems/se_window_subsystem.hpp"
 
-#define SE_MAX_SPECIALIZATION_CONSTANTS 8
-#define SE_MAX_BINDINGS 8
+constexpr size_t SE_MAX_SPECIALIZATION_CONSTANTS    = 8;
+constexpr size_t SE_MAX_BINDINGS                    = 8;
+constexpr size_t SE_MAX_PASS_DEPENDENCIES           = 64;
 
 enum SePassRenderTargetLoadOp
 {
@@ -110,7 +111,6 @@ struct SeDeviceInfo
     SeWindowHandle window;
 };
 
-#define SE_MAX_PASS_DEPENDENCIES 64
 #define se_pass_dependency(id) (1ull << id)
 using SePassDependencies = uint64_t;
 
@@ -154,7 +154,6 @@ struct SeTextureInfo
 
 struct SeSamplerInfo
 {
-    SeDeviceHandle          device;
     SeSamplerFilter         magFilter;
     SeSamplerFilter         minFilter;
     SeSamplerAddressMode    addressModeU;
@@ -209,7 +208,6 @@ struct SeProgramWithConstants
 
 struct SeGraphicsPipelineInfo
 {
-    SeDeviceHandle          device;
     SeProgramWithConstants  vertexProgram;
     SeProgramWithConstants  fragmentProgram;
     SeStencilOpState        frontStencilOpState;
@@ -223,8 +221,7 @@ struct SeGraphicsPipelineInfo
 
 struct SeComputePipelineInfo
 {
-    SeDeviceHandle          device;
-    SeProgramWithConstants  program;
+    SeProgramWithConstants program;
 };
 
 struct SeMemoryBufferInfo
@@ -234,32 +231,28 @@ struct SeMemoryBufferInfo
 
 struct SeBinding
 {
-    uint32_t binding;
+    uint32_t    binding;
     SeRenderRef object;
     SeRenderRef sampler;
 };
 
 struct SeCommandBindInfo
 {
-    SeDeviceHandle  device;
-    uint32_t        set;
-    SeBinding       bindings[SE_MAX_BINDINGS];
-    uint32_t        numBindings;
+    uint32_t    set;
+    SeBinding   bindings[SE_MAX_BINDINGS];
 };
 
 struct SeCommandDrawInfo
 {
-    SeDeviceHandle  device;
-    uint32_t        numVertices;
-    uint32_t        numInstances;
+    uint32_t    numVertices;
+    uint32_t    numInstances;
 };
 
 struct SeCommandDispatchInfo
 {
-    SeDeviceHandle  device;
-    uint32_t        groupCountX;
-    uint32_t        groupCountY;
-    uint32_t        groupCountZ;
+    uint32_t    groupCountX;
+    uint32_t    groupCountY;
+    uint32_t    groupCountZ;
 };
 
 struct SeComputeWorkgroupSize
