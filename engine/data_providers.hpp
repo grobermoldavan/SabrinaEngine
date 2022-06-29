@@ -5,6 +5,7 @@
 #include "utils.hpp"
 #include "subsystems/se_platform_subsystem.hpp"
 #include "subsystems/se_application_allocators_subsystem.hpp"
+#include "subsystems/se_string_subsystem.hpp"
 
 struct DataProvider
 {
@@ -23,7 +24,7 @@ struct DataProvider
         } memory;
         struct
         {
-            SeFile file;
+            SeString path;
         } file;
     };
 };
@@ -43,7 +44,7 @@ namespace utils
         switch (first.type)
         {
             case DataProvider::FROM_MEMORY: return compare(first.memory, second.memory);
-            case DataProvider::FROM_FILE:   return compare(first.file.file.fullPath, second.file.file.fullPath);
+            case DataProvider::FROM_FILE:   return compare(first.file.path, second.file.path);
             default:                        return true;
         }
     }
@@ -64,7 +65,7 @@ namespace hash_value
                 } break;
                 case DataProvider::FROM_FILE:
                 {
-                    hash_value::builder::absorb(builder, value.file.file.fullPath);
+                    hash_value::builder::absorb(builder, value.file.path);
                 } break;
                 default: { }
             }
@@ -74,7 +75,7 @@ namespace hash_value
     template<>
     HashValue generate<DataProvider>(const DataProvider& value)
     {
-        HashValueBuilder builder = hash_value::builder::create();
+        HashValueBuilder builder = hash_value::builder::begin();
         hash_value::builder::absorb(builder, value);
         return hash_value::builder::end(builder);
     }
@@ -97,12 +98,22 @@ namespace data_provider
         };
     }
 
-    DataProvider from_file(const SeFile& file)
+    template<typename T>
+    DataProvider from_memory(const T& obj)
+    {
+        return
+        {
+            .type   = DataProvider::FROM_MEMORY,
+            .memory = { (void*)&obj, sizeof(T) },
+        };
+    }
+
+    DataProvider from_file(const char* path)
     {
         return
         {
             .type = DataProvider::FROM_FILE,
-            .file = { file },
+            .file = { platform::get()->get_full_path(path, SeStringLifetime::Persistent) },
         };
     }
 
@@ -120,12 +131,37 @@ namespace data_provider
             } break;
             case DataProvider::FROM_FILE:
             {
-                SeFileContent content = platform::get()->file_read(&provider.file.file, app_allocators::frame());
+                SeFile file = platform::get()->file_load(string::cstr(provider.file.path), SE_FILE_READ);
+                SeFileContent content = platform::get()->file_read(&file, app_allocators::frame());
+                platform::get()->file_unload(&file);
                 return { content.memory, content.size };
             } break;
             default:
             {
                 return { };
+            }
+        }
+    }
+
+    void destroy(DataProvider& provider)
+    {
+        switch (provider.type)
+        {
+            case DataProvider::UNINITIALIZED:
+            {
+                
+            } break;
+            case DataProvider::FROM_MEMORY:
+            {
+                
+            } break;
+            case DataProvider::FROM_FILE:
+            {
+                string::destroy(provider.file.path);
+            } break;
+            default:
+            {
+
             }
         }
     }

@@ -102,6 +102,12 @@ namespace dynamic_array
         return (Size)array.size;
     }
 
+    template<typename Size = size_t, typename T>
+    inline Size raw_size(const DynamicArray<T>& array)
+    {
+        return (Size)(array.size * sizeof(T));
+    }
+
     template<typename T>
     inline size_t capacity(const DynamicArray<T>& array)
     {
@@ -142,7 +148,7 @@ namespace dynamic_array
     }
 
     template<typename T>
-    void remove(DynamicArray<T>& array, size_t index)
+    void remove_idx(DynamicArray<T>& array, size_t index)
     {
         se_assert(index < array.size);
         array.size -= 1;
@@ -174,6 +180,12 @@ namespace dynamic_array
 
     template<typename T>
     inline T* raw(DynamicArray<T>& array)
+    {
+        return array.memory;
+    }
+
+    template<typename T>
+    inline const T* raw(const DynamicArray<T>& array)
     {
         return array.memory;
     }
@@ -266,7 +278,7 @@ namespace iter
     template<typename T>
     void remove(DynamicArrayIteratorValue<T, DynamicArray<T>>& value)
     {
-        dynamic_array::remove(*value.iterator->arr, value.iterator->index);
+        dynamic_array::remove_idx(*value.iterator->arr, value.iterator->index);
         value.iterator->index -= 1;
     }
 }
@@ -669,7 +681,7 @@ namespace hash_table
         }
 
         template<typename Key, typename Value>
-        size_t index_of(HashTable<Key, Value>& table, const Key& key)
+        size_t index_of(const HashTable<Key, Value>& table, const Key& key)
         {
             using Entry = HashTable<Key, Value>::Entry;
             HashValue hash = hash_value::generate(key);
@@ -677,7 +689,7 @@ namespace hash_table
             size_t currentPosition = initialPosition;
             do
             {
-                Entry& data = table.memory[currentPosition];
+                const Entry& data = table.memory[currentPosition];
                 if (!data.isOccupied) break;
                 const bool isCorrectData = hash_value::is_equal(data.hash, hash) && utils::compare(data.key, key);
                 if (isCorrectData)
@@ -724,10 +736,10 @@ namespace hash_table
         {
             .allocator  = allocator,
             .memory     = nullptr,
-            .capacity   = capacity,
+            .capacity   = capacity * 2,
             .size       = 0,
         };
-        const size_t allocSize = sizeof(Entry) * capacity;
+        const size_t allocSize = sizeof(Entry) * capacity * 2;
         table.memory = (Entry*)allocator.alloc(allocator.allocator, allocSize, se_default_alignment, se_alloc_tag);
         memset(table.memory, 0, allocSize);
     }
@@ -740,10 +752,10 @@ namespace hash_table
         {
             .allocator  = allocator,
             .memory     = nullptr,
-            .capacity   = capacity,
+            .capacity   = capacity * 2,
             .size       = 0,
         };
-        const size_t allocSize = sizeof(Entry) * capacity;
+        const size_t allocSize = sizeof(Entry) * capacity * 2;
         result.memory = (Entry*)allocator.alloc(allocator.allocator, allocSize, se_default_alignment, se_alloc_tag);
         memset(result.memory, 0, allocSize);
         return result;
@@ -816,6 +828,13 @@ namespace hash_table
 
     template<typename Key, typename Value>
     Value* get(HashTable<Key, Value>& table, const Key& key)
+    {
+        const size_t position = impl::index_of(table, key);
+        return position == table.capacity ? nullptr : &table.memory[position].value;
+    }
+
+    template<typename Key, typename Value>
+    const Value* get(const HashTable<Key, Value>& table, const Key& key)
     {
         const size_t position = impl::index_of(table, key);
         return position == table.capacity ? nullptr : &table.memory[position].value;

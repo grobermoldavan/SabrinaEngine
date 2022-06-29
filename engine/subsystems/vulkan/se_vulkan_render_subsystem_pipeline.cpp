@@ -121,7 +121,7 @@ static SeVkDescriptorSetLayoutCreateInfos se_vk_pipeline_get_discriptor_set_layo
             0;
         for (size_t uniformIt = 0; uniformIt < reflection->numUniforms; uniformIt++)
         {
-            const SsrUniform* uniform = &reflection->uniforms[uniformIt];
+            const SsrUniform* const uniform = &reflection->uniforms[uniformIt];
             const VkDescriptorType uniformDescriptorType =
                 uniform->kind == SSR_UNIFORM_SAMPLER                 ? (VkDescriptorType)VK_DESCRIPTOR_TYPE_SAMPLER :
                 uniform->kind == SSR_UNIFORM_SAMPLED_IMAGE           ? (VkDescriptorType)VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE :
@@ -135,19 +135,9 @@ static SeVkDescriptorSetLayoutCreateInfos se_vk_pipeline_get_discriptor_set_layo
                 uniform->kind == SSR_UNIFORM_ACCELERATION_STRUCTURE  ? (VkDescriptorType)VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR :
                 (VkDescriptorType)~0;
             se_assert(uniformDescriptorType != ~0);
-            VkDescriptorSetLayoutCreateInfo* layoutCreateInfo = &layoutCreateInfos[uniform->set];
+            const VkDescriptorSetLayoutCreateInfo* const layoutCreateInfo = &layoutCreateInfos[uniform->set];
             const size_t bindingsArrayInitialOffset = layoutCreateInfo->pBindings - dynamic_array::raw(bindings);
-            VkDescriptorSetLayoutBinding* binding = nullptr;
-            for (size_t bindingsIt = 0; bindingsIt < layoutCreateInfo->bindingCount; bindingsIt++)
-            {
-                VkDescriptorSetLayoutBinding* candidate = &bindings[bindingsArrayInitialOffset + bindingsIt];
-                if (candidate->binding == ~((uint32_t)0) || candidate->binding == uniform->binding)
-                {
-                    binding = candidate;
-                    break;
-                }
-            }
-            se_assert(binding);
+            VkDescriptorSetLayoutBinding* binding = &bindings[bindingsArrayInitialOffset + uniform->binding];
             const uint32_t uniformDescriptorCount =
                 ssr_is_array(uniform->type) && ssr_get_array_size_kind(uniform->type) == SSR_ARRAY_SIZE_CONSTANT
                 ? (uint32_t)(uniform->type->info.array.size) // @TODO : safe cast
@@ -359,7 +349,21 @@ void se_vk_pipeline_graphics_construct(SeVkPipeline* pipeline, SeVkGraphicsPipel
         .maxDepthBounds         = 0.0f,
     };
     VkPipelineColorBlendAttachmentState colorBlendAttachments[32] = { 0 /* COLOR BLENDING IS UNSUPPORTED */ };
-    for (size_t it = 0; it < se_array_size(colorBlendAttachments); it++) colorBlendAttachments[it].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    for (size_t it = 0; it < se_array_size(colorBlendAttachments); it++)
+    {
+        // Default alpha blending https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Fixed_functions#page_Color-blending
+        colorBlendAttachments[it] =
+        {
+            .blendEnable            = VK_TRUE,
+            .srcColorBlendFactor    = VK_BLEND_FACTOR_SRC_ALPHA,
+            .dstColorBlendFactor    = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .colorBlendOp           = VK_BLEND_OP_ADD,
+            .srcAlphaBlendFactor    = VK_BLEND_FACTOR_ONE,
+            .dstAlphaBlendFactor    = VK_BLEND_FACTOR_ZERO,
+            .alphaBlendOp           = VK_BLEND_OP_ADD,
+            .colorWriteMask         = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+        };
+    }
     const uint32_t numColorAttachments = se_vk_render_pass_get_num_color_attachments(info->pass, info->subpassIndex);
     const VkPipelineColorBlendStateCreateInfo colorBlending = se_vk_utils_color_blending_create_info(colorBlendAttachments, numColorAttachments);
     const VkPipelineDynamicStateCreateInfo dynamicState = se_vk_utils_dynamic_state_default_create_info();

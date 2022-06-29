@@ -32,33 +32,18 @@ extern const SeRenderAbstractionSubsystemInterface* g_render;
 extern TetrisState g_state;
 
 SeDeviceHandle  g_device;
-SeRenderRef     g_drawVs;
-SeRenderRef     g_drawFs;
-SeRenderRef     g_presentVs;
-SeRenderRef     g_presentFs;
-
-SeRenderRef sync_load_shader(const char* path)
-{
-    SeFile shader = platform::get()->file_load(path, SE_FILE_READ);
-    SeFileContent content = platform::get()->file_read(&shader, app_allocators::frame());
-    SeProgramInfo createInfo
-    {
-        .bytecode = (uint32_t*)content.memory,
-        .bytecodeSize = content.size,
-    };
-    SeRenderRef program = g_render->program(g_device, createInfo);
-    platform::get()->file_free_content(&content);
-    platform::get()->file_unload(&shader);
-    return program;
-}
+DataProvider    g_drawVsData;
+DataProvider    g_drawFsData;
+DataProvider    g_presentVsData;
+DataProvider    g_presentFsData;
 
 void tetris_render_init()
 {
-    g_device    = g_render->device_create({ .window = g_window, });   
-    g_drawVs    = sync_load_shader("assets/application/shaders/tetris_draw.vert.spv");
-    g_drawFs    = sync_load_shader("assets/application/shaders/tetris_draw.frag.spv");
-    g_presentVs = sync_load_shader("assets/default/shaders/present.vert.spv");
-    g_presentFs = sync_load_shader("assets/default/shaders/present.frag.spv");
+    g_device        = g_render->device_create({ .window = g_window, });   
+    g_drawVsData    = data_provider::from_file("assets/application/shaders/tetris_draw.vert.spv");
+    g_drawFsData    = data_provider::from_file("assets/application/shaders/tetris_draw.frag.spv");
+    g_presentVsData = data_provider::from_file("assets/default/shaders/present.vert.spv");
+    g_presentFsData = data_provider::from_file("assets/default/shaders/present.frag.spv");
 }
 
 void tetris_render_terminate()
@@ -179,7 +164,7 @@ void tetris_render_update(const SeWindowSubsystemInput* input, float dt)
         float4x4::from_rotation({ -30, 0, 0 })
     );
     const float aspect = ((float)win::get_width(g_window)) / ((float)win::get_height(g_window));
-    const SeFloat4x4 perspective = g_render->perspective_projection_matrix(60, aspect, 0.1f, 100.0f);
+    const SeFloat4x4 perspective = g_render->perspective(60, aspect, 0.1f, 100.0f);
     const FrameData frameData = { .viewProjection = float4x4::transposed(perspective * float4x4::inverted(view)) };
     //
     // Render
@@ -189,10 +174,12 @@ void tetris_render_update(const SeWindowSubsystemInput* input, float dt)
         //
         // Offscreen pass
         //
+        const SeRenderRef drawVs = g_render->program(g_device, { g_drawVsData });
+        const SeRenderRef drawFs = g_render->program(g_device, { g_drawFsData });
         const SeRenderRef drawPipeline = g_render->graphics_pipeline(g_device,
         {
-            .vertexProgram          = { .program = g_drawVs, },
-            .fragmentProgram        = { .program = g_drawFs, },
+            .vertexProgram          = { .program = drawVs, },
+            .fragmentProgram        = { .program = drawFs, },
             .frontStencilOpState    = { .isEnabled = false, },
             .backStencilOpState     = { .isEnabled = false, },
             .depthState             = { .isTestEnabled = true, .isWriteEnabled = true, },
@@ -256,10 +243,12 @@ void tetris_render_update(const SeWindowSubsystemInput* input, float dt)
         //
         // Presentation pass
         //
+        const SeRenderRef presentVs = g_render->program(g_device, { g_presentVsData });
+        const SeRenderRef presentFs = g_render->program(g_device, { g_presentFsData });
         const SeRenderRef presentPipeline = g_render->graphics_pipeline(g_device,
         {
-            .vertexProgram          = { .program = g_presentVs, },
-            .fragmentProgram        = { .program = g_presentFs, },
+            .vertexProgram          = { .program = presentVs, },
+            .fragmentProgram        = { .program = presentFs, },
             .frontStencilOpState    = { .isEnabled = false, },
             .backStencilOpState     = { .isEnabled = false, },
             .depthState             = { .isTestEnabled = false, .isWriteEnabled = false, },

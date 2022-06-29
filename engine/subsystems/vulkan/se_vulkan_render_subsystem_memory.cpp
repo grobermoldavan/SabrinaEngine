@@ -84,7 +84,7 @@ static void se_vk_memory_manager_dealloc(void* pUserData, void* pMemory)
         if (manager->cpu_allocations[it].ptr == pMemory)
         {
             allocator.dealloc(allocator.allocator, manager->cpu_allocations[it].ptr, manager->cpu_allocations[it].size);
-            dynamic_array::remove(manager->cpu_allocations, it);
+            dynamic_array::remove_idx(manager->cpu_allocations, it);
             break;
         }
     }

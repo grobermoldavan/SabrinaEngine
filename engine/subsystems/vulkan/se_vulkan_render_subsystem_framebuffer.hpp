@@ -52,7 +52,7 @@ namespace hash_value
     template<>
     HashValue generate<SeVkFramebufferInfo>(const SeVkFramebufferInfo& value)
     {
-        HashValueBuilder builder = hash_value::builder::create();
+        HashValueBuilder builder = hash_value::builder::begin();
         hash_value::builder::absorb(builder, value);
         return hash_value::builder::end(builder);
     }

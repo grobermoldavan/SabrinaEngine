@@ -434,6 +434,7 @@ SeTextureFormat se_vk_utils_to_texture_format(VkFormat vkFormat)
 {
     switch (vkFormat)
     {
+        case VK_FORMAT_R8_UNORM: return SE_TEXTURE_FORMAT_R_8;
         case VK_FORMAT_R8G8B8A8_SRGB: return SE_TEXTURE_FORMAT_RGBA_8;
         case VK_FORMAT_R32G32B32A32_SFLOAT: return SE_TEXTURE_FORMAT_RGBA_32F;
     }
@@ -445,6 +446,7 @@ VkFormat se_vk_utils_to_vk_format(SeTextureFormat format)
 {
     switch (format)
     {
+        case SE_TEXTURE_FORMAT_R_8: return VK_FORMAT_R8_UNORM;
         case SE_TEXTURE_FORMAT_RGBA_8: return VK_FORMAT_R8G8B8A8_SRGB;
         case SE_TEXTURE_FORMAT_RGBA_32F: return VK_FORMAT_R32G32B32A32_SFLOAT;
     }
@@ -660,7 +662,7 @@ VkPipelineColorBlendStateCreateInfo se_vk_utils_color_blending_create_info(VkPip
         .logicOp            = VK_LOGIC_OP_COPY, // optional if logicOpEnable == VK_FALSE
         .attachmentCount    = numStates,
         .pAttachments       = colorBlendAttachmentStates,
-        .blendConstants     = { 0.0f, 0.0f, 0.0f, 0.0f }, // optional, because color blending is disabled in colorBlendAttachments
+        .blendConstants     = { 1.0f, 1.0f, 1.0f, 1.0f }, // optional, because color blending is disabled in colorBlendAttachments
     };
 }
 

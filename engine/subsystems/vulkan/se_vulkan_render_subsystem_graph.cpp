@@ -716,9 +716,9 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
                     //
                     // Write and bind descriptor set
                     //
-                    VkDescriptorImageInfo imageInfos[SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS];
-                    VkDescriptorBufferInfo bufferInfos[SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS];
-                    VkWriteDescriptorSet writes[SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS];
+                    VkDescriptorImageInfo imageInfos[SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS] = {};
+                    VkDescriptorBufferInfo bufferInfos[SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS] = {};
+                    VkWriteDescriptorSet writes[SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS] = {};
                     for (uint32_t bindingIt = 0; bindingIt < numBindings; bindingIt++)
                     {
                         SeBinding* binding = &bindCommandInfo->bindings[bindingIt];
@@ -974,30 +974,29 @@ void se_vk_graph_begin_pass(SeVkGraph* graph, const SeBeginPassInfo& info)
         };
         for (size_t it = 0; it < info.numRenderTargets; it++)
         {
+            renderPassInfo.subpasses[0].colorRefs |= 1 << it;
             const SeRenderRef rt = info.renderTargets[it].texture;
             if (se_vk_ref_flags(rt) & SE_VK_REF_IS_SWAP_CHAIN_TEXTURE)
             {
-                renderPassInfo.subpasses[0].colorRefs |= 1 << it;
                 renderPassInfo.colorAttachments[it] =
                 {
                     .format     = se_vk_device_get_swap_chain_format(graph->device),
                     .loadOp     = (VkAttachmentLoadOp)info.renderTargets[it].loadOp,
                     .storeOp    = VK_ATTACHMENT_STORE_OP_STORE,
                     .sampling   = VK_SAMPLE_COUNT_1_BIT,
-                    .clearValue = { .color = {0} },
+                    .clearValue = { .color = { } },
                 };
             }
             else
             {
                 const SeVkTextureInfo* textureInfo = &graph->textureInfos[se_vk_ref_index(rt)];
-                renderPassInfo.subpasses[0].colorRefs |= 1 << it;
                 renderPassInfo.colorAttachments[it] =
                 {
                     .format     = textureInfo->format,
                     .loadOp     = (VkAttachmentLoadOp)info.renderTargets[it].loadOp,
                     .storeOp    = VK_ATTACHMENT_STORE_OP_STORE,
                     .sampling   = textureInfo->sampling, // @TODO : support multisampling (and resolve and stuff)
-                    .clearValue = { .color = {0} },
+                    .clearValue = { .color = { } },
                 };
             }
         }
@@ -1018,6 +1017,7 @@ void se_vk_graph_end_pass(SeVkGraph* graph)
 SeRenderRef se_vk_graph_program(SeVkGraph* graph, const SeProgramInfo& info)
 {
     se_assert(graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_FRAME || graph->context == SE_VK_GRAPH_CONTEXT_TYPE_BETWEEN_FRAMES);
+    se_assert(data_provider::is_valid(info.data));
 
     SeVkDevice* device = graph->device;
     SeVkMemoryManager* memoryManager = &device->memoryManager;
@@ -1026,9 +1026,8 @@ SeRenderRef se_vk_graph_program(SeVkGraph* graph, const SeProgramInfo& info)
 
     SeVkProgramInfo vkInfo
     {
-        .device         = device,
-        .bytecode       = info.bytecode,
-        .bytecodeSize   = info.bytecodeSize,
+        .device = device,
+        .data   = info.data,
     };
     SeVkProgram* program = nullptr;
     const bool isInFrame = graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_FRAME;
@@ -1079,6 +1078,20 @@ SeRenderRef se_vk_graph_texture(SeVkGraph* graph, const SeTextureInfo& info)
 SeRenderRef se_vk_graph_swap_chain_texture(SeVkGraph* graph)
 {
     return se_vk_ref(SE_VK_TYPE_TEXTURE, SE_VK_REF_IS_SWAP_CHAIN_TEXTURE, 0);
+}
+
+SeTextureSize se_vk_grap_texture_size(SeVkGraph* graph, SeRenderRef texture)
+{
+    if (se_vk_ref_flags(texture) & SE_VK_REF_IS_SWAP_CHAIN_TEXTURE)
+    {
+        const VkExtent2D extent = se_vk_device_get_swap_chain_extent(graph->device);
+        return { extent.width, extent.height, 1 };
+    }
+    else
+    {
+        const SeVkTextureInfo& info = graph->textureInfos[se_vk_ref_index(texture)];
+        return { info.extent.width, info.extent.height, info.extent.depth };
+    }
 }
 
 SeRenderRef se_vk_graph_memory_buffer(SeVkGraph* graph, const SeMemoryBufferInfo& info)

@@ -50,11 +50,11 @@ struct SeWindowResizeCallbackContainerWin32
 
 struct SeWindowWin32
 {
-    SeWindowResizeCallbackContainerWin32 resizeCallbacks[__SE_WINDOW_RESIZE_CALLBACK_PRIORITY_COUNT];
-    SeWindowSubsystemInput input;
-    HWND handle;
-    uint32_t width;
-    uint32_t height;
+    SeWindowResizeCallbackContainerWin32    resizeCallbacks[__SE_WINDOW_RESIZE_CALLBACK_PRIORITY_COUNT];
+    SeWindowSubsystemInput                  input;
+    HWND                                    handle;
+    uint32_t                                width;
+    uint32_t                                height;
 };
 
 SeWindowWin32 g_windowPool[4] = {0};

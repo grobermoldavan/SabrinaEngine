@@ -797,10 +797,7 @@ void __ssr_process_shader_io_variable(SsrSpirvStruct* structs, size_t numStructs
     ssr_assert(ssr_opcode(id->declarationLocation[0]) == SpvOpTypePointer);
     id = &ids[id->declarationLocation[3]];
     io->type = __ssr_save_or_get_type_from_reflection(structs, numStructs, ids, id, reflection);
-    if (ioDeclarationId->decorations & SSR_DECORATION_BUILT_IN || id->decorations & SSR_DECORATION_BUILT_IN)
-    {
-        io->isBuiltIn = true;
-    }
+    io->isBuiltIn = (ioDeclarationId->decorations & SSR_DECORATION_BUILT_IN) || (id->decorations & SSR_DECORATION_BUILT_IN);
 }
 
 void __ssr_process_shader_uniform(SsrSpirvStruct* structs, size_t numStructs, SsrSpirvId* ids, SsrSpirvId* uniformIdOpVariable, SimpleSpirvReflection* reflection)

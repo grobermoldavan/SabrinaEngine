@@ -17,7 +17,7 @@ namespace hash_value
 {
     namespace builder
     {
-        HashValueBuilder create()
+        HashValueBuilder begin()
         {
             HashValueBuilder result = { };
             MeowBegin(&result, MeowDefaultSeed);

@@ -73,6 +73,7 @@ struct SePlatformSubsystemInterface
     SeFileContent   (*file_read)                (const SeFile* file, AllocatorBindings allocator);
     void            (*file_free_content)        (SeFileContent* content);
     void            (*file_write)               (const SeFile* file, const void* data, size_t size);
+    SeString        (*get_full_path)            (const char* path, SeStringLifetime lifetime);
 };
 
 struct SePlatformSubsystem

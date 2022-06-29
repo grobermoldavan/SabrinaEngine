@@ -16,6 +16,7 @@
 #include "subsystems/se_debug_subsystem.hpp"
 #include "subsystems/se_window_subsystem.hpp"
 #include "subsystems/se_vulkan_render_abstraction_subsystem.hpp"
+#include "subsystems/se_ui_subsystem.hpp"
 
 struct UpdateInfo
 {
@@ -114,6 +115,7 @@ void se_add_default_subsystems(SabrinaEngine* engine)
     se_add_subsystem<SeStringSubsystem>(engine);
     se_add_subsystem<SeDebugSubsystem>(engine);
     se_add_subsystem<SeWindowSubsystem>(engine);
+    se_add_subsystem<SeUiSubsystem>(engine);
 }
 
 void se_init_global_subsystem_pointers(SabrinaEngine* engine)
@@ -123,6 +125,7 @@ void se_init_global_subsystem_pointers(SabrinaEngine* engine)
     SE_STRING_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeStringSubsystemInterface>(engine);
     SE_DEBUG_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeDebugSubsystemInterface>(engine);
     SE_WINDOW_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeWindowSubsystemInterface>(engine);
+    SE_UI_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeUiSubsystemInterface>(engine);
 }
 
 #endif

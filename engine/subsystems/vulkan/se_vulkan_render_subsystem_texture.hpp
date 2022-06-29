@@ -86,7 +86,7 @@ namespace hash_value
     template<>
     HashValue generate<SeVkTexture>(const SeVkTexture& tex)
     {
-        HashValueBuilder builder = hash_value::builder::create();
+        HashValueBuilder builder = hash_value::builder::begin();
         hash_value::builder::absorb(builder, tex);
         return hash_value::builder::end(builder);
     }

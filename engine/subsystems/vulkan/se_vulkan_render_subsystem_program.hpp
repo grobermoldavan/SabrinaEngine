@@ -2,6 +2,7 @@
 #define _SE_VULKAN_RENDER_SUBSYSTEM_RENDER_PROGRAM_H_
 
 #include "se_vulkan_render_subsystem_base.hpp"
+#include "engine/data_providers.hpp"
 
 #define ssr_assert se_assert
 #include "engine/libs/ssr/simple_spirv_reflection.h"
@@ -9,8 +10,7 @@
 struct SeVkProgramInfo
 {
     struct SeVkDevice*  device;
-    const uint32_t*     bytecode;
-    size_t              bytecodeSize;
+    DataProvider data;
 };
 
 struct SeVkProgram
@@ -46,7 +46,7 @@ namespace hash_value
         template<>
         void absorb<SeVkProgramInfo>(HashValueBuilder& builder, const SeVkProgramInfo& value)
         {
-            hash_value::builder::absorb_raw(builder, { (void*)value.bytecode, value.bytecodeSize });
+            hash_value::builder::absorb(builder, value.data);
         }
 
         template<>
@@ -67,7 +67,7 @@ namespace hash_value
     template<>
     HashValue generate<SeVkProgramInfo>(const SeVkProgramInfo& value)
     {
-        return hash_value::generate_raw({ (void*)value.bytecode, value.bytecodeSize });
+        return hash_value::generate(value.data);
     }
 
     template<>
@@ -79,7 +79,7 @@ namespace hash_value
     template<>
     HashValue generate<SeVkProgramWithConstants>(const SeVkProgramWithConstants& value)
     {
-        HashValueBuilder builder = hash_value::builder::create();
+        HashValueBuilder builder = hash_value::builder::begin();
         hash_value::builder::absorb(builder, value);
         return hash_value::builder::end(builder);
     }

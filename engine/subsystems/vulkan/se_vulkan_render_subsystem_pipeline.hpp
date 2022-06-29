@@ -119,7 +119,7 @@ namespace hash_value
     template<>
     HashValue generate<SeVkComputePipelineInfo>(const SeVkComputePipelineInfo& value)
     {
-        HashValueBuilder builder = hash_value::builder::create();
+        HashValueBuilder builder = hash_value::builder::begin();
         hash_value::builder::absorb(builder, value);
         return hash_value::builder::end(builder);
     }
@@ -127,7 +127,7 @@ namespace hash_value
     template<>
     HashValue generate<SeVkGraphicsPipelineInfo>(const SeVkGraphicsPipelineInfo& value)
     {
-        HashValueBuilder builder = hash_value::builder::create();
+        HashValueBuilder builder = hash_value::builder::begin();
         hash_value::builder::absorb(builder, value);
         return hash_value::builder::end(builder);
     }

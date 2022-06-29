@@ -237,6 +237,18 @@ void se_platform_file_write(const SeFile* file, const void* data, size_t size)
     se_assert(bytesWritten == size);
 }
 
+SeString se_platform_get_full_path(const char* path, SeStringLifetime lifetime)
+{
+    const size_t BUFFER_LENGTH = 256;
+    char buffer[BUFFER_LENGTH];
+    const DWORD result = GetFullPathNameA(path, BUFFER_LENGTH, buffer, nullptr);
+    se_assert_msg(result != 0, "GetFullPathNameA failed");
+    se_assert_msg(result != BUFFER_LENGTH, "wtf");
+    se_assert_msg(result < BUFFER_LENGTH, "Buffer is too small to hold full path name");
+
+    return string::create(buffer, lifetime);
+}
+
 #else // ifdef _WIN32
 #   error Unsupported platform
 #endif
@@ -269,6 +281,7 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
         .file_read                  = se_platform_file_read,
         .file_free_content          = se_platform_file_free_content,
         .file_write                 = se_platform_file_write,
+        .get_full_path              = se_platform_get_full_path,
     };
     se_init_global_subsystem_pointers(engine);
 }

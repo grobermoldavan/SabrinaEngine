@@ -27,22 +27,8 @@ const SeRenderAbstractionSubsystemInterface* render;
 SeWindowHandle window;
 SeDeviceHandle device;
 
-SeRenderRef vertexProgram;
-SeRenderRef fragmentProgram;
-
-SeRenderRef sync_load_shader(const char* path)
-{
-    SeFile shader = platform::get()->file_load(path, SE_FILE_READ);
-    SeFileContent content = platform::get()->file_read(&shader, app_allocators::frame());
-    SeRenderRef program = render->program(device,
-    {
-        .bytecode       = (uint32_t*)content.memory,
-        .bytecodeSize   = content.size,
-    });
-    platform::get()->file_free_content(&content);
-    platform::get()->file_unload(&shader);
-    return program;
-}
+DataProvider vertexProgramData;
+DataProvider fragmentProgramData;
 
 SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 {
@@ -59,8 +45,8 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
     };
     window = win::create(windowInfo);
     device = render->device_create({ .window = window });
-    vertexProgram = sync_load_shader("assets/default/shaders/flat_color.vert.spv");
-    fragmentProgram = sync_load_shader("assets/default/shaders/flat_color.frag.spv");
+    vertexProgramData = data_provider::from_file("assets/default/shaders/flat_color.vert.spv");
+    fragmentProgramData = data_provider::from_file("assets/default/shaders/flat_color.frag.spv");
 }
 
 SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
@@ -91,7 +77,7 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* info)
         (
             float4x4::mul
             (
-                render->perspective_projection_matrix(60, aspect, 0.1f, 100.0f),
+                render->perspective(60, aspect, 0.1f, 100.0f),
                 float4x4::inverted(float4x4::look_at({ 0, 0, 0 }, { 0, 0, 1 }, { 0, 1, 0 }))
             )
         ),
@@ -99,6 +85,8 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* info)
 
     render->begin_frame(device);
     {
+        const SeRenderRef vertexProgram = render->program(device, { vertexProgramData });
+        const SeRenderRef fragmentProgram = render->program(device, { fragmentProgramData });
         const SeRenderRef frameDataBuffer = render->memory_buffer(device, { data_provider::from_memory(&frameData, sizeof(frameData)) });
         const SeRenderRef instancesBuffer = render->memory_buffer(device, { data_provider::from_memory(instances, sizeof(instances)) });
         const SeRenderRef verticesBuffer = render->memory_buffer(device, { data_provider::from_memory(vertices, sizeof(vertices)) });

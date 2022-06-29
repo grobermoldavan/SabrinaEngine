@@ -22,6 +22,7 @@ enum SePassRenderTargetLoadOp
 enum SeTextureFormat
 {
     SE_TEXTURE_FORMAT_DEPTH_STENCIL,
+    SE_TEXTURE_FORMAT_R_8,
     SE_TEXTURE_FORMAT_RGBA_8,
     SE_TEXTURE_FORMAT_RGBA_32F,
 };
@@ -133,8 +134,7 @@ struct SeBeginPassInfo
 
 struct SeProgramInfo
 {
-    const uint32_t* bytecode;
-    size_t          bytecodeSize;
+    DataProvider data;
 };
 
 struct SeRenderProgramComputeWorkGroupSize
@@ -262,12 +262,21 @@ struct SeComputeWorkgroupSize
     uint32_t z;
 };
 
+struct SeTextureSize
+{
+    size_t x;
+    size_t y;
+    size_t z;
+};
+
 struct SeRenderAbstractionSubsystemInterface
 {
     static constexpr const char* NAME = "SeRenderAbstractionSubsystemInterface";
 
     SeDeviceHandle                      (*device_create)                        (const SeDeviceInfo& info);
     void                                (*device_destroy)                       (SeDeviceHandle device);
+    SeDeviceHandle                      (*get_device)                           (SeWindowHandle window);
+
     void                                (*begin_frame)                          (SeDeviceHandle device);
     void                                (*end_frame)                            (SeDeviceHandle device);
     void                                (*begin_pass)                           (SeDeviceHandle device, const SeBeginPassInfo& info);
@@ -276,6 +285,7 @@ struct SeRenderAbstractionSubsystemInterface
     SeRenderRef                         (*program)                              (SeDeviceHandle device, const SeProgramInfo& info);
     SeRenderRef                         (*texture)                              (SeDeviceHandle device, const SeTextureInfo& info);
     SeRenderRef                         (*swap_chain_texture)                   (SeDeviceHandle device);
+    SeTextureSize                       (*texture_size)                         (SeDeviceHandle device, SeRenderRef texture);
     SeRenderRef                         (*graphics_pipeline)                    (SeDeviceHandle device, const SeGraphicsPipelineInfo& info);
     SeRenderRef                         (*compute_pipeline)                     (SeDeviceHandle device, const SeComputePipelineInfo& info);
     SeRenderRef                         (*memory_buffer)                        (SeDeviceHandle device, const SeMemoryBufferInfo& info);
@@ -283,7 +293,8 @@ struct SeRenderAbstractionSubsystemInterface
     void                                (*bind)                                 (SeDeviceHandle device, const SeCommandBindInfo& info);
     void                                (*draw)                                 (SeDeviceHandle device, const SeCommandDrawInfo& info);
     void                                (*dispatch)                             (SeDeviceHandle device, const SeCommandDispatchInfo& info);
-    SeFloat4x4                          (*perspective_projection_matrix)        (float fovDeg, float aspect, float nearPlane, float farPlane);
+    SeFloat4x4                          (*perspective)                          (float fovDeg, float aspect, float nearPlane, float farPlane);
+    SeFloat4x4                          (*orthographic)                         (float left, float right, float bottom, float top, float nearPlane, float farPlane);
     SeComputeWorkgroupSize              (*workgroup_size)                       (SeDeviceHandle device, SeRenderRef program);
 };
 

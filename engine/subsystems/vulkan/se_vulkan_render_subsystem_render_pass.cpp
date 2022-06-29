@@ -342,7 +342,7 @@ void se_vk_render_pass_construct(SeVkRenderPass* pass, SeVkRenderPassInfo* info)
     }
     se_vk_rp_for_each_set_bit(allSelfDependencies, it)
     {
-        VkSubpassDependency dependency = {0};
+        VkSubpassDependency dependency = { };
         dependency.srcSubpass = it;
         dependency.dstSubpass = it;
         dependency.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
@@ -365,7 +365,7 @@ void se_vk_render_pass_construct(SeVkRenderPass* pass, SeVkRenderPassInfo* info)
         // Each subpass must (?) write at least to color or depth attachment
         se_assert(se_vk_rp_is_bit_set(colorReadWriteDependencies, it) || se_vk_rp_is_bit_set(depthStencilWriteDependencies, it));
         se_assert(se_vk_rp_is_bit_set(colorReadWriteDependencies, it - 1) || se_vk_rp_is_bit_set(depthStencilWriteDependencies, it - 1));
-        VkSubpassDependency dependency = {0};
+        VkSubpassDependency dependency = { };
         dependency.srcSubpass = it - 1;
         dependency.dstSubpass = it;
         dependency.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;

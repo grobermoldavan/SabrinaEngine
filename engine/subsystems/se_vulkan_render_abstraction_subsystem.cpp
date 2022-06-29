@@ -25,7 +25,7 @@ static SeFloat4x4 se_vk_perspective_projection_matrix(float fovDeg, float aspect
     // @NOTE : This matrix works for reverse depth (near plane = 1, far plane = 0).
     //         If you want to change this, then render pass clear values must be reevaluated
     //         as well as render pipeline depthCompareOp.
-    // @NOTE : This matrix works for coordinate system used in se_math.h (forward == positive z)
+    // @NOTE : This matrix works for coordinate system used in se_math.h (forward == positive z, up == pozitive y)
     //
     const float focalLength = 1.0f / tanf(se_to_radians(fovDeg) / 2.0f);
     const float x =  focalLength / aspect;
@@ -38,6 +38,20 @@ static SeFloat4x4 se_vk_perspective_projection_matrix(float fovDeg, float aspect
         0.0f,    y,  0.0f, 0.0f,
         0.0f, 0.0f,     A,    B,
         0.0f, 0.0f,  1.0f, 0.0f,
+    };
+}
+
+static SeFloat4x4 se_vk_orthographic_projection_matrix(float left, float right, float bottom, float top, float nearPlane, float farPlane)
+{
+    const float farMNear = farPlane - nearPlane;
+    const float rightMLeft = right - left;
+    const float bottomMTop = bottom - top;
+    return
+    {
+        2.0f / rightMLeft, 0                , 0              , -(right + left) / rightMLeft,
+        0                , 2.0f / bottomMTop, 0              , -(bottom + top) / bottomMTop,
+        0                , 0                , 1.0f / farMNear, -nearPlane/farMNear,
+        0                , 0                , 0              , 1,
     };
 }
 
@@ -69,6 +83,12 @@ static SeRenderRef se_vk_swap_chain_texture_call(SeDeviceHandle _device)
 {
     SeVkDevice* device = (SeVkDevice*)_device;
     return se_vk_graph_swap_chain_texture(&device->graph);
+}
+
+static SeTextureSize se_vk_texture_size_call(SeDeviceHandle _device, SeRenderRef texture)
+{
+    SeVkDevice* device = (SeVkDevice*)_device;
+    return se_vk_grap_texture_size(&device->graph, texture);
 }
 
 static SeRenderRef se_vk_graphics_pipeline_call(SeDeviceHandle _device, const SeGraphicsPipelineInfo& info)
@@ -139,6 +159,7 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
         .program                        = se_vk_program_call,
         .texture                        = se_vk_texture_call,
         .swap_chain_texture             = se_vk_swap_chain_texture_call,
+        .texture_size                   = se_vk_texture_size_call,
         .graphics_pipeline              = se_vk_graphics_pipeline_call,
         .compute_pipeline               = se_vk_graphics_pipeline_call,
         .memory_buffer                  = se_vk_memory_buffer_call,
@@ -146,7 +167,8 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
         .bind                           = se_vk_command_bind_call,
         .draw                           = se_vk_command_draw_call,
         .dispatch                       = se_vk_command_dispatch_call,
-        .perspective_projection_matrix  = se_vk_perspective_projection_matrix,
+        .perspective  = se_vk_perspective_projection_matrix,
+        .orthographic                   = se_vk_orthographic_projection_matrix,
         .workgroup_size                 = se_vk_compute_workgroup_size_call,
     };
     se_init_global_subsystem_pointers(engine);

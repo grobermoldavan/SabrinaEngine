@@ -40,11 +40,12 @@ void se_vk_program_construct(SeVkProgram* program, SeVkProgramInfo* info)
     VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
     VkDevice logicalHandle = se_vk_device_get_logical_handle(info->device);
     
+    auto [bytecode, bytecodeSize] = data_provider::get(info->data);
     *program =
     {
         .object     = { SE_VK_TYPE_PROGRAM, g_programIndex++ },
         .device     = info->device,
-        .handle     = se_vk_utils_create_shader_module(logicalHandle, info->bytecode, info->bytecodeSize, callbacks),
+        .handle     = se_vk_utils_create_shader_module(logicalHandle, (const uint32_t*)bytecode, bytecodeSize, callbacks),
         .reflection = { },
     };
     SsrAllocator ssrPersistentAllocator
@@ -63,8 +64,8 @@ void se_vk_program_construct(SeVkProgram* program, SeVkProgramInfo* info)
     {
         .persistentAllocator    = &ssrPersistentAllocator,
         .nonPersistentAllocator = &ssrFrameAllocator,
-        .bytecode               = (SsrSpirvWord*)info->bytecode,
-        .bytecodeNumWords       = info->bytecodeSize / 4,
+        .bytecode               = (SsrSpirvWord*)bytecode,
+        .bytecodeNumWords       = bytecodeSize / 4,
     };
     ssr_construct(&program->reflection, &reflectionCreateInfo);
 }
