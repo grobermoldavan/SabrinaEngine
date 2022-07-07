@@ -49,18 +49,43 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* info)
 
     g_render->begin_frame(g_device);
     {
-        ui::begin({ g_window, g_render, g_device });
+        if (ui::begin({
+            "main",
+            g_render,
+            g_device,
+            { g_render->swap_chain_texture(g_device), SE_PASS_RENDER_TARGET_LOAD_OP_CLEAR },
+        }))
         {
-            ui::set_render_target(g_render->swap_chain_texture(g_device));
-            ui::set_font_group({ { g_fontDataEnglish, g_fontDataRussian } });
+            //
+            // Window
+            //
+            if (ui::begin_window({
+                .uid            = "test",
+                .bottomLeftX    = ui_dim::pix(100),
+                .bottomLeftY    = ui_dim::pix(100),
+                .topRightX      = ui_dim::pix(400),
+                .topRightY      = ui_dim::pix(400),
+                .flags          = 0,
+            }))
+            {
+                ui::end_window();
+            }
 
-            SeStringBuilder builder = string_builder::begin();
-            string_builder::append(builder, "Frame (кадр) : ");
-            string_builder::append(builder, string::cast(frameIndex));
-            SeString str = string_builder::end(builder);
+            ui::set_font_group({ g_fontDataEnglish, g_fontDataRussian });
+            //
+            // Text line
+            //
+            SeString str;
+            {
+                SeStringBuilder builder = string_builder::begin();
+                string_builder::append(builder, "Frame (кадр) : ");
+                string_builder::append(builder, string::cast(frameIndex));
+                str = string_builder::end(builder);
+            }
             ui::text_line({ string::cstr(str), ui_dim::pix(50), ui_dim::pix(100), ui_dim::pix(100) });
+
+            ui::end();
         }
-        ui::end();
     }
     g_render->end_frame(g_device);
 }

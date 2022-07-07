@@ -725,31 +725,60 @@ namespace font_group
 //
 // =======================================================================
 
-struct UiCodepointRenderInfo
+struct UiRenderInstace
 {
-    uint32_t    atlasRectIndex;
-    float       x; // bottom left
-    float       y; // bottom left
-    float       width;
-    float       height;
-    float       pad[3];
+    float x;        // bottom left
+    float y;        // bottom left
+    float width;
+    float height;
+    float xUv1;     // uv at bottom left
+    float yUv1;     // uv at bottom left
+    float xUv2;     // uv at top right
+    float yUv2;     // uv at top right
+};
+
+struct UiDrawCall
+{
+    DynamicArray<UiRenderInstace> instances;
+    SeRenderRef texture;
+};
+
+
+struct UiFontGroupWithRenderRef
+{
+    const FontGroup* fontGroup;
+    SeRenderRef textureRef;
 };
 
 struct UiContext
 {
+    static constexpr SeTextureInfo DUMMY_TEXTURE_INFO =
+    {
+        .width  = 8,
+        .height = 8,
+        .format = SE_TEXTURE_FORMAT_R_8,
+        .data   = { },
+    };
+
     const SeRenderAbstractionSubsystemInterface*    render;
     SeDeviceHandle                                  device;
-    HashTable<DataProvider, FontInfo>               fontDataToInfo;
-    HashTable<SeUiFontGroupInfo, FontGroup>         groupDataToInfo;
-    const FontGroup*                                activeFountGroup;
-    SeRenderRef                                     activeRenderTarget;
+    SePassRenderTarget                              target;
+
+    const FontGroup*                                currentFontGroup;
+    DynamicArray<UiDrawCall>                        frameDrawCalls;
+    DynamicArray<UiFontGroupWithRenderRef>          fontGroupRenderRefs;
 };
 
 SeUiSubsystemInterface                  g_iface;
-HashTable<SeWindowHandle, UiContext>    g_contextTable;
+HashTable<SeUiBeginInfo, UiContext>     g_contextTable;
 UiContext*                              g_currentContext = nullptr;
-DataProvider                            g_drawTextVs;
-DataProvider                            g_drawTextFs;
+
+HashTable<DataProvider, FontInfo>       g_fontInfos;
+HashTable<SeUiFontGroupInfo, FontGroup> g_fontGroups;
+
+DataProvider                            g_drawUiVs;
+DataProvider                            g_drawUiFs;
+
 
 namespace ui_impl
 {
@@ -758,50 +787,62 @@ namespace ui_impl
         switch (dim.type)
         {
             case SeUiDim::PIXELS:           { return dim.dim; }
-            case SeUiDim::CENTIMETERS:      { se_assert(false); }
             case SeUiDim::TARGET_RELATIVE:  { se_assert(false); }
             default:                        { se_assert(false); }
         }
         return 0;
     }
 
-    void begin(const SeUiBeginInfo& info)
+    bool begin(const SeUiBeginInfo& info)
     {
         se_assert(!g_currentContext);
         se_assert(info.render);
         se_assert(info.device);
-
-        g_currentContext = hash_table::get(g_contextTable, info.window);
+        g_currentContext = hash_table::get(g_contextTable, info);
         if (!g_currentContext)
         {
-            g_currentContext = hash_table::set(g_contextTable, info.window,
+            g_currentContext = hash_table::set(g_contextTable, info,
             {
-                .render             = info.render,
-                .device             = info.device,
-                .fontDataToInfo     = hash_table::create<DataProvider, FontInfo>(app_allocators::persistent()),
-                .groupDataToInfo    = hash_table::create<SeUiFontGroupInfo, FontGroup>(app_allocators::persistent()),
-                .activeFountGroup   = nullptr,
+                .render                 = nullptr,
+                .device                 = { },
+                .target                 = { },
+                .currentFontGroup       = nullptr,
+                .frameDrawCalls         = { },
+                .fontGroupRenderRefs    = { },
             });
         }
+        g_currentContext->render = info.render;
+        g_currentContext->device = info.device;
+        g_currentContext->target = info.target;
+        g_currentContext->currentFontGroup = nullptr;
+        dynamic_array::construct(g_currentContext->frameDrawCalls, app_allocators::frame(), 16);
+        dynamic_array::construct(g_currentContext->fontGroupRenderRefs, app_allocators::frame(), 16);
+        return g_currentContext != nullptr; // Must be always true
     }
 
     void end()
     {
         se_assert(g_currentContext);
-
-        g_currentContext->render->end_pass(g_currentContext->device);
-        g_currentContext = nullptr;
-    }
-
-    void set_render_target(SeRenderRef target)
-    {
-        se_assert(g_currentContext);
-
         const SeDeviceHandle device = g_currentContext->device;
         const SeRenderAbstractionSubsystemInterface* const render = g_currentContext->render;
-
-        const SeRenderRef vertexProgram = render->program(device, { g_drawTextVs });
-        const SeRenderRef fragmentProgram = render->program(device, { g_drawTextFs });
+        const SeRenderRef vertexProgram = render->program(device, { g_drawUiVs });
+        const SeRenderRef fragmentProgram = render->program(device, { g_drawUiFs });
+        const SeRenderRef sampler = render->sampler(device,
+        {
+            .magFilter          = SE_SAMPLER_FILTER_LINEAR,
+            .minFilter          = SE_SAMPLER_FILTER_LINEAR,
+            .addressModeU       = SE_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+            .addressModeV       = SE_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+            .addressModeW       = SE_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+            .mipmapMode         = SE_SAMPLER_MIPMAP_MODE_LINEAR,
+            .mipLodBias         = 0.0f,
+            .minLod             = 0.0f,
+            .maxLod             = 0.0f,
+            .anisotropyEnable   = false,
+            .maxAnisotropy      = 0.0f,
+            .compareEnabled     = false,
+            .compareOp          = SE_COMPARE_OP_ALWAYS,
+        });
         const SeRenderRef pipeline = render->graphics_pipeline(device,
         {
             .vertexProgram          = { .program = vertexProgram, },
@@ -819,118 +860,135 @@ namespace ui_impl
             .id                 = 0,
             .dependencies       = 0,
             .pipeline           = pipeline,
-            .renderTargets      = { target, SE_PASS_RENDER_TARGET_LOAD_OP_CLEAR }, // @TODO : remove clear from here
+            .renderTargets      = { g_currentContext->target },
             .numRenderTargets   = 1,
             .depthStencilTarget = 0,
             .hasDepthStencil    = false,
         });
         //
-        // Bind camera projection matrix
+        // Bind projection matrix
         //
-        const SeTextureSize targetSize = render->texture_size(device, target);
+        const SeTextureSize targetSize = render->texture_size(device, g_currentContext->target.texture);
         se_assert(targetSize.z == 1);
         const SeRenderRef projectionBuffer = render->memory_buffer(device,
         {
-            data_provider::from_memory(float4x4::transposed(render->orthographic(0, (float)targetSize.x, 0, (float)targetSize.y, 0, 100)))
+            data_provider::from_memory
+            (
+                float4x4::transposed(render->orthographic(0, (float)targetSize.x, 0, (float)targetSize.y, 0, 100))
+            )
         });
-        render->bind(device,
+        render->bind(device, { .set = 0, .bindings = { { 0, projectionBuffer } } });
+        //
+        // Process draw calls
+        //
+        for (auto it : g_currentContext->frameDrawCalls)
         {
-            .set = 0,
-            .bindings =
+            const UiDrawCall& drawCall = iter::value(it);
+            if (!dynamic_array::size(drawCall.instances))
             {
-                { 0, projectionBuffer }
+                continue;
             }
-        });
+            const SeRenderRef instanceBuffer = render->memory_buffer(device,
+            {
+                data_provider::from_memory(dynamic_array::raw(drawCall.instances), dynamic_array::raw_size(drawCall.instances))
+            });
+            render->bind(device,
+            {
+                .set = 1,
+                .bindings =
+                {
+                    { 0, drawCall.texture, sampler },
+                    { 1, instanceBuffer },
+                },
+            });
+            render->draw(device, { 6, dynamic_array::size<uint32_t>(drawCall.instances) });
+        }
+        render->end_pass(device);
+        //
+        // Clear context
+        //
+        dynamic_array::destroy(g_currentContext->frameDrawCalls);
+        dynamic_array::destroy(g_currentContext->fontGroupRenderRefs);
+        g_currentContext = nullptr;
     }
 
     void set_font_group(const SeUiFontGroupInfo& info)
     {
         se_assert(g_currentContext);
-        static_assert(sizeof(int) == sizeof(uint32_t)); // We directly casting uint32_t to int
-
-        const FontGroup* groupInfo = hash_table::get(g_currentContext->groupDataToInfo, info);
-        if (!groupInfo)
+        //
+        // Get font group
+        //
+        const FontGroup* fontGroup = hash_table::get(g_fontGroups, info);
+        if (!fontGroup)
         {
             const FontInfo* fonts[SeUiFontGroupInfo::MAX_FONTS];
-            size_t fontIt;
-            for (fontIt = 0; fontIt < SeUiFontGroupInfo::MAX_FONTS; fontIt++)
+            size_t fontIt = 0;
+            for (; fontIt < SeUiFontGroupInfo::MAX_FONTS; fontIt++)
             {
-                const DataProvider& data = info.fonts[fontIt];
-                if (!data_provider::is_valid(data)) break;        
-                const FontInfo* fontInfo = hash_table::get(g_currentContext->fontDataToInfo, data);
-                if (!fontInfo)
+                const DataProvider& fontData = info.fonts[fontIt];
+                if (!data_provider::is_valid(fontData))
                 {
-                    fontInfo = hash_table::set(g_currentContext->fontDataToInfo, data, font_info::create(data));
+                    break;
                 }
-                fonts[fontIt] = fontInfo;
+                const FontInfo* font = hash_table::get(g_fontInfos, fontData);
+                if (!font)
+                {
+                    font = hash_table::set(g_fontInfos, fontData, font_info::create(fontData));
+                }
+                se_assert(font);
+                fonts[fontIt] = font;
             }
-            groupInfo = hash_table::set(g_currentContext->groupDataToInfo, info, font_group::create(fonts, fontIt));
+            fontGroup = hash_table::set(g_fontGroups, info, font_group::create(fonts, fontIt));
         }
-        g_currentContext->activeFountGroup = groupInfo;
+        se_assert(fontGroup);
+        g_currentContext->currentFontGroup = fontGroup;
         //
-        // Bind font atlas
+        // Get texture
         //
-        const SeDeviceHandle device = g_currentContext->device;
-        const SeRenderAbstractionSubsystemInterface* const render = g_currentContext->render;
-        const SeRenderRef atlasTexture = render->texture(device, groupInfo->textureInfo);
-        const SeRenderRef sampler = render->sampler(device,
+        SeRenderRef textureRef = NULL_RENDER_REF;
+        for (auto it : g_currentContext->fontGroupRenderRefs)
         {
-            .magFilter          = SE_SAMPLER_FILTER_LINEAR,
-            .minFilter          = SE_SAMPLER_FILTER_LINEAR,
-            .addressModeU       = SE_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-            .addressModeV       = SE_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-            .addressModeW       = SE_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-            .mipmapMode         = SE_SAMPLER_MIPMAP_MODE_LINEAR,
-            .mipLodBias         = 0.0f,
-            .minLod             = 0.0f,
-            .maxLod             = 0.0f,
-            .anisotropyEnable   = false,
-            .maxAnisotropy      = 0.0f,
-            .compareEnabled     = false,
-            .compareOp          = SE_COMPARE_OP_ALWAYS,
-        });
-        const SeRenderRef atlasRectsBuffer = render->memory_buffer(device,
-        {
-            data_provider::from_memory
-            (
-                dynamic_array::raw(groupInfo->atlas.uvRects),
-                dynamic_array::raw_size(groupInfo->atlas.uvRects)
-            )
-        });
-        render->bind(device,
-        {
-            .set = 1,
-            .bindings =
+            const UiFontGroupWithRenderRef& value = iter::value(it);
+            if (value.fontGroup == fontGroup)
             {
-                { 0, atlasTexture, sampler },
-                { 1, atlasRectsBuffer }
+                se_assert(value.textureRef != NULL_RENDER_REF);
+                textureRef = value.textureRef;
             }
-        });
+        }
+        if (textureRef == NULL_RENDER_REF)
+        {
+            const SeRenderAbstractionSubsystemInterface* render = g_currentContext->render;
+            const SeDeviceHandle device = g_currentContext->device;
+            const UiFontGroupWithRenderRef& value = dynamic_array::push(g_currentContext->fontGroupRenderRefs, { fontGroup, render->texture(device, fontGroup->textureInfo) });
+            textureRef = value.textureRef;
+        }
+        se_assert(textureRef != NULL_RENDER_REF);
+        //
+        // Begin new draw call
+        //
+        UiDrawCall& drawCall = dynamic_array::add(g_currentContext->frameDrawCalls);
+        dynamic_array::construct(drawCall.instances, app_allocators::frame(), 64);
+        drawCall.texture = textureRef;
     }
 
     void text_line(const SeUiTextLineInfo& info)
     {
         se_assert(info.utf8text);
         se_assert(g_currentContext);
-        se_assert(g_currentContext->render);
-        se_assert(g_currentContext->activeFountGroup);
-        const SeDeviceHandle device = g_currentContext->device;
-        const SeRenderAbstractionSubsystemInterface* const render = g_currentContext->render;
-        const FontGroup* const fontGroup = g_currentContext->activeFountGroup;
+        se_assert(g_currentContext->currentFontGroup);
+
+        const float height = dim_to_pix(info.height);
         const float baselineX = dim_to_pix(info.baselineX);
         const float baselineY = dim_to_pix(info.baselineY);
-        const float height = dim_to_pix(info.height);
-        //
-        // Prepare buffers
-        //
-        // @TODO : use some kind of dynamic array instead of the preallocated one
-        UiCodepointRenderInfo codepointInfos[64];
-        uint32_t numCodepoints = 0;
-        int previousCodepoint = 0;
+        UiDrawCall* const drawCall = &g_currentContext->frameDrawCalls[dynamic_array::size(g_currentContext->frameDrawCalls) - 1];
+        const FontGroup* const fontGroup = g_currentContext->currentFontGroup;
+
         float positionX = baselineX;
+        int previousCodepoint = 0;
         for (uint32_t codepoint : Utf8{ info.utf8text })
         {
             const FontGroup::CodepointInfo* const codepointInfo = hash_table::get(fontGroup->codepointToInfo, codepoint);
+            se_assert(codepointInfo);
             const FontInfo* const font = codepointInfo->font;
             // This scale calculation is similar to stbtt_ScaleForPixelHeight but ignores descend parameter of the font
             const float scale = height / (float)font->ascendUnscaled;
@@ -944,39 +1002,33 @@ namespace ui_impl
             stbtt_GetCodepointBitmapBox(&font->stbInfo, codepointSigned, scale, scale, &x0, &y0, &x1, &y1);
             const float codepointWidth = (float)(x1 - x0);
             const float codepointHeight = (float)(y1 - y0);
-            if (numCodepoints)
+            const float additionalAdvance = scale * (float)stbtt_GetCodepointKernAdvance(&font->stbInfo, previousCodepoint, codepointSigned);
+            positionX += additionalAdvance;
+            const RenderAtlasRectNormalized& rect = fontGroup->atlas.uvRects[codepointInfo->atlasRectIndex];
+            dynamic_array::push(drawCall->instances,
             {
-                const float additionalAdvance = scale * (float)stbtt_GetCodepointKernAdvance(&font->stbInfo, previousCodepoint, codepointSigned);
-                positionX += additionalAdvance;
-            }
-            codepointInfos[numCodepoints] =
-            {
-                codepointInfo ? codepointInfo->atlasRectIndex : 0,
-                positionX + (float)x0 - bearing,
-                baselineY - (float)y1,
-                codepointWidth,
-                codepointHeight,
-            };
+                .x      = positionX + (float)x0 - bearing,
+                .y      = baselineY - (float)y1,
+                .width  = codepointWidth,
+                .height = codepointHeight,
+                .xUv1   = rect.p1x,
+                .yUv1   = rect.p1y,
+                .xUv2   = rect.p2x,
+                .yUv2   = rect.p2y,
+            });
             positionX += advance;
-            numCodepoints += 1;
             previousCodepoint = codepointSigned;
         }
-        const SeRenderRef indicesBuffer = render->memory_buffer(device,
-        {
-            data_provider::from_memory(codepointInfos, numCodepoints * sizeof(codepointInfos[0]))
-        });
-        //
-        // Bind stuff and draw
-        //
-        render->bind(device,
-        {
-            .set = 2,
-            .bindings =
-            {
-                { 0, indicesBuffer }
-            }
-        });
-        render->draw(device, { 6, numCodepoints });
+    }
+
+    bool begin_window(const SeUiWindowInfo& info)
+    {
+        return false;
+    }
+
+    void end_window()
+    {
+
     }
 }
 
@@ -986,18 +1038,21 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
     {
         .begin_ui           = ui_impl::begin,
         .end_ui             = ui_impl::end,
-        .set_render_target  = ui_impl::set_render_target,
         .set_font_group     = ui_impl::set_font_group,
         .text_line          = ui_impl::text_line,
+        .begin_window       = ui_impl::begin_window,
+        .end_window         = ui_impl::end_window,
     };
     se_init_global_subsystem_pointers(engine);
 }
 
 SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 {
+    g_drawUiVs = data_provider::from_file("assets/default/shaders/ui_draw.vert.spv");
+    g_drawUiFs = data_provider::from_file("assets/default/shaders/ui_draw.frag.spv");
     hash_table::construct(g_contextTable, app_allocators::persistent());
-    g_drawTextVs = data_provider::from_file("assets/default/shaders/draw_text.vert.spv");
-    g_drawTextFs = data_provider::from_file("assets/default/shaders/draw_text.frag.spv");
+    hash_table::construct(g_fontInfos, app_allocators::persistent(), 64);
+    hash_table::construct(g_fontGroups, app_allocators::persistent(), 64);
 }
 
 SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
@@ -1007,7 +1062,9 @@ SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
 
 SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
 {
-    data_provider::destroy(g_drawTextVs);
-    data_provider::destroy(g_drawTextFs);
+    data_provider::destroy(g_drawUiVs);
+    data_provider::destroy(g_drawUiFs);
     hash_table::destroy(g_contextTable);
+    hash_table::destroy(g_fontInfos);
+    hash_table::destroy(g_fontGroups);
 }

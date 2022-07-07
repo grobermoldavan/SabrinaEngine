@@ -11,7 +11,6 @@ struct SeUiDim
     enum Type
     {
         PIXELS,
-        CENTIMETERS,
         TARGET_RELATIVE,
     };
     Type type;
@@ -25,31 +24,11 @@ namespace ui_dim
         return { SeUiDim::PIXELS, dim };
     }
 
-    SeUiDim cm(float dim)
-    {
-        return { SeUiDim::CENTIMETERS, dim };
-    }
-
     SeUiDim rel(float dim)
     {
         return { SeUiDim::TARGET_RELATIVE, dim };
     }
 }
-
-struct SeUiBeginInfo
-{
-    const struct SeWindowHandle& window;
-    const SeRenderAbstractionSubsystemInterface* render;
-    SeDeviceHandle device;
-};
-
-struct SeUiTextLineInfo
-{
-    const char* utf8text;
-    SeUiDim height;
-    SeUiDim baselineX;
-    SeUiDim baselineY;
-};
 
 struct SeUiFontGroupInfo
 {
@@ -57,16 +36,49 @@ struct SeUiFontGroupInfo
     DataProvider fonts[MAX_FONTS];
 };
 
+struct SeUiBeginInfo
+{
+    const char*                                     uid;
+    const SeRenderAbstractionSubsystemInterface*    render;
+    SeDeviceHandle                                  device;
+    SePassRenderTarget                              target;
+};
+
+struct SeUiTextLineInfo
+{
+    const char* utf8text;
+    SeUiDim     height;
+    SeUiDim     baselineX;
+    SeUiDim     baselineY;
+};
+
+struct SeUiWindowInfo
+{
+    enum Flags
+    {
+        RESIZABLE_X,
+        RESIZABLE_Y,
+        HIDEABLE,
+    };
+    const char* uid;
+    SeUiDim     bottomLeftX;
+    SeUiDim     bottomLeftY;
+    SeUiDim     topRightX;
+    SeUiDim     topRightY;
+    uint64_t    flags;
+};
+
 struct SeUiSubsystemInterface
 {
     static constexpr const char* NAME = "SeUiSubsystemInterface";
 
-    void (*begin_ui)(const SeUiBeginInfo& info);
+    bool (*begin_ui)(const SeUiBeginInfo& info);
     void (*end_ui)();
 
-    void (*set_render_target)(SeRenderRef target);
     void (*set_font_group)(const SeUiFontGroupInfo& info);
     void (*text_line)(const SeUiTextLineInfo& info);
+    bool (*begin_window)(const SeUiWindowInfo& info);
+    void (*end_window)();
 };
 
 struct SeUiSubsystem
@@ -80,9 +92,9 @@ const SeUiSubsystemInterface* SE_UI_SUBSYSTEM_GLOBAL_NAME = nullptr;
 
 namespace ui
 {
-    inline void begin(const SeUiBeginInfo& info)
+    inline bool begin(const SeUiBeginInfo& info)
     {
-        SE_UI_SUBSYSTEM_GLOBAL_NAME->begin_ui(info);
+        return SE_UI_SUBSYSTEM_GLOBAL_NAME->begin_ui(info);
     }
 
     inline void end()
@@ -95,14 +107,19 @@ namespace ui
         SE_UI_SUBSYSTEM_GLOBAL_NAME->set_font_group(info);
     }
 
-    inline void set_render_target(SeRenderRef target)
-    {
-        SE_UI_SUBSYSTEM_GLOBAL_NAME->set_render_target(target);
-    }
-
     inline void text_line(const SeUiTextLineInfo& info)
     {
         SE_UI_SUBSYSTEM_GLOBAL_NAME->text_line(info);
+    }
+
+    inline bool begin_window(const SeUiWindowInfo& info)
+    {
+        return SE_UI_SUBSYSTEM_GLOBAL_NAME->begin_window(info);
+    }
+
+    inline void end_window()
+    {
+        SE_UI_SUBSYSTEM_GLOBAL_NAME->end_window();
     }
 }
 
@@ -110,6 +127,12 @@ namespace hash_value
 {
     namespace builder
     {
+        template<>
+        void absorb<SeUiBeginInfo>(HashValueBuilder& builder, const SeUiBeginInfo& input)
+        {
+            hash_value::builder::absorb_raw(builder, { (void*)input.uid, strlen(input.uid) });
+        }
+
         template<>
         void absorb<SeUiFontGroupInfo>(HashValueBuilder& builder, const SeUiFontGroupInfo& input)
         {
@@ -119,6 +142,14 @@ namespace hash_value
                 hash_value::builder::absorb(builder, input.fonts[it]);
             }
         }
+    }
+
+    template<>
+    HashValue generate<SeUiBeginInfo>(const SeUiBeginInfo& value)
+    {
+        HashValueBuilder builder = hash_value::builder::begin();
+        hash_value::builder::absorb(builder, value);
+        return hash_value::builder::end(builder);
     }
 
     template<>

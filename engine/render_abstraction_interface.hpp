@@ -107,6 +107,8 @@ using SeDeviceHandle = void*;
 
 using SeRenderRef = uint64_t;
 
+constexpr SeRenderRef NULL_RENDER_REF = 0;
+
 struct SeDeviceInfo
 {
     SeWindowHandle window;
