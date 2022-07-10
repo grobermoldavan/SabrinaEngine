@@ -15,6 +15,7 @@ void ui_stbtt_free(void* ptr)
     // Nothing
 }
 
+#define STBTT_assert se_assert
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "engine/libs/stb/stb_truetype.h"
 
@@ -150,6 +151,9 @@ struct RenderAtlasLayoutBuilder
     size_t              width;
     size_t              height;
 };
+
+template<typename PixelDst, typename PixelSrc>
+using RenderAtlasPutFunciton = void (*)(const PixelSrc* src, PixelDst* dst);
 
 namespace render_atlas
 {
@@ -368,17 +372,17 @@ namespace render_atlas
         dynamic_array::destroy(atlas.uvRects);
     }
 
-    template<typename Pixel>
-    void blit(RenderAtlas<Pixel>& atlas, const RenderAtlasRect& rect, const Pixel* source)
+    template<typename PixelDst, typename PixelSrc>
+    void blit(RenderAtlas<PixelDst>& atlas, const RenderAtlasRect& rect, const PixelSrc* source, RenderAtlasPutFunciton<PixelDst, PixelSrc> put)
     {
         const size_t width = rect.p2x - rect.p1x;
         const size_t height = rect.p2y - rect.p1y;
         for (size_t h = 0; h < height; h++)
             for (size_t w = 0; w < width; w++)
             {
-                const Pixel p = source[h * width + w];
-                Pixel* const to = &atlas.bitmap[(rect.p1y + h) * atlas.width + rect.p1x + w];
-                *to = p;
+                const PixelSrc* const p = &source[h * width + w];
+                PixelDst* const to = &atlas.bitmap[(rect.p1y + h) * atlas.width + rect.p1x + w];
+                put(p, to);
             }
     }
 }
@@ -393,6 +397,8 @@ struct FontInfo
 {
     stbtt_fontinfo          stbInfo;
     DynamicArray<uint32_t>  supportedCodepoints;
+    void*                   memory;
+    size_t                  memorySize;
     int                     ascendUnscaled;
     int                     descendUnscaled;
     int                     lineGapUnscaled;
@@ -406,12 +412,25 @@ namespace font_info
         auto as_uint16  = [](const uint8_t* data) -> uint16_t   { return data[0] * 256 + data[1]; };
         auto as_uint32  = [](const uint8_t* data) -> uint32_t   { return (data[0] << 24) + (data[1] << 16) + (data[2] << 8) + data[3]; };
         auto as_uint8   = [](const uint8_t* data) -> uint8_t    { return *data; };
-
+        //
+        // Load data and save it with persistent allocator (data provider returns frame memory)
+        //
         se_assert(data_provider::is_valid(data));
         auto [dataMemory, dataSize] = data_provider::get(data);
         se_assert(dataMemory);
-        const unsigned char* charData = (const unsigned char*)dataMemory;
-        FontInfo result = { };
+        AllocatorBindings allocator = app_allocators::persistent();
+        FontInfo result
+        {
+            .stbInfo                = { },
+            .supportedCodepoints    = { },
+            .memory                 = allocator.alloc(allocator.allocator, dataSize, se_default_alignment, se_alloc_tag),
+            .memorySize             = dataSize,
+            .ascendUnscaled         = 0,
+            .descendUnscaled        = 0,
+            .lineGapUnscaled        = 0,
+        };
+        memcpy(result.memory, dataMemory, dataSize);
+        const unsigned char* charData = (const unsigned char*)result.memory;
         if (!stbtt_InitFont(&result.stbInfo, charData, 0)) // @NOTE : We always use only one font from file
         {
             se_assert_msg(false, "Failed to load font");
@@ -560,6 +579,8 @@ namespace font_info
 
     inline void destroy(FontInfo& font)
     {
+        AllocatorBindings allocator = app_allocators::persistent();
+        allocator.dealloc(allocator.allocator, font.memory, font.memorySize);
         dynamic_array::destroy(font.supportedCodepoints);
     }
 }
@@ -681,12 +702,13 @@ namespace font_group
         groupInfo.atlas = render_atlas::layout_builder::end<uint8_t>(builder);
         for (auto it : groupInfo.atlas.rects)
         {
-            const RenderAtlasRect rect = iter::value(it);
+            const RenderAtlasRect& rect = iter::value(it);
             const uint32_t codepoint = *hash_table::get(atlasRectToCodepoint, rect);
             const CodepointBitmapInfo bitmap = *hash_table::get(codepointToBitmap, codepoint);
             if (bitmap.memory)
             {
-                render_atlas::blit(groupInfo.atlas, iter::value(it), bitmap.memory);
+                const RenderAtlasPutFunciton<uint8_t, uint8_t> put = [](const uint8_t* from, uint8_t* to) { *to = *from; };
+                render_atlas::blit(groupInfo.atlas, rect, bitmap.memory, put);
             }
             FontGroup::CodepointInfo* info = hash_table::get(groupInfo.codepointToInfo, codepoint);
             se_assert(info);
@@ -697,7 +719,7 @@ namespace font_group
             .width  = groupInfo.atlas.width,
             .height = groupInfo.atlas.height,
             .format = SE_TEXTURE_FORMAT_R_8,
-            .data   = data_provider::from_memory(groupInfo.atlas.bitmap, groupInfo.atlas.width * groupInfo.atlas.height),
+            .data   = data_provider::from_memory(groupInfo.atlas.bitmap, groupInfo.atlas.width * groupInfo.atlas.height * sizeof(uint8_t)),
         };
         for (auto it : codepointToBitmap)
         {
@@ -725,24 +747,69 @@ namespace font_group
 //
 // =======================================================================
 
-struct UiRenderInstace
+struct UiRenderVertex
 {
-    float x;        // bottom left
-    float y;        // bottom left
-    float width;
-    float height;
-    float xUv1;     // uv at bottom left
-    float yUv1;     // uv at bottom left
-    float xUv2;     // uv at top right
-    float yUv2;     // uv at top right
+    float x;
+    float y;
+    float uvX;
+    float uvY;
+};
+
+struct UiRenderColorsPacked
+{
+    ColorPacked rComponent;
+    ColorPacked gComponent;
+    ColorPacked bComponent;
+    ColorPacked aComponent;
+    uint16_t    mask;
+    uint16_t    divider;
+};
+
+bool operator == (const UiRenderColorsPacked& first, const UiRenderColorsPacked& second)
+{
+    return
+        (first.rComponent   == second.rComponent)  &&
+        (first.gComponent   == second.gComponent)  &&
+        (first.bComponent   == second.bComponent)  &&
+        (first.aComponent   == second.aComponent)  &&
+        (first.mask         == second.mask)        &&
+        (first.divider      == second.divider);
+}
+
+/*
+    Ui render colors is a special struct that describes coloring for ui elements.
+    Coloring works the following way:
+    1. Sample color fron texture in the fragment shader
+    2. For each r, g, b and a component:
+        1. Get component value from mask (mask.r for r component) (float)
+        2. Get component value from sampled color (float)
+        3. Get corresponding *Compoenent (where * is r, g, b or a) value (vec4)
+        4. Multiply mask component value, sampled component value and *Component value
+    3. Sum resulting vec4 values for each component
+    4. Divide resulting sum with divider
+
+    This colloring gives ability to work with any number of components in sampled texture.
+    If we work with a single-component texture (SE_TEXTURE_FORMAT_R_8 for font rendering),
+    we use only rComponent value with mask == { 1, 0, 0, 0 } and divider == 1.0f
+*/
+struct UiRenderColorsUnpacked
+{
+    ColorUnpacked   rComponent;
+    ColorUnpacked   gComponent;
+    ColorUnpacked   bComponent;
+    ColorUnpacked   aComponent;
+    SeFloat4        mask;
+    float           divider;
+    float           _pad[3];
 };
 
 struct UiDrawCall
 {
-    DynamicArray<UiRenderInstace> instances;
-    SeRenderRef texture;
+    DynamicArray<UiRenderVertex>    vertices;
+    UiRenderColorsPacked            colors;
+    SeRenderRef                     texture;
+    const FontGroup*                fontGroup;
 };
-
 
 struct UiFontGroupWithRenderRef
 {
@@ -765,6 +832,7 @@ struct UiContext
     SePassRenderTarget                              target;
 
     const FontGroup*                                currentFontGroup;
+    UiRenderColorsPacked                            currentTextColors;
     DynamicArray<UiDrawCall>                        frameDrawCalls;
     DynamicArray<UiFontGroupWithRenderRef>          fontGroupRenderRefs;
 };
@@ -793,6 +861,19 @@ namespace ui_impl
         return 0;
     }
 
+    inline UiRenderColorsUnpacked colors_unpack(const UiRenderColorsPacked& colors)
+    {
+        return
+        {
+            col::unpack(colors.rComponent),
+            col::unpack(colors.gComponent),
+            col::unpack(colors.bComponent),
+            col::unpack(colors.aComponent),
+            { (float)((colors.mask & 1) != 0), (float)((colors.mask & 2) != 0), (float)((colors.mask & 4) != 0), (float)((colors.mask & 8) != 0) },
+            (float)colors.divider,
+        };
+    }
+
     bool begin(const SeUiBeginInfo& info)
     {
         se_assert(!g_currentContext);
@@ -801,20 +882,27 @@ namespace ui_impl
         g_currentContext = hash_table::get(g_contextTable, info);
         if (!g_currentContext)
         {
-            g_currentContext = hash_table::set(g_contextTable, info,
-            {
-                .render                 = nullptr,
-                .device                 = { },
-                .target                 = { },
-                .currentFontGroup       = nullptr,
-                .frameDrawCalls         = { },
-                .fontGroupRenderRefs    = { },
-            });
+            g_currentContext = hash_table::set(g_contextTable, info, { });
         }
-        g_currentContext->render = info.render;
-        g_currentContext->device = info.device;
-        g_currentContext->target = info.target;
-        g_currentContext->currentFontGroup = nullptr;
+        
+        *g_currentContext =
+        {
+            .render                 = info.render,
+            .device                 = info.device,
+            .target                 = info.target,
+            .currentFontGroup       = nullptr,
+            .currentTextColors      =
+            {
+                .rComponent = col::pack({ 1.0f, 1.0f, 1.0f, 1.0f }),
+                .gComponent = 0,
+                .bComponent = 0,
+                .aComponent = 0,
+                .mask       = 1,
+                .divider    = 1,
+            },
+            .frameDrawCalls         = { },
+            .fontGroupRenderRefs    = { },
+        };
         dynamic_array::construct(g_currentContext->frameDrawCalls, app_allocators::frame(), 16);
         dynamic_array::construct(g_currentContext->fontGroupRenderRefs, app_allocators::frame(), 16);
         return g_currentContext != nullptr; // Must be always true
@@ -874,7 +962,7 @@ namespace ui_impl
         {
             data_provider::from_memory
             (
-                float4x4::transposed(render->orthographic(0, (float)targetSize.x, 0, (float)targetSize.y, 0, 100))
+                float4x4::transposed(render->orthographic(0, (float)targetSize.x, 0, (float)targetSize.y, 0, 2))
             )
         });
         render->bind(device, { .set = 0, .bindings = { { 0, projectionBuffer } } });
@@ -884,13 +972,17 @@ namespace ui_impl
         for (auto it : g_currentContext->frameDrawCalls)
         {
             const UiDrawCall& drawCall = iter::value(it);
-            if (!dynamic_array::size(drawCall.instances))
+            if (!dynamic_array::size(drawCall.vertices))
             {
                 continue;
             }
-            const SeRenderRef instanceBuffer = render->memory_buffer(device,
+            const SeRenderRef colorsBuffer = render->memory_buffer(device,
             {
-                data_provider::from_memory(dynamic_array::raw(drawCall.instances), dynamic_array::raw_size(drawCall.instances))
+                data_provider::from_memory(colors_unpack(drawCall.colors))
+            });
+            const SeRenderRef verticesBuffer = render->memory_buffer(device,
+            {
+                data_provider::from_memory(dynamic_array::raw(drawCall.vertices), dynamic_array::raw_size(drawCall.vertices))
             });
             render->bind(device,
             {
@@ -898,15 +990,20 @@ namespace ui_impl
                 .bindings =
                 {
                     { 0, drawCall.texture, sampler },
-                    { 1, instanceBuffer },
+                    { 1, colorsBuffer },
+                    { 2, verticesBuffer },
                 },
             });
-            render->draw(device, { 6, dynamic_array::size<uint32_t>(drawCall.instances) });
+            render->draw(device, { dynamic_array::size<uint32_t>(drawCall.vertices), 1 });
         }
         render->end_pass(device);
         //
         // Clear context
         //
+        for (auto it : g_currentContext->frameDrawCalls)
+        {
+            dynamic_array::destroy(iter::value(it).vertices);
+        }
         dynamic_array::destroy(g_currentContext->frameDrawCalls);
         dynamic_array::destroy(g_currentContext->fontGroupRenderRefs);
         g_currentContext = nullptr;
@@ -915,9 +1012,6 @@ namespace ui_impl
     void set_font_group(const SeUiFontGroupInfo& info)
     {
         se_assert(g_currentContext);
-        //
-        // Get font group
-        //
         const FontGroup* fontGroup = hash_table::get(g_fontGroups, info);
         if (!fontGroup)
         {
@@ -942,33 +1036,20 @@ namespace ui_impl
         }
         se_assert(fontGroup);
         g_currentContext->currentFontGroup = fontGroup;
-        //
-        // Get texture
-        //
-        SeRenderRef textureRef = NULL_RENDER_REF;
-        for (auto it : g_currentContext->fontGroupRenderRefs)
+    }
+
+    void set_font_color(ColorPacked color)
+    {
+        se_assert(g_currentContext);
+        g_currentContext->currentTextColors =
         {
-            const UiFontGroupWithRenderRef& value = iter::value(it);
-            if (value.fontGroup == fontGroup)
-            {
-                se_assert(value.textureRef != NULL_RENDER_REF);
-                textureRef = value.textureRef;
-            }
-        }
-        if (textureRef == NULL_RENDER_REF)
-        {
-            const SeRenderAbstractionSubsystemInterface* render = g_currentContext->render;
-            const SeDeviceHandle device = g_currentContext->device;
-            const UiFontGroupWithRenderRef& value = dynamic_array::push(g_currentContext->fontGroupRenderRefs, { fontGroup, render->texture(device, fontGroup->textureInfo) });
-            textureRef = value.textureRef;
-        }
-        se_assert(textureRef != NULL_RENDER_REF);
-        //
-        // Begin new draw call
-        //
-        UiDrawCall& drawCall = dynamic_array::add(g_currentContext->frameDrawCalls);
-        dynamic_array::construct(drawCall.instances, app_allocators::frame(), 64);
-        drawCall.texture = textureRef;
+            .rComponent = color,
+            .gComponent = 0,
+            .bComponent = 0,
+            .aComponent = 0,
+            .mask       = 1,
+            .divider    = 1,
+        };
     }
 
     void text_line(const SeUiTextLineInfo& info)
@@ -977,12 +1058,56 @@ namespace ui_impl
         se_assert(g_currentContext);
         se_assert(g_currentContext->currentFontGroup);
 
+        const FontGroup* const fontGroup = g_currentContext->currentFontGroup;
         const float height = dim_to_pix(info.height);
         const float baselineX = dim_to_pix(info.baselineX);
         const float baselineY = dim_to_pix(info.baselineY);
-        UiDrawCall* const drawCall = &g_currentContext->frameDrawCalls[dynamic_array::size(g_currentContext->frameDrawCalls) - 1];
-        const FontGroup* const fontGroup = g_currentContext->currentFontGroup;
+        //
+        // Get draw call
+        //
+        const size_t numDrawCalls = dynamic_array::size(g_currentContext->frameDrawCalls);
+        const UiDrawCall* const lastDrawCall = numDrawCalls ? &g_currentContext->frameDrawCalls[numDrawCalls - 1] : nullptr;
+        const bool isSameFontGroup = lastDrawCall && (lastDrawCall->fontGroup == fontGroup);
+        const bool isSameColors = lastDrawCall && (lastDrawCall->colors == g_currentContext->currentTextColors);
+        if (!isSameFontGroup || !isSameColors)
+        {
+            //
+            // Get texture
+            //
+            SeRenderRef textureRef = NULL_RENDER_REF;
+            for (auto it : g_currentContext->fontGroupRenderRefs)
+            {
+                const UiFontGroupWithRenderRef& value = iter::value(it);
+                if (value.fontGroup == fontGroup)
+                {
+                    se_assert(value.textureRef != NULL_RENDER_REF);
+                    textureRef = value.textureRef;
+                }
+            }
+            if (textureRef == NULL_RENDER_REF)
+            {
+                const SeRenderAbstractionSubsystemInterface* render = g_currentContext->render;
+                const SeDeviceHandle device = g_currentContext->device;
+                const UiFontGroupWithRenderRef& value = dynamic_array::push(g_currentContext->fontGroupRenderRefs, { fontGroup, render->texture(device, fontGroup->textureInfo) });
+                textureRef = value.textureRef;
+            }
+            se_assert(textureRef != NULL_RENDER_REF);
+            //
+            // Begin new draw call
+            //
+            dynamic_array::push(g_currentContext->frameDrawCalls,
+            {
+                .vertices   = dynamic_array::create<UiRenderVertex>(app_allocators::frame(), 256),
+                .colors     = g_currentContext->currentTextColors,
+                .texture    = textureRef,
+                .fontGroup  = fontGroup,
+            });
+        }
 
+        UiDrawCall* const drawCall = &g_currentContext->frameDrawCalls[dynamic_array::size(g_currentContext->frameDrawCalls) - 1];
+        se_assert(drawCall->fontGroup == fontGroup);
+        se_assert(drawCall->colors == g_currentContext->currentTextColors);
+        
         float positionX = baselineX;
         int previousCodepoint = 0;
         for (uint32_t codepoint : Utf8{ info.utf8text })
@@ -1005,16 +1130,49 @@ namespace ui_impl
             const float additionalAdvance = scale * (float)stbtt_GetCodepointKernAdvance(&font->stbInfo, previousCodepoint, codepointSigned);
             positionX += additionalAdvance;
             const RenderAtlasRectNormalized& rect = fontGroup->atlas.uvRects[codepointInfo->atlasRectIndex];
-            dynamic_array::push(drawCall->instances,
+            const float codepointBaseX = positionX + (float)x0 - bearing;
+            const float codepointBaseY = baselineY - (float)y1;
+            dynamic_array::push(drawCall->vertices,
             {
-                .x      = positionX + (float)x0 - bearing,
-                .y      = baselineY - (float)y1,
-                .width  = codepointWidth,
-                .height = codepointHeight,
-                .xUv1   = rect.p1x,
-                .yUv1   = rect.p1y,
-                .xUv2   = rect.p2x,
-                .yUv2   = rect.p2y,
+                .x      = codepointBaseX,
+                .y      = codepointBaseY,
+                .uvX    = rect.p1x,
+                .uvY    = rect.p1y,
+            });
+            dynamic_array::push(drawCall->vertices,
+            {
+                .x      = codepointBaseX,
+                .y      = codepointBaseY + codepointHeight,
+                .uvX    = rect.p1x,
+                .uvY    = rect.p2y,
+            });
+            dynamic_array::push(drawCall->vertices,
+            {
+                .x      = codepointBaseX + codepointWidth,
+                .y      = codepointBaseY + codepointHeight,
+                .uvX    = rect.p2x,
+                .uvY    = rect.p2y,
+            });
+            dynamic_array::push(drawCall->vertices,
+            {
+                .x      = codepointBaseX,
+                .y      = codepointBaseY,
+                .uvX    = rect.p1x,
+                .uvY    = rect.p1y,
+            });
+            dynamic_array::push(drawCall->vertices,
+            {
+                .x      = codepointBaseX + codepointWidth,
+                .y      = codepointBaseY + codepointHeight,
+                .uvX    = rect.p2x,
+                .uvY    = rect.p2y,
+            });
+            dynamic_array::push(drawCall->vertices,
+            {
+                .x      = codepointBaseX + codepointWidth,
+                .y      = codepointBaseY,
+                .uvX    = rect.p2x,
+                .uvY    = rect.p1y,
             });
             positionX += advance;
             previousCodepoint = codepointSigned;
@@ -1039,6 +1197,7 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
         .begin_ui           = ui_impl::begin,
         .end_ui             = ui_impl::end,
         .set_font_group     = ui_impl::set_font_group,
+        .set_font_color     = ui_impl::set_font_color,
         .text_line          = ui_impl::text_line,
         .begin_window       = ui_impl::begin_window,
         .end_window         = ui_impl::end_window,
@@ -1051,8 +1210,8 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
     g_drawUiVs = data_provider::from_file("assets/default/shaders/ui_draw.vert.spv");
     g_drawUiFs = data_provider::from_file("assets/default/shaders/ui_draw.frag.spv");
     hash_table::construct(g_contextTable, app_allocators::persistent());
-    hash_table::construct(g_fontInfos, app_allocators::persistent(), 64);
-    hash_table::construct(g_fontGroups, app_allocators::persistent(), 64);
+    hash_table::construct(g_fontInfos, app_allocators::persistent());
+    hash_table::construct(g_fontGroups, app_allocators::persistent());
 }
 
 SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
@@ -1065,6 +1224,8 @@ SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
     data_provider::destroy(g_drawUiVs);
     data_provider::destroy(g_drawUiFs);
     hash_table::destroy(g_contextTable);
-    hash_table::destroy(g_fontInfos);
+    for (auto it : g_fontGroups) font_group::destroy(iter::value(it));
+    for (auto it : g_fontInfos) font_info::destroy(iter::value(it));
     hash_table::destroy(g_fontGroups);
+    hash_table::destroy(g_fontInfos);
 }

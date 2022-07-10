@@ -550,7 +550,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
                                 : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
                             hash_table::set(transitions, texture, newLayout);
                         }
-                        else
+                        else if ((*layout != VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL) && (*layout != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL))
                         {
                             *layout = VK_IMAGE_LAYOUT_GENERAL; // Is this correct ?
                         }

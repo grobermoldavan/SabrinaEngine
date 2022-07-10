@@ -72,6 +72,7 @@ namespace dynamic_array
             .capacity   = capacity,
         };
         memset(result.memory, 0, sizeof(T) * capacity);
+        return result;
     }
 
     template<typename T>

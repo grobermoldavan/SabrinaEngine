@@ -37,7 +37,7 @@ static void* se_stack_allocator_alloc(SeStackAllocator* allocator, size_t size, 
         const intptr_t allocationSize = alignedAllocationSize - (allocator->commitedMax - allocator->cur);
         const size_t pageSize = platform::get()->get_mem_page_size();
         const size_t numPages = allocationSize / pageSize + (allocationSize % pageSize == 0 ? 0 : 1);
-        void* commitedTopPtr = (void*)(allocator->base + allocator->commitedMax);
+        void* const commitedTopPtr = (void*)(allocator->base + allocator->commitedMax);
         platform::get()->mem_commit(commitedTopPtr, numPages * pageSize);
         allocator->commitedMax += numPages * pageSize;
     }

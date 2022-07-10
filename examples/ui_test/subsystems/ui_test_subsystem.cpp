@@ -82,7 +82,14 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* info)
                 string_builder::append(builder, string::cast(frameIndex));
                 str = string_builder::end(builder);
             }
+            ui::set_font_color(col::pack({ 0.0f, 1.0f, 0.0f, 1.0f }));
             ui::text_line({ string::cstr(str), ui_dim::pix(50), ui_dim::pix(100), ui_dim::pix(100) });
+
+            ui::set_font_color(col::pack({ 1.0f, 1.0f, 0.0f, 1.0f }));
+            ui::text_line({ string::cstr(str), ui_dim::pix(30), ui_dim::pix(100), ui_dim::pix(200) });
+
+            ui::set_font_color(col::pack({ 1.0f, 0.0f, 0.0f, 1.0f }));
+            ui::text_line({ string::cstr(str), ui_dim::pix(20), ui_dim::pix(100), ui_dim::pix(300) });
 
             ui::end();
         }

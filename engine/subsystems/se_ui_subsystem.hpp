@@ -76,6 +76,8 @@ struct SeUiSubsystemInterface
     void (*end_ui)();
 
     void (*set_font_group)(const SeUiFontGroupInfo& info);
+    void (*set_font_color)(ColorPacked color);
+
     void (*text_line)(const SeUiTextLineInfo& info);
     bool (*begin_window)(const SeUiWindowInfo& info);
     void (*end_window)();
@@ -105,6 +107,11 @@ namespace ui
     inline void set_font_group(const SeUiFontGroupInfo& info)
     {
         SE_UI_SUBSYSTEM_GLOBAL_NAME->set_font_group(info);
+    }
+
+    inline void set_font_color(ColorPacked color)
+    {
+        SE_UI_SUBSYSTEM_GLOBAL_NAME->set_font_color(color);
     }
 
     inline void text_line(const SeUiTextLineInfo& info)
