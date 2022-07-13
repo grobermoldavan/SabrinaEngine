@@ -601,7 +601,7 @@ struct FontGroup
         int             leftSideBearingUnscaled;
     };
 
-    static constexpr float ATLAS_CODEPOINT_HEIGHT_PIX = 128;
+    static constexpr float ATLAS_CODEPOINT_HEIGHT_PIX = 64;
 
     const FontInfo*                     fonts[SeUiFontGroupInfo::MAX_FONTS];
     RenderAtlas<uint8_t>                atlas;
@@ -760,21 +760,10 @@ struct UiRenderColorsPacked
     ColorPacked rComponent;
     ColorPacked gComponent;
     ColorPacked bComponent;
-    ColorPacked aComponent;
     uint16_t    mask;
-    uint16_t    divider;
+    uint16_t    minDivider;
+    uint16_t    maxDivider;
 };
-
-bool operator == (const UiRenderColorsPacked& first, const UiRenderColorsPacked& second)
-{
-    return
-        (first.rComponent   == second.rComponent)  &&
-        (first.gComponent   == second.gComponent)  &&
-        (first.bComponent   == second.bComponent)  &&
-        (first.aComponent   == second.aComponent)  &&
-        (first.mask         == second.mask)        &&
-        (first.divider      == second.divider);
-}
 
 /*
     Ui render colors is a special struct that describes coloring for ui elements.
@@ -786,21 +775,20 @@ bool operator == (const UiRenderColorsPacked& first, const UiRenderColorsPacked&
         3. Get corresponding *Compoenent (where * is r, g, b or a) value (vec4)
         4. Multiply mask component value, sampled component value and *Component value
     3. Sum resulting vec4 values for each component
-    4. Divide resulting sum with divider
+    4. Divide resulting sum with clamp(sum of all components from texture sample, minDivider, maxDivider)
 
     This colloring gives ability to work with any number of components in sampled texture.
     If we work with a single-component texture (SE_TEXTURE_FORMAT_R_8 for font rendering),
-    we use only rComponent value with mask == { 1, 0, 0, 0 } and divider == 1.0f
+    we use only rComponent value with mask == { 1, 0, 0, 0 }, minDivider == 1.0f and maxDivider == 1.0f
 */
 struct UiRenderColorsUnpacked
 {
     ColorUnpacked   rComponent;
     ColorUnpacked   gComponent;
     ColorUnpacked   bComponent;
-    ColorUnpacked   aComponent;
     SeFloat4        mask;
-    float           divider;
-    float           _pad[3];
+    float           minDivider;
+    float           maxDivider;
 };
 
 struct UiDrawCall
@@ -808,33 +796,56 @@ struct UiDrawCall
     DynamicArray<UiRenderVertex>    vertices;
     UiRenderColorsPacked            colors;
     SeRenderRef                     texture;
-    const FontGroup*                fontGroup;
 };
 
-struct UiFontGroupWithRenderRef
+struct UiTextureData
 {
-    const FontGroup* fontGroup;
-    SeRenderRef textureRef;
+    enum Type
+    {
+        TYPE_FONT,
+        TYPE_WINDOW,
+    };
+    Type type;
+    union
+    {
+        struct
+        {
+            const FontGroup* fontGroup;
+        } font;
+        struct
+        {
+            DataProvider data;
+        } window;
+    };
 };
+
+using UiStyle = SeUiStyleParam[SeUiStyleParam::_COUNT];
 
 struct UiContext
 {
-    static constexpr SeTextureInfo DUMMY_TEXTURE_INFO =
-    {
-        .width  = 8,
-        .height = 8,
-        .format = SE_TEXTURE_FORMAT_R_8,
-        .data   = { },
-    };
-
     const SeRenderAbstractionSubsystemInterface*    render;
     SeDeviceHandle                                  device;
     SePassRenderTarget                              target;
+    SeWindowHandle                                  window;
 
     const FontGroup*                                currentFontGroup;
-    UiRenderColorsPacked                            currentTextColors;
+    DataProvider                                    currentWindowData;
+    UiStyle                                         currentStyle;
+    
     DynamicArray<UiDrawCall>                        frameDrawCalls;
-    DynamicArray<UiFontGroupWithRenderRef>          fontGroupRenderRefs;
+    HashTable<UiTextureData, SeRenderRef>           frameTextureDataToRef;
+
+    int64_t                                         mouseX;
+    int64_t                                         mouseY;
+};
+
+const UiStyle DEFAULT_STYLE =
+{
+    { .color = col::pack({ 1.0f, 1.0f, 1.0f, 1.0f }) },
+    { .color = col::pack({ 0.16f, 0.10f, 0.10f, 1.0f }) },
+    { .color = col::pack({ 0.05f, 0.05f, 0.05f, 0.7f }) },
+    { .dim = ui_dim::pix(20.0f) },
+    { .dim = ui_dim::pix(2.0f) },
 };
 
 SeUiSubsystemInterface                  g_iface;
@@ -847,10 +858,70 @@ HashTable<SeUiFontGroupInfo, FontGroup> g_fontGroups;
 DataProvider                            g_drawUiVs;
 DataProvider                            g_drawUiFs;
 
+DataProvider                            g_windowDefaultTexture;
+
+namespace hash_value
+{
+    namespace builder
+    {
+        template<>
+        void absorb<UiTextureData>(HashValueBuilder& builder, const UiTextureData& value)
+        {
+            switch (value.type)
+            {
+                case UiTextureData::TYPE_FONT:      { hash_value::builder::absorb(builder, value.font.fontGroup); } break;
+                case UiTextureData::TYPE_WINDOW:    { hash_value::builder::absorb(builder, value.window.data); } break;
+                default:                            { }
+            }
+        }
+    }
+
+    template<>
+    HashValue generate<UiTextureData>(const UiTextureData& value)
+    {
+        HashValueBuilder builder = hash_value::builder::begin();
+        hash_value::builder::absorb(builder, value);
+        return hash_value::builder::end(builder);
+    }
+}
+
+namespace utils
+{
+    template<>
+    bool compare<UiRenderColorsPacked>(const UiRenderColorsPacked& first, const UiRenderColorsPacked& second)
+    {
+        return
+            (first.rComponent   == second.rComponent)  &&
+            (first.gComponent   == second.gComponent)  &&
+            (first.bComponent   == second.bComponent)  &&
+            (first.mask         == second.mask)        &&
+            (first.minDivider   == second.minDivider)  &&
+            (first.maxDivider   == second.maxDivider);
+    }
+
+    template<>
+    bool compare<UiTextureData>(const UiTextureData& first, const UiTextureData& second)
+    {
+        if (first.type != second.type) return false;
+        if (first.type == UiTextureData::TYPE_FONT)
+        {
+            return compare(first.font.fontGroup, second.font.fontGroup);
+        }
+        else if (first.type == UiTextureData::TYPE_WINDOW)
+        {
+            return compare(first.window.data, second.window.data);
+        }
+        else
+        {
+            se_assert(false);
+            return false;
+        }
+    }
+}
 
 namespace ui_impl
 {
-    float dim_to_pix(SeUiDim dim)
+    inline float dim_to_pix(SeUiDim dim)
     {
         switch (dim.type)
         {
@@ -868,10 +939,66 @@ namespace ui_impl
             col::unpack(colors.rComponent),
             col::unpack(colors.gComponent),
             col::unpack(colors.bComponent),
-            col::unpack(colors.aComponent),
-            { (float)((colors.mask & 1) != 0), (float)((colors.mask & 2) != 0), (float)((colors.mask & 4) != 0), (float)((colors.mask & 8) != 0) },
-            (float)colors.divider,
+            {
+                (float)((colors.mask & 1) != 0),
+                (float)((colors.mask & 2) != 0),
+                (float)((colors.mask & 4) != 0),
+                0.0f,
+            },
+            (float)colors.minDivider,
+            (float)colors.maxDivider,
         };
+    }
+
+    inline UiTextureData ui_texture_data_create(const FontGroup* fontGroup)
+    {
+        return
+        {
+            .type = UiTextureData::TYPE_FONT,
+            .font = { fontGroup },
+        };
+    }
+
+    inline UiTextureData ui_texture_data_create(DataProvider windowTextureData)
+    {
+        return
+        {
+            .type = UiTextureData::TYPE_WINDOW,
+            .window = { windowTextureData },
+        };
+    }
+
+    UiDrawCall* get_draw_call(const UiTextureData& textureData, const SeTextureInfo& textureInfo, const UiRenderColorsPacked& colors)
+    {
+        //
+        // Get texture
+        //
+        SeRenderRef* textureRef = hash_table::get(g_currentContext->frameTextureDataToRef, textureData);
+        if (!textureRef)
+        {
+            const SeDeviceHandle device = g_currentContext->device;
+            const SeRenderAbstractionSubsystemInterface* render = g_currentContext->render;
+            textureRef = hash_table::set(g_currentContext->frameTextureDataToRef, textureData, render->texture(device, textureInfo));
+        }
+        se_assert(textureRef);
+        //
+        // Get draw call
+        //
+        const size_t numDrawCalls = dynamic_array::size(g_currentContext->frameDrawCalls);
+        const UiDrawCall* const lastDrawCall = numDrawCalls ? &g_currentContext->frameDrawCalls[numDrawCalls - 1] : nullptr;
+        if (!lastDrawCall || lastDrawCall->texture != *textureRef || !utils::compare(lastDrawCall->colors, colors))
+        {
+            dynamic_array::push(g_currentContext->frameDrawCalls,
+            {
+                .vertices   = dynamic_array::create<UiRenderVertex>(app_allocators::frame(), 256),
+                .colors     = colors,
+                .texture    = *textureRef,
+            });
+        }
+        UiDrawCall* const drawCall = &g_currentContext->frameDrawCalls[dynamic_array::size(g_currentContext->frameDrawCalls) - 1];
+        se_assert(utils::compare(drawCall->colors, colors));
+        se_assert(drawCall->texture == *textureRef);
+        return drawCall;
     }
 
     bool begin(const SeUiBeginInfo& info)
@@ -884,27 +1011,21 @@ namespace ui_impl
         {
             g_currentContext = hash_table::set(g_contextTable, info, { });
         }
-        
-        *g_currentContext =
-        {
-            .render                 = info.render,
-            .device                 = info.device,
-            .target                 = info.target,
-            .currentFontGroup       = nullptr,
-            .currentTextColors      =
-            {
-                .rComponent = col::pack({ 1.0f, 1.0f, 1.0f, 1.0f }),
-                .gComponent = 0,
-                .bComponent = 0,
-                .aComponent = 0,
-                .mask       = 1,
-                .divider    = 1,
-            },
-            .frameDrawCalls         = { },
-            .fontGroupRenderRefs    = { },
-        };
+        g_currentContext->render            = info.render;
+        g_currentContext->device            = info.device;
+        g_currentContext->target            = info.target;
+        g_currentContext->window            = info.window;
+        g_currentContext->currentFontGroup  = nullptr;
+        g_currentContext->currentWindowData = g_windowDefaultTexture;
+        memcpy(g_currentContext->currentStyle, DEFAULT_STYLE, sizeof(UiStyle));
         dynamic_array::construct(g_currentContext->frameDrawCalls, app_allocators::frame(), 16);
-        dynamic_array::construct(g_currentContext->fontGroupRenderRefs, app_allocators::frame(), 16);
+        hash_table::construct(g_currentContext->frameTextureDataToRef, app_allocators::frame(), 16);
+        if (g_currentContext->window != NULL_WINDOW_HANDLE)
+        {
+            const SeWindowSubsystemInput* input = win::get_input(g_currentContext->window);
+            g_currentContext->mouseX = input->mouseX;
+            g_currentContext->mouseY = input->mouseY;
+        }
         return g_currentContext != nullptr; // Must be always true
     }
 
@@ -1005,7 +1126,7 @@ namespace ui_impl
             dynamic_array::destroy(iter::value(it).vertices);
         }
         dynamic_array::destroy(g_currentContext->frameDrawCalls);
-        dynamic_array::destroy(g_currentContext->fontGroupRenderRefs);
+        hash_table::destroy(g_currentContext->frameTextureDataToRef);
         g_currentContext = nullptr;
     }
 
@@ -1031,25 +1152,17 @@ namespace ui_impl
                 }
                 se_assert(font);
                 fonts[fontIt] = font;
-            }
+            };
             fontGroup = hash_table::set(g_fontGroups, info, font_group::create(fonts, fontIt));
         }
         se_assert(fontGroup);
         g_currentContext->currentFontGroup = fontGroup;
     }
 
-    void set_font_color(ColorPacked color)
+    void set_style_param(SeUiStyleParam::Type type, const SeUiStyleParam& param)
     {
         se_assert(g_currentContext);
-        g_currentContext->currentTextColors =
-        {
-            .rComponent = color,
-            .gComponent = 0,
-            .bComponent = 0,
-            .aComponent = 0,
-            .mask       = 1,
-            .divider    = 1,
-        };
+        g_currentContext->currentStyle[type] = param;
     }
 
     void text_line(const SeUiTextLineInfo& info)
@@ -1062,52 +1175,18 @@ namespace ui_impl
         const float height = dim_to_pix(info.height);
         const float baselineX = dim_to_pix(info.baselineX);
         const float baselineY = dim_to_pix(info.baselineY);
-        //
-        // Get draw call
-        //
-        const size_t numDrawCalls = dynamic_array::size(g_currentContext->frameDrawCalls);
-        const UiDrawCall* const lastDrawCall = numDrawCalls ? &g_currentContext->frameDrawCalls[numDrawCalls - 1] : nullptr;
-        const bool isSameFontGroup = lastDrawCall && (lastDrawCall->fontGroup == fontGroup);
-        const bool isSameColors = lastDrawCall && (lastDrawCall->colors == g_currentContext->currentTextColors);
-        if (!isSameFontGroup || !isSameColors)
+        UiDrawCall* const drawCall = get_draw_call(ui_texture_data_create(fontGroup), fontGroup->textureInfo,
         {
-            //
-            // Get texture
-            //
-            SeRenderRef textureRef = NULL_RENDER_REF;
-            for (auto it : g_currentContext->fontGroupRenderRefs)
-            {
-                const UiFontGroupWithRenderRef& value = iter::value(it);
-                if (value.fontGroup == fontGroup)
-                {
-                    se_assert(value.textureRef != NULL_RENDER_REF);
-                    textureRef = value.textureRef;
-                }
-            }
-            if (textureRef == NULL_RENDER_REF)
-            {
-                const SeRenderAbstractionSubsystemInterface* render = g_currentContext->render;
-                const SeDeviceHandle device = g_currentContext->device;
-                const UiFontGroupWithRenderRef& value = dynamic_array::push(g_currentContext->fontGroupRenderRefs, { fontGroup, render->texture(device, fontGroup->textureInfo) });
-                textureRef = value.textureRef;
-            }
-            se_assert(textureRef != NULL_RENDER_REF);
-            //
-            // Begin new draw call
-            //
-            dynamic_array::push(g_currentContext->frameDrawCalls,
-            {
-                .vertices   = dynamic_array::create<UiRenderVertex>(app_allocators::frame(), 256),
-                .colors     = g_currentContext->currentTextColors,
-                .texture    = textureRef,
-                .fontGroup  = fontGroup,
-            });
-        }
-
-        UiDrawCall* const drawCall = &g_currentContext->frameDrawCalls[dynamic_array::size(g_currentContext->frameDrawCalls) - 1];
-        se_assert(drawCall->fontGroup == fontGroup);
-        se_assert(drawCall->colors == g_currentContext->currentTextColors);
-        
+            .rComponent = g_currentContext->currentStyle[SeUiStyleParam::FONT_COLOR].color,
+            .gComponent = 0,
+            .bComponent = 0,
+            .mask       = 1,
+            .minDivider = 1,
+            .maxDivider = 1,
+        });
+        //
+        // Process codepoints
+        //
         float positionX = baselineX;
         int previousCodepoint = 0;
         for (uint32_t codepoint : Utf8{ info.utf8text })
@@ -1181,7 +1260,95 @@ namespace ui_impl
 
     bool begin_window(const SeUiWindowInfo& info)
     {
-        return false;
+        se_assert(g_currentContext);
+
+        const float bottomLeftX = dim_to_pix(info.bottomLeftX);
+        const float bottomLeftY = dim_to_pix(info.bottomLeftY);
+        const float topRightX = dim_to_pix(info.topRightX);
+        const float topRightY = dim_to_pix(info.topRightY);
+        const float topPanelThickness = dim_to_pix(g_currentContext->currentStyle[SeUiStyleParam::WINDOW_TOP_PANEL_THICKNESS].dim);
+        const float borderThickness = dim_to_pix(g_currentContext->currentStyle[SeUiStyleParam::WINDOW_BORDER_THICKNESS].dim);
+        UiDrawCall* const drawCall = get_draw_call(ui_texture_data_create(g_currentContext->currentWindowData),
+        {
+            .format = SE_TEXTURE_FORMAT_RGBA_8,
+            .data   = g_currentContext->currentWindowData,
+        },
+        {
+            .rComponent = g_currentContext->currentStyle[SeUiStyleParam::PRIMARY_COLOR].color,
+            .gComponent = g_currentContext->currentStyle[SeUiStyleParam::SECONDARY_COLOR].color,
+            .bComponent = 0,
+            .mask       = 3,
+            .minDivider = 1,
+            .maxDivider = 2,
+        });
+        //
+        // Push window data
+        //
+        auto pushQuad = [&](float x1, float y1, float u1, float v1, float x2, float y2, float u2, float v2)
+        {
+            dynamic_array::push(drawCall->vertices, { x1, y1, u1, v1 });
+            dynamic_array::push(drawCall->vertices, { x1, y2, u1, v2 });
+            dynamic_array::push(drawCall->vertices, { x2, y2, u2, v2 });
+            dynamic_array::push(drawCall->vertices, { x1, y1, u1, v1 });
+            dynamic_array::push(drawCall->vertices, { x2, y2, u2, v2 });
+            dynamic_array::push(drawCall->vertices, { x2, y1, u2, v1 });
+        };
+        constexpr float oneThird = 1.0f / 3.0f;
+        //
+        // Top row
+        //
+        pushQuad
+        (
+            bottomLeftX, topRightY - topPanelThickness, 0.0f, oneThird,
+            bottomLeftX + topPanelThickness, topRightY, oneThird, 0.0f
+        );
+        pushQuad
+        (
+            bottomLeftX + topPanelThickness, topRightY - topPanelThickness , oneThird, oneThird,
+            topRightX - topPanelThickness, topRightY, oneThird * 2.0f, 0.0f
+        );
+        pushQuad
+        (
+            topRightX - topPanelThickness, topRightY - topPanelThickness, oneThird * 2.0f, oneThird,
+            topRightX, topRightY, 1.0f, 0.0f
+        );
+        //
+        // Middle row
+        //
+        pushQuad
+        (
+            bottomLeftX, bottomLeftY + borderThickness, 0.0f, oneThird * 2.0f,
+            bottomLeftX + borderThickness, topRightY - topPanelThickness, oneThird, oneThird
+        );
+        pushQuad
+        (
+            bottomLeftX + borderThickness, bottomLeftY + borderThickness, oneThird, oneThird * 2.0f,
+            topRightX - borderThickness, topRightY - topPanelThickness, oneThird * 2.0f, oneThird
+        );
+        pushQuad
+        (
+            topRightX - borderThickness, bottomLeftY + borderThickness, oneThird * 2.0f, oneThird * 2.0f,
+            topRightX, topRightY - topPanelThickness, 1.0f, oneThird
+        );
+        //
+        // Bottom row
+        //
+        pushQuad
+        (
+            bottomLeftX, bottomLeftY, 0.0f, 1.0f,
+            bottomLeftX + borderThickness, bottomLeftY + borderThickness, oneThird, oneThird * 2.0f
+        );
+        pushQuad
+        (
+            bottomLeftX + borderThickness, bottomLeftY, oneThird, 1.0f,
+            topRightX - borderThickness, bottomLeftY + borderThickness, oneThird * 2.0f, oneThird * 2.0f
+        );
+        pushQuad
+        (
+            topRightX - borderThickness, bottomLeftY, oneThird * 2.0f, 1.0f,
+            topRightX, bottomLeftY + borderThickness, 1.0f, oneThird * 2.0f
+        );
+        return true;
     }
 
     void end_window()
@@ -1197,7 +1364,7 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
         .begin_ui           = ui_impl::begin,
         .end_ui             = ui_impl::end,
         .set_font_group     = ui_impl::set_font_group,
-        .set_font_color     = ui_impl::set_font_color,
+        .set_style_param    = ui_impl::set_style_param,
         .text_line          = ui_impl::text_line,
         .begin_window       = ui_impl::begin_window,
         .end_window         = ui_impl::end_window,
@@ -1209,6 +1376,7 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 {
     g_drawUiVs = data_provider::from_file("assets/default/shaders/ui_draw.vert.spv");
     g_drawUiFs = data_provider::from_file("assets/default/shaders/ui_draw.frag.spv");
+    g_windowDefaultTexture = data_provider::from_file("assets/default/textures/ui_window_default.png");
     hash_table::construct(g_contextTable, app_allocators::persistent());
     hash_table::construct(g_fontInfos, app_allocators::persistent());
     hash_table::construct(g_fontGroups, app_allocators::persistent());
@@ -1223,6 +1391,7 @@ SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
 {
     data_provider::destroy(g_drawUiVs);
     data_provider::destroy(g_drawUiFs);
+    data_provider::destroy(g_windowDefaultTexture);
     hash_table::destroy(g_contextTable);
     for (auto it : g_fontGroups) font_group::destroy(iter::value(it));
     for (auto it : g_fontInfos) font_info::destroy(iter::value(it));

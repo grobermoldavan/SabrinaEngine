@@ -17,14 +17,14 @@ namespace hash_value
 {
     namespace builder
     {
-        HashValueBuilder begin()
+        inline HashValueBuilder begin()
         {
             HashValueBuilder result = { };
             MeowBegin(&result, MeowDefaultSeed);
             return result;
         }
 
-        void absorb_raw(HashValueBuilder& builder, const HashValueInput& input)
+        inline void absorb_raw(HashValueBuilder& builder, const HashValueInput& input)
         {
             MeowAbsorb(&builder, input.size, input.data);
         }
@@ -35,7 +35,7 @@ namespace hash_value
             hash_value::builder::absorb_raw(builder, { (void*)&input, sizeof(T) });
         }
 
-        HashValue end(HashValueBuilder& builder)
+        inline HashValue end(HashValueBuilder& builder)
         {
             return MeowEnd(&builder, nullptr);
         }

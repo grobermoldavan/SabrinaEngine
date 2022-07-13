@@ -19,12 +19,12 @@ struct SeUiDim
 
 namespace ui_dim
 {
-    SeUiDim pix(float dim)
+    inline constexpr SeUiDim pix(float dim)
     {
         return { SeUiDim::PIXELS, dim };
     }
 
-    SeUiDim rel(float dim)
+    inline constexpr SeUiDim rel(float dim)
     {
         return { SeUiDim::TARGET_RELATIVE, dim };
     }
@@ -42,6 +42,7 @@ struct SeUiBeginInfo
     const SeRenderAbstractionSubsystemInterface*    render;
     SeDeviceHandle                                  device;
     SePassRenderTarget                              target;
+    SeWindowHandle                                  window;
 };
 
 struct SeUiTextLineInfo
@@ -50,6 +51,24 @@ struct SeUiTextLineInfo
     SeUiDim     height;
     SeUiDim     baselineX;
     SeUiDim     baselineY;
+};
+
+struct SeUiStyleParam
+{
+    enum Type
+    {
+        FONT_COLOR                  = 0,
+        PRIMARY_COLOR               = 1,
+        SECONDARY_COLOR             = 2,
+        WINDOW_TOP_PANEL_THICKNESS  = 3,
+        WINDOW_BORDER_THICKNESS     = 4,
+        _COUNT,
+    };
+    union
+    {
+        ColorPacked color;
+        SeUiDim dim;
+    };
 };
 
 struct SeUiWindowInfo
@@ -76,7 +95,7 @@ struct SeUiSubsystemInterface
     void (*end_ui)();
 
     void (*set_font_group)(const SeUiFontGroupInfo& info);
-    void (*set_font_color)(ColorPacked color);
+    void (*set_style_param)(SeUiStyleParam::Type type, const SeUiStyleParam& param);
 
     void (*text_line)(const SeUiTextLineInfo& info);
     bool (*begin_window)(const SeUiWindowInfo& info);
@@ -109,9 +128,9 @@ namespace ui
         SE_UI_SUBSYSTEM_GLOBAL_NAME->set_font_group(info);
     }
 
-    inline void set_font_color(ColorPacked color)
+    inline void set_style_param(SeUiStyleParam::Type type, const SeUiStyleParam& param)
     {
-        SE_UI_SUBSYSTEM_GLOBAL_NAME->set_font_color(color);
+        SE_UI_SUBSYSTEM_GLOBAL_NAME->set_style_param(type, param);
     }
 
     inline void text_line(const SeUiTextLineInfo& info)

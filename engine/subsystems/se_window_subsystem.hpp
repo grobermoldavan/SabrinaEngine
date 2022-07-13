@@ -73,10 +73,9 @@ struct SeWindowSubsystemCreateInfo
     uint32_t height;
 };
 
-struct SeWindowHandle
-{
-    void* ptr;
-};
+using SeWindowHandle = void*;
+
+constexpr SeWindowHandle NULL_WINDOW_HANDLE = nullptr;
 
 struct SeWindowResizeCallbackInfo
 {

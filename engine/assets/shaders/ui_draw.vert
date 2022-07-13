@@ -14,9 +14,9 @@ layout(std140, set = 1, binding = 1) readonly buffer Colors
     vec4 rChannel;
     vec4 gChannel;
     vec4 bChannel;
-    vec4 aChannel;
     vec4 mask;
-    float divider;
+    float minDivider;
+    float maxDivider;
 };
 layout(std140, set = 1, binding = 2) readonly buffer Vertices { Vertex vertices[]; };
 

@@ -189,12 +189,12 @@ static SeWindowHandle win32_window_create(const SeWindowSubsystemCreateInfo& cre
     UpdateWindow(window->handle);
     win32_window_process(window);
 
-    return { window };
+    return window;
 }
 
 static void win32_window_destroy(SeWindowHandle handle)
 {
-    SeWindowWin32* window = (SeWindowWin32*)handle.ptr;
+    SeWindowWin32* window = (SeWindowWin32*)handle;
     DestroyWindow(window->handle);
     win32_window_process(window);
     memset(window, 0, sizeof(SeWindowWin32));
@@ -202,25 +202,25 @@ static void win32_window_destroy(SeWindowHandle handle)
 
 static const SeWindowSubsystemInput* win32_window_get_input(SeWindowHandle handle)
 {
-    SeWindowWin32* window = (SeWindowWin32*)handle.ptr;
+    SeWindowWin32* window = (SeWindowWin32*)handle;
     return &window->input;
 }
 
 static uint32_t win32_window_get_width(SeWindowHandle handle)
 {
-    SeWindowWin32* window = (SeWindowWin32*)handle.ptr;
+    SeWindowWin32* window = (SeWindowWin32*)handle;
     return window->width;
 }
 
 static uint32_t win32_window_get_height(SeWindowHandle handle)
 {
-    SeWindowWin32* window = (SeWindowWin32*)handle.ptr;
+    SeWindowWin32* window = (SeWindowWin32*)handle;
     return window->height;
 }
 
 static void* win32_window_get_native_handle(SeWindowHandle handle)
 {
-    SeWindowWin32* window = (SeWindowWin32*)handle.ptr;
+    SeWindowWin32* window = (SeWindowWin32*)handle;
     return window->handle;
 }
 
@@ -228,7 +228,7 @@ static SeWindowResizeCallbackHandle win32_window_add_resize_callback(SeWindowHan
 {
     se_assert(callbackInfo.priority < __SE_WINDOW_RESIZE_CALLBACK_PRIORITY_COUNT);
     se_assert(callbackInfo.priority > __SE_WINDOW_RESIZE_CALLBACK_PRIORITY_UNDEFINED);
-    SeWindowWin32* window = (SeWindowWin32*)handle.ptr;
+    SeWindowWin32* window = (SeWindowWin32*)handle;
     SeWindowResizeCallbackContainerWin32* callbackContainer = &window->resizeCallbacks[callbackInfo.priority];
     se_assert(callbackContainer->numCallbacks != se_array_size(callbackContainer->callbacks));
     callbackContainer->callbacks[callbackContainer->numCallbacks] = { callbackInfo.userData, callbackInfo.callback, };
@@ -237,7 +237,7 @@ static SeWindowResizeCallbackHandle win32_window_add_resize_callback(SeWindowHan
 
 static void win32_window_remove_resize_callback(SeWindowHandle handle, SeWindowResizeCallbackHandle cbHandle)
 {
-    SeWindowWin32* window = (SeWindowWin32*)handle.ptr;
+    SeWindowWin32* window = (SeWindowWin32*)handle;
     SeWindowResizeCallbackWin32* callback = (SeWindowResizeCallbackWin32*)cbHandle;
     for (size_t it = 0; it < __SE_WINDOW_RESIZE_CALLBACK_PRIORITY_COUNT; it++)
     {
