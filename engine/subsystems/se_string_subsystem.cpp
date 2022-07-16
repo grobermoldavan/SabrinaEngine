@@ -5,24 +5,24 @@
 #include <string.h>
 #include <stdio.h>
 
-struct SeStringData
+struct SePersistentAllocation
 {
     char* memory;
     size_t capacity;
 };
 
-static SeStringSubsystemInterface g_iface;
+SeStringSubsystemInterface g_iface;
 
-static ObjectPool<SeStringData> g_strings;
+ObjectPool<SePersistentAllocation> g_persistentstrings;
 
-static char* se_string_allocate_new_buffer(AllocatorBindings& allocator, size_t capacity)
+char* se_string_allocate_new_buffer(const AllocatorBindings& allocator, size_t capacity)
 {
     char* memory = (char*)allocator.alloc(allocator.allocator, capacity + 1, se_default_alignment, se_alloc_tag);
     memset(memory, 0, capacity + 1);
     return memory;
 }
 
-static char* se_string_allocate_new_buffer(AllocatorBindings& allocator, size_t capacity, size_t sourceLength, const char* source)
+char* se_string_allocate_new_buffer(const AllocatorBindings& allocator, size_t capacity, size_t sourceLength, const char* source)
 {
     char* memory = (char*)allocator.alloc(allocator.allocator, capacity + 1, se_default_alignment, se_alloc_tag);
 
@@ -34,48 +34,56 @@ static char* se_string_allocate_new_buffer(AllocatorBindings& allocator, size_t 
     return memory;
 }
 
-static void se_string_deallocate_buffer(AllocatorBindings& allocator, const char* buffer, size_t length)
+void se_string_deallocate_buffer(const AllocatorBindings& allocator, const char* buffer, size_t length)
 {
     allocator.dealloc(allocator.allocator, (void*)buffer, length + 1);
 }
 
-static SeString se_string_create(bool isTmp, size_t length, const char* source)
+SeString se_string_create(bool isTmp, size_t length, const char* source)
 {
-    AllocatorBindings allocator = isTmp ? app_allocators::frame() : app_allocators::persistent();
-    char* memory = source
+    const AllocatorBindings allocator = isTmp ? app_allocators::frame() : app_allocators::persistent();
+    char* const memory = source
         ? se_string_allocate_new_buffer(allocator, length, strlen(source), source)
         : se_string_allocate_new_buffer(allocator, length);
-    SeStringData* data = object_pool::take(g_strings);
-    *data =
+    if (isTmp)
     {
-        .memory = memory,
-        .capacity = length,
-    };
-    return { memory, length, data };
+        return { memory, length, nullptr };
+    }
+    else
+    {
+        SePersistentAllocation* const allocation = object_pool::take(g_persistentstrings);
+        *allocation =
+        {
+            .memory = memory,
+            .capacity = length,
+        };
+        return { memory, length, allocation };
+    }
+    
 }
 
-static SeString se_string_create_from_source(bool isTmp, const char* source)
+SeString se_string_create_from_source(bool isTmp, const char* source)
 {
     se_assert(source);
     return se_string_create(isTmp, strlen(source), source);
 }
 
-static void se_string_data_destroy(const SeStringData* data)
+void se_string_persistent_allocation_destroy(const SePersistentAllocation* data)
 {
     AllocatorBindings allocator = app_allocators::persistent();
     se_string_deallocate_buffer(allocator, data->memory, data->capacity);
 }
 
-static void se_string_destroy(const SeString& string)
+void se_string_destroy(const SeString& string)
 {
     if (!string.internaldData) return;
 
-    const SeStringData* data = (SeStringData*)string.internaldData;
-    se_string_data_destroy(data);
-    object_pool::release(g_strings, data);
+    const SePersistentAllocation* const allocation = (SePersistentAllocation*)string.internaldData;
+    se_string_persistent_allocation_destroy(allocation);
+    object_pool::release(g_persistentstrings, allocation);
 }
 
-static SeStringBuilder se_string_builder_begin(bool isTmp, size_t capacity, const char* source)
+SeStringBuilder se_string_builder_begin(bool isTmp, size_t capacity, const char* source)
 {
     AllocatorBindings allocator = isTmp ? app_allocators::frame() : app_allocators::persistent();
     const size_t sourceLength = source ? strlen(source) : 0;
@@ -85,12 +93,12 @@ static SeStringBuilder se_string_builder_begin(bool isTmp, size_t capacity, cons
     return { memory, sourceLength, capacity, isTmp };
 }
 
-static SeStringBuilder se_string_builder_begin_from_source(bool isTmp, const char* source)
+SeStringBuilder se_string_builder_begin_from_source(bool isTmp, const char* source)
 {
     return se_string_builder_begin(isTmp, source ? strlen(source) : 32, source);
 }
 
-static void se_string_builder_append(SeStringBuilder& builder, const char* source)
+void se_string_builder_append(SeStringBuilder& builder, const char* source)
 {
     se_assert(source);
     const size_t oldLength = builder.length;
@@ -99,25 +107,32 @@ static void se_string_builder_append(SeStringBuilder& builder, const char* sourc
     if (newLength > builder.capacity)
     {
         const size_t newCapacity = newLength;
-        AllocatorBindings allocator = builder.isTmp ? app_allocators::frame() : app_allocators::persistent();
-        char* memory = se_string_allocate_new_buffer(allocator, newCapacity, oldLength, builder.memory);
+        const AllocatorBindings allocator = builder.isTmp ? app_allocators::frame() : app_allocators::persistent();
+        char* const newMemory = se_string_allocate_new_buffer(allocator, newCapacity, oldLength, builder.memory);
         se_string_deallocate_buffer(allocator, builder.memory, builder.capacity);
-        builder.memory = memory;
+        builder.memory = newMemory;
         builder.capacity = newCapacity;
     }
     memcpy(builder.memory + oldLength, source, sourceLength);
     builder.length += sourceLength;
 }
 
-static SeString se_string_builder_end(SeStringBuilder& builder)
+SeString se_string_builder_end(SeStringBuilder& builder)
 {
-    SeStringData* data = object_pool::take(g_strings);
-    *data =
+    if (builder.isTmp)
     {
-        .memory = builder.memory,
-        .capacity = builder.capacity,
-    };
-    return { builder.memory, builder.length, data };
+        return { builder.memory, builder.length, nullptr };
+    }
+    else
+    {
+        SePersistentAllocation* const allocation = object_pool::take(g_persistentstrings);
+        *allocation =
+        {
+            .memory = builder.memory,
+            .capacity = builder.capacity,
+        };
+        return { builder.memory, builder.length, allocation };
+    }
 }
 
 void se_string_from_int64(int64_t value, char* buffer, size_t bufferSize)
@@ -155,7 +170,7 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
 
 SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 {
-    object_pool::construct(g_strings);
+    object_pool::construct(g_persistentstrings);
 }
 
 SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
@@ -165,6 +180,6 @@ SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
 
 SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
 {
-    for (auto it : g_strings) { se_string_data_destroy(&iter::value(it)); }
-    object_pool::destroy(g_strings);
+    for (auto it : g_persistentstrings) { se_string_persistent_allocation_destroy(&iter::value(it)); }
+    object_pool::destroy(g_persistentstrings);
 }

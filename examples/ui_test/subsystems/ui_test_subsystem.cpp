@@ -73,8 +73,9 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* info)
                 ui::end_window();
             }
 
-            ui::set_style_param(SeUiStyleParam::PRIMARY_COLOR, { .color = col::pack({ 0.31f, 0.10f, 0.10f, 1.0f }) });
+            ui::set_style_param(SeUiStyleParam::PRIMARY_COLOR, { .color = col::pack({ 0.73f, 0.11f, 0.14f, 1.0f }) });
             ui::set_style_param(SeUiStyleParam::SECONDARY_COLOR, { .color = col::pack({ 0.09f, 0.01f, 0.01f, 0.7f }) });
+            ui::set_style_param(SeUiStyleParam::ACCENT_COLOR, { .color = col::pack({ 0.88f, 0.73f, 0.73f, 1.0f }) });
             ui::set_style_param(SeUiStyleParam::WINDOW_TOP_PANEL_THICKNESS, { .dim = ui_dim::pix(10.0f) });
             ui::set_style_param(SeUiStyleParam::WINDOW_BORDER_THICKNESS, { .dim = ui_dim::pix(3.0f) });
 
@@ -96,10 +97,10 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* info)
             ui::set_font_group({ g_fontDataEnglish, g_fontDataRussian });
             SeString str;
             {
-                SeStringBuilder builder = string_builder::begin();
-                string_builder::append(builder, "Frame (кадр) : ");
-                string_builder::append(builder, string::cast(frameIndex));
-                str = string_builder::end(builder);
+                SeStringBuilder builder = string_builder::begin(); // first allocation
+                string_builder::append(builder, "Frame (кадр) : "); // second allocation
+                string_builder::append(builder, string::cast(frameIndex)); // two allocations - append and cast
+                str = string_builder::end(builder); // no allocation
             }
             ui::set_style_param(SeUiStyleParam::FONT_COLOR, { .color = col::pack({ 0.0f, 1.0f, 0.0f, 1.0f }) });
             ui::text_line({ string::cstr(str), ui_dim::pix(50), ui_dim::pix(100), ui_dim::pix(100) });

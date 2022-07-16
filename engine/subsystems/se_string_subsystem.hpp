@@ -15,9 +15,9 @@ enum struct SeStringLifetime
 
 struct SeString
 {
-    char*                   memory;
-    size_t                  length;
-    struct SeStringData*    internaldData;
+    char*    memory;
+    size_t   length;
+    void*    internaldData;
 };
 
 struct SeStringBuilder

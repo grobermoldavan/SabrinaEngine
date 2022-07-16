@@ -753,16 +753,8 @@ struct UiRenderVertex
     float y;
     float uvX;
     float uvY;
-};
-
-struct UiRenderColorsPacked
-{
-    ColorPacked rComponent;
-    ColorPacked gComponent;
-    ColorPacked bComponent;
-    uint16_t    mask;
-    uint16_t    minDivider;
-    uint16_t    maxDivider;
+    uint32_t colorIndex;
+    float _pad[3];
 };
 
 /*
@@ -789,13 +781,14 @@ struct UiRenderColorsUnpacked
     SeFloat4        mask;
     float           minDivider;
     float           maxDivider;
+    float           _pad[2];
 };
 
 struct UiDrawCall
 {
-    DynamicArray<UiRenderVertex>    vertices;
-    UiRenderColorsPacked            colors;
-    SeRenderRef                     texture;
+    DynamicArray<UiRenderVertex>            vertices;
+    DynamicArray<UiRenderColorsUnpacked>    colorsArray;
+    SeRenderRef                             texture;
 };
 
 struct UiTextureData
@@ -808,21 +801,29 @@ struct UiTextureData
     Type type;
     union
     {
-        struct
-        {
-            const FontGroup* fontGroup;
-        } font;
-        struct
-        {
-            DataProvider data;
-        } window;
+        struct { const FontGroup* fontGroup; } font;
+        struct { DataProvider data; } window;
     };
 };
 
 using UiStyle = SeUiStyleParam[SeUiStyleParam::_COUNT];
 
+struct UiObjectData
+{
+    float bottomLeftX;
+    float bottomLeftY;
+    float topRightX;
+    float topRightY;
+};
+
+struct UiObjectUid
+{
+    char data[64];
+};
+
 struct UiContext
 {
+    // Frame state
     const SeRenderAbstractionSubsystemInterface*    render;
     SeDeviceHandle                                  device;
     SePassRenderTarget                              target;
@@ -834,17 +835,26 @@ struct UiContext
     
     DynamicArray<UiDrawCall>                        frameDrawCalls;
     HashTable<UiTextureData, SeRenderRef>           frameTextureDataToRef;
+    float                                           mouseX;
+    float                                           mouseY;
+    float                                           mouseDeltaX;
+    float                                           mouseDeltaY;
+    bool                                            isMouseDown;
+    bool                                            isMouseJustDown;
 
-    int64_t                                         mouseX;
-    int64_t                                         mouseY;
+    // Persistent state
+    HashTable<UiObjectUid, UiObjectData>            uidToObjectData;
+    UiObjectUid                                     hoveredObjectUid;
+    UiObjectUid                                     activeObjectUid;
 };
 
 const UiStyle DEFAULT_STYLE =
 {
     { .color = col::pack({ 1.0f, 1.0f, 1.0f, 1.0f }) },
-    { .color = col::pack({ 0.16f, 0.10f, 0.10f, 1.0f }) },
-    { .color = col::pack({ 0.05f, 0.05f, 0.05f, 0.7f }) },
-    { .dim = ui_dim::pix(20.0f) },
+    { .color = col::pack({ 0.87f, 0.81f, 0.83f, 1.0f }) },
+    { .color = col::pack({ 0.36f, 0.45f, 0.58f, 0.8f }) },
+    { .color = col::pack({ 0.95f, 0.75f, 0.79f, 1.0f }) },
+    { .dim = ui_dim::pix(16.0f) },
     { .dim = ui_dim::pix(2.0f) },
 };
 
@@ -857,7 +867,6 @@ HashTable<SeUiFontGroupInfo, FontGroup> g_fontGroups;
 
 DataProvider                            g_drawUiVs;
 DataProvider                            g_drawUiFs;
-
 DataProvider                            g_windowDefaultTexture;
 
 namespace hash_value
@@ -888,14 +897,14 @@ namespace hash_value
 namespace utils
 {
     template<>
-    bool compare<UiRenderColorsPacked>(const UiRenderColorsPacked& first, const UiRenderColorsPacked& second)
+    bool compare<UiRenderColorsUnpacked>(const UiRenderColorsUnpacked& first, const UiRenderColorsUnpacked& second)
     {
         return
-            (first.rComponent   == second.rComponent)  &&
-            (first.gComponent   == second.gComponent)  &&
-            (first.bComponent   == second.bComponent)  &&
-            (first.mask         == second.mask)        &&
-            (first.minDivider   == second.minDivider)  &&
+            compare(first.rComponent, second.rComponent)  &&
+            compare(first.gComponent, second.gComponent)  &&
+            compare(first.bComponent, second.bComponent)  &&
+            compare(first.mask, second.mask)              &&
+            (first.minDivider   == second.minDivider)     &&
             (first.maxDivider   == second.maxDivider);
     }
 
@@ -932,24 +941,6 @@ namespace ui_impl
         return 0;
     }
 
-    inline UiRenderColorsUnpacked colors_unpack(const UiRenderColorsPacked& colors)
-    {
-        return
-        {
-            col::unpack(colors.rComponent),
-            col::unpack(colors.gComponent),
-            col::unpack(colors.bComponent),
-            {
-                (float)((colors.mask & 1) != 0),
-                (float)((colors.mask & 2) != 0),
-                (float)((colors.mask & 4) != 0),
-                0.0f,
-            },
-            (float)colors.minDivider,
-            (float)colors.maxDivider,
-        };
-    }
-
     inline UiTextureData ui_texture_data_create(const FontGroup* fontGroup)
     {
         return
@@ -968,7 +959,32 @@ namespace ui_impl
         };
     }
 
-    UiDrawCall* get_draw_call(const UiTextureData& textureData, const SeTextureInfo& textureInfo, const UiRenderColorsPacked& colors)
+    inline UiObjectUid object_uid_create(const char* str)
+    {
+        se_assert(str);
+        const size_t len = strlen(str);
+        se_assert(len && len < sizeof(UiObjectUid::data));
+        UiObjectUid uid = { };
+        memcpy(uid.data, str, len);
+        return uid;
+    }
+
+    inline bool object_data_get(UiObjectData** outData, UiObjectUid* outUid, const char* cstrUid)
+    {
+        const UiObjectUid uid = object_uid_create(cstrUid);
+        UiObjectData* data = hash_table::get(g_currentContext->uidToObjectData, uid);
+        const bool isFirstAccess = data == nullptr;
+        if (!data)
+        {
+            data = hash_table::set(g_currentContext->uidToObjectData, uid, { });
+        }
+        se_assert(data);
+        *outData = data;
+        *outUid = uid;
+        return isFirstAccess;
+    }
+
+    UiDrawCall* get_draw_call(const UiTextureData& textureData, const SeTextureInfo& textureInfo, const UiRenderColorsUnpacked& colors)
     {
         //
         // Get texture
@@ -986,18 +1002,22 @@ namespace ui_impl
         //
         const size_t numDrawCalls = dynamic_array::size(g_currentContext->frameDrawCalls);
         const UiDrawCall* const lastDrawCall = numDrawCalls ? &g_currentContext->frameDrawCalls[numDrawCalls - 1] : nullptr;
-        if (!lastDrawCall || lastDrawCall->texture != *textureRef || !utils::compare(lastDrawCall->colors, colors))
+        if (!lastDrawCall || lastDrawCall->texture != *textureRef)
         {
-            dynamic_array::push(g_currentContext->frameDrawCalls,
+            UiDrawCall& pushedDrawCall = dynamic_array::push(g_currentContext->frameDrawCalls,
             {
-                .vertices   = dynamic_array::create<UiRenderVertex>(app_allocators::frame(), 256),
-                .colors     = colors,
-                .texture    = *textureRef,
+                .vertices       = dynamic_array::create<UiRenderVertex>(app_allocators::frame(), 256),
+                .colorsArray    = dynamic_array::create<UiRenderColorsUnpacked>(app_allocators::frame(), 256),
+                .texture        = *textureRef,
             });
+            dynamic_array::push(pushedDrawCall.colorsArray, colors);
         }
         UiDrawCall* const drawCall = &g_currentContext->frameDrawCalls[dynamic_array::size(g_currentContext->frameDrawCalls) - 1];
-        se_assert(utils::compare(drawCall->colors, colors));
         se_assert(drawCall->texture == *textureRef);
+        if (!utils::compare(drawCall->colorsArray[dynamic_array::size(drawCall->colorsArray) - 1], colors))
+        {
+            dynamic_array::push(drawCall->colorsArray, colors);
+        }
         return drawCall;
     }
 
@@ -1006,11 +1026,18 @@ namespace ui_impl
         se_assert(!g_currentContext);
         se_assert(info.render);
         se_assert(info.device);
+        //
+        // Get context
+        //
         g_currentContext = hash_table::get(g_contextTable, info);
         if (!g_currentContext)
         {
             g_currentContext = hash_table::set(g_contextTable, info, { });
+            hash_table::construct(g_currentContext->uidToObjectData, app_allocators::persistent());
         }
+        //
+        // Set frame data
+        //
         g_currentContext->render            = info.render;
         g_currentContext->device            = info.device;
         g_currentContext->target            = info.target;
@@ -1023,8 +1050,32 @@ namespace ui_impl
         if (g_currentContext->window != NULL_WINDOW_HANDLE)
         {
             const SeWindowSubsystemInput* input = win::get_input(g_currentContext->window);
-            g_currentContext->mouseX = input->mouseX;
-            g_currentContext->mouseY = input->mouseY;
+            const float mouseX = (float)input->mouseX;
+            const float mouseY = (float)input->mouseY;
+            g_currentContext->mouseDeltaX       = mouseX - g_currentContext->mouseX;
+            g_currentContext->mouseDeltaY       = mouseY - g_currentContext->mouseY;
+            g_currentContext->mouseX            = mouseX;
+            g_currentContext->mouseY            = mouseY;
+            g_currentContext->isMouseDown       = win::is_mouse_button_pressed(input, SE_LMB);
+            g_currentContext->isMouseJustDown   = win::is_mouse_button_just_pressed(input, SE_LMB);
+        }
+        //
+        // Update active object
+        //
+        if (!g_currentContext->isMouseDown)
+        {
+            g_currentContext->activeObjectUid = { };
+        }
+        else
+        {
+            UiObjectData* const activeObject = hash_table::get(g_currentContext->uidToObjectData, g_currentContext->activeObjectUid);
+            if (activeObject)
+            {
+                activeObject->bottomLeftX = activeObject->bottomLeftX + g_currentContext->mouseDeltaX;
+                activeObject->bottomLeftY = activeObject->bottomLeftY + g_currentContext->mouseDeltaY;
+                activeObject->topRightX = activeObject->topRightX + g_currentContext->mouseDeltaX;
+                activeObject->topRightY = activeObject->topRightY + g_currentContext->mouseDeltaY;
+            }
         }
         return g_currentContext != nullptr; // Must be always true
     }
@@ -1097,14 +1148,16 @@ namespace ui_impl
             {
                 continue;
             }
+            // Alloc buffers
             const SeRenderRef colorsBuffer = render->memory_buffer(device,
             {
-                data_provider::from_memory(colors_unpack(drawCall.colors))
+                data_provider::from_memory(dynamic_array::raw(drawCall.colorsArray), dynamic_array::raw_size(drawCall.colorsArray))
             });
             const SeRenderRef verticesBuffer = render->memory_buffer(device,
             {
                 data_provider::from_memory(dynamic_array::raw(drawCall.vertices), dynamic_array::raw_size(drawCall.vertices))
             });
+            // Bind and draw
             render->bind(device,
             {
                 .set = 1,
@@ -1170,20 +1223,23 @@ namespace ui_impl
         se_assert(info.utf8text);
         se_assert(g_currentContext);
         se_assert(g_currentContext->currentFontGroup);
-
+        //
+        // Get base data and draw call
+        //
         const FontGroup* const fontGroup = g_currentContext->currentFontGroup;
-        const float height = dim_to_pix(info.height);
+        const float textHeight = dim_to_pix(info.height);
         const float baselineX = dim_to_pix(info.baselineX);
         const float baselineY = dim_to_pix(info.baselineY);
         UiDrawCall* const drawCall = get_draw_call(ui_texture_data_create(fontGroup), fontGroup->textureInfo,
         {
-            .rComponent = g_currentContext->currentStyle[SeUiStyleParam::FONT_COLOR].color,
-            .gComponent = 0,
-            .bComponent = 0,
-            .mask       = 1,
-            .minDivider = 1,
-            .maxDivider = 1,
+            .rComponent = col::unpack(g_currentContext->currentStyle[SeUiStyleParam::FONT_COLOR].color),
+            .gComponent = { 0.0f, 0.0f, 0.0f, 0.0f },
+            .bComponent = { 0.0f, 0.0f, 0.0f, 0.0f },
+            .mask       = { 1.0f, 0.0f, 0.0f, 0.0f },
+            .minDivider = 1.0f,
+            .maxDivider = 1.0f,
         });
+        const uint32_t colorIndex = dynamic_array::size<uint32_t>(drawCall->colorsArray) - 1;
         //
         // Process codepoints
         //
@@ -1195,7 +1251,7 @@ namespace ui_impl
             se_assert(codepointInfo);
             const FontInfo* const font = codepointInfo->font;
             // This scale calculation is similar to stbtt_ScaleForPixelHeight but ignores descend parameter of the font
-            const float scale = height / (float)font->ascendUnscaled;
+            const float scale = textHeight / (float)font->ascendUnscaled;
             const float advance = scale * (float)codepointInfo->advanceWidthUnscaled;
             const float bearing = scale * (float)codepointInfo->leftSideBearingUnscaled;
             const int codepointSigned = font_group::direct_cast_to_int(codepoint);
@@ -1204,55 +1260,19 @@ namespace ui_impl
             int x1;
             int y1;
             stbtt_GetCodepointBitmapBox(&font->stbInfo, codepointSigned, scale, scale, &x0, &y0, &x1, &y1);
-            const float codepointWidth = (float)(x1 - x0);
-            const float codepointHeight = (float)(y1 - y0);
+            const float width = (float)(x1 - x0);
+            const float height = (float)(y1 - y0);
             const float additionalAdvance = scale * (float)stbtt_GetCodepointKernAdvance(&font->stbInfo, previousCodepoint, codepointSigned);
             positionX += additionalAdvance;
             const RenderAtlasRectNormalized& rect = fontGroup->atlas.uvRects[codepointInfo->atlasRectIndex];
-            const float codepointBaseX = positionX + (float)x0 - bearing;
-            const float codepointBaseY = baselineY - (float)y1;
-            dynamic_array::push(drawCall->vertices,
-            {
-                .x      = codepointBaseX,
-                .y      = codepointBaseY,
-                .uvX    = rect.p1x,
-                .uvY    = rect.p1y,
-            });
-            dynamic_array::push(drawCall->vertices,
-            {
-                .x      = codepointBaseX,
-                .y      = codepointBaseY + codepointHeight,
-                .uvX    = rect.p1x,
-                .uvY    = rect.p2y,
-            });
-            dynamic_array::push(drawCall->vertices,
-            {
-                .x      = codepointBaseX + codepointWidth,
-                .y      = codepointBaseY + codepointHeight,
-                .uvX    = rect.p2x,
-                .uvY    = rect.p2y,
-            });
-            dynamic_array::push(drawCall->vertices,
-            {
-                .x      = codepointBaseX,
-                .y      = codepointBaseY,
-                .uvX    = rect.p1x,
-                .uvY    = rect.p1y,
-            });
-            dynamic_array::push(drawCall->vertices,
-            {
-                .x      = codepointBaseX + codepointWidth,
-                .y      = codepointBaseY + codepointHeight,
-                .uvX    = rect.p2x,
-                .uvY    = rect.p2y,
-            });
-            dynamic_array::push(drawCall->vertices,
-            {
-                .x      = codepointBaseX + codepointWidth,
-                .y      = codepointBaseY,
-                .uvX    = rect.p2x,
-                .uvY    = rect.p1y,
-            });
+            const float baseX = positionX + (float)x0 - bearing;
+            const float baseY = baselineY - (float)y1;
+            dynamic_array::push(drawCall->vertices, { baseX        , baseY         , rect.p1x, rect.p1y, colorIndex, });
+            dynamic_array::push(drawCall->vertices, { baseX        , baseY + height, rect.p1x, rect.p2y, colorIndex, });
+            dynamic_array::push(drawCall->vertices, { baseX + width, baseY + height, rect.p2x, rect.p2y, colorIndex, });
+            dynamic_array::push(drawCall->vertices, { baseX        , baseY         , rect.p1x, rect.p1y, colorIndex, });
+            dynamic_array::push(drawCall->vertices, { baseX + width, baseY + height, rect.p2x, rect.p2y, colorIndex, });
+            dynamic_array::push(drawCall->vertices, { baseX + width, baseY         , rect.p2x, rect.p1y, colorIndex, });
             positionX += advance;
             previousCodepoint = codepointSigned;
         }
@@ -1261,56 +1281,86 @@ namespace ui_impl
     bool begin_window(const SeUiWindowInfo& info)
     {
         se_assert(g_currentContext);
-
-        const float bottomLeftX = dim_to_pix(info.bottomLeftX);
-        const float bottomLeftY = dim_to_pix(info.bottomLeftY);
-        const float topRightX = dim_to_pix(info.topRightX);
-        const float topRightY = dim_to_pix(info.topRightY);
-        const float topPanelThickness = dim_to_pix(g_currentContext->currentStyle[SeUiStyleParam::WINDOW_TOP_PANEL_THICKNESS].dim);
-        const float borderThickness = dim_to_pix(g_currentContext->currentStyle[SeUiStyleParam::WINDOW_BORDER_THICKNESS].dim);
+        //
+        // Get base data and update object state (hovered/active)
+        //
+        UiObjectData* data = nullptr;
+        UiObjectUid uid;
+        const bool isFirst = object_data_get(&data, &uid, info.uid);
+        const float bottomLeftX         = isFirst ? dim_to_pix(info.bottomLeftX) : data->bottomLeftX;
+        const float bottomLeftY         = isFirst ? dim_to_pix(info.bottomLeftY) : data->bottomLeftY;
+        const float topRightX           = isFirst ? dim_to_pix(info.topRightX) : data->topRightX;
+        const float topRightY           = isFirst ? dim_to_pix(info.topRightY) : data->topRightY;
+        const float topPanelThickness   = dim_to_pix(g_currentContext->currentStyle[SeUiStyleParam::WINDOW_TOP_PANEL_THICKNESS].dim);
+        const float borderThickness     = dim_to_pix(g_currentContext->currentStyle[SeUiStyleParam::WINDOW_BORDER_THICKNESS].dim);
+        if (isFirst)
+        {
+            data->bottomLeftX = bottomLeftX;
+            data->bottomLeftY = bottomLeftY;
+            data->topRightX = topRightX;
+            data->topRightY = topRightY;
+        }
+        const bool isUnderCursor =
+            (bottomLeftX <= g_currentContext->mouseX) &&
+            (bottomLeftY <= g_currentContext->mouseY) &&
+            (topRightX   >= g_currentContext->mouseX) &&
+            (topRightY   >= g_currentContext->mouseY);
+        if (isUnderCursor)
+        {
+            g_currentContext->hoveredObjectUid = uid;
+            if (g_currentContext->isMouseJustDown)
+            {
+                g_currentContext->activeObjectUid = uid;
+            }
+        }
+        //
+        // Get draw call
+        //
         UiDrawCall* const drawCall = get_draw_call(ui_texture_data_create(g_currentContext->currentWindowData),
         {
             .format = SE_TEXTURE_FORMAT_RGBA_8,
             .data   = g_currentContext->currentWindowData,
         },
         {
-            .rComponent = g_currentContext->currentStyle[SeUiStyleParam::PRIMARY_COLOR].color,
-            .gComponent = g_currentContext->currentStyle[SeUiStyleParam::SECONDARY_COLOR].color,
-            .bComponent = 0,
-            .mask       = 3,
-            .minDivider = 1,
-            .maxDivider = 2,
+            .rComponent = col::unpack(g_currentContext->currentStyle[SeUiStyleParam::PRIMARY_COLOR].color),
+            .gComponent = col::unpack(g_currentContext->currentStyle[SeUiStyleParam::SECONDARY_COLOR].color),
+            .bComponent = col::unpack(g_currentContext->currentStyle[SeUiStyleParam::ACCENT_COLOR].color),
+            .mask       = { 1.0f, 1.0f, 1.0f, 0.0f },
+            .minDivider = 1.0f,
+            .maxDivider = 3.0f,
         });
+        const uint32_t colorIndex = dynamic_array::size<uint32_t>(drawCall->colorsArray) - 1;
         //
         // Push window data
         //
         auto pushQuad = [&](float x1, float y1, float u1, float v1, float x2, float y2, float u2, float v2)
         {
-            dynamic_array::push(drawCall->vertices, { x1, y1, u1, v1 });
-            dynamic_array::push(drawCall->vertices, { x1, y2, u1, v2 });
-            dynamic_array::push(drawCall->vertices, { x2, y2, u2, v2 });
-            dynamic_array::push(drawCall->vertices, { x1, y1, u1, v1 });
-            dynamic_array::push(drawCall->vertices, { x2, y2, u2, v2 });
-            dynamic_array::push(drawCall->vertices, { x2, y1, u2, v1 });
+            dynamic_array::push(drawCall->vertices, { x1, y1, u1, v1, colorIndex });
+            dynamic_array::push(drawCall->vertices, { x1, y2, u1, v2, colorIndex });
+            dynamic_array::push(drawCall->vertices, { x2, y2, u2, v2, colorIndex });
+            dynamic_array::push(drawCall->vertices, { x1, y1, u1, v1, colorIndex });
+            dynamic_array::push(drawCall->vertices, { x2, y2, u2, v2, colorIndex });
+            dynamic_array::push(drawCall->vertices, { x2, y1, u2, v1, colorIndex });
         };
         constexpr float oneThird = 1.0f / 3.0f;
+        constexpr float oneFourth = 1.0f / 4.0f;
         //
         // Top row
         //
         pushQuad
         (
             bottomLeftX, topRightY - topPanelThickness, 0.0f, oneThird,
-            bottomLeftX + topPanelThickness, topRightY, oneThird, 0.0f
+            bottomLeftX + topPanelThickness, topRightY, oneFourth, 0.0f
         );
         pushQuad
         (
-            bottomLeftX + topPanelThickness, topRightY - topPanelThickness , oneThird, oneThird,
-            topRightX - topPanelThickness, topRightY, oneThird * 2.0f, 0.0f
+            bottomLeftX + topPanelThickness, topRightY - topPanelThickness, oneFourth, oneThird,
+            topRightX - topPanelThickness, topRightY, oneFourth * 2.0f, 0.0f
         );
         pushQuad
         (
-            topRightX - topPanelThickness, topRightY - topPanelThickness, oneThird * 2.0f, oneThird,
-            topRightX, topRightY, 1.0f, 0.0f
+            topRightX - topPanelThickness, topRightY - topPanelThickness, oneFourth * 2.0f, oneThird,
+            topRightX, topRightY, oneFourth * 3.0f, 0.0f
         );
         //
         // Middle row
@@ -1318,17 +1368,17 @@ namespace ui_impl
         pushQuad
         (
             bottomLeftX, bottomLeftY + borderThickness, 0.0f, oneThird * 2.0f,
-            bottomLeftX + borderThickness, topRightY - topPanelThickness, oneThird, oneThird
+            bottomLeftX + borderThickness, topRightY - topPanelThickness, oneFourth, oneThird
         );
         pushQuad
         (
-            bottomLeftX + borderThickness, bottomLeftY + borderThickness, oneThird, oneThird * 2.0f,
-            topRightX - borderThickness, topRightY - topPanelThickness, oneThird * 2.0f, oneThird
+            bottomLeftX + borderThickness, bottomLeftY + borderThickness, oneFourth, oneThird * 2.0f,
+            topRightX - borderThickness, topRightY - topPanelThickness, oneFourth * 2.0f, oneThird
         );
         pushQuad
         (
-            topRightX - borderThickness, bottomLeftY + borderThickness, oneThird * 2.0f, oneThird * 2.0f,
-            topRightX, topRightY - topPanelThickness, 1.0f, oneThird
+            topRightX - borderThickness, bottomLeftY + borderThickness, oneFourth * 2.0f, oneThird * 2.0f,
+            topRightX, topRightY - topPanelThickness, oneFourth * 3.0f, oneThird
         );
         //
         // Bottom row
@@ -1336,17 +1386,25 @@ namespace ui_impl
         pushQuad
         (
             bottomLeftX, bottomLeftY, 0.0f, 1.0f,
-            bottomLeftX + borderThickness, bottomLeftY + borderThickness, oneThird, oneThird * 2.0f
+            bottomLeftX + borderThickness, bottomLeftY + borderThickness, oneFourth, oneThird * 2.0f
         );
         pushQuad
         (
-            bottomLeftX + borderThickness, bottomLeftY, oneThird, 1.0f,
-            topRightX - borderThickness, bottomLeftY + borderThickness, oneThird * 2.0f, oneThird * 2.0f
+            bottomLeftX + borderThickness, bottomLeftY, oneFourth, 1.0f,
+            topRightX - borderThickness, bottomLeftY + borderThickness, oneFourth * 2.0f, oneThird * 2.0f
         );
         pushQuad
         (
-            topRightX - borderThickness, bottomLeftY, oneThird * 2.0f, 1.0f,
-            topRightX, bottomLeftY + borderThickness, 1.0f, oneThird * 2.0f
+            topRightX - borderThickness, bottomLeftY, oneFourth * 2.0f, 1.0f,
+            topRightX, bottomLeftY + borderThickness, oneFourth * 3.0f, oneThird * 2.0f
+        );
+        //
+        // Button!
+        //
+        pushQuad
+        (
+            topRightX - topPanelThickness - topPanelThickness, topRightY - topPanelThickness, oneFourth * 3.0f, oneThird,
+            topRightX - topPanelThickness, topRightY, 1.0f, 0.0f
         );
         return true;
     }

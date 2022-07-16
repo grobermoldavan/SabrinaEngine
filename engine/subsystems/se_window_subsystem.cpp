@@ -257,6 +257,7 @@ static void win32_window_remove_resize_callback(SeWindowHandle handle, SeWindowR
 static void win32_window_process(SeWindowWin32* window)
 {
     memcpy(window->input.keyboardButtonsPrevious, window->input.keyboardButtonsCurrent, sizeof(window->input.keyboardButtonsPrevious));
+    window->input.mouseButtonsPrevious = window->input.mouseButtonsCurrent;
     const uint32_t prevWidth = window->width;
     const uint32_t prevHeight = window->height;
     window->input.mouseWheel = 0;
@@ -310,42 +311,42 @@ static bool win32_window_process_mouse_input(SeWindowWin32* window, UINT message
     {
         case WM_LBUTTONDOWN:
         {
-            window->input.mouseButtons |= BIT((uint32_t)(SE_LMB));
+            window->input.mouseButtonsCurrent |= BIT((uint32_t)(SE_LMB));
             LOGMSG(WM_LBUTTONDOWN);
             SetCapture(window->handle);
             break;
         }
         case WM_LBUTTONUP:
         {
-            window->input.mouseButtons &= ~BIT((uint32_t)(SE_LMB));
+            window->input.mouseButtonsCurrent &= ~BIT((uint32_t)(SE_LMB));
             LOGMSG(WM_LBUTTONUP);
             ReleaseCapture();
             break;
         }
         case WM_MBUTTONDOWN:
         {
-            window->input.mouseButtons |= BIT((uint32_t)(SE_MMB));
+            window->input.mouseButtonsCurrent |= BIT((uint32_t)(SE_MMB));
             LOGMSG(WM_MBUTTONDOWN);
             SetCapture(window->handle);
             break;
         }
         case WM_MBUTTONUP:
         {
-            window->input.mouseButtons &= ~BIT((uint32_t)(SE_MMB));
+            window->input.mouseButtonsCurrent &= ~BIT((uint32_t)(SE_MMB));
             LOGMSG(WM_MBUTTONUP);
             ReleaseCapture();
             break;
         }
         case WM_RBUTTONDOWN:
         {
-            window->input.mouseButtons |= BIT((uint32_t)(SE_RMB));
+            window->input.mouseButtonsCurrent |= BIT((uint32_t)(SE_RMB));
             LOGMSG(WM_RBUTTONDOWN);
             SetCapture(window->handle);
             break;
         }
         case WM_RBUTTONUP:
         {
-            window->input.mouseButtons &= ~BIT((uint32_t)(SE_RMB));
+            window->input.mouseButtonsCurrent &= ~BIT((uint32_t)(SE_RMB));
             LOGMSG(WM_RBUTTONUP);
             ReleaseCapture();
             break;
@@ -378,7 +379,7 @@ static bool win32_window_process_mouse_input(SeWindowWin32* window, UINT message
         }
     }
     window->input.mouseX = GET_X_LPARAM(lParam);
-    window->input.mouseY = GET_Y_LPARAM(lParam);
+    window->input.mouseY = ((int64_t)window->height) - GET_Y_LPARAM(lParam);
     return true;
     #undef LOGMSG
     #undef BIT

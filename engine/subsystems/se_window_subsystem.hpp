@@ -57,7 +57,8 @@ struct SeWindowSubsystemInput
 {
     uint64_t keyboardButtonsCurrent[2];     // flags
     uint64_t keyboardButtonsPrevious[2];    // flags
-    uint32_t mouseButtons;                  // flags
+    uint32_t mouseButtonsCurrent;           // flags
+    uint32_t mouseButtonsPrevious;          // flags
     int64_t mouseX;                         // position
     int64_t mouseY;                         // position
     int32_t mouseWheel;                     // wheel input
@@ -169,7 +170,12 @@ namespace win
 
     inline bool is_mouse_button_pressed(const SeWindowSubsystemInput* inputPtr, SeMouseInput keyFlag)
     {
-        return inputPtr->mouseButtons & (1ull << keyFlag);
+        return inputPtr->mouseButtonsCurrent & (1ull << keyFlag);
+    }
+
+    inline bool is_mouse_button_just_pressed(const SeWindowSubsystemInput* inputPtr, SeMouseInput keyFlag)
+    {
+        return inputPtr->mouseButtonsCurrent & (1ull << keyFlag) && !(inputPtr->mouseButtonsPrevious & (1ull << keyFlag));
     }
 }
 

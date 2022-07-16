@@ -60,8 +60,9 @@ struct SeUiStyleParam
         FONT_COLOR                  = 0,
         PRIMARY_COLOR               = 1,
         SECONDARY_COLOR             = 2,
-        WINDOW_TOP_PANEL_THICKNESS  = 3,
-        WINDOW_BORDER_THICKNESS     = 4,
+        ACCENT_COLOR                = 3,
+        WINDOW_TOP_PANEL_THICKNESS  = 4,
+        WINDOW_BORDER_THICKNESS     = 5,
         _COUNT,
     };
     union
