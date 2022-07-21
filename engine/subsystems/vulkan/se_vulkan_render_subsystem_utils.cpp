@@ -37,7 +37,7 @@ const char** se_vk_utils_get_required_device_extensions(size_t* outNum)
     return DEVICE_EXTENSIONS;
 }
 
-DynamicArray<VkLayerProperties> se_vk_utils_get_available_validation_layers(AllocatorBindings& allocator)
+DynamicArray<VkLayerProperties> se_vk_utils_get_available_validation_layers(const AllocatorBindings& allocator)
 {
     uint32_t count;
     DynamicArray<VkLayerProperties> result;
@@ -48,7 +48,7 @@ DynamicArray<VkLayerProperties> se_vk_utils_get_available_validation_layers(Allo
     return result;
 }
 
-DynamicArray<VkExtensionProperties> se_vk_utils_get_available_instance_extensions(AllocatorBindings& allocator)
+DynamicArray<VkExtensionProperties> se_vk_utils_get_available_instance_extensions(const AllocatorBindings& allocator)
 {
     uint32_t count;
     DynamicArray<VkExtensionProperties> result;
@@ -106,7 +106,7 @@ void se_vk_utils_destroy_command_pool(VkCommandPool pool, VkDevice device, VkAll
     vkDestroyCommandPool(device, pool, callbacks);
 }
 
-SeVkSwapChainSupportDetails se_vk_utils_create_swap_chain_support_details(VkSurfaceKHR surface, VkPhysicalDevice device, AllocatorBindings& allocator)
+SeVkSwapChainSupportDetails se_vk_utils_create_swap_chain_support_details(VkSurfaceKHR surface, VkPhysicalDevice device, const AllocatorBindings& allocator)
 {
     SeVkSwapChainSupportDetails result = {0};
     se_vk_check(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &result.capabilities));
@@ -227,7 +227,7 @@ uint32_t se_vk_utils_pick_compute_queue(const DynamicArray<VkQueueFamilyProperti
     return SE_VK_INVALID_QUEUE;
 }
 
-DynamicArray<VkDeviceQueueCreateInfo> se_vk_utils_get_queue_create_infos(uint32_t* queues, size_t numQueues, AllocatorBindings& allocator)
+DynamicArray<VkDeviceQueueCreateInfo> se_vk_utils_get_queue_create_infos(uint32_t* queues, size_t numQueues, const AllocatorBindings& allocator)
 {
     // @NOTE :  this is possible that queue family might support more than one of the required features,
     //          so we have to remove duplicates from queueFamiliesInfo and create VkDeviceQueueCreateInfos
@@ -307,7 +307,7 @@ bool se_vk_utils_pick_depth_stencil_format(VkPhysicalDevice physicalDevice, VkFo
     return false;
 }
 
-DynamicArray<VkPhysicalDevice> se_vk_utils_get_available_physical_devices(VkInstance instance, AllocatorBindings& allocator)
+DynamicArray<VkPhysicalDevice> se_vk_utils_get_available_physical_devices(VkInstance instance, const AllocatorBindings& allocator)
 {
     uint32_t count;
     DynamicArray<VkPhysicalDevice> result;
@@ -318,7 +318,7 @@ DynamicArray<VkPhysicalDevice> se_vk_utils_get_available_physical_devices(VkInst
     return result;
 };
 
-DynamicArray<VkQueueFamilyProperties> se_vk_utils_get_physical_device_queue_family_properties(VkPhysicalDevice physicalDevice, AllocatorBindings& allocator)
+DynamicArray<VkQueueFamilyProperties> se_vk_utils_get_physical_device_queue_family_properties(VkPhysicalDevice physicalDevice, const AllocatorBindings& allocator)
 {
     uint32_t count;
     DynamicArray<VkQueueFamilyProperties> familyProperties;
@@ -329,7 +329,7 @@ DynamicArray<VkQueueFamilyProperties> se_vk_utils_get_physical_device_queue_fami
     return familyProperties;
 }
 
-bool se_vk_utils_does_physical_device_supports_required_extensions(VkPhysicalDevice device, const char** extensions, size_t numExtensions, AllocatorBindings& allocator)
+bool se_vk_utils_does_physical_device_supports_required_extensions(VkPhysicalDevice device, const char** extensions, size_t numExtensions, const AllocatorBindings& allocator)
 {
     uint32_t count;
     VkPhysicalDeviceFeatures feat = {0};

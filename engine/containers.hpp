@@ -78,7 +78,7 @@ namespace dynamic_array
     template<typename T>
     void destroy(DynamicArray<T>& array)
     {
-        array.allocator.dealloc(array.allocator.allocator, array.memory, sizeof(T) * array.capacity);
+        if (array.memory) array.allocator.dealloc(array.allocator.allocator, array.memory, sizeof(T) * array.capacity);
     }
 
     template<typename T>
@@ -316,7 +316,7 @@ namespace expandable_virtual_memory
     template<typename T>
     void destroy(ExpandableVirtualMemory<T>& memory)
     {
-        platform::get()->mem_release(memory.base, memory.reservedRaw);
+        if (memory.base) platform::get()->mem_release(memory.base, memory.reservedRaw);
     }
 
     template<typename T>
@@ -765,7 +765,7 @@ namespace hash_table
     template<typename Key, typename Value>
     void destroy(HashTable<Key, Value>& table)
     {
-        table.allocator.dealloc(table.allocator.allocator, table.memory, sizeof(HashTable<Key, Value>::Entry) * table.capacity);
+        if (table.memory) table.allocator.dealloc(table.allocator.allocator, table.memory, sizeof(HashTable<Key, Value>::Entry) * table.capacity);
     }
 
     template<typename Key, typename Value>
@@ -1030,7 +1030,7 @@ namespace thread_safe_queue
     {
         using Cell = ThreadSafeQueue<T>::Cell;
         AllocatorBindings& allocator = queue.allocator;
-        allocator.dealloc(allocator.allocator, (void*)queue.buffer, (queue.bufferMask + 1) * sizeof(Cell));
+        if (queue.buffer) allocator.dealloc(allocator.allocator, (void*)queue.buffer, (queue.bufferMask + 1) * sizeof(Cell));
     }
 
     template<typename T>

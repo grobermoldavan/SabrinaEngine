@@ -48,7 +48,6 @@ struct SeUiBeginInfo
 struct SeUiTextLineInfo
 {
     const char* utf8text;
-    SeUiDim     height;
     SeUiDim     baselineX;
     SeUiDim     baselineY;
 };
@@ -58,11 +57,13 @@ struct SeUiStyleParam
     enum Type
     {
         FONT_COLOR                  = 0,
-        PRIMARY_COLOR               = 1,
-        SECONDARY_COLOR             = 2,
-        ACCENT_COLOR                = 3,
-        WINDOW_TOP_PANEL_THICKNESS  = 4,
-        WINDOW_BORDER_THICKNESS     = 5,
+        FONT_HEIGHT                 = 1,
+        FONT_LINE_STEP              = 2,
+        PRIMARY_COLOR               = 3,
+        SECONDARY_COLOR             = 4,
+        ACCENT_COLOR                = 5,
+        WINDOW_TOP_PANEL_THICKNESS  = 6,
+        WINDOW_BORDER_THICKNESS     = 7,
         _COUNT,
     };
     union
@@ -72,20 +73,30 @@ struct SeUiStyleParam
     };
 };
 
+struct SeUiFlags
+{
+    enum
+    {
+        MOVABLE     = 0x00000001,
+        RESIZABLE_X = 0x00000002,
+        RESIZABLE_Y = 0x00000004,
+        HIDEABLE    = 0x00000008,
+    };
+};
+
 struct SeUiWindowInfo
 {
-    enum Flags
-    {
-        RESIZABLE_X,
-        RESIZABLE_Y,
-        HIDEABLE,
-    };
     const char* uid;
     SeUiDim     bottomLeftX;
     SeUiDim     bottomLeftY;
     SeUiDim     topRightX;
     SeUiDim     topRightY;
-    uint64_t    flags;
+    uint32_t    flags;
+};
+
+struct SeUiWindowTextInfo
+{
+    const char* utf8text;
 };
 
 struct SeUiSubsystemInterface
@@ -99,8 +110,10 @@ struct SeUiSubsystemInterface
     void (*set_style_param)(SeUiStyleParam::Type type, const SeUiStyleParam& param);
 
     void (*text_line)(const SeUiTextLineInfo& info);
+
     bool (*begin_window)(const SeUiWindowInfo& info);
     void (*end_window)();
+    void (*window_text)(const SeUiWindowTextInfo& info);
 };
 
 struct SeUiSubsystem
@@ -147,6 +160,11 @@ namespace ui
     inline void end_window()
     {
         SE_UI_SUBSYSTEM_GLOBAL_NAME->end_window();
+    }
+
+    inline void window_text(const SeUiWindowTextInfo& info)
+    {
+        SE_UI_SUBSYSTEM_GLOBAL_NAME->window_text(info);
     }
 }
 

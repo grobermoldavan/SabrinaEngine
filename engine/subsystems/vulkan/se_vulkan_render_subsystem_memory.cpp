@@ -35,15 +35,6 @@ static constexpr size_t MEMORY_BLOCK_SIZE_BYTES     = 64ull;
 static constexpr size_t DEFAULT_CHUNK_SIZE_BYTES    = 32ull * 1024ull * 1024ull;
 static constexpr size_t STAGING_BUFFER_SIZE         = se_megabytes(16);
 
-static size_t g_memoryManagerPoolIndex = 0;
-
-template<typename T>
-static size_t se_vk_memory_manager_get_pool_index()
-{
-    static size_t index = g_memoryManagerPoolIndex++;
-    return index;
-}
-
 static void* se_vk_memory_manager_alloc(void* pUserData, size_t size, size_t alignment, VkSystemAllocationScope allocationScope)
 {
     AllocatorBindings allocator = app_allocators::persistent();

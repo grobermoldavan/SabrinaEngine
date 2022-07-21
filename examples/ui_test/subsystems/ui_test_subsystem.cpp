@@ -58,18 +58,26 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* info)
         }))
         {
             //
-            // Window
+            // Set font (in this case we combine two fonts into one atlas)
             //
+            ui::set_font_group({ g_fontDataEnglish, g_fontDataRussian });
+            ui::set_style_param(SeUiStyleParam::FONT_HEIGHT, { .dim = ui_dim::pix(20) });
+            ui::set_style_param(SeUiStyleParam::FONT_LINE_STEP, { .dim = ui_dim::pix(25) });
 
+            //
+            // Windows
+            //
             if (ui::begin_window({
                 .uid            = "first_window",
                 .bottomLeftX    = ui_dim::pix(100),
                 .bottomLeftY    = ui_dim::pix(100),
                 .topRightX      = ui_dim::pix(400),
                 .topRightY      = ui_dim::pix(400),
-                .flags          = 0,
+                .flags          = SeUiFlags::MOVABLE | SeUiFlags::RESIZABLE_X | SeUiFlags::RESIZABLE_Y,
             }))
             {
+                ui::window_text({ "TEXT IN WINDOW, text in window yyyiii, TEXT IN WINDOW, TEXT IN WINDOW" });
+                ui::window_text({ "AMOGUS AMOGUS AMOGUS" });
                 ui::end_window();
             }
 
@@ -85,31 +93,31 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* info)
                 .bottomLeftY    = ui_dim::pix(250),
                 .topRightX      = ui_dim::pix(600),
                 .topRightY      = ui_dim::pix(600),
-                .flags          = 0,
+                .flags          = SeUiFlags::MOVABLE | SeUiFlags::RESIZABLE_X | SeUiFlags::RESIZABLE_Y,
             }))
             {
+                ui::window_text({ "ТЕКСТ В ОКНЕ, текст в окне уууй, ТЕКСТ В ОКНЕ, ТЕКСТ В ОКНЕ" });
                 ui::end_window();
             }
 
             //
-            // Text line
+            // Text lines
             //
-            ui::set_font_group({ g_fontDataEnglish, g_fontDataRussian });
             SeString str;
             {
-                SeStringBuilder builder = string_builder::begin(); // first allocation
-                string_builder::append(builder, "Frame (кадр) : "); // second allocation
-                string_builder::append(builder, string::cast(frameIndex)); // two allocations - append and cast
-                str = string_builder::end(builder); // no allocation
+                SeStringBuilder builder = string_builder::begin();
+                string_builder::append(builder, "Frame (кадр) : ");
+                string_builder::append(builder, string::cast(frameIndex));
+                str = string_builder::end(builder);
             }
             ui::set_style_param(SeUiStyleParam::FONT_COLOR, { .color = col::pack({ 0.0f, 1.0f, 0.0f, 1.0f }) });
-            ui::text_line({ string::cstr(str), ui_dim::pix(50), ui_dim::pix(100), ui_dim::pix(100) });
+            ui::text_line({ string::cstr(str), ui_dim::pix(100), ui_dim::pix(100) });
 
             ui::set_style_param(SeUiStyleParam::FONT_COLOR, { .color = col::pack({ 1.0f, 1.0f, 0.0f, 1.0f }) });
-            ui::text_line({ string::cstr(str), ui_dim::pix(30), ui_dim::pix(100), ui_dim::pix(200) });
+            ui::text_line({ string::cstr(str), ui_dim::pix(100), ui_dim::pix(200) });
 
             ui::set_style_param(SeUiStyleParam::FONT_COLOR, { .color = col::pack({ 1.0f, 0.0f, 0.0f, 1.0f }) });
-            ui::text_line({ string::cstr(str), ui_dim::pix(20), ui_dim::pix(100), ui_dim::pix(300) });
+            ui::text_line({ string::cstr(str), ui_dim::pix(100), ui_dim::pix(300) });
 
             ui::end();
         }
