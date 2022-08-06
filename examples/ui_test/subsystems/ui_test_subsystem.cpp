@@ -3,8 +3,6 @@
 #include "engine/engine.hpp"
 
 const SeRenderAbstractionSubsystemInterface*    g_render;
-SeWindowHandle                                  g_window;
-SeDeviceHandle                                  g_device;
 DataProvider                                    g_presentVsData;
 DataProvider                                    g_presentFsData;
 DataProvider                                    g_fontDataEnglish;
@@ -14,15 +12,6 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 {
     se_init_global_subsystem_pointers(engine);
     g_render = se_get_subsystem_interface<SeRenderAbstractionSubsystemInterface>(engine);
-    g_window = win::create
-    ({
-        .name           = "Sabrina engine - ui example",
-        .isFullscreen   = false,
-        .isResizable    = true,
-        .width          = 640,
-        .height         = 480,
-    });
-    g_device = g_render->device_create({ .window = g_window });
     g_presentVsData = data_provider::from_file("assets/default/shaders/present.vert.spv");
     g_presentFsData = data_provider::from_file("assets/default/shaders/present.frag.spv");
     g_fontDataEnglish = data_provider::from_file("assets/default/fonts/shahd serif.ttf");
@@ -31,30 +20,26 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 
 SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
 {
-    g_render->device_destroy(g_device);
-    win::destroy(g_window);
     data_provider::destroy(g_presentVsData);
     data_provider::destroy(g_presentFsData);
     data_provider::destroy(g_fontDataEnglish);
     data_provider::destroy(g_fontDataRussian);
 }
 
-SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* info)
+SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
 {
-    const SeWindowSubsystemInput* input = win::get_input(g_window);
+    const SeWindowSubsystemInput* input = win::get_input();
     if (input->isCloseButtonPressed || win::is_keyboard_button_pressed(input, SE_ESCAPE)) engine->shouldRun = false;
 
     static size_t frameIndex = 0;
     frameIndex += 1;
 
-    g_render->begin_frame(g_device);
+    if (g_render->begin_frame())
     {
         if (ui::begin({
             "main",
             g_render,
-            g_device,
-            { g_render->swap_chain_texture(g_device), SE_PASS_RENDER_TARGET_LOAD_OP_CLEAR },
-            g_window,
+            { g_render->swap_chain_texture(), SE_PASS_RENDER_TARGET_LOAD_OP_CLEAR },
         }))
         {
             //
@@ -121,6 +106,6 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* info)
 
             ui::end();
         }
+        g_render->end_frame();
     }
-    g_render->end_frame(g_device);
 }

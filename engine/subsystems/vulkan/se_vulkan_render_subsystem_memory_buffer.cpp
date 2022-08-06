@@ -2,7 +2,7 @@
 #include "se_vulkan_render_subsystem_memory_buffer.hpp"
 #include "se_vulkan_render_subsystem_device.hpp"
 
-static size_t g_memoryBufferIndex = 0;
+size_t g_memoryBufferIndex = 0;
 
 void se_vk_memory_buffer_construct(SeVkMemoryBuffer* buffer, SeVkMemoryBufferInfo* info)
 {

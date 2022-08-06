@@ -8,7 +8,7 @@
 #include "se_vulkan_render_subsystem_render_pass.hpp"
 #include "engine/allocator_bindings.hpp"
 
-static size_t g_framebufferIndex = 0;
+size_t g_framebufferIndex = 0;
 
 void se_vk_framebuffer_construct(SeVkFramebuffer* framebuffer, SeVkFramebufferInfo* info)
 {

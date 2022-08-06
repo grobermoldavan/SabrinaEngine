@@ -12,7 +12,7 @@
 #include "se_vulkan_render_subsystem_command_buffer.hpp"
 #include "engine/containers.hpp"
 
-static constexpr size_t SE_VK_GRAPH_MAX_POOLS_IN_ARRAY = 64;
+constexpr size_t SE_VK_GRAPH_MAX_POOLS_IN_ARRAY = 64;
 
 enum SeVkGraphContextType
 {
@@ -112,7 +112,7 @@ struct SeVkGraphInfo
     size_t numFrames;
 };
 
-void        se_vk_graph_construct(SeVkGraph* graph, SeVkGraphInfo* info);
+void        se_vk_graph_construct(SeVkGraph* graph, const SeVkGraphInfo* info);
 void        se_vk_graph_destroy(SeVkGraph* graph);
 
 void        se_vk_graph_begin_frame(SeVkGraph* graph);

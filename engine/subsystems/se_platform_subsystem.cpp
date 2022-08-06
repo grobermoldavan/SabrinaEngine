@@ -8,28 +8,28 @@
 #include <string.h>
 #include "engine/engine.hpp"
 
-static HANDLE se_platform_handle_from_se_handle(SeFileHandle handle)
+HANDLE se_platform_handle_from_se_handle(SeFileHandle handle)
 {
     HANDLE result;
     memcpy(&result, &handle, sizeof(result));
     return result;
 }
 
-static size_t se_platform_get_mem_page_size()
+size_t se_platform_get_mem_page_size()
 {
     SYSTEM_INFO sysInfo;
     GetSystemInfo(&sysInfo);
     return sysInfo.dwPageSize;
 }
 
-static void* se_platform_mem_reserve(size_t size)
+void* se_platform_mem_reserve(size_t size)
 {
     void* res = VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_READWRITE);
     se_assert(res);
     return res;
 }
 
-static void* se_platform_mem_commit(void* ptr, size_t size)
+void* se_platform_mem_commit(void* ptr, size_t size)
 {
     se_assert((size % se_platform_get_mem_page_size()) == 0);
     void* res = VirtualAlloc(ptr, size, MEM_COMMIT, PAGE_READWRITE);
@@ -37,7 +37,7 @@ static void* se_platform_mem_commit(void* ptr, size_t size)
     return res;
 }
 
-static void se_platform_mem_release(void* ptr, size_t size)
+void se_platform_mem_release(void* ptr, size_t size)
 {
     VirtualFree(ptr, /*size*/ 0, MEM_RELEASE);
 }
@@ -253,7 +253,7 @@ SeString se_platform_get_full_path(const char* path, SeStringLifetime lifetime)
 #   error Unsupported platform
 #endif
 
-static SePlatformSubsystemInterface g_iface;
+SePlatformSubsystemInterface g_iface;
 
 SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
 {

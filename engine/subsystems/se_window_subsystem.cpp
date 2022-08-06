@@ -2,33 +2,6 @@
 #include "se_window_subsystem.hpp"
 #include "engine/engine.hpp"
 
-static void fill_iface(SeWindowSubsystemInterface* iface);
-static void process_windows();
-static void destroy_windows();
-
-static SeWindowSubsystemInterface g_iface;
-
-SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
-{
-    fill_iface(&g_iface);
-    se_init_global_subsystem_pointers(engine);
-}
-
-SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
-{
-    destroy_windows();
-}
-
-SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* info)
-{
-    process_windows();
-}
-
-SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
-{
-    return &g_iface;
-}
-
 #ifdef _WIN32
 
 #define WIN32_LEAN_AND_MEAN
@@ -36,94 +9,85 @@ SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
 #include <Windowsx.h>
 #include <string.h>
 
-struct SeWindowResizeCallbackWin32
-{
-    void* userData;
-    void (*callback)(SeWindowHandle handle, void* userData);
-};
-
-struct SeWindowResizeCallbackContainerWin32
-{
-    SeWindowResizeCallbackWin32 callbacks[32];
-    size_t numCallbacks;
-};
+SeWindowSubsystemInterface g_iface;
 
 struct SeWindowWin32
 {
-    SeWindowResizeCallbackContainerWin32    resizeCallbacks[__SE_WINDOW_RESIZE_CALLBACK_PRIORITY_COUNT];
-    SeWindowSubsystemInput                  input;
-    HWND                                    handle;
-    uint32_t                                width;
-    uint32_t                                height;
+    SeWindowSubsystemInput  input;
+    HWND                    handle;
+    uint32_t                width;
+    uint32_t                height;
+} g_window;
+
+struct SeWindowWin32Info
+{
+    const char* name;
+    bool        isFullscreen;
+    bool        isResizable;
+    uint32_t    width;
+    uint32_t    height;
 };
 
-SeWindowWin32 g_windowPool[4] = {0};
+void    win32_window_construct(SeWindowWin32* window, const SeWindowWin32Info& info);
+void    win32_window_destroy(SeWindowWin32* window);
+void    win32_window_process(SeWindowWin32* window);
+LRESULT win32_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+bool    win32_window_process_mouse_input(SeWindowWin32* window, UINT message, WPARAM wParam, LPARAM lParam);
+bool    win32_window_process_keyboard_input(SeWindowWin32* window, UINT message, WPARAM wParam, LPARAM lParam);
 
-static SeWindowHandle                   win32_window_create(const SeWindowSubsystemCreateInfo& createInfo);
-static void                             win32_window_destroy(SeWindowHandle handle);
-static const SeWindowSubsystemInput*    win32_window_get_input(SeWindowHandle handle);
-static uint32_t                         win32_window_get_width(SeWindowHandle handle);
-static uint32_t                         win32_window_get_height(SeWindowHandle handle);
-static void*                            win32_window_get_native_handle(SeWindowHandle handle);
-static SeWindowResizeCallbackHandle     win32_window_add_resize_callback(SeWindowHandle handle, const SeWindowResizeCallbackInfo& callbackInfo);
-static void                             win32_window_remove_resize_callback(SeWindowHandle handle, SeWindowResizeCallbackHandle cbHandle);
-static void                             win32_window_process(SeWindowWin32* window);
-static LRESULT                          win32_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-static bool                             win32_window_process_mouse_input(SeWindowWin32* window, UINT message, WPARAM wParam, LPARAM lParam);
-static bool                             win32_window_process_keyboard_input(SeWindowWin32* window, UINT message, WPARAM wParam, LPARAM lParam);
-
-static void fill_iface(SeWindowSubsystemInterface* iface)
+SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
 {
-    *iface =
+    g_iface =
     {
-        .create = win32_window_create,
-        .destroy = win32_window_destroy,
-        .get_input = win32_window_get_input,
-        .get_width = win32_window_get_width,
-        .get_height = win32_window_get_height,
-        .get_native_handle = win32_window_get_native_handle,
-        .add_resize_callback = win32_window_add_resize_callback,
-        .remove_resize_callback = win32_window_remove_resize_callback,
+        .get_input          = []() -> const SeWindowSubsystemInput* { return &g_window.input; },
+        .get_width          = []() -> uint32_t                      { return g_window.width; },
+        .get_height         = []() -> uint32_t                      { return g_window.height; },
+        .get_native_handle  = []() -> void*                         { return (void*)g_window.handle; },
     };
+    se_init_global_subsystem_pointers(engine);
 }
 
-static void process_windows()
+SE_DLL_EXPORT void se_init(SabrinaEngine* engine, const SeEngineSettings* settings)
 {
-    for (size_t i = 0; i < se_array_size(g_windowPool); i++)
-        if (g_windowPool[i].handle)
-            win32_window_process(&g_windowPool[i]);
+    win32_window_construct(&g_window,
+    {
+        .name           = settings->applicationName,
+        .isFullscreen   = settings->isFullscreenWindow,
+        .isResizable    = settings->isResizableWindow,
+        .width          = settings->windowWidth,
+        .height         = settings->windowHeight,
+    });
 }
 
-static void destroy_windows()
+SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
 {
-    for (size_t i = 0; i < se_array_size(g_windowPool); i++)
-        if (g_windowPool[i].handle)
-            win32_window_destroy({ &g_windowPool[i] });
+    win32_window_destroy(&g_window);
 }
 
-static SeWindowWin32* win32_get_new_window()
+SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
 {
-    for (size_t i = 0; i < se_array_size(g_windowPool); i++)
-        if (g_windowPool[i].handle == nullptr)
-            return &g_windowPool[i];
-    return nullptr;
+    win32_window_process(&g_window);
 }
 
-static SeWindowHandle win32_window_create(const SeWindowSubsystemCreateInfo& createInfo)
+SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
 {
-    SeWindowWin32* window = win32_get_new_window();
+    return &g_iface;
+}
+
+void win32_window_construct(SeWindowWin32* window, const SeWindowWin32Info& info)
+{
     memset(window, 0, sizeof(SeWindowWin32));
 
     HMODULE moduleHandle = GetModuleHandle(nullptr);
 
-    WNDCLASSA wc = {0};
+    WNDCLASSA wc = { };
     wc.lpfnWndProc      = win32_window_proc;
     wc.hInstance        = moduleHandle;
-    wc.lpszClassName    = createInfo.name;
+    wc.lpszClassName    = info.name;
     wc.hCursor          = LoadCursor(nullptr, IDC_ARROW);
 
     const bool isClassRegistered = RegisterClassA(&wc);
-    // al_assert(isClassRegistered);
+    se_assert(isClassRegistered);
 
     const DWORD windowedStyleNoResize =
         WS_OVERLAPPED   |           // Window has title and borders
@@ -139,16 +103,16 @@ static SeWindowHandle win32_window_create(const SeWindowSubsystemCreateInfo& cre
 
     const DWORD fullscreenStyle = WS_POPUP;
 
-    DWORD activeStyle = createInfo.isFullscreen ? fullscreenStyle : (createInfo.isResizable ? windowedStyleResize : windowedStyleNoResize);
+    DWORD activeStyle = info.isFullscreen ? fullscreenStyle : (info.isResizable ? windowedStyleResize : windowedStyleNoResize);
 
     // @TODO : safe cast from uint32_t to int
-    int targetWidth = (int)createInfo.width;
-    int targetHeight = (int)createInfo.height;
+    int targetWidth = (int)info.width;
+    int targetHeight = (int)info.height;
 
     window->handle = CreateWindowExA(
         0,                  // Optional window styles.
-        createInfo.name,    // Window class
-        createInfo.name,    // Window text
+        info.name,    // Window class
+        info.name,    // Window text
         activeStyle,        // Window styles
         CW_USEDEFAULT,      // Position X
         CW_USEDEFAULT,      // Position Y
@@ -159,8 +123,8 @@ static SeWindowHandle win32_window_create(const SeWindowSubsystemCreateInfo& cre
         moduleHandle,       // Instance handle
         nullptr             // Additional application data
     );
-    // al_assert(window->handle);
-    if (!createInfo.isFullscreen)
+    se_assert(window->handle);
+    if (!info.isFullscreen)
     {
         // Set correct size for a client rect
         // Retrieve currecnt client rect size and calculate difference with target size
@@ -180,81 +144,24 @@ static SeWindowHandle win32_window_create(const SeWindowSubsystemCreateInfo& cre
         se_assert(setWindowPosResult);
         // Retrieve resulting size
         getClientRectResult = GetClientRect(window->handle, &clientRect);
-        // al_assert(getClientRectResult);
+        se_assert(getClientRectResult);
         window->width = (uint32_t)(clientRect.right - clientRect.left);
         window->height = (uint32_t)(clientRect.bottom - clientRect.top);
     }
     SetWindowLongPtr(window->handle, GWLP_USERDATA, (LONG_PTR)window);
-    ShowWindow(window->handle, createInfo.isFullscreen ? SW_MAXIMIZE : SW_SHOW);
+    ShowWindow(window->handle, info.isFullscreen ? SW_MAXIMIZE : SW_SHOW);
     UpdateWindow(window->handle);
     win32_window_process(window);
-
-    return window;
 }
 
-static void win32_window_destroy(SeWindowHandle handle)
+void win32_window_destroy(SeWindowWin32* window)
 {
-    SeWindowWin32* window = (SeWindowWin32*)handle;
     DestroyWindow(window->handle);
     win32_window_process(window);
     memset(window, 0, sizeof(SeWindowWin32));
 }
 
-static const SeWindowSubsystemInput* win32_window_get_input(SeWindowHandle handle)
-{
-    SeWindowWin32* window = (SeWindowWin32*)handle;
-    return &window->input;
-}
-
-static uint32_t win32_window_get_width(SeWindowHandle handle)
-{
-    SeWindowWin32* window = (SeWindowWin32*)handle;
-    return window->width;
-}
-
-static uint32_t win32_window_get_height(SeWindowHandle handle)
-{
-    SeWindowWin32* window = (SeWindowWin32*)handle;
-    return window->height;
-}
-
-static void* win32_window_get_native_handle(SeWindowHandle handle)
-{
-    SeWindowWin32* window = (SeWindowWin32*)handle;
-    return window->handle;
-}
-
-static SeWindowResizeCallbackHandle win32_window_add_resize_callback(SeWindowHandle handle, const SeWindowResizeCallbackInfo& callbackInfo)
-{
-    se_assert(callbackInfo.priority < __SE_WINDOW_RESIZE_CALLBACK_PRIORITY_COUNT);
-    se_assert(callbackInfo.priority > __SE_WINDOW_RESIZE_CALLBACK_PRIORITY_UNDEFINED);
-    SeWindowWin32* window = (SeWindowWin32*)handle;
-    SeWindowResizeCallbackContainerWin32* callbackContainer = &window->resizeCallbacks[callbackInfo.priority];
-    se_assert(callbackContainer->numCallbacks != se_array_size(callbackContainer->callbacks));
-    callbackContainer->callbacks[callbackContainer->numCallbacks] = { callbackInfo.userData, callbackInfo.callback, };
-    return (SeWindowResizeCallbackHandle)(callbackContainer->callbacks + (callbackContainer->numCallbacks++));
-}
-
-static void win32_window_remove_resize_callback(SeWindowHandle handle, SeWindowResizeCallbackHandle cbHandle)
-{
-    SeWindowWin32* window = (SeWindowWin32*)handle;
-    SeWindowResizeCallbackWin32* callback = (SeWindowResizeCallbackWin32*)cbHandle;
-    for (size_t it = 0; it < __SE_WINDOW_RESIZE_CALLBACK_PRIORITY_COUNT; it++)
-    {
-        SeWindowResizeCallbackContainerWin32* callbackContainer = &window->resizeCallbacks[it];
-        const ptrdiff_t offset = callback - callbackContainer->callbacks;
-        if (offset < se_array_size(callbackContainer->callbacks))
-        {
-            se_assert(callbackContainer->numCallbacks != 0);
-            callbackContainer->callbacks[offset] = callbackContainer->callbacks[callbackContainer->numCallbacks - 1];
-            callbackContainer->numCallbacks -= 1;
-            return;
-        }
-    }
-    se_assert_msg(false, "Trying to remove wrong resize callback");
-}
-
-static void win32_window_process(SeWindowWin32* window)
+void win32_window_process(SeWindowWin32* window)
 {
     memcpy(window->input.keyboardButtonsPrevious, window->input.keyboardButtonsCurrent, sizeof(window->input.keyboardButtonsPrevious));
     window->input.mouseButtonsPrevious = window->input.mouseButtonsCurrent;
@@ -267,16 +174,9 @@ static void win32_window_process(SeWindowWin32* window)
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
-    if (window->width != prevWidth || window->height != prevHeight)
-        for (size_t priority = __SE_WINDOW_RESIZE_CALLBACK_PRIORITY_UNDEFINED + 1; priority < __SE_WINDOW_RESIZE_CALLBACK_PRIORITY_COUNT; priority++)
-            for (size_t it = 0; it < window->resizeCallbacks[priority].numCallbacks; it++)
-            {
-                SeWindowResizeCallbackWin32* callback = &window->resizeCallbacks[priority].callbacks[it];
-                callback->callback({ window }, callback->userData);
-            }
 }
 
-static LRESULT win32_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+LRESULT win32_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     SeWindowWin32* window = (SeWindowWin32*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
     if (window)
@@ -303,7 +203,7 @@ static LRESULT win32_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
-static bool win32_window_process_mouse_input(SeWindowWin32* window, UINT message, WPARAM wParam, LPARAM lParam)
+bool win32_window_process_mouse_input(SeWindowWin32* window, UINT message, WPARAM wParam, LPARAM lParam)
 {
     #define BIT(bit) (1 << bit)
     #define LOGMSG(msg, ...)
@@ -385,11 +285,11 @@ static bool win32_window_process_mouse_input(SeWindowWin32* window, UINT message
     #undef BIT
 }
 
-static bool win32_window_process_keyboard_input(SeWindowWin32* window, UINT message, WPARAM wParam, LPARAM lParam)
+bool win32_window_process_keyboard_input(SeWindowWin32* window, UINT message, WPARAM wParam, LPARAM lParam)
 {
     #define BIT(bit) (1ULL << (bit))
     #define k(key) (uint64_t)(key)
-    static uint64_t VK_CODE_TO_KEYBOARD_FLAGS[] =
+    uint64_t VK_CODE_TO_KEYBOARD_FLAGS[] =
     {
         k(SE_NONE),        // 0x00 - none
         k(SE_NONE),        // 0x01 - lmb

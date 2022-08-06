@@ -2,19 +2,19 @@
 #include "se_vulkan_render_subsystem_frame_manager.hpp"
 #include "se_vulkan_render_subsystem_device.hpp"
 
-void se_vk_frame_manager_construct(SeVkFrameManager* manager, SeVkFrameManagerCreateInfo* createInfo)
+void se_vk_frame_manager_construct(SeVkFrameManager* manager, const SeVkFrameManagerCreateInfo* createInfo)
 {
     se_assert(createInfo->numFrames <= SE_VK_FRAME_MANAGER_MAX_NUM_FRAMES);
 
-    SeVkDevice* device = createInfo->device;
+    SeVkDevice* const device = createInfo->device;
     const size_t texelAlignment = device->gpu.deviceProperties_10.limits.minTexelBufferOffsetAlignment;
     const size_t uniformAlignment = device->gpu.deviceProperties_10.limits.minUniformBufferOffsetAlignment;
     const size_t storageAlignment = device->gpu.deviceProperties_10.limits.minStorageBufferOffsetAlignment;
     size_t scratchBufferAlignment = texelAlignment > uniformAlignment ? texelAlignment : uniformAlignment;
     scratchBufferAlignment = scratchBufferAlignment > storageAlignment ? scratchBufferAlignment : storageAlignment;
 
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(&createInfo->device->memoryManager);
-    VkDevice logicalHandle = se_vk_device_get_logical_handle(createInfo->device);
+    const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(&device->memoryManager);
+    VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
     *manager = 
     {
         .device                 = device,

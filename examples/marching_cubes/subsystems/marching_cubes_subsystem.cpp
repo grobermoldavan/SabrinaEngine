@@ -25,9 +25,6 @@ struct FrameData
 
 const SeRenderAbstractionSubsystemInterface* g_render;
 
-SeWindowHandle  g_window;
-SeDeviceHandle  g_device;
-
 DataProvider    g_clearChunkCsData;
 DataProvider    g_generateChunkCsData;
 DataProvider    g_triangulateChunkCsData;
@@ -345,21 +342,6 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
     se_init_global_subsystem_pointers(engine);
     g_render = se_get_subsystem_interface<SeRenderAbstractionSubsystemInterface>(engine);
     //
-    // Create window
-    //
-    g_window = win::create(
-    {
-        .name           = "Sabrina engine - marching cubes example",
-        .isFullscreen   = false,
-        .isResizable    = true,
-        .width          = 640,
-        .height         = 480,
-    });
-    //
-    // Create device
-    //
-    g_device = g_render->device_create({ g_window });
-    //
     // Load shaders
     //
     g_clearChunkCsData          = data_provider::from_file("assets/application/shaders/clear_chunk.comp.spv");
@@ -376,10 +358,10 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
     // Allocate buffers
     //
     constexpr uint32_t numVerts = (CHUNK_DIM - 1) * (CHUNK_DIM - 1) * (CHUNK_DIM - 1) * 5 * 3;
-    g_edgeTableBuffer     = g_render->memory_buffer(g_device, { data_provider::from_memory(EDGE_TABLE, sizeof(EDGE_TABLE)) });
-    g_triangleTableBuffer = g_render->memory_buffer(g_device, { data_provider::from_memory(TRIANGLE_TABLE, sizeof(TRIANGLE_TABLE)) });
-    g_gridValuesBuffer    = g_render->memory_buffer(g_device, { data_provider::from_memory(nullptr, sizeof(float) * CHUNK_DIM * CHUNK_DIM * CHUNK_DIM) });
-    g_geometryBuffer      = g_render->memory_buffer(g_device, { data_provider::from_memory(nullptr, sizeof(Vertex) * numVerts) });
+    g_edgeTableBuffer     = g_render->memory_buffer({ data_provider::from_memory(EDGE_TABLE, sizeof(EDGE_TABLE)) });
+    g_triangleTableBuffer = g_render->memory_buffer({ data_provider::from_memory(TRIANGLE_TABLE, sizeof(TRIANGLE_TABLE)) });
+    g_gridValuesBuffer    = g_render->memory_buffer({ data_provider::from_memory(nullptr, sizeof(float) * CHUNK_DIM * CHUNK_DIM * CHUNK_DIM) });
+    g_geometryBuffer      = g_render->memory_buffer({ data_provider::from_memory(nullptr, sizeof(Vertex) * numVerts) });
     //
     // Init camera
     //
@@ -388,15 +370,18 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 
 SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
 {
+    data_provider::destroy(g_clearChunkCsData);
+    data_provider::destroy(g_generateChunkCsData);
+    data_provider::destroy(g_triangulateChunkCsData);
+    data_provider::destroy(g_renderChunkVsData);
+    data_provider::destroy(g_renderChunkFsData);
     data_provider::destroy(g_grassTextureData);
     data_provider::destroy(g_rockTextureData);
-    g_render->device_destroy(g_device);
-    win::destroy(g_window);
 }
 
-SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* updateInfo)
+SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* updateInfo)
 {
-    const SeWindowSubsystemInput* input = win::get_input(g_window);
+    const SeWindowSubsystemInput* input = win::get_input();
     if (input->isCloseButtonPressed || win::is_keyboard_button_pressed(input, SE_ESCAPE)) engine->shouldRun = false;
     //
     // Fill frame data
@@ -408,7 +393,7 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* updateInfo
     const SeFloat4x4 projection = g_render->perspective
     (
         90,
-        ((float)win::get_width(g_window)) / ((float)win::get_height(g_window)),
+        ((float)win::get_width()) / ((float)win::get_height()),
         0.1f,
         200.0f
     );
@@ -420,15 +405,15 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* updateInfo
         .isoLevel       = isoLevel,
     };
 
-    g_render->begin_frame(g_device);
+    g_render->begin_frame();
     {
         constexpr uint32_t numVerts = (CHUNK_DIM - 1) * (CHUNK_DIM - 1) * (CHUNK_DIM - 1) * 5 * 3;
-        const SeRenderRef clearChunkCs          = g_render->program(g_device, { g_clearChunkCsData });
-        const SeRenderRef generateChunkCs       = g_render->program(g_device, { g_generateChunkCsData });
-        const SeRenderRef triangulateChunkCs    = g_render->program(g_device, { g_triangulateChunkCsData });
-        const SeRenderRef renderChunkVs         = g_render->program(g_device, { g_renderChunkVsData });
-        const SeRenderRef renderChunkFs         = g_render->program(g_device, { g_renderChunkFsData });
-        const SeRenderRef frameDataBuffer       = g_render->memory_buffer(g_device, { data_provider::from_memory(&frameData, sizeof(frameData)) });
+        const SeRenderRef clearChunkCs          = g_render->program({ g_clearChunkCsData });
+        const SeRenderRef generateChunkCs       = g_render->program({ g_generateChunkCsData });
+        const SeRenderRef triangulateChunkCs    = g_render->program({ g_triangulateChunkCsData });
+        const SeRenderRef renderChunkVs         = g_render->program({ g_renderChunkVsData });
+        const SeRenderRef renderChunkFs         = g_render->program({ g_renderChunkFsData });
+        const SeRenderRef frameDataBuffer       = g_render->memory_buffer({ data_provider::from_memory(&frameData, sizeof(frameData)) });
         SeProgramWithConstants computeProgramInfo
         {
             .program = { /* filled later */ },
@@ -442,15 +427,15 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* updateInfo
         };
         auto executeComputePass = [&](SeRenderRef program)
         {
-            g_render->bind(g_device, { .set = 0, .bindings = { { 0, frameDataBuffer } } });
-            g_render->bind(g_device,
-            {
+            g_render->bind({ .set = 0, .bindings = { { 0, frameDataBuffer } } });
+            g_render->bind
+            ({
                 .set = 1,
                 .bindings = { { 0, g_gridValuesBuffer }, { 1, g_geometryBuffer }, { 2, g_edgeTableBuffer }, { 3, g_triangleTableBuffer } }
             });
-            const SeComputeWorkgroupSize workgroupSize = g_render->workgroup_size(g_device, program);
-            g_render->dispatch(g_device,
-            {
+            const SeComputeWorkgroupSize workgroupSize = g_render->workgroup_size(program);
+            g_render->dispatch
+            ({
                 1 + ((CHUNK_DIM - 1) / workgroupSize.x),
                 1 + ((CHUNK_DIM - 1) / workgroupSize.y),
                 1 + ((CHUNK_DIM - 1) / workgroupSize.z),   
@@ -466,31 +451,31 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* updateInfo
         // Clear pass
         //
         computeProgramInfo.program = clearChunkCs;
-        const SeRenderRef clearChunkPipeline = g_render->compute_pipeline(g_device, { computeProgramInfo });
-        g_render->begin_pass(g_device, { .id = CLEAR_CHUNK_PASS, .dependencies = 0, .pipeline = clearChunkPipeline });
+        const SeRenderRef clearChunkPipeline = g_render->compute_pipeline({ computeProgramInfo });
+        g_render->begin_pass({ .id = CLEAR_CHUNK_PASS, .dependencies = 0, .pipeline = clearChunkPipeline });
         executeComputePass(clearChunkCs);
-        g_render->end_pass(g_device);
+        g_render->end_pass();
         //
         // Generate pass
         //
         computeProgramInfo.program = generateChunkCs;
-        const SeRenderRef generateChunkPipeline = g_render->compute_pipeline(g_device, { computeProgramInfo });
-        g_render->begin_pass(g_device, { .id = GENERATE_CHUNK_PASS, .dependencies = (1 << CLEAR_CHUNK_PASS), .pipeline = generateChunkPipeline });
+        const SeRenderRef generateChunkPipeline = g_render->compute_pipeline({ computeProgramInfo });
+        g_render->begin_pass({ .id = GENERATE_CHUNK_PASS, .dependencies = (1 << CLEAR_CHUNK_PASS), .pipeline = generateChunkPipeline });
         executeComputePass(generateChunkCs);
-        g_render->end_pass(g_device);
+        g_render->end_pass();
         //
         // Triangulate pass
         //
         computeProgramInfo.program = triangulateChunkCs;
-        const SeRenderRef triangulateChunkPipeline = g_render->compute_pipeline(g_device, { computeProgramInfo });
-        g_render->begin_pass(g_device, { .id = TRIANGULATE_CHUNK_PASS, .dependencies = (1 << GENERATE_CHUNK_PASS), .pipeline = triangulateChunkPipeline });
+        const SeRenderRef triangulateChunkPipeline = g_render->compute_pipeline({ computeProgramInfo });
+        g_render->begin_pass({ .id = TRIANGULATE_CHUNK_PASS, .dependencies = (1 << GENERATE_CHUNK_PASS), .pipeline = triangulateChunkPipeline });
         executeComputePass(triangulateChunkCs);
-        g_render->end_pass(g_device);
+        g_render->end_pass();
         //
         // Draw pass
         //
-        const SeRenderRef pipeline = g_render->graphics_pipeline(g_device,
-        {
+        const SeRenderRef pipeline = g_render->graphics_pipeline
+        ({
             .vertexProgram          = { .program = renderChunkVs, },
             .fragmentProgram        = { .program = renderChunkFs, },
             .frontStencilOpState    = { .isEnabled = false, },
@@ -501,34 +486,34 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* updateInfo
             .frontFace              = SE_PIPELINE_FRONT_FACE_COUNTER_CLOCKWISE,
             .samplingType           = SE_SAMPLING_1,
         });
-        const SeRenderRef depthTexture = g_render->texture(g_device,
-        {
-            .width  = win::get_width(g_window),
-            .height = win::get_height(g_window),
+        const SeRenderRef depthTexture = g_render->texture
+        ({
+            .width  = win::get_width(),
+            .height = win::get_height(),
             .format = SE_TEXTURE_FORMAT_DEPTH_STENCIL,
         });
-        g_render->begin_pass(g_device,
-        {
+        g_render->begin_pass
+        ({
             .id                 = 0,
             .dependencies       = 0,
             .pipeline           = pipeline,
-            .renderTargets      = { { g_render->swap_chain_texture(g_device), SE_PASS_RENDER_TARGET_LOAD_OP_CLEAR } },
+            .renderTargets      = { { g_render->swap_chain_texture(), SE_PASS_RENDER_TARGET_LOAD_OP_CLEAR } },
             .numRenderTargets   = 1,
             .depthStencilTarget = { depthTexture, SE_PASS_RENDER_TARGET_LOAD_OP_CLEAR },
             .hasDepthStencil    = true,
         });
-        const SeRenderRef grassTexture = g_render->texture(g_device,
-        {
+        const SeRenderRef grassTexture = g_render->texture
+        ({
             .format = SE_TEXTURE_FORMAT_RGBA_8,
             .data   = g_grassTextureData,
         });
-        const SeRenderRef rockTexture = g_render->texture(g_device,
-        {
+        const SeRenderRef rockTexture = g_render->texture
+        ({
             .format = SE_TEXTURE_FORMAT_RGBA_8,
             .data   = g_rockTextureData,
         });
-        const SeRenderRef sampler = g_render->sampler(g_device,
-        {
+        const SeRenderRef sampler = g_render->sampler
+        ({
             .magFilter          = SE_SAMPLER_FILTER_LINEAR,
             .minFilter          = SE_SAMPLER_FILTER_LINEAR,
             .addressModeU       = SE_SAMPLER_ADDRESS_MODE_REPEAT,
@@ -544,12 +529,12 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* updateInfo
             .compareOp          = SE_COMPARE_OP_ALWAYS,
         });
         {
-            g_render->bind(g_device, { .set = 0, .bindings = { { 0, frameDataBuffer } } });
-            g_render->bind(g_device, { .set = 1, .bindings = { { 0, g_geometryBuffer } } });
-            g_render->bind(g_device, { .set = 2, .bindings = { { 0, grassTexture, sampler }, { 1, rockTexture, sampler } } });
-            g_render->draw(g_device, { .numVertices = numVerts, .numInstances = 1 });
+            g_render->bind({ .set = 0, .bindings = { { 0, frameDataBuffer } } });
+            g_render->bind({ .set = 1, .bindings = { { 0, g_geometryBuffer } } });
+            g_render->bind({ .set = 2, .bindings = { { 0, grassTexture, sampler }, { 1, rockTexture, sampler } } });
+            g_render->draw({ .numVertices = numVerts, .numInstances = 1 });
         }
-        g_render->end_pass(g_device);
+        g_render->end_pass();
     }
-    g_render->end_frame(g_device);
+    g_render->end_frame();
 }

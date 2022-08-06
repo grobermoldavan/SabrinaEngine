@@ -73,7 +73,7 @@ VkDebugUtilsMessengerCreateInfoEXT se_vk_utils_get_debug_messenger_create_info(P
     };
 }
 
-VkDebugUtilsMessengerEXT se_vk_utils_create_debug_messenger(VkDebugUtilsMessengerCreateInfoEXT* createInfo, VkInstance instance, VkAllocationCallbacks* callbacks)
+VkDebugUtilsMessengerEXT se_vk_utils_create_debug_messenger(const VkDebugUtilsMessengerCreateInfoEXT* createInfo, VkInstance instance, const VkAllocationCallbacks* callbacks)
 {
     VkDebugUtilsMessengerEXT messenger;
     PFN_vkCreateDebugUtilsMessengerEXT CreateDebugUtilsMessengerEXT = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
@@ -82,12 +82,12 @@ VkDebugUtilsMessengerEXT se_vk_utils_create_debug_messenger(VkDebugUtilsMessenge
     return messenger;
 }
 
-void se_vk_utils_destroy_debug_messenger(VkInstance instance, VkDebugUtilsMessengerEXT messenger, VkAllocationCallbacks* callbacks)
+void se_vk_utils_destroy_debug_messenger(VkInstance instance, VkDebugUtilsMessengerEXT messenger, const VkAllocationCallbacks* callbacks)
 {
     vkDestroyDebugUtilsMessengerEXT(instance, messenger, callbacks);
 }
 
-VkCommandPool se_vk_utils_create_command_pool(VkDevice device, uint32_t queueFamilyIndex, VkAllocationCallbacks* callbacks, VkCommandPoolCreateFlags flags)
+VkCommandPool se_vk_utils_create_command_pool(VkDevice device, uint32_t queueFamilyIndex, const VkAllocationCallbacks* callbacks, VkCommandPoolCreateFlags flags)
 {
     VkCommandPool pool;
     VkCommandPoolCreateInfo poolInfo
@@ -101,7 +101,7 @@ VkCommandPool se_vk_utils_create_command_pool(VkDevice device, uint32_t queueFam
     return pool;
 }
 
-void se_vk_utils_destroy_command_pool(VkCommandPool pool, VkDevice device, VkAllocationCallbacks* callbacks)
+void se_vk_utils_destroy_command_pool(VkCommandPool pool, VkDevice device, const VkAllocationCallbacks* callbacks)
 {
     vkDestroyCommandPool(device, pool, callbacks);
 }
@@ -227,7 +227,7 @@ uint32_t se_vk_utils_pick_compute_queue(const DynamicArray<VkQueueFamilyProperti
     return SE_VK_INVALID_QUEUE;
 }
 
-DynamicArray<VkDeviceQueueCreateInfo> se_vk_utils_get_queue_create_infos(uint32_t* queues, size_t numQueues, const AllocatorBindings& allocator)
+DynamicArray<VkDeviceQueueCreateInfo> se_vk_utils_get_queue_create_infos(const uint32_t* queues, size_t numQueues, const AllocatorBindings& allocator)
 {
     // @NOTE :  this is possible that queue family might support more than one of the required features,
     //          so we have to remove duplicates from queueFamiliesInfo and create VkDeviceQueueCreateInfos
@@ -393,7 +393,7 @@ VkCommandBuffer se_vk_utils_create_command_buffer(VkDevice device, VkCommandPool
     return buffer;
 };
 
-VkShaderModule se_vk_utils_create_shader_module(VkDevice device, const uint32_t* bytecode, size_t bytecodeSize, VkAllocationCallbacks* allocationCb)
+VkShaderModule se_vk_utils_create_shader_module(VkDevice device, const uint32_t* bytecode, size_t bytecodeSize, const VkAllocationCallbacks* allocationCb)
 {
     VkShaderModuleCreateInfo createInfo
     {
@@ -408,7 +408,7 @@ VkShaderModule se_vk_utils_create_shader_module(VkDevice device, const uint32_t*
     return shaderModule;
 }
 
-void se_vk_utils_destroy_shader_module(VkDevice device, VkShaderModule module, VkAllocationCallbacks* allocationCb)
+void se_vk_utils_destroy_shader_module(VkDevice device, VkShaderModule module, const VkAllocationCallbacks* allocationCb)
 {
     vkDestroyShaderModule(device, module, allocationCb);
 }

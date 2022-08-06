@@ -19,9 +19,9 @@ struct SeVkDescriptorSetLayoutCreateInfos
     DynamicArray<VkDescriptorSetLayoutBinding> bindings;
 };
 
-static size_t g_pipelineIndex = 0;
+size_t g_pipelineIndex = 0;
 
-static bool se_vk_pipeline_has_vertex_input(const SimpleSpirvReflection* reflection)
+bool se_vk_pipeline_has_vertex_input(const SimpleSpirvReflection* reflection)
 {
     for (size_t it = 0; it < reflection->numInputs; it++)
     {
@@ -31,7 +31,7 @@ static bool se_vk_pipeline_has_vertex_input(const SimpleSpirvReflection* reflect
     return false;
 }
 
-static SeVkDescriptorSetLayoutCreateInfos se_vk_pipeline_get_discriptor_set_layout_create_infos(AllocatorBindings& allocator, const SimpleSpirvReflection** programReflections, size_t numProgramReflections)
+SeVkDescriptorSetLayoutCreateInfos se_vk_pipeline_get_discriptor_set_layout_create_infos(AllocatorBindings& allocator, const SimpleSpirvReflection** programReflections, size_t numProgramReflections)
 {
     SeVkGeneralBitmask setBindingMasks[SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS] = {0};
     //
@@ -169,13 +169,13 @@ static SeVkDescriptorSetLayoutCreateInfos se_vk_pipeline_get_discriptor_set_layo
     };
 }
 
-static void se_vk_pipeline_destroy_descriptor_set_layout_create_infos(SeVkDescriptorSetLayoutCreateInfos* infos)
+void se_vk_pipeline_destroy_descriptor_set_layout_create_infos(SeVkDescriptorSetLayoutCreateInfos* infos)
 {
     dynamic_array::destroy(infos->createInfos);
     dynamic_array::destroy(infos->bindings);
 }
 
-static void se_vk_pipeline_create_descriptor_sets_and_layout(SeVkPipeline* pipeline, const SimpleSpirvReflection** reflections, size_t numReflections)
+void se_vk_pipeline_create_descriptor_sets_and_layout(SeVkPipeline* pipeline, const SimpleSpirvReflection** reflections, size_t numReflections)
 {
     SeVkDevice* device = pipeline->device;
     VkDevice logicalHandle = se_vk_device_get_logical_handle(device);

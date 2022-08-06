@@ -7,14 +7,14 @@
 
 #define SE_VK_INVALID_DEVICE_RATING -1.0f
 
-static size_t g_deviceIndex = 0;
+size_t g_deviceIndex = 0;
 
-static void se_vk_gpu_fill_required_physical_deivce_features(VkPhysicalDeviceFeatures* features)
+void se_vk_gpu_fill_required_physical_deivce_features(VkPhysicalDeviceFeatures* features)
 {
     features->samplerAnisotropy = VK_TRUE;
 }
 
-static float se_vk_gpu_get_device_rating(VkPhysicalDevice device, VkSurfaceKHR surface, const AllocatorBindings& bindings, VkPhysicalDeviceFeatures* featuresToEnable)
+float se_vk_gpu_get_device_rating(VkPhysicalDevice device, VkSurfaceKHR surface, const AllocatorBindings& bindings, VkPhysicalDeviceFeatures* featuresToEnable)
 {
     //
     // Get queues
@@ -32,7 +32,7 @@ static float se_vk_gpu_get_device_rating(VkPhysicalDevice device, VkSurfaceKHR s
     // Check extensions support
     //
     size_t numExtensions;
-    const char** extensions = se_vk_utils_get_required_device_extensions(&numExtensions);
+    const char** const extensions = se_vk_utils_get_required_device_extensions(&numExtensions);
     const bool isRequiredExtensionsSupported = se_vk_utils_does_physical_device_supports_required_extensions(device, extensions, numExtensions, bindings);
     if (!isRequiredExtensionsSupported)
     {
@@ -51,13 +51,13 @@ static float se_vk_gpu_get_device_rating(VkPhysicalDevice device, VkSurfaceKHR s
     //
     // Get device feature rating
     //
-    VkPhysicalDeviceFeatures requiredFeatures{0};
-    VkPhysicalDeviceFeatures supportedFeatures{0};
+    VkPhysicalDeviceFeatures requiredFeatures = { };
+    VkPhysicalDeviceFeatures supportedFeatures = { };
     se_vk_gpu_fill_required_physical_deivce_features(&requiredFeatures);
     vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
-    const VkBool32* requiredArray = (VkBool32*)&requiredFeatures;
-    const VkBool32* supportedArray = (VkBool32*)&supportedFeatures;
-    VkBool32* featuresToEnableArray = (VkBool32*)featuresToEnable;
+    const VkBool32* const requiredArray = (VkBool32*)&requiredFeatures;
+    const VkBool32* const supportedArray = (VkBool32*)&supportedFeatures;
+    VkBool32* const featuresToEnableArray = (VkBool32*)featuresToEnable;
     const size_t featuresArraySize = sizeof(VkPhysicalDeviceFeatures) / sizeof(VkBool32);
     size_t numRequiredFeatures = 0;
     size_t numSupportedFeatures = 0;
@@ -70,11 +70,11 @@ static float se_vk_gpu_get_device_rating(VkPhysicalDevice device, VkSurfaceKHR s
     return numRequiredFeatures == 0 ? 1.0f : ((float)numSupportedFeatures) / ((float)numRequiredFeatures);
 };
 
-static SeVkCommandQueue* se_vk_gpu_get_command_queue(SeVkGpu* gpu, SeVkCommandQueueFlags flags)
+const SeVkCommandQueue* se_vk_gpu_get_command_queue(const SeVkGpu* gpu, SeVkCommandQueueFlags flags)
 {
     for (size_t it = 0; it < SE_VK_MAX_UNIQUE_COMMAND_QUEUES; it++)
     {
-        SeVkCommandQueue* queue = &gpu->commandQueues[it];
+        const SeVkCommandQueue* const queue = &gpu->commandQueues[it];
         if (queue->flags & flags)
         {
             return queue;
@@ -84,7 +84,7 @@ static SeVkCommandQueue* se_vk_gpu_get_command_queue(SeVkGpu* gpu, SeVkCommandQu
     return nullptr;
 }
 
-static VkPhysicalDevice se_vk_gpu_pick_physical_device(VkInstance instance, VkSurfaceKHR surface, const AllocatorBindings& bindings, VkPhysicalDeviceFeatures* featuresToEnable)
+VkPhysicalDevice se_vk_gpu_pick_physical_device(VkInstance instance, VkSurfaceKHR surface, const AllocatorBindings& bindings, VkPhysicalDeviceFeatures* featuresToEnable)
 {
     DynamicArray<VkPhysicalDevice> available = se_vk_utils_get_available_physical_devices(instance, bindings);
     const size_t numAvailableDevices = dynamic_array::size(available);
@@ -117,18 +117,16 @@ static VkPhysicalDevice se_vk_gpu_pick_physical_device(VkInstance instance, VkSu
     return device;
 }
 
-static void se_vk_device_swap_chain_create(SeVkDevice* device, SeWindowHandle window)
+void se_vk_device_swap_chain_create(SeVkDevice* device, uint32_t width, uint32_t height)
 {
-    AllocatorBindings frameAllocator = app_allocators::frame();
-    SeVkMemoryManager* memoryManager = &device->memoryManager;
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
+    const AllocatorBindings frameAllocator = app_allocators::frame();
+    SeVkMemoryManager* const memoryManager = &device->memoryManager;
+    const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
     {
-        const uint32_t windowWidth = win::get_width(window);
-        const uint32_t windowHeight = win::get_height(window);;
         SeVkSwapChainSupportDetails supportDetails = se_vk_utils_create_swap_chain_support_details(device->surface, device->gpu.physicalHandle, frameAllocator);
         VkSurfaceFormatKHR  surfaceFormat   = se_vk_utils_choose_swap_chain_surface_format(supportDetails.formats);
         VkPresentModeKHR    presentMode     = se_vk_utils_choose_swap_chain_surface_present_mode(supportDetails.presentModes);
-        VkExtent2D          extent          = se_vk_utils_choose_swap_chain_extent(windowWidth, windowHeight, &supportDetails.capabilities);
+        VkExtent2D          extent          = se_vk_utils_choose_swap_chain_extent(width, height, &supportDetails.capabilities);
         // @NOTE :  supportDetails.capabilities.maxImageCount == 0 means unlimited amount of images in swapchain
         uint32_t imageCount = supportDetails.capabilities.minImageCount + 1;
         if (supportDetails.capabilities.maxImageCount != 0 && imageCount > supportDetails.capabilities.maxImageCount)
@@ -182,7 +180,7 @@ static void se_vk_device_swap_chain_create(SeVkDevice* device, SeWindowHandle wi
         for (uint32_t it = 0; it < swapChainImageCount; it++)
         {
             VkImageView view = VK_NULL_HANDLE;
-            VkImageViewCreateInfo imageViewCreateInfo
+            const VkImageViewCreateInfo imageViewCreateInfo
             {
                 .sType              = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
                 .pNext              = nullptr,
@@ -219,37 +217,36 @@ static void se_vk_device_swap_chain_create(SeVkDevice* device, SeWindowHandle wi
     {
         for (size_t it = 0; it < device->swapChain.numTextures; it++)
         {
-            SeVkSwapChainImage* image = &device->swapChain.images[it];
+            SeVkSwapChainImage* const image = &device->swapChain.images[it];
             ObjectPool<SeVkTexture>& pool = se_vk_memory_manager_get_pool<SeVkTexture>(memoryManager);
-            SeVkTexture* texture = object_pool::take(pool);
+            SeVkTexture* const texture = object_pool::take(pool);
             se_vk_texture_construct_from_swap_chain(texture, device, &device->swapChain.extent, image->handle, image->view, device->swapChain.surfaceFormat.format);
             device->swapChain.textures[it] = object_pool::to_ref(pool, texture);
         }
     }
 }
 
-static void se_vk_device_swap_chain_destroy(SeVkDevice* device)
+void se_vk_device_swap_chain_destroy(SeVkDevice* device)
 {
     for (size_t it = 0; it < device->swapChain.numTextures; it++)
     {
-        SeVkTexture* tex = *device->swapChain.textures[it];
+        SeVkTexture* const tex = *device->swapChain.textures[it];
         se_vk_texture_destroy(tex);
         object_pool::release(se_vk_memory_manager_get_pool<SeVkTexture>(&device->memoryManager), tex);
     }
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(&device->memoryManager);
+    const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(&device->memoryManager);
     for (size_t it = 0; it < device->swapChain.numTextures; it++)
         vkDestroyImageView(device->gpu.logicalHandle, device->swapChain.images[it].view, callbacks);
     vkDestroySwapchainKHR(device->gpu.logicalHandle, device->swapChain.handle, callbacks);
 }
 
-static void se_vk_device_handle_window_resized(SeWindowHandle window, void* userData)
-{
-    SeVkDevice* device = (SeVkDevice*)userData;
-
-    vkDeviceWaitIdle(device->gpu.logicalHandle);
-    se_vk_device_swap_chain_destroy(device);
-    se_vk_device_swap_chain_create(device, device->windowHandle);
-}
+// void se_vk_device_handle_window_resized(SeWindowHandle window, void* userData)
+// {
+//     SeVkDevice* const device = (SeVkDevice*)userData;
+//     vkDeviceWaitIdle(device->gpu.logicalHandle);
+//     se_vk_device_swap_chain_destroy(device);
+//     se_vk_device_swap_chain_create(device, device->windowHandle);
+// }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL se_vk_debug_callback(
                                             VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -257,24 +254,24 @@ VKAPI_ATTR VkBool32 VKAPI_CALL se_vk_debug_callback(
                                             const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
                                             void* pUserData)
 {
-    printf("Debug callback : %s\n", pCallbackData->pMessage);
+    debug::message("Debug callback : {}\n", pCallbackData->pMessage);
     se_assert(false);
     return VK_FALSE;
 }
 
-SeDeviceHandle se_vk_device_create(const SeDeviceInfo& deviceInfo)
+SeVkDevice* se_vk_device_create(void* nativeWindowHandle)
 {
     const AllocatorBindings persistentAllocator = app_allocators::persistent();
     const AllocatorBindings frameAllocator = app_allocators::frame();
 
-    SeVkDevice* device = (SeVkDevice*)persistentAllocator.alloc(persistentAllocator.allocator, sizeof(SeVkDevice), se_default_alignment, se_alloc_tag);
+    SeVkDevice* const device = (SeVkDevice*)persistentAllocator.alloc(persistentAllocator.allocator, sizeof(SeVkDevice), se_default_alignment, se_alloc_tag);
     device->object = { SE_VK_TYPE_DEVICE, g_deviceIndex++ };
     const size_t NUM_FRAMES = 3;
     //
     // Memory manager
     //
     se_vk_memory_manager_construct(&device->memoryManager);
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(&device->memoryManager);
+    const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(&device->memoryManager);
     //
     // Instance and debug messenger
     //
@@ -284,15 +281,15 @@ SeDeviceHandle se_vk_device_create(const SeDeviceInfo& deviceInfo)
         // Check that all validation layers are supported
         //
         size_t numValidationLayers = 0;
-        const char** validationLayers = se_vk_utils_get_required_validation_layers(&numValidationLayers);
+        const char** const validationLayers = se_vk_utils_get_required_validation_layers(&numValidationLayers);
         DynamicArray<VkLayerProperties> availableValidationLayers = se_vk_utils_get_available_validation_layers(frameAllocator);
         for (size_t requiredIt = 0; requiredIt < numValidationLayers; requiredIt++)
         {
-            const char* requiredLayerName = validationLayers[requiredIt];
+            const char* const requiredLayerName = validationLayers[requiredIt];
             bool isFound = false;
             for (auto it : availableValidationLayers)
             {
-                const char* availableLayerName = iter::value(it).layerName;
+                const char* const availableLayerName = iter::value(it).layerName;
                 if (strcmp(availableLayerName, requiredLayerName) == 0)
                 {
                     isFound = true;
@@ -307,15 +304,15 @@ SeDeviceHandle se_vk_device_create(const SeDeviceInfo& deviceInfo)
         // Check that all instance extensions are supported
         //
         size_t numInstanceExtensions = 0;
-        const char** instanceExtensions = se_vk_utils_get_required_instance_extensions(&numInstanceExtensions);
+        const char** const instanceExtensions = se_vk_utils_get_required_instance_extensions(&numInstanceExtensions);
         DynamicArray<VkExtensionProperties> availableInstanceExtensions = se_vk_utils_get_available_instance_extensions(frameAllocator);
         for (size_t requiredIt = 0; requiredIt < numInstanceExtensions; requiredIt++)
         {
-            const char* requiredExtensionName = instanceExtensions[requiredIt];
+            const char* const requiredExtensionName = instanceExtensions[requiredIt];
             bool isFound = false;
             for (auto it : availableInstanceExtensions)
             {
-                const char* availableExtensionName = iter::value(it).extensionName;
+                const char* const availableExtensionName = iter::value(it).extensionName;
                 if (strcmp(availableExtensionName, requiredExtensionName) == 0)
                 {
                     isFound = true;
@@ -325,7 +322,7 @@ SeDeviceHandle se_vk_device_create(const SeDeviceInfo& deviceInfo)
             se_assert_msg(isFound, "Required instance extension is not supported");
         }
         dynamic_array::destroy(availableInstanceExtensions);
-        VkApplicationInfo applicationInfo =
+        const VkApplicationInfo applicationInfo =
         {
             .sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO,
             .pNext              = nullptr,
@@ -341,8 +338,8 @@ SeDeviceHandle se_vk_device_create(const SeDeviceInfo& deviceInfo)
         //          vkCreateInstance and vkDestroyInstance calls. So we have to pass additional
         //          VkDebugUtilsMessengerCreateInfoEXT struct pointer to VkInstanceCreateInfo::pNext
         //          to enable debug of these functions
-        VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo = se_vk_utils_get_debug_messenger_create_info(se_vk_debug_callback, nullptr);
-        VkInstanceCreateInfo instanceCreateInfo =
+        const VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo = se_vk_utils_get_debug_messenger_create_info(se_vk_debug_callback, nullptr);
+        const VkInstanceCreateInfo instanceCreateInfo =
         {
             .sType                      = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
             .pNext                      = &debugCreateInfo,
@@ -354,7 +351,7 @@ SeDeviceHandle se_vk_device_create(const SeDeviceInfo& deviceInfo)
             .ppEnabledExtensionNames    = instanceExtensions,
         };
 #else
-        VkInstanceCreateInfo instanceCreateInfo =
+        const VkInstanceCreateInfo instanceCreateInfo =
         {
             .sType                      = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
             .pNext                      = nullptr,
@@ -377,8 +374,8 @@ SeDeviceHandle se_vk_device_create(const SeDeviceInfo& deviceInfo)
     //
     {
 #ifdef _WIN32
-        HWND windowHandle = (HWND)win::get_native_handle(deviceInfo.window);
-        VkWin32SurfaceCreateInfoKHR surfaceCreateInfo =
+        const HWND windowHandle = (HWND)nativeWindowHandle;
+        const VkWin32SurfaceCreateInfoKHR surfaceCreateInfo =
         {
             .sType      = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
             .pNext      = nullptr,
@@ -402,7 +399,7 @@ SeDeviceHandle se_vk_device_create(const SeDeviceInfo& deviceInfo)
         // Get command queue infos
         //
         DynamicArray<VkQueueFamilyProperties> familyProperties = se_vk_utils_get_physical_device_queue_family_properties(device->gpu.physicalHandle, frameAllocator);
-        uint32_t queuesFamilyIndices[] =
+        const uint32_t queuesFamilyIndices[] =
         {
             se_vk_utils_pick_graphics_queue(familyProperties),
             se_vk_utils_pick_present_queue(familyProperties, device->gpu.physicalHandle, device->surface),
@@ -414,10 +411,10 @@ SeDeviceHandle se_vk_device_create(const SeDeviceInfo& deviceInfo)
         // Create logical device
         //
         size_t numValidationLayers;
-        const char** requiredValidationLayers = se_vk_utils_get_required_validation_layers(&numValidationLayers);
+        const char** const requiredValidationLayers = se_vk_utils_get_required_validation_layers(&numValidationLayers);
         size_t numDeviceExtensions;
-        const char** requiredDeviceExtensions = se_vk_utils_get_required_device_extensions(&numDeviceExtensions);
-        VkDeviceCreateInfo logicalDeviceCreateInfo =
+        const char** const requiredDeviceExtensions = se_vk_utils_get_required_device_extensions(&numDeviceExtensions);
+        const VkDeviceCreateInfo logicalDeviceCreateInfo =
         {
             .sType                      = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
             .pNext                      = nullptr,
@@ -436,14 +433,14 @@ SeDeviceHandle se_vk_device_create(const SeDeviceInfo& deviceInfo)
         //
         for (auto it : queueCreateInfos)
         {
-            SeVkCommandQueue* queue = &device->gpu.commandQueues[iter::index(it)];
+            SeVkCommandQueue* const queue = &device->gpu.commandQueues[iter::index(it)];
             queue->queueFamilyIndex = iter::value(it).queueFamilyIndex;
             if (queuesFamilyIndices[0] == queue->queueFamilyIndex) queue->flags |= SE_VK_CMD_QUEUE_GRAPHICS;
             if (queuesFamilyIndices[1] == queue->queueFamilyIndex) queue->flags |= SE_VK_CMD_QUEUE_PRESENT;
             if (queuesFamilyIndices[2] == queue->queueFamilyIndex) queue->flags |= SE_VK_CMD_QUEUE_TRANSFER;
             if (queuesFamilyIndices[3] == queue->queueFamilyIndex) queue->flags |= SE_VK_CMD_QUEUE_COMPUTE;
             vkGetDeviceQueue(device->gpu.logicalHandle, queue->queueFamilyIndex, 0, &queue->handle);
-            VkCommandPoolCreateInfo poolCreateInfo = se_vk_utils_command_pool_create_info(queue->queueFamilyIndex, VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
+            const VkCommandPoolCreateInfo poolCreateInfo = se_vk_utils_command_pool_create_info(queue->queueFamilyIndex, VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
             se_vk_check(vkCreateCommandPool(device->gpu.logicalHandle, &poolCreateInfo, callbacks, &queue->commandPoolHandle));
         }
         dynamic_array::destroy(familyProperties);
@@ -451,7 +448,7 @@ SeDeviceHandle se_vk_device_create(const SeDeviceInfo& deviceInfo)
         //
         // Get device info
         //
-        bool hasStencil = se_vk_utils_pick_depth_stencil_format(device->gpu.physicalHandle, &device->gpu.depthStencilFormat);
+        const bool hasStencil = se_vk_utils_pick_depth_stencil_format(device->gpu.physicalHandle, &device->gpu.depthStencilFormat);
         if (hasStencil) device->gpu.flags |= SE_VK_GPU_HAS_STENCIL;
         vkGetPhysicalDeviceMemoryProperties(device->gpu.physicalHandle, &device->gpu.memoryProperties);
         VkPhysicalDeviceVulkan12Properties deviceProperties_12 =
@@ -468,7 +465,7 @@ SeDeviceHandle se_vk_device_create(const SeDeviceInfo& deviceInfo)
         {
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
             .pNext = &deviceProperties_11,
-            .properties = {0},
+            .properties = { },
         };
         vkGetPhysicalDeviceProperties2(device->gpu.physicalHandle, &physcialDeviceProperties2);
         device->gpu.deviceProperties_10 = physcialDeviceProperties2.properties;
@@ -479,25 +476,12 @@ SeDeviceHandle se_vk_device_create(const SeDeviceInfo& deviceInfo)
     //
     // Swap chain
     //
-    se_vk_device_swap_chain_create(device, deviceInfo.window);
-    //
-    // Resize callback
-    //
-    {
-        device->windowHandle = deviceInfo.window;
-        SeWindowResizeCallbackInfo resizeCallbackInfo
-        {
-            .userData = device,
-            .callback = se_vk_device_handle_window_resized,
-            .priority = SE_WINDOW_RESIZE_CALLBACK_PRIORITY_INTERNAL_SYSTEM,
-        };
-        device->resizeCallbackHandle = win::add_resize_callback(deviceInfo.window, resizeCallbackInfo);
-    }
+    se_vk_device_swap_chain_create(device, win::get_width(), win::get_height());
     //
     // Frame manager
     //
     {
-        SeVkFrameManagerCreateInfo frameManagerCreateInfo =
+        const SeVkFrameManagerCreateInfo frameManagerCreateInfo =
         {
             .device = device,
             .numFrames = NUM_FRAMES,
@@ -508,20 +492,19 @@ SeDeviceHandle se_vk_device_create(const SeDeviceInfo& deviceInfo)
     // Graph
     //
     {
-        SeVkGraphInfo graphCreateInfo =
+        const SeVkGraphInfo graphCreateInfo =
         {
             .device     = device,
             .numFrames  = NUM_FRAMES,
         };
         se_vk_graph_construct(&device->graph, &graphCreateInfo);
     }
-    return (SeDeviceHandle)device;
+    return device;
 }
 
-void se_vk_device_destroy(SeDeviceHandle _device)
+void se_vk_device_destroy(SeVkDevice* device)
 {
-    SeVkDevice* device = (SeVkDevice*)_device;
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(&device->memoryManager);
+    const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(&device->memoryManager);
     vkDeviceWaitIdle(device->gpu.logicalHandle);
     //
     // Destroy all resources
@@ -542,10 +525,6 @@ void se_vk_device_destroy(SeDeviceHandle _device)
     // Frame manager
     //
     se_vk_frame_manager_destroy(&device->frameManager);
-    //
-    // Callback
-    //
-    win::remove_resize_callback(device->windowHandle, device->resizeCallbackHandle);
     //
     // Swap Chain
     //
@@ -573,24 +552,28 @@ void se_vk_device_destroy(SeDeviceHandle _device)
     vkDestroyInstance(device->instance, callbacks);
     se_vk_memory_manager_free_cpu_memory(&device->memoryManager);
 
-    AllocatorBindings allocator = app_allocators::persistent();
+    const AllocatorBindings allocator = app_allocators::persistent();
     allocator.dealloc(allocator.allocator, device, sizeof(SeVkDevice));
 }
 
-void se_vk_device_begin_frame(SeDeviceHandle _device)
+inline void se_vk_device_begin_frame(SeVkDevice* device, VkExtent2D extent)
 {
-    SeVkDevice* device = (SeVkDevice*)_device;
+    if (!utils::compare(device->swapChain.extent, extent))
+    {
+        vkDeviceWaitIdle(device->gpu.logicalHandle);
+        se_vk_device_swap_chain_destroy(device);
+        se_vk_device_swap_chain_create(device, extent.width, extent.height);
+    }
     se_vk_frame_manager_advance(&device->frameManager);
     se_vk_graph_begin_frame(&device->graph);
 }
 
-void se_vk_device_end_frame(SeDeviceHandle _device)
+inline void se_vk_device_end_frame(SeVkDevice* device)
 {
-    SeVkDevice* device = (SeVkDevice*)_device;
     se_vk_graph_end_frame(&device->graph);
 }
 
-SeVkFlags se_vk_device_get_supported_sampling_types(SeVkDevice* device)
+inline SeVkFlags se_vk_device_get_supported_sampling_types(SeVkDevice* device)
 {
     VkSampleCountFlags vkSampleFlags;
     if (device->gpu.flags & SE_VK_GPU_HAS_STENCIL)
@@ -605,7 +588,7 @@ SeVkFlags se_vk_device_get_supported_sampling_types(SeVkDevice* device)
     return (SeVkFlags)vkSampleFlags;
 }
 
-VkSampleCountFlags se_vk_device_get_supported_framebuffer_multisample_types(SeVkDevice* device)
+inline VkSampleCountFlags se_vk_device_get_supported_framebuffer_multisample_types(SeVkDevice* device)
 {
     // Is this even correct ?
     return  device->gpu.deviceProperties_10.limits.framebufferColorSampleCounts &
@@ -615,7 +598,7 @@ VkSampleCountFlags se_vk_device_get_supported_framebuffer_multisample_types(SeVk
             device->gpu.deviceProperties_12.framebufferIntegerColorSampleCounts;
 }
 
-VkSampleCountFlags se_vk_device_get_supported_image_multisample_types(SeVkDevice* device)
+inline VkSampleCountFlags se_vk_device_get_supported_image_multisample_types(SeVkDevice* device)
 {
     // Is this even correct ?
     return  device->gpu.deviceProperties_10.limits.sampledImageColorSampleCounts &

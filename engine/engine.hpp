@@ -18,46 +18,54 @@
 #include "subsystems/se_vulkan_render_abstraction_subsystem.hpp"
 #include "subsystems/se_ui_subsystem.hpp"
 
-struct UpdateInfo
+struct SabrinaEngine;
+
+struct SeEngineSettings
+{
+    const char* applicationName;
+    bool        isFullscreenWindow;
+    bool        isResizableWindow;
+    uint32_t    windowWidth;
+    uint32_t    windowHeight;
+};
+
+struct SeUpdateInfo
 {
     float dt;
+    size_t frame;
 };
 
-using SeSubsystemFunc           = void  (*)(struct SabrinaEngine*);
-using SeSubsystemReturnPtrFunc  = void* (*)(struct SabrinaEngine*);
-using SeSubsystemUpdateFunc     = void  (*)(struct SabrinaEngine*, const struct UpdateInfo* dt);
+using SeSubsystemFunc           = void  (*)(SabrinaEngine*);
+using SeSubsystemInitFunc       = void  (*)(SabrinaEngine*, const SeEngineSettings* settings);
+using SeSubsystemReturnPtrFunc  = void* (*)(SabrinaEngine*);
+using SeSubsystemUpdateFunc     = void  (*)(SabrinaEngine*, const SeUpdateInfo* dt);
 
-using LibraryHandle = uint64_t;
-
-struct SubsystemStorageEntry
-{
-    LibraryHandle               libraryHandle;
-    SeSubsystemReturnPtrFunc    getInterface;
-    SeSubsystemUpdateFunc       update;
-    const char*                 subsystemName;
-    const char*                 interfaceName;
-};
-
-static constexpr size_t SE_MAX_SUBSYSTEMS = 256;
-
-struct SubsystemStorage
-{
-    SubsystemStorageEntry   storage[SE_MAX_SUBSYSTEMS];
-    size_t                  size;
-};
+using SeLibraryHandle = uint64_t;
 
 struct SabrinaEngine
 {
-    LibraryHandle   (*load_dynamic_library)(const char* name);
-    void*           (*find_function_address)(LibraryHandle lib, const char* name);
-
-    SubsystemStorage subsystemStorage;
-    bool shouldRun;
+    struct SubsystemStorage
+    {
+        struct Entry
+        {
+            SeLibraryHandle             libraryHandle;
+            SeSubsystemReturnPtrFunc    getInterface;
+            SeSubsystemUpdateFunc       update;
+            const char*                 subsystemName;
+            const char*                 interfaceName;
+        };
+        static constexpr size_t MAX_SUBSYSTEMS = 256;
+        Entry   storage[MAX_SUBSYSTEMS];
+        size_t  size;
+    };
+    SeLibraryHandle     (*load_dynamic_library)(const char* name);
+    void*               (*find_function_address)(SeLibraryHandle lib, const char* name);
+    SubsystemStorage    subsystemStorage;
+    bool                shouldRun;
 };
 
 void se_initialize(SabrinaEngine* engine);
-
-void se_run(SabrinaEngine* engine);
+void se_run(SabrinaEngine* engine, const SeEngineSettings* settings);
 
 template<typename Subsystem>
 void se_add_subsystem(SabrinaEngine* engine)
@@ -71,7 +79,7 @@ void se_add_subsystem(SabrinaEngine* engine)
     };
     const size_t nameLength = strlen(Subsystem::NAME);
     char buffer[BUFFER_SIZE];
-    LibraryHandle libHandle = { };
+    SeLibraryHandle libHandle = { };
     for (const char* path : POSSIBLE_LIB_PATHS)
     {
         const size_t pathLength = strlen(path);

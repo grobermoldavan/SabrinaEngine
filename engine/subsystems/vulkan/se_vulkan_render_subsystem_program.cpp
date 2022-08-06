@@ -7,27 +7,27 @@
 #include "engine/subsystems/se_application_allocators_subsystem.hpp"
 #include "engine/allocator_bindings.hpp"
 
-static size_t g_programIndex = 0;
+size_t g_programIndex = 0;
 
-static void* se_vk_ssr_alloc_persistent(void* userData, size_t size)
+void* se_vk_ssr_alloc_persistent(void* userData, size_t size)
 {
     AllocatorBindings allocator = app_allocators::persistent();
     return allocator.alloc(allocator.allocator, size, se_default_alignment, se_alloc_tag);
 }
 
-static void se_vk_ssr_free_persistent(void* userData, void* ptr, size_t size)
+void se_vk_ssr_free_persistent(void* userData, void* ptr, size_t size)
 {
     AllocatorBindings allocator = app_allocators::persistent();
     allocator.dealloc(allocator.allocator, ptr, size);
 }
 
-static void* se_vk_ssr_alloc_frame(void* userData, size_t size)
+void* se_vk_ssr_alloc_frame(void* userData, size_t size)
 {
     AllocatorBindings allocator = app_allocators::frame();
     return allocator.alloc(allocator.allocator, size, se_default_alignment, se_alloc_tag);
 }
 
-static void se_vk_ssr_free_frame(void* userData, void* ptr, size_t size)
+void se_vk_ssr_free_frame(void* userData, void* ptr, size_t size)
 {
     AllocatorBindings allocator = app_allocators::frame();
     allocator.dealloc(allocator.allocator, ptr, size);

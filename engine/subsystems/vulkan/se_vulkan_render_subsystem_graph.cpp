@@ -5,9 +5,9 @@
 #include "se_vulkan_render_subsystem_utils.hpp"
 #include "engine/subsystems/se_application_allocators_subsystem.hpp"
 
-static constexpr size_t SE_VK_GRAPH_MAX_SETS_IN_DESCRIPTOR_POOL = 64;
-static constexpr size_t SE_VK_GRAPH_OBJECT_LIFETIME             = 20;
-static constexpr size_t CONTAINERS_INITIAL_CAPACITY             = 32;
+constexpr size_t SE_VK_GRAPH_MAX_SETS_IN_DESCRIPTOR_POOL = 64;
+constexpr size_t SE_VK_GRAPH_OBJECT_LIFETIME             = 20;
+constexpr size_t CONTAINERS_INITIAL_CAPACITY             = 32;
 
 enum SeVkRefFlags
 {
@@ -15,7 +15,7 @@ enum SeVkRefFlags
     SE_VK_REF_IS_SWAP_CHAIN_TEXTURE = 0x00000002,
 };
 
-static uint32_t se_vk_graph_get_num_bindings(const SeCommandBindInfo& info)
+uint32_t se_vk_graph_get_num_bindings(const SeCommandBindInfo& info)
 {
     uint32_t result = 0;
     for (size_t it = 0; it < SE_MAX_BINDINGS; it++)
@@ -27,7 +27,7 @@ static uint32_t se_vk_graph_get_num_bindings(const SeCommandBindInfo& info)
     return result;
 }
 
-static VkStencilOpState se_vk_graph_pipeline_stencil_op_state(const SeStencilOpState* state)
+VkStencilOpState se_vk_graph_pipeline_stencil_op_state(const SeStencilOpState* state)
 {
     return
     {
@@ -74,10 +74,10 @@ void se_vk_graph_free_old_resources(HashTable<Key, SeVkGraphWithFrame<Value>>& t
     dynamic_array::destroy(toRemove);
 }
 
-void se_vk_graph_construct(SeVkGraph* graph, SeVkGraphInfo* info)
+void se_vk_graph_construct(SeVkGraph* graph, const SeVkGraphInfo* info)
 {
-    AllocatorBindings persistentAllocator = app_allocators::persistent();
-    AllocatorBindings frameAllocator = app_allocators::frame();
+    const AllocatorBindings persistentAllocator = app_allocators::persistent();
+    const AllocatorBindings frameAllocator = app_allocators::frame();
 
     *graph =
     {

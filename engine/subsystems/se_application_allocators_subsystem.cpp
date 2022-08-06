@@ -14,7 +14,7 @@ struct SeStackAllocator
     size_t commitedMax; // offset form base
 };
 
-static void* se_stack_allocator_alloc(SeStackAllocator* allocator, size_t size, size_t alignment, const char* allocTag)
+void* se_stack_allocator_alloc(SeStackAllocator* allocator, size_t size, size_t alignment, const char* allocTag)
 {
     se_assert(((alignment - 1) & alignment) == 0 && "Alignment must be a power of two");
     //
@@ -45,12 +45,12 @@ static void* se_stack_allocator_alloc(SeStackAllocator* allocator, size_t size, 
     return (void*)alignedPtr;
 }
 
-static void se_stack_allocator_dealloc(SeStackAllocator* allocator, void* ptr, size_t size)
+void se_stack_allocator_dealloc(SeStackAllocator* allocator, void* ptr, size_t size)
 {
     // nothing
 }
 
-static SeStackAllocator se_stack_allocator_create(size_t capacity)
+SeStackAllocator se_stack_allocator_create(size_t capacity)
 {
     return
     {
@@ -61,7 +61,7 @@ static SeStackAllocator se_stack_allocator_create(size_t capacity)
     };
 }
 
-static void se_stack_allocator_destroy(SeStackAllocator& allocator)
+void se_stack_allocator_destroy(SeStackAllocator& allocator)
 {
     platform::get()->mem_release((void*)allocator.base, allocator.reservedMax);
     memset(&allocator, 0, sizeof(SeStackAllocator));
@@ -71,7 +71,7 @@ static void se_stack_allocator_destroy(SeStackAllocator& allocator)
 // Pool allocator
 //
 
-static constexpr size_t POOL_ALLOCATOR_MAX_BUCKETS = 8;
+constexpr size_t POOL_ALLOCATOR_MAX_BUCKETS = 8;
 
 struct SePoolMemoryBucketSource
 {
@@ -319,9 +319,9 @@ void se_pool_allocator_destroy(SePoolAllocator& allocator)
     }
 }
 
-static SeStackAllocator g_frameAllocator;
-static SePoolAllocator g_persistentAllocator;
-static SeApplicationAllocatorsSubsystemInterface g_iface;
+SeStackAllocator g_frameAllocator;
+SePoolAllocator g_persistentAllocator;
+SeApplicationAllocatorsSubsystemInterface g_iface;
 
 SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 {
@@ -363,7 +363,7 @@ SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
     se_stack_allocator_destroy(g_frameAllocator);
 }
 
-SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* info)
+SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
 {
     g_frameAllocator.cur = 0;
 }

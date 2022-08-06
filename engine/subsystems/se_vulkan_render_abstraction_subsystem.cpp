@@ -16,9 +16,10 @@
 #include "vulkan/se_vulkan_render_subsystem_utils.hpp"
 #include "engine/engine.hpp"
 
-static SeRenderAbstractionSubsystemInterface g_iface;
+SeRenderAbstractionSubsystemInterface g_iface;
+SeVkDevice* g_device;
 
-static SeFloat4x4 se_vk_perspective_projection_matrix(float fovDeg, float aspect, float nearPlane, float farPlane)
+SeFloat4x4 se_vk_perspective_projection_matrix(float fovDeg, float aspect, float nearPlane, float farPlane)
 {
     //
     // https://vincent-p.github.io/posts/vulkan_perspective_matrix/
@@ -41,7 +42,7 @@ static SeFloat4x4 se_vk_perspective_projection_matrix(float fovDeg, float aspect
     };
 }
 
-static SeFloat4x4 se_vk_orthographic_projection_matrix(float left, float right, float bottom, float top, float nearPlane, float farPlane)
+SeFloat4x4 se_vk_orthographic_projection_matrix(float left, float right, float bottom, float top, float nearPlane, float farPlane)
 {
     const float farMNear = farPlane - nearPlane;
     const float rightMLeft = right - left;
@@ -55,88 +56,91 @@ static SeFloat4x4 se_vk_orthographic_projection_matrix(float left, float right, 
     };
 }
 
-static void se_vk_begin_pass_call(SeDeviceHandle _device, const SeBeginPassInfo& info)
+bool se_vk_begin_frame_call()
 {
-    SeVkDevice* device = (SeVkDevice*)_device;
-    se_vk_graph_begin_pass(&device->graph, info);
+    const uint32_t width = win::get_width();
+    const uint32_t height = win::get_height();
+    if (width == 0 && height == 0)
+    {
+        return false;
+    }
+    se_vk_device_begin_frame(g_device, { width, height });
+    return true;
 }
 
-static void se_vk_end_pass_call(SeDeviceHandle _device)
+void se_vk_end_frame_call()
 {
-    SeVkDevice* device = (SeVkDevice*)_device;
-    se_vk_graph_end_pass(&device->graph);
+    se_vk_device_end_frame(g_device);
 }
 
-static SeRenderRef se_vk_program_call(SeDeviceHandle _device, const SeProgramInfo& info)
+void se_vk_begin_pass_call(const SeBeginPassInfo& info)
 {
-    SeVkDevice* device = (SeVkDevice*)_device;
-    return se_vk_graph_program(&device->graph, info);
+    se_vk_graph_begin_pass(&g_device->graph, info);
 }
 
-static SeRenderRef se_vk_texture_call(SeDeviceHandle _device, const SeTextureInfo& info)
+void se_vk_end_pass_call()
 {
-    SeVkDevice* device = (SeVkDevice*)_device;
-    return se_vk_graph_texture(&device->graph, info);
+    se_vk_graph_end_pass(&g_device->graph);
 }
 
-static SeRenderRef se_vk_swap_chain_texture_call(SeDeviceHandle _device)
+SeRenderRef se_vk_program_call(const SeProgramInfo& info)
 {
-    SeVkDevice* device = (SeVkDevice*)_device;
-    return se_vk_graph_swap_chain_texture(&device->graph);
+    return se_vk_graph_program(&g_device->graph, info);
 }
 
-static SeTextureSize se_vk_texture_size_call(SeDeviceHandle _device, SeRenderRef texture)
+SeRenderRef se_vk_texture_call(const SeTextureInfo& info)
 {
-    SeVkDevice* device = (SeVkDevice*)_device;
-    return se_vk_grap_texture_size(&device->graph, texture);
+    return se_vk_graph_texture(&g_device->graph, info);
 }
 
-static SeRenderRef se_vk_graphics_pipeline_call(SeDeviceHandle _device, const SeGraphicsPipelineInfo& info)
+SeRenderRef se_vk_swap_chain_texture_call()
 {
-    SeVkDevice* device = (SeVkDevice*)_device;
-    return se_vk_graph_graphics_pipeline(&device->graph, info);
+    return se_vk_graph_swap_chain_texture(&g_device->graph);
 }
 
-static SeRenderRef se_vk_graphics_pipeline_call(SeDeviceHandle _device, const SeComputePipelineInfo& info)
+SeTextureSize se_vk_texture_size_call(SeRenderRef texture)
 {
-    SeVkDevice* device = (SeVkDevice*)_device;
-    return se_vk_graph_compute_pipeline(&device->graph, info);
+    return se_vk_grap_texture_size(&g_device->graph, texture);
 }
 
-static SeRenderRef se_vk_memory_buffer_call(SeDeviceHandle _device, const SeMemoryBufferInfo& info)
+SeRenderRef se_vk_graphics_pipeline_call(const SeGraphicsPipelineInfo& info)
 {
-    SeVkDevice* device = (SeVkDevice*)_device;
-    return se_vk_graph_memory_buffer(&device->graph, info);
+    return se_vk_graph_graphics_pipeline(&g_device->graph, info);
 }
 
-static SeRenderRef se_vk_sampler_call(SeDeviceHandle _device, const SeSamplerInfo& info)
+SeRenderRef se_vk_graphics_pipeline_call(const SeComputePipelineInfo& info)
 {
-    SeVkDevice* device = (SeVkDevice*)_device;
-    return se_vk_graph_sampler(&device->graph, info);
+    return se_vk_graph_compute_pipeline(&g_device->graph, info);
 }
 
-static void se_vk_command_bind_call(SeDeviceHandle _device, const SeCommandBindInfo& info)
+SeRenderRef se_vk_memory_buffer_call(const SeMemoryBufferInfo& info)
 {
-    SeVkDevice* device = (SeVkDevice*)_device;
-    se_vk_graph_command_bind(&device->graph, info);
+    return se_vk_graph_memory_buffer(&g_device->graph, info);
 }
 
-static void se_vk_command_draw_call(SeDeviceHandle _device, const SeCommandDrawInfo& info)
+SeRenderRef se_vk_sampler_call(const SeSamplerInfo& info)
 {
-    SeVkDevice* device = (SeVkDevice*)_device;
-    se_vk_graph_command_draw(&device->graph, info);
+    return se_vk_graph_sampler(&g_device->graph, info);
 }
 
-static void se_vk_command_dispatch_call(SeDeviceHandle _device, const SeCommandDispatchInfo& info)
+void se_vk_command_bind_call(const SeCommandBindInfo& info)
 {
-    SeVkDevice* device = (SeVkDevice*)_device;
-    se_vk_graph_command_dispatch(&device->graph, info);
+    se_vk_graph_command_bind(&g_device->graph, info);
 }
 
-static SeComputeWorkgroupSize se_vk_compute_workgroup_size_call(SeDeviceHandle _device, SeRenderRef ref)
+void se_vk_command_draw_call(const SeCommandDrawInfo& info)
 {
-    SeVkDevice* device = (SeVkDevice*)_device;
-    const ObjectPool<SeVkProgram>& programPool = se_vk_memory_manager_get_pool<SeVkProgram>(&device->memoryManager);
+    se_vk_graph_command_draw(&g_device->graph, info);
+}
+
+void se_vk_command_dispatch_call(const SeCommandDispatchInfo& info)
+{
+    se_vk_graph_command_dispatch(&g_device->graph, info);
+}
+
+SeComputeWorkgroupSize se_vk_compute_workgroup_size_call(SeRenderRef ref)
+{
+    const ObjectPool<SeVkProgram>& programPool = se_vk_memory_manager_get_pool<SeVkProgram>(&g_device->memoryManager);
     const SeVkProgram* program = object_pool::access(programPool, se_vk_ref_index(ref));
     return
     {
@@ -150,33 +154,37 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
 {
     g_iface =
     {
-        .device_create                  = se_vk_device_create,
-        .device_destroy                 = se_vk_device_destroy,
-        .begin_frame                    = se_vk_device_begin_frame,
-        .end_frame                      = se_vk_device_end_frame,
-        .begin_pass                     = se_vk_begin_pass_call,
-        .end_pass                       = se_vk_end_pass_call,
-        .program                        = se_vk_program_call,
-        .texture                        = se_vk_texture_call,
-        .swap_chain_texture             = se_vk_swap_chain_texture_call,
-        .texture_size                   = se_vk_texture_size_call,
-        .graphics_pipeline              = se_vk_graphics_pipeline_call,
-        .compute_pipeline               = se_vk_graphics_pipeline_call,
-        .memory_buffer                  = se_vk_memory_buffer_call,
-        .sampler                        = se_vk_sampler_call,
-        .bind                           = se_vk_command_bind_call,
-        .draw                           = se_vk_command_draw_call,
-        .dispatch                       = se_vk_command_dispatch_call,
-        .perspective  = se_vk_perspective_projection_matrix,
-        .orthographic                   = se_vk_orthographic_projection_matrix,
-        .workgroup_size                 = se_vk_compute_workgroup_size_call,
+        .begin_frame        = se_vk_begin_frame_call,
+        .end_frame          = se_vk_end_frame_call,
+        .begin_pass         = se_vk_begin_pass_call,
+        .end_pass           = se_vk_end_pass_call,
+        .program            = se_vk_program_call,
+        .texture            = se_vk_texture_call,
+        .swap_chain_texture = se_vk_swap_chain_texture_call,
+        .texture_size       = se_vk_texture_size_call,
+        .graphics_pipeline  = se_vk_graphics_pipeline_call,
+        .compute_pipeline   = se_vk_graphics_pipeline_call,
+        .memory_buffer      = se_vk_memory_buffer_call,
+        .sampler            = se_vk_sampler_call,
+        .bind               = se_vk_command_bind_call,
+        .draw               = se_vk_command_draw_call,
+        .dispatch           = se_vk_command_dispatch_call,
+        .perspective        = se_vk_perspective_projection_matrix,
+        .orthographic       = se_vk_orthographic_projection_matrix,
+        .workgroup_size     = se_vk_compute_workgroup_size_call,
     };
     se_init_global_subsystem_pointers(engine);
 }
 
-SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
+SE_DLL_EXPORT void se_init(SabrinaEngine* engine, const SeEngineSettings* settings)
 {
     se_vk_check(volkInitialize());
+    g_device = se_vk_device_create(win::get_native_handle());
+}
+
+SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
+{
+    se_vk_device_destroy(g_device);
 }
 
 SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)

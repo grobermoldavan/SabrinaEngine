@@ -26,16 +26,16 @@ struct SeVkSubpassIntermediateData
     uint32_t                numInputRefs;
 };
 
-static size_t g_renderPassIndex = 0;
+size_t g_renderPassIndex = 0;
 
-static uint32_t se_vk_render_pass_count_flags(uint32_t flags)
+uint32_t se_vk_render_pass_count_flags(uint32_t flags)
 {
     uint32_t count = 0;
     se_vk_rp_for_each_set_bit(flags, it) count += 1;
     return count;
 }
 
-static VkAttachmentReference* se_vk_render_pass_find_attachment_reference(VkAttachmentReference* refs, size_t numRefs, uint32_t attachmentIndex)
+VkAttachmentReference* se_vk_render_pass_find_attachment_reference(VkAttachmentReference* refs, size_t numRefs, uint32_t attachmentIndex)
 {
     for (size_t it = 0; it < numRefs; it++)
         if (refs[it].attachment == attachmentIndex)

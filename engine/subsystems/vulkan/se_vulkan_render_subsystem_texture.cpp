@@ -65,7 +65,7 @@ void se_vk_texture_stbi_free(void* ptr)
 #define STBI_ASSERT se_assert
 #include "engine/libs/stb/stb_image.h"
 
-static size_t g_textureIndex = 0;
+size_t g_textureIndex = 0;
 
 struct { int numComponents; int componentsSize; bool isFloat; } se_vk_texture_get_format_info(VkFormat format)
 {

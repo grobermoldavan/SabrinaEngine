@@ -3,7 +3,7 @@
 #include "se_vulkan_render_subsystem_device.hpp"
 #include "se_vulkan_render_subsystem_memory.hpp"
 
-static size_t g_commandBufferIndex = 0;
+size_t g_commandBufferIndex = 0;
 
 void se_vk_command_buffer_construct(SeVkCommandBuffer* buffer, SeVkCommandBufferInfo* info)
 {

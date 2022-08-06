@@ -5,9 +5,9 @@
 #include "se_vulkan_render_subsystem_utils.hpp"
 #include "engine/se_math.hpp"
 
-static size_t g_samplerIndex = 0;
+size_t g_samplerIndex = 0;
 
-static VkSamplerAddressMode se_vk_sampler_address_mode(SeSamplerAddressMode mode)
+VkSamplerAddressMode se_vk_sampler_address_mode(SeSamplerAddressMode mode)
 {
     switch (mode)
     {

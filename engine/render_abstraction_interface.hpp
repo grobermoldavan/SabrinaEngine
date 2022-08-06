@@ -103,16 +103,9 @@ enum SeSamplerMipmapMode
     SE_SAMPLER_MIPMAP_MODE_LINEAR,
 };
 
-using SeDeviceHandle = void*;
-
 using SeRenderRef = uint64_t;
 
 constexpr SeRenderRef NULL_RENDER_REF = 0;
-
-struct SeDeviceInfo
-{
-    SeWindowHandle window;
-};
 
 #define se_pass_dependency(id) (1ull << id)
 using SePassDependencies = uint64_t;
@@ -275,29 +268,25 @@ struct SeRenderAbstractionSubsystemInterface
 {
     static constexpr const char* NAME = "SeRenderAbstractionSubsystemInterface";
 
-    SeDeviceHandle                      (*device_create)                        (const SeDeviceInfo& info);
-    void                                (*device_destroy)                       (SeDeviceHandle device);
-    SeDeviceHandle                      (*get_device)                           (SeWindowHandle window);
+    bool                                (*begin_frame)                          ();
+    void                                (*end_frame)                            ();
+    void                                (*begin_pass)                           (const SeBeginPassInfo& info);
+    void                                (*end_pass)                             ();
 
-    void                                (*begin_frame)                          (SeDeviceHandle device);
-    void                                (*end_frame)                            (SeDeviceHandle device);
-    void                                (*begin_pass)                           (SeDeviceHandle device, const SeBeginPassInfo& info);
-    void                                (*end_pass)                             (SeDeviceHandle device);
-
-    SeRenderRef                         (*program)                              (SeDeviceHandle device, const SeProgramInfo& info);
-    SeRenderRef                         (*texture)                              (SeDeviceHandle device, const SeTextureInfo& info);
-    SeRenderRef                         (*swap_chain_texture)                   (SeDeviceHandle device);
-    SeTextureSize                       (*texture_size)                         (SeDeviceHandle device, SeRenderRef texture);
-    SeRenderRef                         (*graphics_pipeline)                    (SeDeviceHandle device, const SeGraphicsPipelineInfo& info);
-    SeRenderRef                         (*compute_pipeline)                     (SeDeviceHandle device, const SeComputePipelineInfo& info);
-    SeRenderRef                         (*memory_buffer)                        (SeDeviceHandle device, const SeMemoryBufferInfo& info);
-    SeRenderRef                         (*sampler)                              (SeDeviceHandle device, const SeSamplerInfo& info);
-    void                                (*bind)                                 (SeDeviceHandle device, const SeCommandBindInfo& info);
-    void                                (*draw)                                 (SeDeviceHandle device, const SeCommandDrawInfo& info);
-    void                                (*dispatch)                             (SeDeviceHandle device, const SeCommandDispatchInfo& info);
+    SeRenderRef                         (*program)                              (const SeProgramInfo& info);
+    SeRenderRef                         (*texture)                              (const SeTextureInfo& info);
+    SeRenderRef                         (*swap_chain_texture)                   ();
+    SeTextureSize                       (*texture_size)                         (SeRenderRef texture);
+    SeRenderRef                         (*graphics_pipeline)                    (const SeGraphicsPipelineInfo& info);
+    SeRenderRef                         (*compute_pipeline)                     (const SeComputePipelineInfo& info);
+    SeRenderRef                         (*memory_buffer)                        (const SeMemoryBufferInfo& info);
+    SeRenderRef                         (*sampler)                              (const SeSamplerInfo& info);
+    void                                (*bind)                                 (const SeCommandBindInfo& info);
+    void                                (*draw)                                 (const SeCommandDrawInfo& info);
+    void                                (*dispatch)                             (const SeCommandDispatchInfo& info);
     SeFloat4x4                          (*perspective)                          (float fovDeg, float aspect, float nearPlane, float farPlane);
     SeFloat4x4                          (*orthographic)                         (float left, float right, float bottom, float top, float nearPlane, float farPlane);
-    SeComputeWorkgroupSize              (*workgroup_size)                       (SeDeviceHandle device, SeRenderRef program);
+    SeComputeWorkgroupSize              (*workgroup_size)                       (SeRenderRef program);
 };
 
 using ColorPacked = uint32_t;

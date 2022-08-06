@@ -54,7 +54,7 @@ void debug_camera_update(DebugCamera* camera, const SeWindowSubsystemInput* inpu
         const int64_t y = input->mouseY;
         if (!isJustPressed)
         {
-            rotation.x += (float)(y - camera->lastMouseY) * dt * 5.0f;
+            rotation.x += (float)(camera->lastMouseY - y) * dt * 5.0f;
             rotation.y += (float)(x - camera->lastMouseX) * dt * 5.0f;
         }
         camera->lastMouseX = x;

@@ -141,7 +141,7 @@ namespace dynamic_array
 
     template<typename T>
     requires std::is_pointer_v<T>
-    static T& push(DynamicArray<T>& array, nullptr_t)
+    T& push(DynamicArray<T>& array, nullptr_t)
     {
         T& pushed = dynamic_array::add(array);
         pushed = nullptr;
@@ -379,7 +379,17 @@ struct ObjectPoolEntryRef
     const T* operator -> () const;
     T* operator * ();
     const T* operator * () const;
+    operator bool () const;
 };
+
+namespace utils
+{
+    template<typename T>
+    bool compare(const ObjectPoolEntryRef<T>& first, const ObjectPoolEntryRef<T>& second)
+    {
+        return (first.pool == second.pool) & (first.index == second.index) & (first.generation == second.generation);
+    }
+}
 
 namespace object_pool
 {
@@ -556,6 +566,12 @@ template<typename T>
 const T* ObjectPoolEntryRef<T>::operator * () const
 {
     return object_pool::from_ref(*pool, *this);;
+}
+
+template<typename T>
+ObjectPoolEntryRef<T>::operator bool () const
+{
+    return pool != nullptr;
 }
 
 template<typename T>

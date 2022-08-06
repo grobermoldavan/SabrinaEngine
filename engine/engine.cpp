@@ -8,39 +8,39 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
-static HMODULE se_hmodule_from_se_handle(LibraryHandle handle)
+HMODULE se_hmodule_from_se_handle(SeLibraryHandle handle)
 {
-    HMODULE result = {0};
+    HMODULE result = { };
     memcpy(&result, &handle, sizeof(result));
     return result;
 }
 
-static LibraryHandle se_load_dynamic_library(const char* path)
+SeLibraryHandle se_load_dynamic_library(const char* path)
 {
     HMODULE handle = LoadLibraryA(path);
-    LibraryHandle result;
+    SeLibraryHandle result;
     memcpy(&result, &handle, sizeof(HMODULE));
     return result;
 }
 
-static void se_unload_dynamic_library(LibraryHandle handle)
+void se_unload_dynamic_library(SeLibraryHandle handle)
 {
     FreeLibrary(se_hmodule_from_se_handle(handle));
 }
 
-static void* se_get_dynamic_library_function_address(LibraryHandle handle, const char* functionName)
+void* se_get_dynamic_library_function_address(SeLibraryHandle handle, const char* functionName)
 {
     return GetProcAddress(se_hmodule_from_se_handle(handle), functionName);
 }
 
-static uint64_t se_get_perf_counter()
+uint64_t se_get_perf_counter()
 {
     LARGE_INTEGER counter;
     QueryPerformanceCounter(&counter);
     return counter.QuadPart;
 }
 
-static uint64_t se_get_perf_frequency()
+uint64_t se_get_perf_frequency()
 {
     LARGE_INTEGER frequency;
     QueryPerformanceFrequency(&frequency);
@@ -62,48 +62,50 @@ void se_initialize(SabrinaEngine* engine)
     };
 }
 
-void se_run(SabrinaEngine* engine)
+void se_run(SabrinaEngine* engine, const SeEngineSettings* settings)
 {
     // First load all subsystems
     for (size_t i = 0; i < engine->subsystemStorage.size; i++)
     {
-        const LibraryHandle handle = engine->subsystemStorage.storage[i].libraryHandle;
+        const SeLibraryHandle handle = engine->subsystemStorage.storage[i].libraryHandle;
         const SeSubsystemFunc load = (SeSubsystemFunc)se_get_dynamic_library_function_address(handle, "se_load");
         if (load) load(engine);
     }
     // Init subsystems after load (here subsytems can safely query interfaces of other subsystems)
     for (size_t i = 0; i < engine->subsystemStorage.size; i++)
     {
-        const LibraryHandle handle = engine->subsystemStorage.storage[i].libraryHandle;
-        const SeSubsystemFunc init = (SeSubsystemFunc)se_get_dynamic_library_function_address(handle, "se_init");
-        if (init) init(engine);
+        const SeLibraryHandle handle = engine->subsystemStorage.storage[i].libraryHandle;
+        const SeSubsystemInitFunc init = (SeSubsystemInitFunc)se_get_dynamic_library_function_address(handle, "se_init");
+        if (init) init(engine, settings);
     }
     // Update loop
+    size_t frame = 0;
     const double counterFrequency = (double)se_get_perf_frequency();
     uint64_t prevCounter = se_get_perf_counter();
     while (engine->shouldRun)
     {
         const uint64_t newCounter = se_get_perf_counter();
         const float dt = (float)((double)(newCounter - prevCounter) / counterFrequency);
-        const UpdateInfo info { dt };
+        const SeUpdateInfo info { dt, frame };
         for (size_t i = 0; i < engine->subsystemStorage.size; i++)
         {
             const SeSubsystemUpdateFunc update = engine->subsystemStorage.storage[i].update;
             if (update) update(engine, &info);
         }
         prevCounter = newCounter;
+        frame += 1;
     }
     // Terminate subsystems (here subsytems can safely query interfaces of other subsystems)
     for (size_t i = engine->subsystemStorage.size; i > 0; i--)
     {
-        const LibraryHandle handle = engine->subsystemStorage.storage[i - 1].libraryHandle;
+        const SeLibraryHandle handle = engine->subsystemStorage.storage[i - 1].libraryHandle;
         const SeSubsystemFunc terminate = (SeSubsystemFunc)se_get_dynamic_library_function_address(handle, "se_terminate");
         if (terminate) terminate(engine);
     }
     // Unload subsystems
     for (size_t i = engine->subsystemStorage.size; i > 0; i--)
     {
-        const LibraryHandle handle = engine->subsystemStorage.storage[i - 1].libraryHandle;
+        const SeLibraryHandle handle = engine->subsystemStorage.storage[i - 1].libraryHandle;
         const SeSubsystemFunc unload = (SeSubsystemFunc)se_get_dynamic_library_function_address(handle, "se_unload");
         if (unload) unload(engine);
     }

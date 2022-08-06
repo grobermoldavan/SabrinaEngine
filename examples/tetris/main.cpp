@@ -9,7 +9,16 @@ int main(int argc, char* argv[])
     se_add_default_subsystems(&engine);
     se_add_subsystem<SeVulkanRenderAbstractionSubsystem>(&engine);
     se_add_subsystem<TetrisSubsystem>(&engine);
-    se_run(&engine);
+    
+    const SeEngineSettings settings
+    {
+        .applicationName    = "Sabrina engine - tetris example",
+        .isFullscreenWindow = false,
+        .isResizableWindow  = true,
+        .windowWidth        = 640,
+        .windowHeight       = 480,
+    };
+    se_run(&engine, &settings);
     return 0;
 }
 

@@ -34,7 +34,7 @@ struct SeVkFrameManagerCreateInfo
     size_t numFrames;
 };
 
-void se_vk_frame_manager_construct(SeVkFrameManager* manager, SeVkFrameManagerCreateInfo* createInfo);
+void se_vk_frame_manager_construct(SeVkFrameManager* manager, const SeVkFrameManagerCreateInfo* createInfo);
 void se_vk_frame_manager_destroy(SeVkFrameManager* manager);
 void se_vk_frame_manager_advance(SeVkFrameManager* manager);
 

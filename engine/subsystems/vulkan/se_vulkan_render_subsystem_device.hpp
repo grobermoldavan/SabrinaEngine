@@ -94,16 +94,14 @@ struct SeVkDevice
     SeVkGpu                         gpu;
     SeVkSwapChain                   swapChain;
     SeVkDeviceFlags                 flags;
-    SeWindowHandle                  windowHandle;
-    SeWindowResizeCallbackHandle    resizeCallbackHandle;
     SeVkFrameManager                frameManager;
     SeVkGraph                       graph;
 };
 
-SeDeviceHandle                      se_vk_device_create(const SeDeviceInfo& info);
-void                                se_vk_device_destroy(SeDeviceHandle device);
-void                                se_vk_device_begin_frame(SeDeviceHandle device);
-void                                se_vk_device_end_frame(SeDeviceHandle device);
+SeVkDevice*                         se_vk_device_create(void* nativeWindowHandle);
+void                                se_vk_device_destroy(SeVkDevice* device);
+void                                se_vk_device_begin_frame(SeVkDevice* device, VkExtent2D extent);
+void                                se_vk_device_end_frame(SeVkDevice* device);
 
 SeVkFlags                           se_vk_device_get_supported_sampling_types(SeVkDevice* device);
 VkSampleCountFlags                  se_vk_device_get_supported_framebuffer_multisample_types(SeVkDevice* device);

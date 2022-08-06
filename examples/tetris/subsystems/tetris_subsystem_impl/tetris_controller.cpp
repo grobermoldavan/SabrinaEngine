@@ -12,9 +12,9 @@ struct TetrisFigureRotationDesc
     char desc[4][4]; // y, x
 };
 
-static TetrisState g_state = { };
+TetrisState g_state = { };
 
-static const TetrisFigureRotationDesc rotationDescs[TETRIS_FIGURE_TYPE_COUNT][TETRIS_FIGURE_ROTATION_COUNT] =
+const TetrisFigureRotationDesc rotationDescs[TETRIS_FIGURE_TYPE_COUNT][TETRIS_FIGURE_ROTATION_COUNT] =
 {
     // TETRIS_FIGURE_TYPE_UNDEFINED
     { {'\0'}, {'\0'}, {'\0'}, {'\0'}, },
@@ -239,7 +239,7 @@ static const TetrisFigureRotationDesc rotationDescs[TETRIS_FIGURE_TYPE_COUNT][TE
     },
 };
 
-static const int standartWallkicks[8][5][2] =
+const int standartWallkicks[8][5][2] =
 {
     { {  0, '\0'}, { -1, '\0'}, { -1,  1 }, {  0, -2 }, { -1, -2 }, }, // up -> right
     { {  0, '\0'}, {  1, '\0'}, {  1,  1 }, {  0, -2 }, {  1, -2 }, }, // up -> left
@@ -251,7 +251,7 @@ static const int standartWallkicks[8][5][2] =
     { {  0, '\0'}, { -1, '\0'}, { -1, -1 }, {  0,  2 }, { -1,  2 }, }, // left -> down
 };
 
-static const int iWallkicks[8][5][2] =
+const int iWallkicks[8][5][2] =
 {
     { {  0, '\0'}, { -2, '\0'}, {  1, '\0'}, { -2, -1 }, {  1,  2 }, }, // up -> right
     { {  0, '\0'}, { -1, '\0'}, {  2, '\0'}, { -1,  2 }, {  2, -1 }, }, // up -> left
@@ -264,7 +264,7 @@ static const int iWallkicks[8][5][2] =
 };
 
 // https://en.wikipedia.org/wiki/Linear_congruential_generator
-static int tetris_controller_rand()
+int tetris_controller_rand()
 {
     static int seed = 0;
     const int a = 1103515245;
@@ -274,7 +274,7 @@ static int tetris_controller_rand()
     return seed;
 }
 
-static void tetris_controller_spawn_new_figure()
+void tetris_controller_spawn_new_figure()
 {
     g_state.activeFigure.type = (TetrisFigureType)((abs(tetris_controller_rand()) % (TETRIS_FIGURE_TYPE_COUNT - 1)) + 1);
     se_assert(g_state.activeFigure.type > TETRIS_FIGURE_TYPE_UNDEFINED && g_state.activeFigure.type < TETRIS_FIGURE_TYPE_COUNT);
@@ -283,7 +283,7 @@ static void tetris_controller_spawn_new_figure()
     g_state.activeFigure.bottomLeftPointPosY = TETRIS_FIELD_HEIGHT;
 }
 
-static void tetris_controller_leave_active_figure_footprint(char symbol)
+void tetris_controller_leave_active_figure_footprint(char symbol)
 {
     const TetrisFigureRotationDesc rotationDesc = rotationDescs[g_state.activeFigure.type][g_state.activeFigure.rotation];
     for (int y = 0; y < rotationDesc.height; y++)
@@ -297,7 +297,7 @@ static void tetris_controller_leave_active_figure_footprint(char symbol)
         }
 }
 
-static bool tetris_controller_is_figure_valid(TetrisFigureRotationDesc rotationDesc, int posX, int posY)
+bool tetris_controller_is_figure_valid(TetrisFigureRotationDesc rotationDesc, int posX, int posY)
 {
     for (int x = 0; x < rotationDesc.width; x++)
         for (int y = 0; y < rotationDesc.height; y++)

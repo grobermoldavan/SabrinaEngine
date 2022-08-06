@@ -40,9 +40,7 @@ struct SeUiBeginInfo
 {
     const char*                                     uid;
     const SeRenderAbstractionSubsystemInterface*    render;
-    SeDeviceHandle                                  device;
     SePassRenderTarget                              target;
-    SeWindowHandle                                  window;
 };
 
 struct SeUiTextLineInfo

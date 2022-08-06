@@ -862,9 +862,7 @@ struct UiContext
 {
     // Frame state
     const SeRenderAbstractionSubsystemInterface*    render;
-    SeDeviceHandle                                  device;
     SePassRenderTarget                              target;
-    SeWindowHandle                                  window;
 
     const FontGroup*                                currentFontGroup;
     DataProvider                                    currentWindowData;
@@ -1038,9 +1036,8 @@ namespace ui_impl
         SeRenderRef* textureRef = hash_table::get(g_currentContext->frameTextureDataToRef, textureData);
         if (!textureRef)
         {
-            const SeDeviceHandle device = g_currentContext->device;
             const SeRenderAbstractionSubsystemInterface* render = g_currentContext->render;
-            textureRef = hash_table::set(g_currentContext->frameTextureDataToRef, textureData, render->texture(device, textureInfo));
+            textureRef = hash_table::set(g_currentContext->frameTextureDataToRef, textureData, render->texture(textureInfo));
         }
         se_assert(textureRef);
         //
@@ -1071,7 +1068,6 @@ namespace ui_impl
     {
         se_assert(!g_currentContext);
         se_assert(info.render);
-        se_assert(info.device);
         //
         // Get context
         //
@@ -1085,35 +1081,23 @@ namespace ui_impl
         // Set frame data
         //
         g_currentContext->render            = info.render;
-        g_currentContext->device            = info.device;
         g_currentContext->target            = info.target;
-        g_currentContext->window            = info.window;
         g_currentContext->currentFontGroup  = nullptr;
         g_currentContext->currentWindowData = g_windowDefaultTexture;
         memcpy(g_currentContext->currentStyle, DEFAULT_STYLE, sizeof(UiStyle));
         dynamic_array::construct(g_currentContext->frameDrawCalls, app_allocators::frame(), 16);
         hash_table::construct(g_currentContext->frameTextureDataToRef, app_allocators::frame(), 16);
-        if (g_currentContext->window != NULL_WINDOW_HANDLE)
-        {
-            const SeWindowSubsystemInput* input = win::get_input(g_currentContext->window);
-            const float mouseX = (float)input->mouseX;
-            const float mouseY = (float)input->mouseY;
-            g_currentContext->mouseDeltaX       = mouseX - g_currentContext->mouseX;
-            g_currentContext->mouseDeltaY       = mouseY - g_currentContext->mouseY;
-            g_currentContext->mouseX            = mouseX;
-            g_currentContext->mouseY            = mouseY;
-            g_currentContext->isMouseDown       = win::is_mouse_button_pressed(input, SE_LMB);
-            g_currentContext->isMouseJustDown   = win::is_mouse_button_just_pressed(input, SE_LMB);
-        }
-        else
-        {
-            g_currentContext->mouseDeltaX       = 0.0f;
-            g_currentContext->mouseDeltaY       = 0.0f;
-            g_currentContext->mouseX            = 0.0f;
-            g_currentContext->mouseY            = 0.0f;
-            g_currentContext->isMouseDown       = false;
-            g_currentContext->isMouseJustDown   = false;
-        }
+
+        const SeWindowSubsystemInput* const input = win::get_input();
+        const float mouseX = (float)input->mouseX;
+        const float mouseY = (float)input->mouseY;
+        g_currentContext->mouseDeltaX       = mouseX - g_currentContext->mouseX;
+        g_currentContext->mouseDeltaY       = mouseY - g_currentContext->mouseY;
+        g_currentContext->mouseX            = mouseX;
+        g_currentContext->mouseY            = mouseY;
+        g_currentContext->isMouseDown       = win::is_mouse_button_pressed(input, SE_LMB);
+        g_currentContext->isMouseJustDown   = win::is_mouse_button_just_pressed(input, SE_LMB);
+        
         g_currentContext->hoveredObjectUid = { };
         g_currentContext->currentWindowUid = { };
         //
@@ -1185,12 +1169,11 @@ namespace ui_impl
     void end()
     {
         se_assert(g_currentContext);
-        const SeDeviceHandle device = g_currentContext->device;
         const SeRenderAbstractionSubsystemInterface* const render = g_currentContext->render;
-        const SeRenderRef vertexProgram = render->program(device, { g_drawUiVs });
-        const SeRenderRef fragmentProgram = render->program(device, { g_drawUiFs });
-        const SeRenderRef sampler = render->sampler(device,
-        {
+        const SeRenderRef vertexProgram = render->program({ g_drawUiVs });
+        const SeRenderRef fragmentProgram = render->program({ g_drawUiFs });
+        const SeRenderRef sampler = render->sampler
+        ({
             .magFilter          = SE_SAMPLER_FILTER_LINEAR,
             .minFilter          = SE_SAMPLER_FILTER_LINEAR,
             .addressModeU       = SE_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
@@ -1205,8 +1188,8 @@ namespace ui_impl
             .compareEnabled     = false,
             .compareOp          = SE_COMPARE_OP_ALWAYS,
         });
-        const SeRenderRef pipeline = render->graphics_pipeline(device,
-        {
+        const SeRenderRef pipeline = render->graphics_pipeline
+        ({
             .vertexProgram          = { .program = vertexProgram, },
             .fragmentProgram        = { .program = fragmentProgram, },
             .frontStencilOpState    = { .isEnabled = false, },
@@ -1217,8 +1200,8 @@ namespace ui_impl
             .frontFace              = SE_PIPELINE_FRONT_FACE_CLOCKWISE,
             .samplingType           = SE_SAMPLING_1,
         });
-        render->begin_pass(device,
-        {
+        render->begin_pass
+        ({
             .id                 = 0,
             .dependencies       = 0,
             .pipeline           = pipeline,
@@ -1230,16 +1213,16 @@ namespace ui_impl
         //
         // Bind projection matrix
         //
-        const SeTextureSize targetSize = render->texture_size(device, g_currentContext->target.texture);
+        const SeTextureSize targetSize = render->texture_size(g_currentContext->target.texture);
         se_assert(targetSize.z == 1);
-        const SeRenderRef projectionBuffer = render->memory_buffer(device,
-        {
+        const SeRenderRef projectionBuffer = render->memory_buffer
+        ({
             data_provider::from_memory
             (
                 float4x4::transposed(render->orthographic(0, (float)targetSize.x, 0, (float)targetSize.y, 0, 2))
             )
         });
-        render->bind(device, { .set = 0, .bindings = { { 0, projectionBuffer } } });
+        render->bind({ .set = 0, .bindings = { { 0, projectionBuffer } } });
         //
         // Process draw calls
         //
@@ -1251,17 +1234,17 @@ namespace ui_impl
                 continue;
             }
             // Alloc buffers
-            const SeRenderRef colorsBuffer = render->memory_buffer(device,
-            {
+            const SeRenderRef colorsBuffer = render->memory_buffer
+            ({
                 data_provider::from_memory(dynamic_array::raw(drawCall.colorsArray), dynamic_array::raw_size(drawCall.colorsArray))
             });
-            const SeRenderRef verticesBuffer = render->memory_buffer(device,
-            {
+            const SeRenderRef verticesBuffer = render->memory_buffer
+            ({
                 data_provider::from_memory(dynamic_array::raw(drawCall.vertices), dynamic_array::raw_size(drawCall.vertices))
             });
             // Bind and draw
-            render->bind(device,
-            {
+            render->bind
+            ({
                 .set = 1,
                 .bindings =
                 {
@@ -1270,9 +1253,9 @@ namespace ui_impl
                     { 2, verticesBuffer },
                 },
             });
-            render->draw(device, { dynamic_array::size<uint32_t>(drawCall.vertices), 1 });
+            render->draw({ dynamic_array::size<uint32_t>(drawCall.vertices), 1 });
         }
-        render->end_pass(device);
+        render->end_pass();
         //
         // Clear context
         //

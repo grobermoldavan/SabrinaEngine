@@ -7,7 +7,7 @@
 #define WIN32_LEAN_AND_MEAN 
 #include <Windows.h>
 
-static HANDLE g_outputHandle = INVALID_HANDLE_VALUE;
+HANDLE g_outputHandle = INVALID_HANDLE_VALUE;
 
 void se_debug_platform_init()
 {
@@ -37,7 +37,7 @@ void se_debug_platform_thread_yeild()
 #   error Unsupported platform
 #endif
 
-static SeDebugSubsystemInterface g_iface;
+SeDebugSubsystemInterface g_iface;
 
 struct SeLogEntry
 {
@@ -45,10 +45,10 @@ struct SeLogEntry
     char memory[MEMORY_SIZE];
 };
 
-static ThreadSafeQueue<SeLogEntry> g_logQueue;
-static uint64_t g_isFlushing;
+ThreadSafeQueue<SeLogEntry> g_logQueue;
+uint64_t g_isFlushing;
 
-static void se_debug_wait_for_flush()
+void se_debug_wait_for_flush()
 {
     while (platform::get()->atomic_64_bit_load(&g_isFlushing, SE_ACQUIRE))
     {
@@ -56,7 +56,7 @@ static void se_debug_wait_for_flush()
     }
 }
 
-static bool se_debug_try_flush()
+bool se_debug_try_flush()
 {
     uint64_t expected = 0;
     // Try to lock the writing flag
@@ -75,7 +75,7 @@ static bool se_debug_try_flush()
     return false;
 }
 
-static void se_debug_submit(const char* fmt, const char** args, size_t numArgs)
+void se_debug_submit(const char* fmt, const char** args, size_t numArgs)
 {
     //
     // Prepare log entry
@@ -145,7 +145,7 @@ static void se_debug_submit(const char* fmt, const char** args, size_t numArgs)
     }
 }
 
-static void se_debug_abort()
+void se_debug_abort()
 {
     se_debug_try_flush();
     int* crash = 0;
@@ -176,7 +176,7 @@ SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
     return &g_iface;
 }
 
-SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const UpdateInfo* updateInfo)
+SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* updateInfo)
 {
     se_debug_try_flush();
 }

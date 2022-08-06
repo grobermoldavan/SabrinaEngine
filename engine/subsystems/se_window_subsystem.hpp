@@ -65,40 +65,14 @@ struct SeWindowSubsystemInput
     bool isCloseButtonPressed;
 };
 
-struct SeWindowSubsystemCreateInfo
-{
-    const char* name;
-    bool isFullscreen;
-    bool isResizable;
-    uint32_t width;
-    uint32_t height;
-};
-
-using SeWindowHandle = void*;
-
-constexpr SeWindowHandle NULL_WINDOW_HANDLE = nullptr;
-
-struct SeWindowResizeCallbackInfo
-{
-    void* userData;
-    void (*callback)(SeWindowHandle handle, void* userData);
-    SeWindowResizeCallbackPriority priority;
-};
-
-using SeWindowResizeCallbackHandle = void*;
-
 struct SeWindowSubsystemInterface
 {
     static constexpr const char* NAME = "SeWindowSubsystemInterface";
 
-    SeWindowHandle                  (*create)(const SeWindowSubsystemCreateInfo& createInfo);
-    void                            (*destroy)(SeWindowHandle handle);
-    const SeWindowSubsystemInput*   (*get_input)(SeWindowHandle handle);
-    uint32_t                        (*get_width)(SeWindowHandle handle);
-    uint32_t                        (*get_height)(SeWindowHandle handle);
-    void*                           (*get_native_handle)(SeWindowHandle handle);
-    SeWindowResizeCallbackHandle    (*add_resize_callback)(SeWindowHandle handle, const SeWindowResizeCallbackInfo& callbackInfo);
-    void                            (*remove_resize_callback)(SeWindowHandle handle, SeWindowResizeCallbackHandle cbHandle);
+    const SeWindowSubsystemInput*   (*get_input)();
+    uint32_t                        (*get_width)();
+    uint32_t                        (*get_height)();
+    void*                           (*get_native_handle)();
 };
 
 struct SeWindowSubsystem
@@ -112,44 +86,24 @@ const struct SeWindowSubsystemInterface* SE_WINDOW_SUBSYSTEM_GLOBAL_NAME;
 
 namespace win
 {
-    inline SeWindowHandle create(const SeWindowSubsystemCreateInfo& createInfo)
+    inline const SeWindowSubsystemInput* get_input()
     {
-        return SE_WINDOW_SUBSYSTEM_GLOBAL_NAME->create(createInfo);
+        return SE_WINDOW_SUBSYSTEM_GLOBAL_NAME->get_input();
     }
 
-    inline void destroy(SeWindowHandle handle)
+    inline uint32_t get_width()
     {
-        SE_WINDOW_SUBSYSTEM_GLOBAL_NAME->destroy(handle);
+        return SE_WINDOW_SUBSYSTEM_GLOBAL_NAME->get_width();
     }
 
-    inline const SeWindowSubsystemInput* get_input(SeWindowHandle handle)
+    inline uint32_t get_height()
     {
-        return SE_WINDOW_SUBSYSTEM_GLOBAL_NAME->get_input(handle);
+        return SE_WINDOW_SUBSYSTEM_GLOBAL_NAME->get_height();
     }
 
-    inline uint32_t get_width(SeWindowHandle handle)
+    inline void* get_native_handle()
     {
-        return SE_WINDOW_SUBSYSTEM_GLOBAL_NAME->get_width(handle);
-    }
-
-    inline uint32_t get_height(SeWindowHandle handle)
-    {
-        return SE_WINDOW_SUBSYSTEM_GLOBAL_NAME->get_height(handle);
-    }
-
-    inline void* get_native_handle(SeWindowHandle handle)
-    {
-        return SE_WINDOW_SUBSYSTEM_GLOBAL_NAME->get_native_handle(handle);
-    }
-
-    inline SeWindowResizeCallbackHandle add_resize_callback(SeWindowHandle handle, const SeWindowResizeCallbackInfo& callbackInfo)
-    {
-        return SE_WINDOW_SUBSYSTEM_GLOBAL_NAME->add_resize_callback(handle, callbackInfo);
-    }
-
-    inline void remove_resize_callback(SeWindowHandle handle, SeWindowResizeCallbackHandle cbHandle)
-    {
-        SE_WINDOW_SUBSYSTEM_GLOBAL_NAME->remove_resize_callback(handle, cbHandle);
+        return SE_WINDOW_SUBSYSTEM_GLOBAL_NAME->get_native_handle();
     }
 
     inline bool is_keyboard_button_pressed(const uint64_t* keyboardFlags, SeKeyboardInput keyFlag)

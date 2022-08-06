@@ -27,11 +27,9 @@ struct InputInstance
     SeFloat4 tint;
 };
 
-extern SeWindowHandle g_window;
 extern const SeRenderAbstractionSubsystemInterface* g_render;
 extern TetrisState g_state;
 
-SeDeviceHandle  g_device;
 DataProvider    g_drawVsData;
 DataProvider    g_drawFsData;
 DataProvider    g_presentVsData;
@@ -39,7 +37,6 @@ DataProvider    g_presentFsData;
 
 void tetris_render_init()
 {
-    g_device        = g_render->device_create({ .window = g_window, });   
     g_drawVsData    = data_provider::from_file("assets/application/shaders/tetris_draw.vert.spv");
     g_drawFsData    = data_provider::from_file("assets/application/shaders/tetris_draw.frag.spv");
     g_presentVsData = data_provider::from_file("assets/default/shaders/present.vert.spv");
@@ -48,7 +45,10 @@ void tetris_render_init()
 
 void tetris_render_terminate()
 {
-    g_render->device_destroy(g_device);
+    data_provider::destroy(g_drawVsData);
+    data_provider::destroy(g_drawFsData);
+    data_provider::destroy(g_presentVsData);
+    data_provider::destroy(g_presentFsData);
 }
 
 void tetris_render_update(const SeWindowSubsystemInput* input, float dt)
@@ -163,21 +163,21 @@ void tetris_render_update(const SeWindowSubsystemInput* input, float dt)
         float4x4::from_position({ (float)TETRIS_FIELD_WIDTH / 2.0f, -3, -20 }),
         float4x4::from_rotation({ -30, 0, 0 })
     );
-    const float aspect = ((float)win::get_width(g_window)) / ((float)win::get_height(g_window));
+    const float aspect = ((float)win::get_width()) / ((float)win::get_height());
     const SeFloat4x4 perspective = g_render->perspective(60, aspect, 0.1f, 100.0f);
     const FrameData frameData = { .viewProjection = float4x4::transposed(perspective * float4x4::inverted(view)) };
     //
     // Render
     //
-    g_render->begin_frame(g_device);
+    g_render->begin_frame();
     {
         //
         // Offscreen pass
         //
-        const SeRenderRef drawVs = g_render->program(g_device, { g_drawVsData });
-        const SeRenderRef drawFs = g_render->program(g_device, { g_drawFsData });
-        const SeRenderRef drawPipeline = g_render->graphics_pipeline(g_device,
-        {
+        const SeRenderRef drawVs = g_render->program({ g_drawVsData });
+        const SeRenderRef drawFs = g_render->program({ g_drawFsData });
+        const SeRenderRef drawPipeline = g_render->graphics_pipeline
+        ({
             .vertexProgram          = { .program = drawVs, },
             .fragmentProgram        = { .program = drawFs, },
             .frontStencilOpState    = { .isEnabled = false, },
@@ -188,22 +188,22 @@ void tetris_render_update(const SeWindowSubsystemInput* input, float dt)
             .frontFace              = SE_PIPELINE_FRONT_FACE_CLOCKWISE,
             .samplingType           = SE_SAMPLING_1,
         });
-        const SeRenderRef colorTexture = g_render->texture(g_device,
-        {
-            .width  = win::get_width(g_window),
-            .height = win::get_height(g_window),
+        const SeRenderRef colorTexture = g_render->texture
+        ({
+            .width  = win::get_width(),
+            .height = win::get_height(),
             .format = SE_TEXTURE_FORMAT_RGBA_8,
             .data   = { },
         });
-        const SeRenderRef depthTexture = g_render->texture(g_device,
-        {
-            .width  = win::get_width(g_window),
-            .height = win::get_height(g_window),
+        const SeRenderRef depthTexture = g_render->texture
+        ({
+            .width  = win::get_width(),
+            .height = win::get_height(),
             .format = SE_TEXTURE_FORMAT_DEPTH_STENCIL,
             .data   = { },
         });
-        g_render->begin_pass(g_device,
-        {
+        g_render->begin_pass
+        ({
             .id                 = 0,
             .dependencies       = 0,
             .pipeline           = drawPipeline,
@@ -213,40 +213,40 @@ void tetris_render_update(const SeWindowSubsystemInput* input, float dt)
             .hasDepthStencil    = true,
         });
         {
-            const SeRenderRef gridVerticesBuffer    = g_render->memory_buffer(g_device, { data_provider::from_memory(gridVertices, sizeof(gridVertices)) });
-            const SeRenderRef gridIndicesBuffer     = g_render->memory_buffer(g_device, { data_provider::from_memory(gridIndices, sizeof(gridIndices)) });
-            const SeRenderRef gridInstancesBuffer   = g_render->memory_buffer(g_device, { data_provider::from_memory(gridInstances, sizeof(gridInstances)) });
-            const SeRenderRef frameDataBuffer       = g_render->memory_buffer(g_device, { data_provider::from_memory(&frameData, sizeof(frameData)) });
-            g_render->bind(g_device, { .set = 0, .bindings = { { 0, frameDataBuffer } } });
+            const SeRenderRef gridVerticesBuffer    = g_render->memory_buffer({ data_provider::from_memory(gridVertices, sizeof(gridVertices)) });
+            const SeRenderRef gridIndicesBuffer     = g_render->memory_buffer({ data_provider::from_memory(gridIndices, sizeof(gridIndices)) });
+            const SeRenderRef gridInstancesBuffer   = g_render->memory_buffer({ data_provider::from_memory(gridInstances, sizeof(gridInstances)) });
+            const SeRenderRef frameDataBuffer       = g_render->memory_buffer({ data_provider::from_memory(&frameData, sizeof(frameData)) });
+            g_render->bind({ .set = 0, .bindings = { { 0, frameDataBuffer } } });
             if (numCubeInstances)
             {
-                const SeRenderRef cubeVerticesBuffer    = g_render->memory_buffer(g_device, { data_provider::from_memory(cubeVertices, sizeof(cubeVertices)) });
-                const SeRenderRef cubeIndicesBuffer     = g_render->memory_buffer(g_device, { data_provider::from_memory(cubeIndices, sizeof(cubeIndices)) });
-                const SeRenderRef cubeInstancesBuffer   = g_render->memory_buffer(g_device, { data_provider::from_memory(cubeInstances, numCubeInstances * sizeof(InputInstance)) });
-                g_render->bind(g_device, { .set = 1, .bindings =
+                const SeRenderRef cubeVerticesBuffer    = g_render->memory_buffer({ data_provider::from_memory(cubeVertices, sizeof(cubeVertices)) });
+                const SeRenderRef cubeIndicesBuffer     = g_render->memory_buffer({ data_provider::from_memory(cubeIndices, sizeof(cubeIndices)) });
+                const SeRenderRef cubeInstancesBuffer   = g_render->memory_buffer({ data_provider::from_memory(cubeInstances, numCubeInstances * sizeof(InputInstance)) });
+                g_render->bind({ .set = 1, .bindings =
                 { 
                     { 0, cubeVerticesBuffer  },
                     { 1, cubeIndicesBuffer   },
                     { 2, cubeInstancesBuffer }, 
                 } });
-                g_render->draw(g_device, { .numVertices = se_array_size(cubeIndices), .numInstances = numCubeInstances });
+                g_render->draw({ .numVertices = se_array_size(cubeIndices), .numInstances = numCubeInstances });
             }
-            g_render->bind(g_device, { .set = 1, .bindings =
+            g_render->bind({ .set = 1, .bindings =
             { 
                 { 0, gridVerticesBuffer  },
                 { 1, gridIndicesBuffer   },
                 { 2, gridInstancesBuffer }, 
             } });
-            g_render->draw(g_device, { .numVertices = se_array_size(gridIndices), .numInstances = se_array_size(gridInstances) });
+            g_render->draw({ .numVertices = se_array_size(gridIndices), .numInstances = se_array_size(gridInstances) });
         }
-        g_render->end_pass(g_device);
+        g_render->end_pass();
         //
         // Presentation pass
         //
-        const SeRenderRef presentVs = g_render->program(g_device, { g_presentVsData });
-        const SeRenderRef presentFs = g_render->program(g_device, { g_presentFsData });
-        const SeRenderRef presentPipeline = g_render->graphics_pipeline(g_device,
-        {
+        const SeRenderRef presentVs = g_render->program({ g_presentVsData });
+        const SeRenderRef presentFs = g_render->program({ g_presentFsData });
+        const SeRenderRef presentPipeline = g_render->graphics_pipeline
+        ({
             .vertexProgram          = { .program = presentVs, },
             .fragmentProgram        = { .program = presentFs, },
             .frontStencilOpState    = { .isEnabled = false, },
@@ -257,8 +257,8 @@ void tetris_render_update(const SeWindowSubsystemInput* input, float dt)
             .frontFace              = SE_PIPELINE_FRONT_FACE_CLOCKWISE,
             .samplingType           = SE_SAMPLING_1,
         });
-        const SeRenderRef sampler = g_render->sampler(g_device,
-        {
+        const SeRenderRef sampler = g_render->sampler
+        ({
             .magFilter          = SE_SAMPLER_FILTER_LINEAR,
             .minFilter          = SE_SAMPLER_FILTER_LINEAR,
             .addressModeU       = SE_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
@@ -273,21 +273,21 @@ void tetris_render_update(const SeWindowSubsystemInput* input, float dt)
             .compareEnabled     = false,
             .compareOp          = SE_COMPARE_OP_ALWAYS,
         });
-        g_render->begin_pass(g_device,
-        {
+        g_render->begin_pass
+        ({
             .id                 = 0,
             .dependencies       = 1,
             .pipeline           = presentPipeline,
-            .renderTargets      = { { g_render->swap_chain_texture(g_device), SE_PASS_RENDER_TARGET_LOAD_OP_CLEAR } },
+            .renderTargets      = { { g_render->swap_chain_texture(), SE_PASS_RENDER_TARGET_LOAD_OP_CLEAR } },
             .numRenderTargets   = 1,
             .depthStencilTarget = { },
             .hasDepthStencil    = false,
         });
         {
-            g_render->bind(g_device, { .set = 0, .bindings = { { 0, colorTexture, sampler } }  });
-            g_render->draw(g_device, { .numVertices = 4, .numInstances = 1 });
+            g_render->bind({ .set = 0, .bindings = { { 0, colorTexture, sampler } }  });
+            g_render->draw({ .numVertices = 4, .numInstances = 1 });
         }
-        g_render->end_pass(g_device);
+        g_render->end_pass();
     }
-    g_render->end_frame(g_device);
+    g_render->end_frame();
 }
