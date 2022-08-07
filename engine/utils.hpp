@@ -2,7 +2,6 @@
 #define _SE_UTILS_HPP_
 
 #include "common_includes.hpp"
-#include <string.h>
 
 namespace utils
 {

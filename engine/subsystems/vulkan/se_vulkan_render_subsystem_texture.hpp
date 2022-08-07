@@ -3,7 +3,6 @@
 
 #include "se_vulkan_render_subsystem_base.hpp"
 #include "se_vulkan_render_subsystem_memory.hpp"
-#include "engine/data_providers.hpp"
 
 enum SeVkTextureFlags
 {

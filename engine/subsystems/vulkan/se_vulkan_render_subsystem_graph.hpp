@@ -10,7 +10,6 @@
 #include "se_vulkan_render_subsystem_memory_buffer.hpp"
 #include "se_vulkan_render_subsystem_sampler.hpp"
 #include "se_vulkan_render_subsystem_command_buffer.hpp"
-#include "engine/containers.hpp"
 
 constexpr size_t SE_VK_GRAPH_MAX_POOLS_IN_ARRAY = 64;
 

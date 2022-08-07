@@ -6,10 +6,6 @@
 #include "se_vulkan_render_subsystem_utils.hpp"
 #include "se_vulkan_render_subsystem_program.hpp"
 #include "se_vulkan_render_subsystem_render_pass.hpp"
-#include "engine/subsystems/se_application_allocators_subsystem.hpp"
-#include "engine/libs/ssr/simple_spirv_reflection.h"
-#include "engine/allocator_bindings.hpp"
-#include "engine/containers.hpp"
 
 #define SE_VK_RENDER_PIPELINE_NUMBER_OF_SETS_IN_POOL 32
 

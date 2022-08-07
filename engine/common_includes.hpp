@@ -3,6 +3,7 @@
 
 #include <inttypes.h>
 #include <stdbool.h>
+#include <string.h>
 
 #ifdef _WIN32
 #   define SE_DLL_EXPORT extern "C" __declspec(dllexport)

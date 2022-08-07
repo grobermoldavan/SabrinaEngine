@@ -1,5 +1,4 @@
 
-#include <string.h>
 #include <type_traits>
 
 #include "se_vulkan_render_subsystem_memory.hpp"
@@ -14,10 +13,6 @@
 #include "se_vulkan_render_subsystem_memory_buffer.hpp"
 #include "se_vulkan_render_subsystem_sampler.hpp"
 #include "se_vulkan_render_subsystem_command_buffer.hpp"
-#include "engine/subsystems/se_platform_subsystem.hpp"
-#include "engine/subsystems/se_application_allocators_subsystem.hpp"
-#include "engine/allocator_bindings.hpp"
-#include "engine/common_includes.hpp"
 
 struct SeVkMemoryObjectPools
 {

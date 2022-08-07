@@ -1,9 +1,5 @@
 
-#include <string.h>
-
 #include "se_vulkan_render_subsystem_utils.hpp"
-#include "engine/render_abstraction_interface.hpp"
-#include "engine/se_math.hpp"
 
 const char** se_vk_utils_get_required_validation_layers(size_t* outNum)
 {

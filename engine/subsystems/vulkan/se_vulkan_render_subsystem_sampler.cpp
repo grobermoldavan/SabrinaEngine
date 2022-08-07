@@ -3,7 +3,6 @@
 #include "se_vulkan_render_subsystem_device.hpp"
 #include "se_vulkan_render_subsystem_memory.hpp"
 #include "se_vulkan_render_subsystem_utils.hpp"
-#include "engine/se_math.hpp"
 
 size_t g_samplerIndex = 0;
 

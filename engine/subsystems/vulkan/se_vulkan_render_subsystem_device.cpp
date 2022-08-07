@@ -1,9 +1,6 @@
 
 #include "se_vulkan_render_subsystem_device.hpp"
 #include "se_vulkan_render_subsystem_utils.hpp"
-#include "engine/subsystems/se_window_subsystem.hpp"
-#include "engine/subsystems/se_application_allocators_subsystem.hpp"
-#include "engine/allocator_bindings.hpp"
 
 #define SE_VK_INVALID_DEVICE_RATING -1.0f
 

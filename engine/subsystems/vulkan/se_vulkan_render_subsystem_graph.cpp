@@ -3,7 +3,6 @@
 #include "se_vulkan_render_subsystem_device.hpp"
 #include "se_vulkan_render_subsystem_frame_manager.hpp"
 #include "se_vulkan_render_subsystem_utils.hpp"
-#include "engine/subsystems/se_application_allocators_subsystem.hpp"
 
 constexpr size_t SE_VK_GRAPH_MAX_SETS_IN_DESCRIPTOR_POOL = 64;
 constexpr size_t SE_VK_GRAPH_OBJECT_LIFETIME             = 20;
@@ -944,7 +943,7 @@ void se_vk_graph_begin_pass(SeVkGraph* graph, const SeBeginPassInfo& info)
         //
         const SeVkTextureInfo* depthStencilTextureInfo = info.hasDepthStencil ? &graph->textureInfos[se_vk_ref_index(info.depthStencilTarget.texture)] : nullptr;
         const VkAttachmentLoadOp depthStencilLoadOp = info.hasDepthStencil ? (VkAttachmentLoadOp)info.depthStencilTarget.loadOp : (VkAttachmentLoadOp)0;
-        const uint32_t numColorAttachments = se_vk_safe_cast_size_t_to_uint32_t(info.numRenderTargets);
+        const uint32_t numColorAttachments = se_vk_safe_cast<uint32_t>(info.numRenderTargets);
         SeVkRenderPassInfo renderPassInfo =
         {
             .device                     = device,
@@ -1066,7 +1065,7 @@ SeRenderRef se_vk_graph_texture(SeVkGraph* graph, const SeTextureInfo& info)
     {
         .device     = device,
         .format     = info.format == SE_TEXTURE_FORMAT_DEPTH_STENCIL ? se_vk_device_get_depth_stencil_format(device) : se_vk_utils_to_vk_format(info.format),
-        .extent     = { se_vk_safe_cast_size_t_to_uint32_t(info.width), se_vk_safe_cast_size_t_to_uint32_t(info.height), 1 },
+        .extent     = { se_vk_safe_cast<uint32_t>(info.width), se_vk_safe_cast<uint32_t>(info.height), 1 },
         .usage      = (VkImageUsageFlags)(data_provider::is_valid(info.data) ? VK_IMAGE_USAGE_TRANSFER_DST_BIT : 0),
         .sampling   = VK_SAMPLE_COUNT_1_BIT, // @TODO : support multisampling
         .data       = info.data,

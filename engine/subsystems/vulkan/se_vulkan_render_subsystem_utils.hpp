@@ -2,7 +2,6 @@
 #define _SE_VULKAN_RENDER_SUBSYSTEM_UTILS_H_
 
 #include "se_vulkan_render_subsystem_base.hpp"
-#include "engine/containers.hpp"
 
 #define SE_VK_INVALID_QUEUE (~0u)
 

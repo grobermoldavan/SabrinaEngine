@@ -4,7 +4,6 @@
 #include "se_vulkan_render_subsystem_base.hpp"
 #include "se_vulkan_render_subsystem_render_pass.hpp"
 #include "se_vulkan_render_subsystem_texture.hpp"
-#include "engine/containers.hpp"
 
 #define SE_VK_FRAMEBUFFER_MAX_TEXTURES 8
 

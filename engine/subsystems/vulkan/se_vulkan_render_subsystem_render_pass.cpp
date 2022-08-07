@@ -6,8 +6,6 @@
 #include "se_vulkan_render_subsystem_utils.hpp"
 #include "se_vulkan_render_subsystem_program.hpp"
 #include "se_vulkan_render_subsystem_texture.hpp"
-#include "engine/libs/ssr/simple_spirv_reflection.h"
-#include "engine/allocator_bindings.hpp"
 
 #define SE_VK_RP_MAX_SUBPASS_DEPENDENCIES 64
 

@@ -6,7 +6,6 @@
 #include "se_vulkan_render_subsystem_utils.hpp"
 #include "se_vulkan_render_subsystem_texture.hpp"
 #include "se_vulkan_render_subsystem_render_pass.hpp"
-#include "engine/allocator_bindings.hpp"
 
 size_t g_framebufferIndex = 0;
 

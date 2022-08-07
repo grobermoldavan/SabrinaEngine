@@ -1,10 +1,7 @@
 #ifndef _SE_VULKAN_RENDER_SUBSYSTEM_MEMORY_H_
 #define _SE_VULKAN_RENDER_SUBSYSTEM_MEMORY_H_
 
-#include <inttypes.h>
 #include "se_vulkan_render_subsystem_base.hpp"
-#include "engine/allocator_bindings.hpp"
-#include "engine/containers.hpp"
 
 struct SeVkGpuAllocationRequest
 {

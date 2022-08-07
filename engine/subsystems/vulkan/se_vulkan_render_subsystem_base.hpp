@@ -9,15 +9,25 @@
 
 #define VK_NO_PROTOTYPES
 #include <vulkan/vulkan.h>
-#include <inttypes.h>
-#include <stdbool.h>
 #include <stddef.h>
 
-#include "engine/libs/volk/volk.h"
+#include "engine/subsystems/se_platform_subsystem.hpp"
+#include "engine/subsystems/se_window_subsystem.hpp"
+#include "engine/subsystems/se_debug_subsystem.hpp"
+#include "engine/subsystems/se_application_allocators_subsystem.hpp"
 #include "engine/common_includes.hpp"
 #include "engine/render_abstraction_interface.hpp"
+#include "engine/allocator_bindings.hpp"
+#include "engine/containers.hpp"
 #include "engine/utils.hpp"
-#include "engine/subsystems/se_debug_subsystem.hpp"
+#include "engine/hash.hpp"
+#include "engine/data_providers.hpp"
+#include "engine/se_math.hpp"
+
+#define ssr_assert se_assert
+#define SSR_DIRTY_ALLOCATOR
+#include "engine/libs/ssr/simple_spirv_reflection.h"
+#include "engine/libs/volk/volk.h"
 
 enum SeVkType
 {
@@ -53,12 +63,25 @@ using SeVkGeneralBitmask = uint32_t;
 #define se_vk_check(cmd) do { VkResult __result = cmd; se_assert(__result == VK_SUCCESS); } while(0)
 #define se_vk_expect_handle(renderObjPtr, expectedHandleType, msg) se_assert(se_vk_render_object_handle_type(renderObjPtr) == expectedHandleType && msg" - incorrect render object type (expected "#expectedHandleType")")
 
-#define se_vk_safe_cast_size_t_to_uint32_t(val) ((uint32_t)(val))
-
 template<typename T>
 void se_vk_destroy(T* resource)
 {
     static_assert(!"Destroy template function is not specified");
 }
+
+template<typename To, typename From>
+To se_vk_safe_cast(From from)
+{
+    static_assert(!"Safe cast operation is not specified");
+    return (To)from;
+}
+
+template<> uint32_t se_vk_safe_cast(size_t from) { se_assert(from <= UINT32_MAX); return (uint32_t)from; }
+template<> uint16_t se_vk_safe_cast(size_t from) { se_assert(from <= UINT16_MAX); return (uint16_t)from; }
+template<> uint8_t  se_vk_safe_cast(size_t from) { se_assert(from <= UINT8_MAX);  return (uint8_t)from; }
+template<> int64_t  se_vk_safe_cast(size_t from) { se_assert(from <= INT64_MAX);  return (int64_t)from; }
+template<> int32_t  se_vk_safe_cast(size_t from) { se_assert(from <= INT32_MAX);  return (int32_t)from; }
+template<> int16_t  se_vk_safe_cast(size_t from) { se_assert(from <= INT16_MAX);  return (int16_t)from; }
+template<> int8_t   se_vk_safe_cast(size_t from) { se_assert(from <= INT8_MAX);   return (int8_t)from; }
 
 #endif

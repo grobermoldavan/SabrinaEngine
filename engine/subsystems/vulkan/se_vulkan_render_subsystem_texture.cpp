@@ -4,7 +4,6 @@
 #include "se_vulkan_render_subsystem_device.hpp"
 #include "se_vulkan_render_subsystem_command_buffer.hpp"
 #include "se_vulkan_render_subsystem_utils.hpp"
-#include "engine/allocator_bindings.hpp"
 
 constexpr size_t MAX_STBI_ALLOCATIONS = 64;
 struct

@@ -5,8 +5,6 @@
 #include "se_vulkan_render_subsystem_memory.hpp"
 #include "se_vulkan_render_subsystem_frame_manager.hpp"
 #include "se_vulkan_render_subsystem_graph.hpp"
-#include "engine/subsystems/se_window_subsystem.hpp"
-#include "engine/containers.hpp"
 
 #define se_vk_device_get_logical_handle(device)                     ((device)->gpu.logicalHandle)
 #define se_vk_device_is_stencil_supported(device)                   ((device)->gpu.flags & SE_VK_GPU_HAS_STENCIL)

@@ -4,7 +4,6 @@
 #include "se_vulkan_render_subsystem_base.hpp"
 #include "se_vulkan_render_subsystem_program.hpp"
 #include "se_vulkan_render_subsystem_render_pass.hpp"
-#include "engine/hash.hpp"
 
 #define SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS 8
 
