@@ -27,7 +27,7 @@ bool se_vk_pipeline_has_vertex_input(const SimpleSpirvReflection* reflection)
     return false;
 }
 
-SeVkDescriptorSetLayoutCreateInfos se_vk_pipeline_get_discriptor_set_layout_create_infos(AllocatorBindings& allocator, const SimpleSpirvReflection** programReflections, size_t numProgramReflections)
+SeVkDescriptorSetLayoutCreateInfos se_vk_pipeline_get_discriptor_set_layout_create_infos(const AllocatorBindings& allocator, const SimpleSpirvReflection** programReflections, size_t numProgramReflections)
 {
     SeVkGeneralBitmask setBindingMasks[SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS] = {0};
     //
@@ -173,11 +173,11 @@ void se_vk_pipeline_destroy_descriptor_set_layout_create_infos(SeVkDescriptorSet
 
 void se_vk_pipeline_create_descriptor_sets_and_layout(SeVkPipeline* pipeline, const SimpleSpirvReflection** reflections, size_t numReflections)
 {
-    SeVkDevice* device = pipeline->device;
-    VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
-    SeVkMemoryManager* memoryManager = &device->memoryManager;
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    AllocatorBindings frameAllocator = app_allocators::frame();
+    SeVkDevice* const device = pipeline->device;
+    const VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
+    SeVkMemoryManager* const memoryManager = &device->memoryManager;
+    const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
+    const AllocatorBindings frameAllocator = app_allocators::frame();
     //
     // Descriptor set layouts and pools
     //
@@ -186,8 +186,8 @@ void se_vk_pipeline_create_descriptor_sets_and_layout(SeVkPipeline* pipeline, co
         pipeline->numDescriptorSetLayouts = dynamic_array::size(layoutCreateInfos.createInfos);
         for (size_t it = 0; it < pipeline->numDescriptorSetLayouts; it++)
         {
-            VkDescriptorSetLayoutCreateInfo* layoutCreateInfo = &layoutCreateInfos.createInfos[it];
-            SeVkDescriptorSetLayout* layout = &pipeline->descriptorSetLayouts[it];
+            const VkDescriptorSetLayoutCreateInfo* const layoutCreateInfo = &layoutCreateInfos.createInfos[it];
+            SeVkDescriptorSetLayout* const layout = &pipeline->descriptorSetLayouts[it];
             layout->numBindings = layoutCreateInfo->bindingCount;
             se_vk_check(vkCreateDescriptorSetLayout(logicalHandle, layoutCreateInfo, callbacks, &layout->handle));
             size_t numUniqueDescriptorTypes = 0;
@@ -227,10 +227,10 @@ void se_vk_pipeline_create_descriptor_sets_and_layout(SeVkPipeline* pipeline, co
             for (size_t sizeIt = 0; sizeIt < layout->numPoolSizes; sizeIt++) layout->poolSizes[sizeIt].type = VK_DESCRIPTOR_TYPE_MAX_ENUM;
             for (size_t bindingIt = 0; bindingIt < layoutCreateInfo->bindingCount; bindingIt++)
             {
-                const VkDescriptorSetLayoutBinding* binding = &layoutCreateInfo->pBindings[bindingIt];
+                const VkDescriptorSetLayoutBinding* const binding = &layoutCreateInfo->pBindings[bindingIt];
                 for (size_t poolSizeIt = 0; poolSizeIt < layout->numPoolSizes; poolSizeIt++)
                 {
-                    VkDescriptorPoolSize* poolSize = &layout->poolSizes[poolSizeIt];
+                    VkDescriptorPoolSize* const poolSize = &layout->poolSizes[poolSizeIt];
                     if (poolSize->type == VK_DESCRIPTOR_TYPE_MAX_ENUM)
                     {
                         poolSize->type = binding->descriptorType;
@@ -263,7 +263,7 @@ void se_vk_pipeline_create_descriptor_sets_and_layout(SeVkPipeline* pipeline, co
         {
             descriptorSetLayoutHandles[it] = pipeline->descriptorSetLayouts[it].handle;
         }
-        VkPipelineLayoutCreateInfo pipelineLayoutInfo =
+        const VkPipelineLayoutCreateInfo pipelineLayoutInfo =
         {
             .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
             .pNext                  = nullptr,
@@ -279,14 +279,14 @@ void se_vk_pipeline_create_descriptor_sets_and_layout(SeVkPipeline* pipeline, co
 
 void se_vk_pipeline_graphics_construct(SeVkPipeline* pipeline, SeVkGraphicsPipelineInfo* info)
 {
-    SeVkDevice* device = info->device;
-    VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
-    SeVkMemoryManager* memoryManager = &device->memoryManager;
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    AllocatorBindings frameAllocator = app_allocators::frame();
+    SeVkDevice* const device = info->device;
+    const VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
+    SeVkMemoryManager* const memoryManager = &device->memoryManager;
+    const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
+    const AllocatorBindings frameAllocator = app_allocators::frame();
 
-    SeVkProgram* vertexProgram = info->vertexProgram.program;
-    SeVkProgram* fragmentProgram = info->fragmentProgram.program;
+    SeVkProgram* const vertexProgram = info->vertexProgram.program;
+    SeVkProgram* const fragmentProgram = info->fragmentProgram.program;
     *pipeline =
     {
         .object                     = { SE_VK_TYPE_GRAPHICS_PIPELINE, g_pipelineIndex++ },
@@ -299,8 +299,8 @@ void se_vk_pipeline_graphics_construct(SeVkPipeline* pipeline, SeVkGraphicsPipel
         .dependencies               = { .graphics = { vertexProgram, fragmentProgram, info->pass } },
     };
 
-    const SimpleSpirvReflection* vertexReflection = &vertexProgram->reflection;
-    const SimpleSpirvReflection* fragmentReflection = &fragmentProgram->reflection;
+    const SimpleSpirvReflection* const vertexReflection = &vertexProgram->reflection;
+    const SimpleSpirvReflection* const fragmentReflection = &fragmentProgram->reflection;
     const VkBool32 isStencilSupported = se_vk_device_is_stencil_supported(device);
     se_assert(!se_vk_pipeline_has_vertex_input(vertexReflection) && "Vertex shader inputs are not supported");
     se_assert(!vertexReflection->pushConstantType && "Push constants are not supported");
@@ -363,7 +363,7 @@ void se_vk_pipeline_graphics_construct(SeVkPipeline* pipeline, SeVkGraphicsPipel
     const uint32_t numColorAttachments = se_vk_render_pass_get_num_color_attachments(info->pass, info->subpassIndex);
     const VkPipelineColorBlendStateCreateInfo colorBlending = se_vk_utils_color_blending_create_info(colorBlendAttachments, numColorAttachments);
     const VkPipelineDynamicStateCreateInfo dynamicState = se_vk_utils_dynamic_state_default_create_info();
-    VkGraphicsPipelineCreateInfo pipelineCreateInfo
+    const VkGraphicsPipelineCreateInfo pipelineCreateInfo
     {
         .sType                  = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
         .pNext                  = nullptr,
@@ -390,13 +390,13 @@ void se_vk_pipeline_graphics_construct(SeVkPipeline* pipeline, SeVkGraphicsPipel
 
 void se_vk_pipeline_compute_construct(SeVkPipeline* pipeline, SeVkComputePipelineInfo* info)
 {
-    SeVkDevice* device = info->device;
-    VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
-    SeVkMemoryManager* memoryManager = &device->memoryManager;
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    AllocatorBindings frameAllocator = app_allocators::frame();
+    SeVkDevice* const device = info->device;
+    const VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
+    SeVkMemoryManager* const memoryManager = &device->memoryManager;
+    const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
+    const AllocatorBindings frameAllocator = app_allocators::frame();
     
-    SeVkProgram* program = info->program.program;
+    SeVkProgram* const program = info->program.program;
     *pipeline =
     {
         .object                     = { SE_VK_TYPE_GRAPHICS_PIPELINE, g_pipelineIndex++ },
@@ -413,7 +413,7 @@ void se_vk_pipeline_compute_construct(SeVkPipeline* pipeline, SeVkComputePipelin
     se_assert(!reflection->pushConstantType && "Push constants are not supported");
     
     se_vk_pipeline_create_descriptor_sets_and_layout(pipeline, &reflection, 1);
-    VkComputePipelineCreateInfo pipelineCreateInfo
+    const VkComputePipelineCreateInfo pipelineCreateInfo
     {
         .sType              = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
         .pNext              = nullptr,
@@ -428,13 +428,13 @@ void se_vk_pipeline_compute_construct(SeVkPipeline* pipeline, SeVkComputePipelin
 
 void se_vk_pipeline_destroy(SeVkPipeline* pipeline)
 {
-    SeVkDevice* device = pipeline->device;
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(&device->memoryManager);
-    VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
+    SeVkDevice* const device = pipeline->device;
+    const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(&device->memoryManager);
+    const VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
     
     for (size_t layoutIt = 0; layoutIt < pipeline->numDescriptorSetLayouts; layoutIt++)
     {
-        SeVkDescriptorSetLayout* layout = &pipeline->descriptorSetLayouts[layoutIt];
+        SeVkDescriptorSetLayout* const layout = &pipeline->descriptorSetLayouts[layoutIt];
         vkDestroyDescriptorSetLayout(logicalHandle, layout->handle, callbacks);
     }
     vkDestroyPipeline(logicalHandle, pipeline->handle, callbacks);
@@ -443,8 +443,8 @@ void se_vk_pipeline_destroy(SeVkPipeline* pipeline)
 
 VkDescriptorPool se_vk_pipeline_create_descriptor_pool(SeVkPipeline* pipeline, size_t set)
 {
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(&pipeline->device->memoryManager);
-    VkDevice logicalHandle = se_vk_device_get_logical_handle(pipeline->device);
+    const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(&pipeline->device->memoryManager);
+    const VkDevice logicalHandle = se_vk_device_get_logical_handle(pipeline->device);
     VkDescriptorPool pool = VK_NULL_HANDLE;
     se_vk_check(vkCreateDescriptorPool(logicalHandle, &pipeline->descriptorSetLayouts[set].poolCreateInfo, callbacks, &pool));
     return pool;

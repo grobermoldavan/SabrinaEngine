@@ -25,7 +25,7 @@ struct SeVkDescriptorSetLayout
 struct SeVkPipeline
 {
     SeVkObject              object;
-    struct SeVkDevice*      device;
+    SeVkDevice*             device;
     VkPipelineBindPoint     bindPoint;
     VkPipeline              handle;
     VkPipelineLayout        layout;
@@ -35,20 +35,20 @@ struct SeVkPipeline
     {
         struct
         {
-            struct SeVkProgram* vertexProgram;
-            struct SeVkProgram* fragmentProgram;
-            struct SeVkRenderPass* pass;
+            SeVkProgram* vertexProgram;
+            SeVkProgram* fragmentProgram;
+            SeVkRenderPass* pass;
         } graphics;
         struct
         {
-            struct SeVkProgram* program;
+            SeVkProgram* program;
         } compute;
     } dependencies;
 };
 
 struct SeVkGraphicsPipelineInfo
 {
-    struct SeVkDevice*          device;
+    SeVkDevice*                 device;
     SeVkRenderPass*             pass;
     SeVkProgramWithConstants    vertexProgram;
     SeVkProgramWithConstants    fragmentProgram;
@@ -66,7 +66,7 @@ struct SeVkGraphicsPipelineInfo
 
 struct SeVkComputePipelineInfo
 {
-    struct SeVkDevice*          device;
+    SeVkDevice*                 device;
     SeVkProgramWithConstants    program;
 };
 

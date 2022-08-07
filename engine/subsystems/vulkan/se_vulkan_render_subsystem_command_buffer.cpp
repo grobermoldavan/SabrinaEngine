@@ -7,9 +7,9 @@ size_t g_commandBufferIndex = 0;
 
 void se_vk_command_buffer_construct(SeVkCommandBuffer* buffer, SeVkCommandBufferInfo* info)
 {
-    SeVkMemoryManager* memoryManager = &info->device->memoryManager;
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    VkDevice logicalHandle = se_vk_device_get_logical_handle(info->device);
+    SeVkMemoryManager* const memoryManager = &info->device->memoryManager;
+    const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
+    const VkDevice logicalHandle = se_vk_device_get_logical_handle(info->device);
     
     se_assert(info->usage);
     const SeVkCommandQueueFlags queueFlags =
@@ -67,8 +67,8 @@ void se_vk_command_buffer_construct(SeVkCommandBuffer* buffer, SeVkCommandBuffer
 
 void se_vk_command_buffer_destroy(SeVkCommandBuffer* buffer)
 {
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(&buffer->device->memoryManager);
-    VkDevice logicalHandle = se_vk_device_get_logical_handle(buffer->device);
+    const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(&buffer->device->memoryManager);
+    const VkDevice logicalHandle = se_vk_device_get_logical_handle(buffer->device);
     vkDestroySemaphore(logicalHandle, buffer->semaphore, callbacks);
     vkDestroyFence(logicalHandle, buffer->fence, callbacks);
     vkFreeCommandBuffers(logicalHandle, buffer->pool, 1, &buffer->handle);

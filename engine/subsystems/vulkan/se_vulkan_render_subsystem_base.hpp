@@ -60,6 +60,16 @@ using SeVkFlags = uint32_t;
 using SeVkGeneralBitmask = uint32_t;
 #define SE_VK_GENERAL_BITMASK_WIDTH (sizeof(SeVkGeneralBitmask) * 8)
 
+struct SeVkDevice;
+struct SeVkCommandBuffer;
+struct SeVkFramebuffer;
+struct SeVkMemoryBuffer;
+struct SeVkPipeline;
+struct SeVkProgram;
+struct SeVkRenderPass;
+struct SeVkSampler;
+struct SeVkTexture;
+
 #define se_vk_check(cmd) do { VkResult __result = cmd; se_assert(__result == VK_SUCCESS); } while(0)
 #define se_vk_expect_handle(renderObjPtr, expectedHandleType, msg) se_assert(se_vk_render_object_handle_type(renderObjPtr) == expectedHandleType && msg" - incorrect render object type (expected "#expectedHandleType")")
 

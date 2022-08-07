@@ -115,8 +115,8 @@ void se_vk_graph_construct(SeVkGraph* graph, const SeVkGraphInfo* info)
 
 void se_vk_graph_destroy(SeVkGraph* graph)
 {
-    VkDevice logicalHandle = se_vk_device_get_logical_handle(graph->device);
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(&graph->device->memoryManager);
+    const VkDevice logicalHandle = se_vk_device_get_logical_handle(graph->device);
+    const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(&graph->device->memoryManager);
 
     for (auto it : graph->frameCommandBuffers)
         dynamic_array::destroy(iter::value(it));
@@ -150,10 +150,10 @@ void se_vk_graph_begin_frame(SeVkGraph* graph)
 {
     se_assert(graph->context == SE_VK_GRAPH_CONTEXT_TYPE_BETWEEN_FRAMES);
 
-    VkDevice logicalHandle = se_vk_device_get_logical_handle(graph->device);
-    SeVkMemoryManager* memoryManager = &graph->device->memoryManager;
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    SeVkFrameManager* frameManager = &graph->device->frameManager;
+    const VkDevice logicalHandle = se_vk_device_get_logical_handle(graph->device);
+    SeVkMemoryManager* const memoryManager = &graph->device->memoryManager;
+    const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
+    SeVkFrameManager* const frameManager = &graph->device->frameManager;
     const size_t currentFrame = frameManager->frameNumber;
     const size_t frameIndex = se_vk_frame_manager_get_active_frame_index(frameManager);
 
@@ -187,9 +187,9 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
 {
     se_assert(graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_FRAME);
 
-    VkDevice logicalHandle = se_vk_device_get_logical_handle(graph->device);
-    SeVkMemoryManager* memoryManager = &graph->device->memoryManager;
-    AllocatorBindings frameAllocator = app_allocators::frame();
+    const VkDevice logicalHandle = se_vk_device_get_logical_handle(graph->device);
+    SeVkMemoryManager* const memoryManager = &graph->device->memoryManager;
+    const AllocatorBindings frameAllocator = app_allocators::frame();
 
     ObjectPool<SeVkTexture>&        texturePool         = se_vk_memory_manager_get_pool<SeVkTexture>(memoryManager);
     ObjectPool<SeVkRenderPass>&     renderPassPool      = se_vk_memory_manager_get_pool<SeVkRenderPass>(memoryManager);
@@ -199,9 +199,9 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
     ObjectPool<SeVkCommandBuffer>&  commandBufferPool   = se_vk_memory_manager_get_pool<SeVkCommandBuffer>(memoryManager);
     ObjectPool<SeVkMemoryBuffer>&   memoryBufferPool    = se_vk_memory_manager_get_pool<SeVkMemoryBuffer>(memoryManager);
     
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    SeVkFrameManager* frameManager = &graph->device->frameManager;
-    SeVkFrame* frame = se_vk_frame_manager_get_active_frame(frameManager);
+    const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
+    SeVkFrameManager* const frameManager = &graph->device->frameManager;
+    SeVkFrame* const frame = se_vk_frame_manager_get_active_frame(frameManager);
     const size_t currentFrame = frameManager->frameNumber;
     const size_t frameIndex = se_vk_frame_manager_get_active_frame_index(frameManager);
 

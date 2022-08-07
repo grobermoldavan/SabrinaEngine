@@ -9,7 +9,7 @@
 
 struct SeVkFramebufferInfo
 {
-    struct SeVkDevice*                  device;
+    SeVkDevice*                         device;
     ObjectPoolEntryRef<SeVkRenderPass>  pass;
     ObjectPoolEntryRef<SeVkTexture>     textures[SE_VK_FRAMEBUFFER_MAX_TEXTURES];
     uint32_t                            numTextures;
@@ -18,7 +18,7 @@ struct SeVkFramebufferInfo
 struct SeVkFramebuffer
 {
     SeVkObject                          object;
-    struct SeVkDevice*                  device;
+    SeVkDevice*                         device;
     ObjectPoolEntryRef<SeVkRenderPass>  pass;
     ObjectPoolEntryRef<SeVkTexture>     textures[SE_VK_FRAMEBUFFER_MAX_TEXTURES];
     uint32_t                            numTextures;

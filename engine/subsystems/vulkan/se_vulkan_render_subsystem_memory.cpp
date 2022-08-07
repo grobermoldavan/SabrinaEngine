@@ -357,7 +357,7 @@ ObjectPool<T>& se_vk_memory_manager_get_pool(SeVkMemoryManager* manager)
     }
 }
 
-VkAllocationCallbacks* se_vk_memory_manager_get_callbacks(SeVkMemoryManager* manager)
+const VkAllocationCallbacks* se_vk_memory_manager_get_callbacks(const SeVkMemoryManager* manager)
 {
     return &manager->cpu_allocationCallbacks;
 }

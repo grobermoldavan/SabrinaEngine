@@ -11,7 +11,7 @@ enum SeVkTextureFlags
 
 struct SeVkTextureInfo
 {
-    struct SeVkDevice*      device;
+    SeVkDevice*             device;
     VkFormat                format;
     VkExtent3D              extent;
     VkImageUsageFlags       usage;
@@ -22,7 +22,7 @@ struct SeVkTextureInfo
 struct SeVkTexture
 {
     SeVkObject              object;
-    struct SeVkDevice*      device;
+    SeVkDevice*             device;
     VkExtent3D              extent;
     VkFormat                format;
     VkImageLayout           currentLayout;
@@ -34,7 +34,7 @@ struct SeVkTexture
 };
 
 void se_vk_texture_construct(SeVkTexture* texture, SeVkTextureInfo* info);
-void se_vk_texture_construct_from_swap_chain(SeVkTexture* texture, struct SeVkDevice* device, VkExtent2D* extent, VkImage image, VkImageView view, VkFormat format);
+void se_vk_texture_construct_from_swap_chain(SeVkTexture* texture, SeVkDevice* device, VkExtent2D* extent, VkImage image, VkImageView view, VkFormat format);
 void se_vk_texture_destroy(SeVkTexture* texture);
 
 #define se_vk_texture_get_hash_input(texturePtr) (SeHashInput{ texturePtr, sizeof(SeVkObject) })

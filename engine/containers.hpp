@@ -86,7 +86,7 @@ namespace dynamic_array
     {
         if (array.capacity < capacity)
         {
-            AllocatorBindings& allocator = array.allocator;
+            const AllocatorBindings& allocator = array.allocator;
             const size_t newCapacity = capacity;
             const size_t oldCapacity = array.capacity;
             T* newMemory = (T*)allocator.alloc(allocator.allocator, sizeof(T) * newCapacity, se_default_alignment, se_alloc_tag);
@@ -116,7 +116,7 @@ namespace dynamic_array
     }
 
     template<typename T>
-    inline AllocatorBindings& allocator(const DynamicArray<T>& array)
+    inline const AllocatorBindings& allocator(const DynamicArray<T>& array)
     {
         return array.allocator;
     }
@@ -1045,7 +1045,7 @@ namespace thread_safe_queue
     void destroy(ThreadSafeQueue<T>& queue)
     {
         using Cell = ThreadSafeQueue<T>::Cell;
-        AllocatorBindings& allocator = queue.allocator;
+        const AllocatorBindings& allocator = queue.allocator;
         if (queue.buffer) allocator.dealloc(allocator.allocator, (void*)queue.buffer, (queue.bufferMask + 1) * sizeof(Cell));
     }
 

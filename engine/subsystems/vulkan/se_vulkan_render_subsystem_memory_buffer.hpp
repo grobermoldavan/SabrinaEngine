@@ -6,10 +6,10 @@
 
 struct SeVkMemoryBuffer
 {
-    SeVkObject          object;
-    struct SeVkDevice*  device;
-    VkBuffer            handle;
-    SeVkMemory          memory;
+    SeVkObject  object;
+    SeVkDevice* device;
+    VkBuffer    handle;
+    SeVkMemory  memory;
 };
 
 struct SeVkMemoryBufferView
@@ -22,7 +22,7 @@ struct SeVkMemoryBufferView
 
 struct SeVkMemoryBufferInfo
 {
-    struct SeVkDevice*      device;
+    SeVkDevice*             device;
     size_t                  size;
     VkBufferUsageFlags      usage;
     VkMemoryPropertyFlags   visibility;

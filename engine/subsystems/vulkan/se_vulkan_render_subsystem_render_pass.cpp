@@ -43,9 +43,9 @@ VkAttachmentReference* se_vk_render_pass_find_attachment_reference(VkAttachmentR
 
 void se_vk_render_pass_construct(SeVkRenderPass* pass, SeVkRenderPassInfo* info)
 {
-    SeVkMemoryManager* memoryManager = &info->device->memoryManager;
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    VkDevice logicalHandle = se_vk_device_get_logical_handle(info->device);
+    SeVkMemoryManager* const memoryManager = &info->device->memoryManager;
+    const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
+    const VkDevice logicalHandle = se_vk_device_get_logical_handle(info->device);
     *pass =
     {
         .object                 = { SE_VK_TYPE_PASS, g_renderPassIndex++ },
@@ -435,7 +435,7 @@ void se_vk_render_pass_construct(SeVkRenderPass* pass, SeVkRenderPassInfo* info)
 
 void se_vk_render_pass_destroy(SeVkRenderPass* pass)
 {
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(&pass->info.device->memoryManager);
+    const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(&pass->info.device->memoryManager);
     vkDestroyRenderPass(se_vk_device_get_logical_handle(pass->info.device), pass->handle, callbacks);
 }
 

@@ -12,25 +12,25 @@
 
 struct SeVkFrame
 {
-    SeVkMemoryBuffer*           scratchBuffer;
-    size_t                      scratchBufferTop;
-    VkSemaphore                 imageAvailableSemaphore;
-    struct SeVkCommandBuffer*   lastBuffer;
+    SeVkMemoryBuffer*   scratchBuffer;
+    size_t              scratchBufferTop;
+    VkSemaphore         imageAvailableSemaphore;
+    SeVkCommandBuffer*  lastBuffer;
 };
 
 struct SeVkFrameManager
 {
-    struct SeVkDevice*  device;
-    SeVkFrame           frames[SE_VK_FRAME_MANAGER_MAX_NUM_FRAMES];
-    size_t              imageToFrame[SE_VK_FRAME_MANAGER_MAX_NUM_FRAMES];
-    size_t              numFrames;
-    size_t              frameNumber;
-    size_t              scratchBufferAlignment;
+    SeVkDevice* device;
+    SeVkFrame   frames[SE_VK_FRAME_MANAGER_MAX_NUM_FRAMES];
+    size_t      imageToFrame[SE_VK_FRAME_MANAGER_MAX_NUM_FRAMES];
+    size_t      numFrames;
+    size_t      frameNumber;
+    size_t      scratchBufferAlignment;
 };
 
 struct SeVkFrameManagerCreateInfo
 {
-    struct SeVkDevice* device;
+    SeVkDevice* device;
     size_t numFrames;
 };
 

@@ -16,18 +16,18 @@ enum SeVkCommandBufferUsage : SeVkCommandBufferUsageFlags
 
 struct SeVkCommandBuffer
 {
-    SeVkObject          object;
-    struct SeVkDevice*  device;
-    VkCommandPool       pool;
-    VkQueue             queue;
-    VkCommandBuffer     handle;
-    VkSemaphore         semaphore;
-    VkFence             fence;
+    SeVkObject      object;
+    SeVkDevice*     device;
+    VkCommandPool   pool;
+    VkQueue         queue;
+    VkCommandBuffer handle;
+    VkSemaphore     semaphore;
+    VkFence         fence;
 };
 
 struct SeVkCommandBufferInfo
 {
-    struct SeVkDevice* device;
+    SeVkDevice* device;
     SeVkCommandBufferUsageFlags usage;
 };
 

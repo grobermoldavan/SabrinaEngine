@@ -81,7 +81,7 @@ struct SeVkGraphWithFrame
 
 struct SeVkGraph
 {
-    struct SeVkDevice*                                      device;
+    SeVkDevice*                                             device;
     SeVkGraphContextType                                    context;
 
     DynamicArray<DynamicArray<SeVkCommandBuffer*>>          frameCommandBuffers;
@@ -107,7 +107,7 @@ struct SeVkGraph
 
 struct SeVkGraphInfo
 {
-    struct SeVkDevice* device;
+    SeVkDevice* device;
     size_t numFrames;
 };
 

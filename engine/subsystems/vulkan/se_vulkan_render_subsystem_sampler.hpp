@@ -8,14 +8,14 @@
 
 struct SeVkSampler
 {
-    SeVkObject          object;
-    struct SeVkDevice*  device;
-    VkSampler           handle;
+    SeVkObject  object;
+    SeVkDevice* device;
+    VkSampler   handle;
 };
 
 struct SeVkSamplerInfo
 {
-    struct SeVkDevice*      device;
+    SeVkDevice*             device;
     VkFilter                magFilter;
     VkFilter                minFilter;
     VkSamplerAddressMode    addressModeU;

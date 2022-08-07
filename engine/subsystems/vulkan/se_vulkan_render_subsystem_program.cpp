@@ -33,10 +33,10 @@ void se_vk_ssr_free_frame(void* userData, void* ptr, size_t size)
 
 void se_vk_program_construct(SeVkProgram* program, SeVkProgramInfo* info)
 {
-    SeVkDevice* device = info->device;
-    SeVkMemoryManager* memoryManager = &device->memoryManager;
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    VkDevice logicalHandle = se_vk_device_get_logical_handle(info->device);
+    SeVkDevice* const device = info->device;
+    SeVkMemoryManager* const memoryManager = &device->memoryManager;
+    const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
+    const VkDevice logicalHandle = se_vk_device_get_logical_handle(info->device);
     
     auto [bytecode, bytecodeSize] = data_provider::get(info->data);
     *program =
@@ -70,15 +70,15 @@ void se_vk_program_construct(SeVkProgram* program, SeVkProgramInfo* info)
 
 void se_vk_program_destroy(SeVkProgram* program)
 {
-    SeVkMemoryManager* memoryManager = &program->device->memoryManager;
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    VkDevice logicalHandle = se_vk_device_get_logical_handle(program->device);
+    SeVkMemoryManager* const memoryManager = &program->device->memoryManager;
+    const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
+    const VkDevice logicalHandle = se_vk_device_get_logical_handle(program->device);
     
     ssr_destroy(&program->reflection);
     se_vk_utils_destroy_shader_module(logicalHandle, program->handle, callbacks);
 }
 
-VkPipelineShaderStageCreateInfo se_vk_program_get_shader_stage_create_info(SeVkDevice* device, SeVkProgramWithConstants* pipelineProgram, AllocatorBindings& allocator)
+VkPipelineShaderStageCreateInfo se_vk_program_get_shader_stage_create_info(SeVkDevice* device, SeVkProgramWithConstants* pipelineProgram, const AllocatorBindings& allocator)
 {
     const SeVkProgram* program = pipelineProgram->program;
     const SimpleSpirvReflection* reflection = &program->reflection;

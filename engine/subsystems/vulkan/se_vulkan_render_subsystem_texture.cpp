@@ -181,9 +181,9 @@ struct { int numComponents; int componentsSize; bool isFloat; } se_vk_texture_ge
 
 void se_vk_texture_construct(SeVkTexture* texture, SeVkTextureInfo* info)
 {
-    SeVkMemoryManager* memoryManager = &info->device->memoryManager;
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    VkDevice logicalHandle = se_vk_device_get_logical_handle(info->device);
+    SeVkMemoryManager* const memoryManager = &info->device->memoryManager;
+    const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
+    const VkDevice logicalHandle = se_vk_device_get_logical_handle(info->device);
     //
     // Read data and process if it is an image file
     //
@@ -420,9 +420,9 @@ void se_vk_texture_construct_from_swap_chain(SeVkTexture* texture, SeVkDevice* d
 
 void se_vk_texture_destroy(SeVkTexture* texture)
 {
-    SeVkMemoryManager* memoryManager = &texture->device->memoryManager;
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    VkDevice logicalHandle = se_vk_device_get_logical_handle(texture->device);
+    SeVkMemoryManager* const memoryManager = &texture->device->memoryManager;
+    const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
+    const VkDevice logicalHandle = se_vk_device_get_logical_handle(texture->device);
     if (!(texture->flags & SE_VK_TEXTURE_FROM_SWAP_CHAIN))
     {
         vkDestroyImageView(logicalHandle, texture->view, callbacks);

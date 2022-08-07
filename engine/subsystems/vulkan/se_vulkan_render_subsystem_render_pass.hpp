@@ -33,7 +33,7 @@ struct SeVkRenderPassSubpass
 
 struct SeVkRenderPassInfo
 {
-    struct SeVkDevice*          device;
+    SeVkDevice*                 device;
     SeVkRenderPassSubpass       subpasses[SE_VK_GENERAL_BITMASK_WIDTH];
     uint32_t                    numSubpasses;
     SeVkRenderPassAttachment    colorAttachments[SE_VK_GENERAL_BITMASK_WIDTH];
@@ -60,9 +60,9 @@ struct SeVkRenderPass
 void se_vk_render_pass_construct(SeVkRenderPass* pass, SeVkRenderPassInfo* info);
 void se_vk_render_pass_destroy(SeVkRenderPass* pass);
 
-void                    se_vk_render_pass_validate_fragment_program_setup(SeVkRenderPass* pass, struct SeVkProgram* program, size_t subpassIndex);
+void                    se_vk_render_pass_validate_fragment_program_setup(SeVkRenderPass* pass, SeVkProgram* program, size_t subpassIndex);
 uint32_t                se_vk_render_pass_get_num_color_attachments(SeVkRenderPass* pass, size_t subpassIndex);
-void                    se_vk_render_pass_validate_framebuffer_textures(SeVkRenderPass* pass, struct SeVkTexture** textures, size_t numTextures);
+void                    se_vk_render_pass_validate_framebuffer_textures(SeVkRenderPass* pass, SeVkTexture** textures, size_t numTextures);
 VkRenderPassBeginInfo   se_vk_render_pass_get_begin_info(SeVkRenderPass* pass, VkFramebuffer framebuffer, VkRect2D renderArea);
 
 #define se_vk_render_pass_get_hash_input(passPtr) (SeHashInput{ passPtr, sizeof(SeVkObject) })

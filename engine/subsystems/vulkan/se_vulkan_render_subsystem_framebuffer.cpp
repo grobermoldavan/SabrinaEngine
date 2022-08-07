@@ -11,13 +11,13 @@ size_t g_framebufferIndex = 0;
 
 void se_vk_framebuffer_construct(SeVkFramebuffer* framebuffer, SeVkFramebufferInfo* info)
 {
-    SeVkMemoryManager* memoryManager = &info->device->memoryManager;
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    VkDevice logicalHandle = se_vk_device_get_logical_handle(info->device);
+    SeVkMemoryManager* const memoryManager = &info->device->memoryManager;
+    const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
+    const VkDevice logicalHandle = se_vk_device_get_logical_handle(info->device);
     
     // @NOTE : currently we assuming, that all framebuffer attachments have the same extent
     // @TODO : support 3D textures
-    SeVkTexture* tex = *info->textures[0];
+    const SeVkTexture* const tex = *info->textures[0];
     *framebuffer =
     {
         .object         = { SE_VK_TYPE_FRAMEBUFFER, g_framebufferIndex++ },
@@ -36,7 +36,7 @@ void se_vk_framebuffer_construct(SeVkFramebuffer* framebuffer, SeVkFramebufferIn
         framebuffer->textures[it] = info->textures[it];
     }
 
-    VkFramebufferCreateInfo framebufferCreateInfo
+    const VkFramebufferCreateInfo framebufferCreateInfo
     {
         .sType              = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
         .pNext              = nullptr,
@@ -53,8 +53,8 @@ void se_vk_framebuffer_construct(SeVkFramebuffer* framebuffer, SeVkFramebufferIn
 
 void se_vk_framebuffer_destroy(SeVkFramebuffer* framebuffer)
 {
-    SeVkMemoryManager* memoryManager = &framebuffer->device->memoryManager;
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    VkDevice logicalHandle = se_vk_device_get_logical_handle(framebuffer->device);
+    SeVkMemoryManager* const memoryManager = &framebuffer->device->memoryManager;
+    const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
+    const VkDevice logicalHandle = se_vk_device_get_logical_handle(framebuffer->device);
     vkDestroyFramebuffer(logicalHandle, framebuffer->handle, callbacks);
 }

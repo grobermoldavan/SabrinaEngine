@@ -6,10 +6,10 @@ size_t g_memoryBufferIndex = 0;
 
 void se_vk_memory_buffer_construct(SeVkMemoryBuffer* buffer, SeVkMemoryBufferInfo* info)
 {
-    SeVkDevice* device = (SeVkDevice*)info->device;
-    SeVkMemoryManager* memoryManager = &device->memoryManager;
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
+    SeVkDevice* const device = (SeVkDevice*)info->device;
+    SeVkMemoryManager* const memoryManager = &device->memoryManager;
+    const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
+    const VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
     //
     // Initial setup
     //
@@ -64,9 +64,9 @@ void se_vk_memory_buffer_construct(SeVkMemoryBuffer* buffer, SeVkMemoryBufferInf
 
 void se_vk_memory_buffer_destroy(SeVkMemoryBuffer* buffer)
 {
-    SeVkMemoryManager* memoryManager = &buffer->device->memoryManager;
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    VkDevice logicalHandle = se_vk_device_get_logical_handle(buffer->device);
+    SeVkMemoryManager* const memoryManager = &buffer->device->memoryManager;
+    const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
+    const VkDevice logicalHandle = se_vk_device_get_logical_handle(buffer->device);
 
     vkDestroyBuffer(logicalHandle, buffer->handle, callbacks);
     se_vk_memory_manager_deallocate(memoryManager, buffer->memory);

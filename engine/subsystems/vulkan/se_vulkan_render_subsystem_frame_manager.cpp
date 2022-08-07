@@ -14,7 +14,7 @@ void se_vk_frame_manager_construct(SeVkFrameManager* manager, const SeVkFrameMan
     scratchBufferAlignment = scratchBufferAlignment > storageAlignment ? scratchBufferAlignment : storageAlignment;
 
     const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(&device->memoryManager);
-    VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
+    const VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
     *manager = 
     {
         .device                 = device,
@@ -26,7 +26,7 @@ void se_vk_frame_manager_construct(SeVkFrameManager* manager, const SeVkFrameMan
     };
     for (size_t it = 0; it < manager->numFrames; it++)
     {
-        SeVkFrame* frame = &manager->frames[it];
+        SeVkFrame* const frame = &manager->frames[it];
         *frame =
         {
             .scratchBuffer              = object_pool::take(se_vk_memory_manager_get_pool<SeVkMemoryBuffer>(&createInfo->device->memoryManager)),
@@ -61,8 +61,8 @@ void se_vk_frame_manager_construct(SeVkFrameManager* manager, const SeVkFrameMan
 
 void se_vk_frame_manager_destroy(SeVkFrameManager* manager)
 {
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(&manager->device->memoryManager);
-    VkDevice logicalHandle = se_vk_device_get_logical_handle(manager->device);
+    const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(&manager->device->memoryManager);
+    const VkDevice logicalHandle = se_vk_device_get_logical_handle(manager->device);
     for (size_t it = 0; it < manager->numFrames; it++)
     {
         SeVkFrame* frame = &manager->frames[it];
@@ -74,7 +74,7 @@ void se_vk_frame_manager_advance(SeVkFrameManager* manager)
 {
     manager->frameNumber += 1;
     const size_t activeFrameIndex = se_vk_frame_manager_get_active_frame_index(manager);
-    SeVkFrame* activeFrame = se_vk_frame_manager_get_active_frame(manager);
+    SeVkFrame* const activeFrame = se_vk_frame_manager_get_active_frame(manager);
     activeFrame->scratchBufferTop = 0;
 }
 
@@ -82,14 +82,14 @@ SeVkMemoryBufferView se_vk_frame_manager_alloc_scratch_buffer(SeVkFrameManager* 
 {
     se_assert(size > 0);
     
-    SeVkFrame* frame = se_vk_frame_manager_get_active_frame(manager);
+    SeVkFrame* const frame = se_vk_frame_manager_get_active_frame(manager);
     const size_t alignedBase = (frame->scratchBufferTop % manager->scratchBufferAlignment) == 0
         ? frame->scratchBufferTop
         : (frame->scratchBufferTop / manager->scratchBufferAlignment) * manager->scratchBufferAlignment + manager->scratchBufferAlignment;
 
     se_assert_msg((frame->scratchBuffer->memory.size - alignedBase) >= size, "todo : expand frame memory");
 
-    SeVkMemoryBufferView view
+    const SeVkMemoryBufferView view
     {
         .buffer         = frame->scratchBuffer,
         .offset         = alignedBase,

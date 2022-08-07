@@ -21,9 +21,9 @@ VkSamplerAddressMode se_vk_sampler_address_mode(SeSamplerAddressMode mode)
 
 void se_vk_sampler_construct(SeVkSampler* sampler, SeVkSamplerInfo* info)
 {
-    SeVkDevice* device = info->device;
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(&device->memoryManager);
-    VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
+    SeVkDevice* const device = info->device;
+    const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(&device->memoryManager);
+    const VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
     *sampler =
     {
         .object = { SE_VK_TYPE_SAMPLER, g_samplerIndex++ },
@@ -58,6 +58,6 @@ void se_vk_sampler_construct(SeVkSampler* sampler, SeVkSamplerInfo* info)
 
 void se_vk_sampler_destroy(SeVkSampler* sampler)
 {
-    VkAllocationCallbacks* callbacks = se_vk_memory_manager_get_callbacks(&sampler->device->memoryManager);
+    const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(&sampler->device->memoryManager);
     vkDestroySampler(se_vk_device_get_logical_handle(sampler->device), sampler->handle, callbacks);
 }
