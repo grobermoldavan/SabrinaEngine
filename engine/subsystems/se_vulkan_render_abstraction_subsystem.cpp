@@ -73,9 +73,9 @@ void se_vk_end_frame_call()
     se_vk_device_end_frame(g_device);
 }
 
-void se_vk_begin_pass_call(const SeBeginPassInfo& info)
+SePassDependencies se_vk_begin_pass_call(const SeBeginPassInfo& info)
 {
-    se_vk_graph_begin_pass(&g_device->graph, info);
+    return se_vk_graph_begin_pass(&g_device->graph, info);
 }
 
 void se_vk_end_pass_call()
@@ -150,28 +150,34 @@ SeComputeWorkgroupSize se_vk_compute_workgroup_size_call(SeRenderRef ref)
     };
 }
 
+SePassDependencies se_vk_command_dependencies_for_texture_call(SeRenderRef texture)
+{
+    return se_vk_graph_dependencies_for_texture(&g_device->graph, texture);
+}
+
 SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
 {
     g_iface =
     {
-        .begin_frame        = se_vk_begin_frame_call,
-        .end_frame          = se_vk_end_frame_call,
-        .begin_pass         = se_vk_begin_pass_call,
-        .end_pass           = se_vk_end_pass_call,
-        .program            = se_vk_program_call,
-        .texture            = se_vk_texture_call,
-        .swap_chain_texture = se_vk_swap_chain_texture_call,
-        .texture_size       = se_vk_texture_size_call,
-        .graphics_pipeline  = se_vk_graphics_pipeline_call,
-        .compute_pipeline   = se_vk_graphics_pipeline_call,
-        .memory_buffer      = se_vk_memory_buffer_call,
-        .sampler            = se_vk_sampler_call,
-        .bind               = se_vk_command_bind_call,
-        .draw               = se_vk_command_draw_call,
-        .dispatch           = se_vk_command_dispatch_call,
-        .perspective        = se_vk_perspective_projection_matrix,
-        .orthographic       = se_vk_orthographic_projection_matrix,
-        .workgroup_size     = se_vk_compute_workgroup_size_call,
+        .begin_frame                = se_vk_begin_frame_call,
+        .end_frame                  = se_vk_end_frame_call,
+        .begin_pass                 = se_vk_begin_pass_call,
+        .end_pass                   = se_vk_end_pass_call,
+        .program                    = se_vk_program_call,
+        .texture                    = se_vk_texture_call,
+        .swap_chain_texture         = se_vk_swap_chain_texture_call,
+        .texture_size               = se_vk_texture_size_call,
+        .graphics_pipeline          = se_vk_graphics_pipeline_call,
+        .compute_pipeline           = se_vk_graphics_pipeline_call,
+        .memory_buffer              = se_vk_memory_buffer_call,
+        .sampler                    = se_vk_sampler_call,
+        .bind                       = se_vk_command_bind_call,
+        .draw                       = se_vk_command_draw_call,
+        .dispatch                   = se_vk_command_dispatch_call,
+        .perspective                = se_vk_perspective_projection_matrix,
+        .orthographic               = se_vk_orthographic_projection_matrix,
+        .workgroup_size             = se_vk_compute_workgroup_size_call,
+        .dependencies_for_texture   = se_vk_command_dependencies_for_texture_call,
     };
     se_init_global_subsystem_pointers(engine);
 }

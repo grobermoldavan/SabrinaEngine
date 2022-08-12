@@ -770,12 +770,12 @@ namespace font_group
 
 struct UiRenderVertex
 {
-    float x;
-    float y;
-    float uvX;
-    float uvY;
-    uint32_t colorIndex;
-    float _pad[3];
+    float       x;
+    float       y;
+    float       uvX;
+    float       uvY;
+    uint32_t    colorIndex;
+    float       _pad[3];
 };
 
 /*
@@ -903,8 +903,7 @@ const UiStyle DEFAULT_STYLE =
 };
 
 SeUiSubsystemInterface                  g_iface;
-HashTable<SeUiBeginInfo, UiContext>     g_contextTable;
-UiContext*                              g_currentContext = nullptr;
+UiContext                               g_currentContext;
 
 HashTable<DataProvider, FontInfo>       g_fontInfos;
 HashTable<SeUiFontGroupInfo, FontGroup> g_fontGroups;
@@ -1016,11 +1015,11 @@ namespace ui_impl
     inline bool object_data_get(UiObjectData** outData, UiObjectUid* outUid, const char* cstrUid)
     {
         const UiObjectUid uid = object_uid_create(cstrUid);
-        UiObjectData* data = hash_table::get(g_currentContext->uidToObjectData, uid);
+        UiObjectData* data = hash_table::get(g_currentContext.uidToObjectData, uid);
         const bool isFirstAccess = data == nullptr;
         if (!data)
         {
-            data = hash_table::set(g_currentContext->uidToObjectData, uid, { });
+            data = hash_table::set(g_currentContext.uidToObjectData, uid, { });
         }
         se_assert(data);
         *outData = data;
@@ -1033,21 +1032,21 @@ namespace ui_impl
         //
         // Get texture
         //
-        SeRenderRef* textureRef = hash_table::get(g_currentContext->frameTextureDataToRef, textureData);
+        SeRenderRef* textureRef = hash_table::get(g_currentContext.frameTextureDataToRef, textureData);
         if (!textureRef)
         {
-            const SeRenderAbstractionSubsystemInterface* render = g_currentContext->render;
-            textureRef = hash_table::set(g_currentContext->frameTextureDataToRef, textureData, render->texture(textureInfo));
+            const SeRenderAbstractionSubsystemInterface* render = g_currentContext.render;
+            textureRef = hash_table::set(g_currentContext.frameTextureDataToRef, textureData, render->texture(textureInfo));
         }
         se_assert(textureRef);
         //
         // Get draw call
         //
-        const size_t numDrawCalls = dynamic_array::size(g_currentContext->frameDrawCalls);
-        const UiDrawCall* const lastDrawCall = numDrawCalls ? &g_currentContext->frameDrawCalls[numDrawCalls - 1] : nullptr;
+        const size_t numDrawCalls = dynamic_array::size(g_currentContext.frameDrawCalls);
+        const UiDrawCall* const lastDrawCall = numDrawCalls ? &g_currentContext.frameDrawCalls[numDrawCalls - 1] : nullptr;
         if (!lastDrawCall || lastDrawCall->texture != *textureRef)
         {
-            UiDrawCall& pushedDrawCall = dynamic_array::push(g_currentContext->frameDrawCalls,
+            UiDrawCall& pushedDrawCall = dynamic_array::push(g_currentContext.frameDrawCalls,
             {
                 .vertices       = dynamic_array::create<UiRenderVertex>(app_allocators::frame(), 256),
                 .colorsArray    = dynamic_array::create<UiRenderColorsUnpacked>(app_allocators::frame(), 256),
@@ -1055,7 +1054,7 @@ namespace ui_impl
             });
             dynamic_array::push(pushedDrawCall.colorsArray, colors);
         }
-        UiDrawCall* const drawCall = &g_currentContext->frameDrawCalls[dynamic_array::size(g_currentContext->frameDrawCalls) - 1];
+        UiDrawCall* const drawCall = &g_currentContext.frameDrawCalls[dynamic_array::size(g_currentContext.frameDrawCalls) - 1];
         se_assert(drawCall->texture == *textureRef);
         if (!utils::compare(drawCall->colorsArray[dynamic_array::size(drawCall->colorsArray) - 1], colors))
         {
@@ -1066,110 +1065,99 @@ namespace ui_impl
 
     bool begin(const SeUiBeginInfo& info)
     {
-        se_assert(!g_currentContext);
         se_assert(info.render);
-        //
-        // Get context
-        //
-        g_currentContext = hash_table::get(g_contextTable, info);
-        if (!g_currentContext)
-        {
-            g_currentContext = hash_table::set(g_contextTable, info, { });
-            hash_table::construct(g_currentContext->uidToObjectData, app_allocators::persistent());
-        }
         //
         // Set frame data
         //
-        g_currentContext->render            = info.render;
-        g_currentContext->target            = info.target;
-        g_currentContext->currentFontGroup  = nullptr;
-        g_currentContext->currentWindowData = g_windowDefaultTexture;
-        memcpy(g_currentContext->currentStyle, DEFAULT_STYLE, sizeof(UiStyle));
-        dynamic_array::construct(g_currentContext->frameDrawCalls, app_allocators::frame(), 16);
-        hash_table::construct(g_currentContext->frameTextureDataToRef, app_allocators::frame(), 16);
+        g_currentContext.render            = info.render;
+        g_currentContext.target            = info.target;
+        g_currentContext.currentFontGroup  = nullptr;
+        g_currentContext.currentWindowData = g_windowDefaultTexture;
+        memcpy(g_currentContext.currentStyle, DEFAULT_STYLE, sizeof(UiStyle));
+        dynamic_array::construct(g_currentContext.frameDrawCalls, app_allocators::frame(), 16);
+        hash_table::construct(g_currentContext.frameTextureDataToRef, app_allocators::frame(), 16);
 
         const SeWindowSubsystemInput* const input = win::get_input();
         const float mouseX = (float)input->mouseX;
         const float mouseY = (float)input->mouseY;
-        g_currentContext->mouseDeltaX       = mouseX - g_currentContext->mouseX;
-        g_currentContext->mouseDeltaY       = mouseY - g_currentContext->mouseY;
-        g_currentContext->mouseX            = mouseX;
-        g_currentContext->mouseY            = mouseY;
-        g_currentContext->isMouseDown       = win::is_mouse_button_pressed(input, SE_LMB);
-        g_currentContext->isMouseJustDown   = win::is_mouse_button_just_pressed(input, SE_LMB);
+        g_currentContext.mouseDeltaX       = mouseX - g_currentContext.mouseX;
+        g_currentContext.mouseDeltaY       = mouseY - g_currentContext.mouseY;
+        g_currentContext.mouseX            = mouseX;
+        g_currentContext.mouseY            = mouseY;
+        g_currentContext.isMouseDown       = win::is_mouse_button_pressed(input, SE_LMB);
+        g_currentContext.isMouseJustDown   = win::is_mouse_button_just_pressed(input, SE_LMB);
         
-        g_currentContext->hoveredObjectUid = { };
-        g_currentContext->currentWindowUid = { };
+        g_currentContext.hoveredObjectUid = { };
+        g_currentContext.currentWindowUid = { };
         //
         // Update active object
         //
-        if (!g_currentContext->isMouseDown)
+        if (!g_currentContext.isMouseDown)
         {
-            g_currentContext->activeObjectUid = { };
+            g_currentContext.activeObjectUid = { };
         }
         else
         {
-            UiObjectData* const activeObject = hash_table::get(g_currentContext->uidToObjectData, g_currentContext->activeObjectUid);
+            UiObjectData* const activeObject = hash_table::get(g_currentContext.uidToObjectData, g_currentContext.activeObjectUid);
             if (activeObject)
             {
                 const float currentWidth = activeObject->topRightX - activeObject->bottomLeftX;
                 const float currentHeight = activeObject->topRightY - activeObject->bottomLeftY;
                 se_assert(currentWidth >= 0.0f);
                 se_assert(currentHeight >= 0.0f);
-                const bool isPositiveDeltaX = g_currentContext->mouseDeltaX >= 0.0f;
-                const bool isPositiveDeltaY = g_currentContext->mouseDeltaY >= 0.0f;
+                const bool isPositiveDeltaX = g_currentContext.mouseDeltaX >= 0.0f;
+                const bool isPositiveDeltaY = g_currentContext.mouseDeltaY >= 0.0f;
                 const float maxDeltaTowardsCenterX = (activeObject->topRightX - activeObject->bottomLeftX) - activeObject->minWidth;
                 const float maxDeltaTowardsCenterY = (activeObject->topRightY - activeObject->bottomLeftY) - activeObject->minHeight;
                 se_assert(maxDeltaTowardsCenterX >= 0.0f);
                 se_assert(maxDeltaTowardsCenterY >= 0.0f);
                 if ((activeObject->settingsFlags & SeUiFlags::MOVABLE) && (activeObject->actionFlags & UiActionFlags::CAN_BE_MOVED))
                 {
-                    activeObject->bottomLeftX = activeObject->bottomLeftX + g_currentContext->mouseDeltaX;
-                    activeObject->bottomLeftY = activeObject->bottomLeftY + g_currentContext->mouseDeltaY;
-                    activeObject->topRightX = activeObject->topRightX + g_currentContext->mouseDeltaX;
-                    activeObject->topRightY = activeObject->topRightY + g_currentContext->mouseDeltaY;
+                    activeObject->bottomLeftX = activeObject->bottomLeftX + g_currentContext.mouseDeltaX;
+                    activeObject->bottomLeftY = activeObject->bottomLeftY + g_currentContext.mouseDeltaY;
+                    activeObject->topRightX = activeObject->topRightX + g_currentContext.mouseDeltaX;
+                    activeObject->topRightY = activeObject->topRightY + g_currentContext.mouseDeltaY;
                 }
                 if ((activeObject->settingsFlags & SeUiFlags::RESIZABLE_X) && (activeObject->actionFlags & UiActionFlags::CAN_BE_RESIZED_X_LEFT))
                 {
-                    const bool canChangeSize = isPositiveDeltaX ? g_currentContext->mouseX > activeObject->bottomLeftX : g_currentContext->mouseX < activeObject->bottomLeftX;
+                    const bool canChangeSize = isPositiveDeltaX ? g_currentContext.mouseX > activeObject->bottomLeftX : g_currentContext.mouseX < activeObject->bottomLeftX;
                     const float actualDelta = canChangeSize
-                        ? (g_currentContext->mouseDeltaX > maxDeltaTowardsCenterX ? maxDeltaTowardsCenterX : g_currentContext->mouseDeltaX)
+                        ? (g_currentContext.mouseDeltaX > maxDeltaTowardsCenterX ? maxDeltaTowardsCenterX : g_currentContext.mouseDeltaX)
                         : 0.0f;
                     activeObject->bottomLeftX = activeObject->bottomLeftX + actualDelta;
                 }
                 if ((activeObject->settingsFlags & SeUiFlags::RESIZABLE_X) && (activeObject->actionFlags & UiActionFlags::CAN_BE_RESIZED_X_RIGHT))
                 {
-                    const bool canChangeSize = isPositiveDeltaX ? g_currentContext->mouseX > activeObject->topRightX : g_currentContext->mouseX < activeObject->topRightX;
+                    const bool canChangeSize = isPositiveDeltaX ? g_currentContext.mouseX > activeObject->topRightX : g_currentContext.mouseX < activeObject->topRightX;
                     const float actualDelta = canChangeSize
-                        ? (g_currentContext->mouseDeltaX < -maxDeltaTowardsCenterX ? -maxDeltaTowardsCenterX : g_currentContext->mouseDeltaX)
+                        ? (g_currentContext.mouseDeltaX < -maxDeltaTowardsCenterX ? -maxDeltaTowardsCenterX : g_currentContext.mouseDeltaX)
                         : 0.0f;
                     activeObject->topRightX = activeObject->topRightX + actualDelta;
                 }
                 if ((activeObject->settingsFlags & SeUiFlags::RESIZABLE_Y) && (activeObject->actionFlags & UiActionFlags::CAN_BE_RESIZED_Y_TOP))
                 {
-                    const bool canChangeSize = isPositiveDeltaY ? g_currentContext->mouseY > activeObject->topRightY : g_currentContext->mouseY < activeObject->topRightY;
+                    const bool canChangeSize = isPositiveDeltaY ? g_currentContext.mouseY > activeObject->topRightY : g_currentContext.mouseY < activeObject->topRightY;
                     const float actualDelta = canChangeSize
-                        ? (g_currentContext->mouseDeltaY < -maxDeltaTowardsCenterY ? -maxDeltaTowardsCenterY : g_currentContext->mouseDeltaY)
+                        ? (g_currentContext.mouseDeltaY < -maxDeltaTowardsCenterY ? -maxDeltaTowardsCenterY : g_currentContext.mouseDeltaY)
                         : 0.0f;
                     activeObject->topRightY = activeObject->topRightY + actualDelta;
                 }
                 if ((activeObject->settingsFlags & SeUiFlags::RESIZABLE_Y) && (activeObject->actionFlags & UiActionFlags::CAN_BE_RESIZED_Y_BOTTOM))
                 {
-                    const bool canChangeSize = isPositiveDeltaY ? g_currentContext->mouseY > activeObject->bottomLeftY : g_currentContext->mouseY < activeObject->bottomLeftY;
+                    const bool canChangeSize = isPositiveDeltaY ? g_currentContext.mouseY > activeObject->bottomLeftY : g_currentContext.mouseY < activeObject->bottomLeftY;
                     const float actualDelta = canChangeSize
-                        ? (g_currentContext->mouseDeltaY > maxDeltaTowardsCenterY ? maxDeltaTowardsCenterY : g_currentContext->mouseDeltaY)
+                        ? (g_currentContext.mouseDeltaY > maxDeltaTowardsCenterY ? maxDeltaTowardsCenterY : g_currentContext.mouseDeltaY)
                         : 0.0f;
                     activeObject->bottomLeftY = activeObject->bottomLeftY + actualDelta;
                 }
             }
         }
-        return g_currentContext != nullptr; // Must be always true
+        return true;
     }
 
-    void end()
+    SePassDependencies end(SePassDependencies dependencies)
     {
-        se_assert(g_currentContext);
-        const SeRenderAbstractionSubsystemInterface* const render = g_currentContext->render;
+        const SeRenderAbstractionSubsystemInterface* const render = g_currentContext.render;
         const SeRenderRef vertexProgram = render->program({ g_drawUiVs });
         const SeRenderRef fragmentProgram = render->program({ g_drawUiFs });
         const SeRenderRef sampler = render->sampler
@@ -1200,12 +1188,11 @@ namespace ui_impl
             .frontFace              = SE_PIPELINE_FRONT_FACE_CLOCKWISE,
             .samplingType           = SE_SAMPLING_1,
         });
-        render->begin_pass
+        const SePassDependencies result = render->begin_pass
         ({
-            .id                 = 0,
-            .dependencies       = 0,
+            .dependencies       = dependencies,
             .pipeline           = pipeline,
-            .renderTargets      = { g_currentContext->target },
+            .renderTargets      = { g_currentContext.target },
             .numRenderTargets   = 1,
             .depthStencilTarget = 0,
             .hasDepthStencil    = false,
@@ -1213,7 +1200,7 @@ namespace ui_impl
         //
         // Bind projection matrix
         //
-        const SeTextureSize targetSize = render->texture_size(g_currentContext->target.texture);
+        const SeTextureSize targetSize = render->texture_size(g_currentContext.target.texture);
         se_assert(targetSize.z == 1);
         const SeRenderRef projectionBuffer = render->memory_buffer
         ({
@@ -1226,7 +1213,7 @@ namespace ui_impl
         //
         // Process draw calls
         //
-        for (auto it : g_currentContext->frameDrawCalls)
+        for (auto it : g_currentContext.frameDrawCalls)
         {
             const UiDrawCall& drawCall = iter::value(it);
             if (!dynamic_array::size(drawCall.vertices))
@@ -1259,20 +1246,19 @@ namespace ui_impl
         //
         // Clear context
         //
-        for (auto it : g_currentContext->frameDrawCalls)
+        for (auto it : g_currentContext.frameDrawCalls)
         {
             UiDrawCall& drawCall = iter::value(it);
             dynamic_array::destroy(drawCall.vertices);
             dynamic_array::destroy(drawCall.colorsArray);
         }
-        dynamic_array::destroy(g_currentContext->frameDrawCalls);
-        hash_table::destroy(g_currentContext->frameTextureDataToRef);
-        g_currentContext = nullptr;
+        dynamic_array::destroy(g_currentContext.frameDrawCalls);
+        hash_table::destroy(g_currentContext.frameTextureDataToRef);
+        return result;
     }
 
     void set_font_group(const SeUiFontGroupInfo& info)
     {
-        se_assert(g_currentContext);
         const FontGroup* fontGroup = hash_table::get(g_fontGroups, info);
         if (!fontGroup)
         {
@@ -1296,30 +1282,28 @@ namespace ui_impl
             fontGroup = hash_table::set(g_fontGroups, info, font_group::create(fonts, fontIt));
         }
         se_assert(fontGroup);
-        g_currentContext->currentFontGroup = fontGroup;
+        g_currentContext.currentFontGroup = fontGroup;
     }
 
     void set_style_param(SeUiStyleParam::Type type, const SeUiStyleParam& param)
     {
-        se_assert(g_currentContext);
-        g_currentContext->currentStyle[type] = param;
+        g_currentContext.currentStyle[type] = param;
     }
 
     void text_line(const SeUiTextLineInfo& info)
     {
         se_assert(info.utf8text);
-        se_assert(g_currentContext);
-        se_assert(g_currentContext->currentFontGroup);
+        se_assert(g_currentContext.currentFontGroup);
         //
         // Get base data and draw call
         //
-        const FontGroup* const fontGroup = g_currentContext->currentFontGroup;
-        const float textHeight = dim_to_pix(g_currentContext->currentStyle[SeUiStyleParam::FONT_HEIGHT].dim);
+        const FontGroup* const fontGroup = g_currentContext.currentFontGroup;
+        const float textHeight = dim_to_pix(g_currentContext.currentStyle[SeUiStyleParam::FONT_HEIGHT].dim);
         const float baselineX = dim_to_pix(info.baselineX);
         const float baselineY = dim_to_pix(info.baselineY);
         UiDrawCall* const drawCall = get_draw_call(ui_texture_data_create(fontGroup), fontGroup->textureInfo,
         {
-            .rComponent = col::unpack(g_currentContext->currentStyle[SeUiStyleParam::FONT_COLOR].color),
+            .rComponent = col::unpack(g_currentContext.currentStyle[SeUiStyleParam::FONT_COLOR].color),
             .gComponent = { 0.0f, 0.0f, 0.0f, 0.0f },
             .bComponent = { 0.0f, 0.0f, 0.0f, 0.0f },
             .mask       = { 1.0f, 0.0f, 0.0f, 0.0f },
@@ -1368,7 +1352,6 @@ namespace ui_impl
     bool begin_window(const SeUiWindowInfo& info)
     {
         static constexpr float BORDER_PANEL_TOLERANCE = 5.0f;
-        se_assert(g_currentContext);
         //
         // Get object data and window position/style info
         //
@@ -1379,8 +1362,8 @@ namespace ui_impl
         const float bottomLeftY         = isFirst ? dim_to_pix(info.bottomLeftY) : data->bottomLeftY;
         const float topRightX           = isFirst ? dim_to_pix(info.topRightX) : data->topRightX;
         const float topRightY           = isFirst ? dim_to_pix(info.topRightY) : data->topRightY;
-        const float topPanelThickness   = dim_to_pix(g_currentContext->currentStyle[SeUiStyleParam::WINDOW_TOP_PANEL_THICKNESS].dim);
-        const float borderThickness     = dim_to_pix(g_currentContext->currentStyle[SeUiStyleParam::WINDOW_BORDER_THICKNESS].dim);
+        const float topPanelThickness   = dim_to_pix(g_currentContext.currentStyle[SeUiStyleParam::WINDOW_TOP_PANEL_THICKNESS].dim);
+        const float borderThickness     = dim_to_pix(g_currentContext.currentStyle[SeUiStyleParam::WINDOW_BORDER_THICKNESS].dim);
         if (isFirst)
         {
             data->bottomLeftX   = bottomLeftX;
@@ -1395,47 +1378,47 @@ namespace ui_impl
         // Update action flags, active object uid and work region info
         //
         const bool isWindowUnderCursor =
-            (bottomLeftX <= g_currentContext->mouseX) &&
-            (bottomLeftY <= g_currentContext->mouseY) &&
-            (topRightX   >= g_currentContext->mouseX) &&
-            (topRightY   >= g_currentContext->mouseY);
+            (bottomLeftX <= g_currentContext.mouseX) &&
+            (bottomLeftY <= g_currentContext.mouseY) &&
+            (topRightX   >= g_currentContext.mouseX) &&
+            (topRightY   >= g_currentContext.mouseY);
         if (isWindowUnderCursor)
         {
-            g_currentContext->hoveredObjectUid = uid;
+            g_currentContext.hoveredObjectUid = uid;
         }
-        if (g_currentContext->isMouseJustDown && isWindowUnderCursor)
+        if (g_currentContext.isMouseJustDown && isWindowUnderCursor)
         {
-            g_currentContext->activeObjectUid = uid;
-            const bool isTopPanelUnderCursor = isWindowUnderCursor && ((topRightY - topPanelThickness) <= g_currentContext->mouseY);
-            const bool isLeftBorderUnderCursor = isWindowUnderCursor && !isTopPanelUnderCursor && ((bottomLeftX + borderThickness + BORDER_PANEL_TOLERANCE) >= g_currentContext->mouseX);
-            const bool isRightBorderUnderCursor = isWindowUnderCursor && !isTopPanelUnderCursor && ((topRightX - borderThickness - BORDER_PANEL_TOLERANCE) <= g_currentContext->mouseX);
-            const bool isBottomBorderUnderCursor = isWindowUnderCursor && !isTopPanelUnderCursor && ((bottomLeftY + borderThickness + BORDER_PANEL_TOLERANCE) >= g_currentContext->mouseY);
+            g_currentContext.activeObjectUid = uid;
+            const bool isTopPanelUnderCursor = isWindowUnderCursor && ((topRightY - topPanelThickness) <= g_currentContext.mouseY);
+            const bool isLeftBorderUnderCursor = isWindowUnderCursor && !isTopPanelUnderCursor && ((bottomLeftX + borderThickness + BORDER_PANEL_TOLERANCE) >= g_currentContext.mouseX);
+            const bool isRightBorderUnderCursor = isWindowUnderCursor && !isTopPanelUnderCursor && ((topRightX - borderThickness - BORDER_PANEL_TOLERANCE) <= g_currentContext.mouseX);
+            const bool isBottomBorderUnderCursor = isWindowUnderCursor && !isTopPanelUnderCursor && ((bottomLeftY + borderThickness + BORDER_PANEL_TOLERANCE) >= g_currentContext.mouseY);
             if (isTopPanelUnderCursor) data->actionFlags |= UiActionFlags::CAN_BE_MOVED;
             if (isLeftBorderUnderCursor) data->actionFlags |= UiActionFlags::CAN_BE_RESIZED_X_LEFT;
             if (isRightBorderUnderCursor) data->actionFlags |= UiActionFlags::CAN_BE_RESIZED_X_RIGHT;
             if (isBottomBorderUnderCursor) data->actionFlags |= UiActionFlags::CAN_BE_RESIZED_Y_BOTTOM;
         }
-        else if (!g_currentContext->isMouseDown)
+        else if (!g_currentContext.isMouseDown)
         {
             data->actionFlags = 0;
         }
-        g_currentContext->currentWindowUid = uid;
-        g_currentContext->windowWorkRegionBottomLeftX = bottomLeftX + borderThickness;
-        g_currentContext->windowWorkRegionBottomLeftY = bottomLeftY + borderThickness;
-        g_currentContext->windowWorkRegionTopRightX = topRightX - borderThickness;
-        g_currentContext->windowWorkRegionTopRightY = topRightY - topPanelThickness;
+        g_currentContext.currentWindowUid = uid;
+        g_currentContext.windowWorkRegionBottomLeftX = bottomLeftX + borderThickness;
+        g_currentContext.windowWorkRegionBottomLeftY = bottomLeftY + borderThickness;
+        g_currentContext.windowWorkRegionTopRightX = topRightX - borderThickness;
+        g_currentContext.windowWorkRegionTopRightY = topRightY - topPanelThickness;
         //
         // Get draw call
         //
-        UiDrawCall* const drawCall = get_draw_call(ui_texture_data_create(g_currentContext->currentWindowData),
+        UiDrawCall* const drawCall = get_draw_call(ui_texture_data_create(g_currentContext.currentWindowData),
         {
             .format = SE_TEXTURE_FORMAT_RGBA_8,
-            .data   = g_currentContext->currentWindowData,
+            .data   = g_currentContext.currentWindowData,
         },
         {
-            .rComponent = col::unpack(g_currentContext->currentStyle[SeUiStyleParam::PRIMARY_COLOR].color),
-            .gComponent = col::unpack(g_currentContext->currentStyle[SeUiStyleParam::SECONDARY_COLOR].color),
-            .bComponent = col::unpack(g_currentContext->currentStyle[SeUiStyleParam::ACCENT_COLOR].color),
+            .rComponent = col::unpack(g_currentContext.currentStyle[SeUiStyleParam::PRIMARY_COLOR].color),
+            .gComponent = col::unpack(g_currentContext.currentStyle[SeUiStyleParam::SECONDARY_COLOR].color),
+            .bComponent = col::unpack(g_currentContext.currentStyle[SeUiStyleParam::ACCENT_COLOR].color),
             .mask       = { 1.0f, 1.0f, 1.0f, 0.0f },
             .minDivider = 1.0f,
             .maxDivider = 3.0f,
@@ -1522,24 +1505,22 @@ namespace ui_impl
 
     void end_window()
     {
-        se_assert(g_currentContext);
-        g_currentContext->currentWindowUid = { };
+        g_currentContext.currentWindowUid = { };
     }
 
     void window_text(const SeUiWindowTextInfo& info)
     {
         se_assert(info.utf8text);
-        se_assert(g_currentContext);
-        se_assert(g_currentContext->currentFontGroup);
+        se_assert(g_currentContext.currentFontGroup);
         //
         // Get base data and draw call
         //
-        const FontGroup* const fontGroup = g_currentContext->currentFontGroup;
-        const float textHeight = dim_to_pix(g_currentContext->currentStyle[SeUiStyleParam::FONT_HEIGHT].dim);
-        const float lineStep = dim_to_pix(g_currentContext->currentStyle[SeUiStyleParam::FONT_LINE_STEP].dim);
+        const FontGroup* const fontGroup = g_currentContext.currentFontGroup;
+        const float textHeight = dim_to_pix(g_currentContext.currentStyle[SeUiStyleParam::FONT_HEIGHT].dim);
+        const float lineStep = dim_to_pix(g_currentContext.currentStyle[SeUiStyleParam::FONT_LINE_STEP].dim);
         UiDrawCall* const drawCall = get_draw_call(ui_texture_data_create(fontGroup), fontGroup->textureInfo,
         {
-            .rComponent = col::unpack(g_currentContext->currentStyle[SeUiStyleParam::FONT_COLOR].color),
+            .rComponent = col::unpack(g_currentContext.currentStyle[SeUiStyleParam::FONT_COLOR].color),
             .gComponent = { 0.0f, 0.0f, 0.0f, 0.0f },
             .bComponent = { 0.0f, 0.0f, 0.0f, 0.0f },
             .mask       = { 1.0f, 0.0f, 0.0f, 0.0f },
@@ -1557,13 +1538,13 @@ namespace ui_impl
         // const float ascent = (float)fontGroup->ascentUnscaled * groupScale;
         // const float descent = (float)fontGroup->descentUnscaled * groupScale;
         // const float positionYStep = ascent - descent + lineGap;
-        // float positionX = g_currentContext->windowWorkRegionBottomLeftX;
-        // float positionY = g_currentContext->windowWorkRegionTopRightY - ascent;
+        // float positionX = g_currentContext.windowWorkRegionBottomLeftX;
+        // float positionY = g_currentContext.windowWorkRegionTopRightY - ascent;
 
         // Position y step based on style info
         const float positionYStep = lineStep;
-        float positionX = g_currentContext->windowWorkRegionBottomLeftX;;
-        float positionY = g_currentContext->windowWorkRegionTopRightY - lineStep;
+        float positionX = g_currentContext.windowWorkRegionBottomLeftX;;
+        float positionY = g_currentContext.windowWorkRegionTopRightY - lineStep;
 
         //
         // TODO : move text printing code to a separate function
@@ -1596,17 +1577,17 @@ namespace ui_impl
             {
                 baseX = positionX + (float)x0 - bearing;
                 baseY = positionY - (float)y1;
-                doesFitVertically = baseY > g_currentContext->windowWorkRegionBottomLeftY;
+                doesFitVertically = baseY > g_currentContext.windowWorkRegionBottomLeftY;
                 if (!doesFitVertically)
                 {
                     break;
                 }
-                const bool doesFitHorisontally = (baseX + width) < g_currentContext->windowWorkRegionTopRightX;
+                const bool doesFitHorisontally = (baseX + width) < g_currentContext.windowWorkRegionTopRightX;
                 if (!doesFitHorisontally)
                 {
                     previousCodepoint = 0;
                     positionY -= positionYStep;
-                    positionX = g_currentContext->windowWorkRegionBottomLeftX;
+                    positionX = g_currentContext.windowWorkRegionBottomLeftX;
                     continue;
                 }
                 break;
@@ -1626,7 +1607,7 @@ namespace ui_impl
             previousCodepoint = codepointSigned;
         }
 
-        g_currentContext->windowWorkRegionTopRightY = positionY;
+        g_currentContext.windowWorkRegionTopRightY = positionY;
     }
 }
 
@@ -1651,9 +1632,11 @@ SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
     g_drawUiVs = data_provider::from_file("assets/default/shaders/ui_draw.vert.spv");
     g_drawUiFs = data_provider::from_file("assets/default/shaders/ui_draw.frag.spv");
     g_windowDefaultTexture = data_provider::from_file("assets/default/textures/ui_window_default.png");
-    hash_table::construct(g_contextTable, app_allocators::persistent());
     hash_table::construct(g_fontInfos, app_allocators::persistent());
     hash_table::construct(g_fontGroups, app_allocators::persistent());
+
+    g_currentContext = { };
+    hash_table::construct(g_currentContext.uidToObjectData, app_allocators::persistent());
 }
 
 SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
@@ -1663,10 +1646,11 @@ SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
 
 SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
 {
+    hash_table::destroy(g_currentContext.uidToObjectData);
+
     data_provider::destroy(g_drawUiVs);
     data_provider::destroy(g_drawUiFs);
     data_provider::destroy(g_windowDefaultTexture);
-    hash_table::destroy(g_contextTable);
     for (auto it : g_fontGroups) font_group::destroy(iter::value(it));
     for (auto it : g_fontInfos) font_info::destroy(iter::value(it));
     hash_table::destroy(g_fontGroups);

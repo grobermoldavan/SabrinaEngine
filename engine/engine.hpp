@@ -133,7 +133,6 @@ void se_init_global_subsystem_pointers(SabrinaEngine* engine)
     SE_STRING_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeStringSubsystemInterface>(engine);
     SE_DEBUG_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeDebugSubsystemInterface>(engine);
     SE_WINDOW_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeWindowSubsystemInterface>(engine);
-    SE_UI_SUBSYSTEM_GLOBAL_NAME = se_get_subsystem_interface<SeUiSubsystemInterface>(engine);
 }
 
 #endif

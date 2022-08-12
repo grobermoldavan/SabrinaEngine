@@ -352,6 +352,7 @@ void tetris_controller_update(const SeWindowSubsystemInput* input, float dt)
                     for (int x = 0; x < TETRIS_FIELD_WIDTH; x++)
                         g_state.field[x][y2 - 1] = g_state.field[x][y2];
                 y -= 1;
+                g_state.points += 1;
             }
         }
     }

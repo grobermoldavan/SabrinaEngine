@@ -117,20 +117,21 @@ void        se_vk_graph_destroy(SeVkGraph* graph);
 void        se_vk_graph_begin_frame(SeVkGraph* graph);
 void        se_vk_graph_end_frame(SeVkGraph* graph);
 
-void        se_vk_graph_begin_pass(SeVkGraph* graph, const SeBeginPassInfo& info);
-void        se_vk_graph_end_pass(SeVkGraph* graph);
+SePassDependencies  se_vk_graph_begin_pass(SeVkGraph* graph, const SeBeginPassInfo& info);
+void                se_vk_graph_end_pass(SeVkGraph* graph);
 
-SeRenderRef     se_vk_graph_program(SeVkGraph* graph, const SeProgramInfo& info);
-SeRenderRef     se_vk_graph_texture(SeVkGraph* graph, const SeTextureInfo& info);
-SeRenderRef     se_vk_graph_swap_chain_texture(SeVkGraph* graph);
-SeTextureSize   se_vk_grap_texture_size(SeVkGraph* graph, SeRenderRef texture);
-SeRenderRef     se_vk_graph_memory_buffer(SeVkGraph* graph, const SeMemoryBufferInfo& info);
-SeRenderRef     se_vk_graph_graphics_pipeline(SeVkGraph* graph, const SeGraphicsPipelineInfo& info);
-SeRenderRef     se_vk_graph_compute_pipeline(SeVkGraph* graph, const SeComputePipelineInfo& info);
-SeRenderRef     se_vk_graph_sampler(SeVkGraph* graph, const SeSamplerInfo& info);
-void            se_vk_graph_command_bind(SeVkGraph* graph, const SeCommandBindInfo& info);
-void            se_vk_graph_command_draw(SeVkGraph* graph, const SeCommandDrawInfo& info);
-void            se_vk_graph_command_dispatch(SeVkGraph* graph, const SeCommandDispatchInfo& info);
+SeRenderRef         se_vk_graph_program(SeVkGraph* graph, const SeProgramInfo& info);
+SeRenderRef         se_vk_graph_texture(SeVkGraph* graph, const SeTextureInfo& info);
+SeRenderRef         se_vk_graph_swap_chain_texture(SeVkGraph* graph);
+SeTextureSize       se_vk_grap_texture_size(SeVkGraph* graph, SeRenderRef texture);
+SeRenderRef         se_vk_graph_memory_buffer(SeVkGraph* graph, const SeMemoryBufferInfo& info);
+SeRenderRef         se_vk_graph_graphics_pipeline(SeVkGraph* graph, const SeGraphicsPipelineInfo& info);
+SeRenderRef         se_vk_graph_compute_pipeline(SeVkGraph* graph, const SeComputePipelineInfo& info);
+SeRenderRef         se_vk_graph_sampler(SeVkGraph* graph, const SeSamplerInfo& info);
+void                se_vk_graph_command_bind(SeVkGraph* graph, const SeCommandBindInfo& info);
+void                se_vk_graph_command_draw(SeVkGraph* graph, const SeCommandDrawInfo& info);
+void                se_vk_graph_command_dispatch(SeVkGraph* graph, const SeCommandDispatchInfo& info);
+SePassDependencies  se_vk_graph_dependencies_for_texture(const SeVkGraph* graph, SeRenderRef texture);
 
 namespace hash_value
 {

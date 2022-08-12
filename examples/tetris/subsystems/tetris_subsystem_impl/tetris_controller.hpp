@@ -47,6 +47,7 @@ struct TetrisActiveFigure
 struct TetrisState
 {
     double elapsedTimeSec;
+    size_t points;
     TetrisActiveFigure activeFigure;
     char field[TETRIS_FIELD_WIDTH][TETRIS_FIELD_HEIGHT];
 };

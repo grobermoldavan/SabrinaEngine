@@ -67,7 +67,7 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
             )
         ),
     };
-    render->begin_frame();
+    if (render->begin_frame())
     {
         const SeRenderRef vertexProgram = render->program({ vertexProgramData });
         const SeRenderRef fragmentProgram = render->program({ fragmentProgramData });
@@ -88,7 +88,6 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
         });
         render->begin_pass
         ({
-            .id                 = 0,
             .dependencies       = 0,
             .pipeline           = pipeline,
             .renderTargets      = { { render->swap_chain_texture(), SE_PASS_RENDER_TARGET_LOAD_OP_CLEAR } },
@@ -102,6 +101,6 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
             render->draw({ .numVertices = se_array_size(vertices), .numInstances = se_array_size(instances) });
         }
         render->end_pass();
+        render->end_frame();
     }
-    render->end_frame();
 }

@@ -815,15 +815,15 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
         //
         // Transition swap chain image layout
         //
-        SeVkTexture* swapChainTexture = *se_vk_device_get_swap_chain_texture(graph->device, swapChainTextureIndex);
-        SeVkCommandBuffer* transitionCmd = getNewCmd();
+        SeVkTexture* const swapChainTexture = *se_vk_device_get_swap_chain_texture(graph->device, swapChainTextureIndex);
+        SeVkCommandBuffer* const transitionCmd = getNewCmd();
         SeVkCommandBufferInfo cmdInfo
         {
             .device = graph->device,
             .usage  = SE_VK_COMMAND_BUFFER_USAGE_TRANSFER,
         };
         se_vk_command_buffer_construct(transitionCmd, &cmdInfo);
-        VkImageMemoryBarrier swapChainImageBarrier
+        const VkImageMemoryBarrier swapChainImageBarrier
         {
             .sType                  = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
             .pNext                  = nullptr,
@@ -895,7 +895,7 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
     graph->context = SE_VK_GRAPH_CONTEXT_TYPE_BETWEEN_FRAMES;
 }
 
-void se_vk_graph_begin_pass(SeVkGraph* graph, const SeBeginPassInfo& info)
+SePassDependencies se_vk_graph_begin_pass(SeVkGraph* graph, const SeBeginPassInfo& info)
 {
     se_assert(graph->context == SE_VK_GRAPH_CONTEXT_TYPE_IN_FRAME);
 
@@ -1004,6 +1004,8 @@ void se_vk_graph_begin_pass(SeVkGraph* graph, const SeBeginPassInfo& info)
     dynamic_array::push(graph->passes, pass);
 
     graph->context = SE_VK_GRAPH_CONTEXT_TYPE_IN_PASS;
+
+    return 1ull << (dynamic_array::size(graph->passes) - 1);
 }
 
 void se_vk_graph_end_pass(SeVkGraph* graph)
@@ -1270,4 +1272,21 @@ void se_vk_graph_command_dispatch(SeVkGraph* graph, const SeCommandDispatchInfo&
         .type = SE_VK_GRAPH_COMMAND_TYPE_DISPATCH,
         .info = { .dispatch = info },
     });
+}
+
+SePassDependencies se_vk_graph_dependencies_for_texture(const SeVkGraph* graph, SeRenderRef texture)
+{
+    SePassDependencies result = 0;
+    for (auto it : graph->passes)
+    {
+        const SeVkGraphPass& pass = iter::value(it);
+        for (size_t attachmentIt = 0; attachmentIt < pass.info.numRenderTargets; attachmentIt++)
+        {
+            if (pass.info.renderTargets[attachmentIt].texture == texture)
+            {
+                result |= 1ull << iter::index(it);
+            }
+        }
+    }
+    return result;
 }

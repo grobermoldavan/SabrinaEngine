@@ -347,7 +347,7 @@ void se_vk_pipeline_graphics_construct(SeVkPipeline* pipeline, SeVkGraphicsPipel
     VkPipelineColorBlendAttachmentState colorBlendAttachments[32] = { 0 /* COLOR BLENDING IS UNSUPPORTED */ };
     for (size_t it = 0; it < se_array_size(colorBlendAttachments); it++)
     {
-        // Default alpha blending https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Fixed_functions#page_Color-blending
+        // Kinda default alpha blending
         colorBlendAttachments[it] =
         {
             .blendEnable            = VK_TRUE,
@@ -355,7 +355,7 @@ void se_vk_pipeline_graphics_construct(SeVkPipeline* pipeline, SeVkGraphicsPipel
             .dstColorBlendFactor    = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
             .colorBlendOp           = VK_BLEND_OP_ADD,
             .srcAlphaBlendFactor    = VK_BLEND_FACTOR_ONE,
-            .dstAlphaBlendFactor    = VK_BLEND_FACTOR_ZERO,
+            .dstAlphaBlendFactor    = VK_BLEND_FACTOR_ONE,
             .alphaBlendOp           = VK_BLEND_OP_ADD,
             .colorWriteMask         = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
         };

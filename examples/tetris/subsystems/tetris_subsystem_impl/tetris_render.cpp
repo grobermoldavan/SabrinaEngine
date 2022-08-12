@@ -28,12 +28,14 @@ struct InputInstance
 };
 
 extern const SeRenderAbstractionSubsystemInterface* g_render;
+extern const SeUiSubsystemInterface* g_ui;
 extern TetrisState g_state;
 
 DataProvider    g_drawVsData;
 DataProvider    g_drawFsData;
 DataProvider    g_presentVsData;
 DataProvider    g_presentFsData;
+DataProvider    g_fontDataEnglish;
 
 void tetris_render_init()
 {
@@ -41,6 +43,7 @@ void tetris_render_init()
     g_drawFsData    = data_provider::from_file("assets/application/shaders/tetris_draw.frag.spv");
     g_presentVsData = data_provider::from_file("assets/default/shaders/present.vert.spv");
     g_presentFsData = data_provider::from_file("assets/default/shaders/present.frag.spv");
+    g_fontDataEnglish = data_provider::from_file("assets/default/fonts/shahd serif.ttf");
 }
 
 void tetris_render_terminate()
@@ -49,6 +52,7 @@ void tetris_render_terminate()
     data_provider::destroy(g_drawFsData);
     data_provider::destroy(g_presentVsData);
     data_provider::destroy(g_presentFsData);
+    data_provider::destroy(g_fontDataEnglish);
 }
 
 void tetris_render_update(const SeWindowSubsystemInput* input, float dt)
@@ -169,7 +173,7 @@ void tetris_render_update(const SeWindowSubsystemInput* input, float dt)
     //
     // Render
     //
-    g_render->begin_frame();
+    if (g_render->begin_frame())
     {
         //
         // Offscreen pass
@@ -202,9 +206,8 @@ void tetris_render_update(const SeWindowSubsystemInput* input, float dt)
             .format = SE_TEXTURE_FORMAT_DEPTH_STENCIL,
             .data   = { },
         });
-        g_render->begin_pass
+        const SePassDependencies drawDependency = g_render->begin_pass
         ({
-            .id                 = 0,
             .dependencies       = 0,
             .pipeline           = drawPipeline,
             .renderTargets      = { { colorTexture, SE_PASS_RENDER_TARGET_LOAD_OP_CLEAR } },
@@ -241,6 +244,31 @@ void tetris_render_update(const SeWindowSubsystemInput* input, float dt)
         }
         g_render->end_pass();
         //
+        // Ui pass
+        //
+        SePassDependencies uiDependency = 0;
+        if (g_ui->begin_ui({ g_render, { colorTexture, SE_PASS_RENDER_TARGET_LOAD_OP_LOAD } }))
+        {
+            g_ui->set_font_group({ g_fontDataEnglish });
+            g_ui->set_style_param(SeUiStyleParam::FONT_HEIGHT, { .dim = ui_dim::pix(50) });
+            g_ui->text_line
+            ({
+                "Epic tetris game",
+                ui_dim::pix(100.0f),
+                ui_dim::pix(win::get_height<float>() - 100.0f),
+            });
+            SeStringBuilder builder = string_builder::begin();
+            string_builder::append(builder, "Points : ");
+            string_builder::append(builder, string::cast(g_state.points));
+            g_ui->text_line
+            ({
+                string::cstr(string_builder::end(builder)),
+                ui_dim::pix(100.0f),
+                ui_dim::pix(win::get_height<float>() - 200.0f),
+            });
+            uiDependency = g_ui->end_ui(drawDependency);
+        }
+        //
         // Presentation pass
         //
         const SeRenderRef presentVs = g_render->program({ g_presentVsData });
@@ -275,8 +303,7 @@ void tetris_render_update(const SeWindowSubsystemInput* input, float dt)
         });
         g_render->begin_pass
         ({
-            .id                 = 0,
-            .dependencies       = 1,
+            .dependencies       = drawDependency | uiDependency,
             .pipeline           = presentPipeline,
             .renderTargets      = { { g_render->swap_chain_texture(), SE_PASS_RENDER_TARGET_LOAD_OP_CLEAR } },
             .numRenderTargets   = 1,
@@ -288,6 +315,6 @@ void tetris_render_update(const SeWindowSubsystemInput* input, float dt)
             g_render->draw({ .numVertices = 4, .numInstances = 1 });
         }
         g_render->end_pass();
+        g_render->end_frame();
     }
-    g_render->end_frame();
 }

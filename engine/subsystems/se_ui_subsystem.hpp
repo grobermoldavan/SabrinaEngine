@@ -38,7 +38,6 @@ struct SeUiFontGroupInfo
 
 struct SeUiBeginInfo
 {
-    const char*                                     uid;
     const SeRenderAbstractionSubsystemInterface*    render;
     SePassRenderTarget                              target;
 };
@@ -102,7 +101,7 @@ struct SeUiSubsystemInterface
     static constexpr const char* NAME = "SeUiSubsystemInterface";
 
     bool (*begin_ui)(const SeUiBeginInfo& info);
-    void (*end_ui)();
+    SePassDependencies (*end_ui)(SePassDependencies dependencies);
 
     void (*set_font_group)(const SeUiFontGroupInfo& info);
     void (*set_style_param)(SeUiStyleParam::Type type, const SeUiStyleParam& param);
@@ -120,62 +119,10 @@ struct SeUiSubsystem
     static constexpr const char* NAME = "se_ui_subsystem";
 };
 
-#define SE_UI_SUBSYSTEM_GLOBAL_NAME g_uiSubsystemIface
-const SeUiSubsystemInterface* SE_UI_SUBSYSTEM_GLOBAL_NAME = nullptr;
-
-namespace ui
-{
-    inline bool begin(const SeUiBeginInfo& info)
-    {
-        return SE_UI_SUBSYSTEM_GLOBAL_NAME->begin_ui(info);
-    }
-
-    inline void end()
-    {
-        SE_UI_SUBSYSTEM_GLOBAL_NAME->end_ui();
-    }
-
-    inline void set_font_group(const SeUiFontGroupInfo& info)
-    {
-        SE_UI_SUBSYSTEM_GLOBAL_NAME->set_font_group(info);
-    }
-
-    inline void set_style_param(SeUiStyleParam::Type type, const SeUiStyleParam& param)
-    {
-        SE_UI_SUBSYSTEM_GLOBAL_NAME->set_style_param(type, param);
-    }
-
-    inline void text_line(const SeUiTextLineInfo& info)
-    {
-        SE_UI_SUBSYSTEM_GLOBAL_NAME->text_line(info);
-    }
-
-    inline bool begin_window(const SeUiWindowInfo& info)
-    {
-        return SE_UI_SUBSYSTEM_GLOBAL_NAME->begin_window(info);
-    }
-
-    inline void end_window()
-    {
-        SE_UI_SUBSYSTEM_GLOBAL_NAME->end_window();
-    }
-
-    inline void window_text(const SeUiWindowTextInfo& info)
-    {
-        SE_UI_SUBSYSTEM_GLOBAL_NAME->window_text(info);
-    }
-}
-
 namespace hash_value
 {
     namespace builder
     {
-        template<>
-        void absorb<SeUiBeginInfo>(HashValueBuilder& builder, const SeUiBeginInfo& input)
-        {
-            hash_value::builder::absorb_raw(builder, { (void*)input.uid, strlen(input.uid) });
-        }
-
         template<>
         void absorb<SeUiFontGroupInfo>(HashValueBuilder& builder, const SeUiFontGroupInfo& input)
         {
@@ -185,14 +132,6 @@ namespace hash_value
                 hash_value::builder::absorb(builder, input.fonts[it]);
             }
         }
-    }
-
-    template<>
-    HashValue generate<SeUiBeginInfo>(const SeUiBeginInfo& value)
-    {
-        HashValueBuilder builder = hash_value::builder::begin();
-        hash_value::builder::absorb(builder, value);
-        return hash_value::builder::end(builder);
     }
 
     template<>

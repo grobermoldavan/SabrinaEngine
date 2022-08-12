@@ -405,7 +405,7 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* updateIn
         .isoLevel       = isoLevel,
     };
 
-    g_render->begin_frame();
+    if (g_render->begin_frame())
     {
         constexpr uint32_t numVerts = (CHUNK_DIM - 1) * (CHUNK_DIM - 1) * (CHUNK_DIM - 1) * 5 * 3;
         const SeRenderRef clearChunkCs          = g_render->program({ g_clearChunkCsData });
@@ -452,7 +452,7 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* updateIn
         //
         computeProgramInfo.program = clearChunkCs;
         const SeRenderRef clearChunkPipeline = g_render->compute_pipeline({ computeProgramInfo });
-        g_render->begin_pass({ .id = CLEAR_CHUNK_PASS, .dependencies = 0, .pipeline = clearChunkPipeline });
+        const SePassDependencies clearChunkDependency = g_render->begin_pass({ .dependencies = 0, .pipeline = clearChunkPipeline });
         executeComputePass(clearChunkCs);
         g_render->end_pass();
         //
@@ -460,7 +460,7 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* updateIn
         //
         computeProgramInfo.program = generateChunkCs;
         const SeRenderRef generateChunkPipeline = g_render->compute_pipeline({ computeProgramInfo });
-        g_render->begin_pass({ .id = GENERATE_CHUNK_PASS, .dependencies = (1 << CLEAR_CHUNK_PASS), .pipeline = generateChunkPipeline });
+        const SePassDependencies generateChunkDependency = g_render->begin_pass({ .dependencies = clearChunkDependency, .pipeline = generateChunkPipeline });
         executeComputePass(generateChunkCs);
         g_render->end_pass();
         //
@@ -468,7 +468,7 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* updateIn
         //
         computeProgramInfo.program = triangulateChunkCs;
         const SeRenderRef triangulateChunkPipeline = g_render->compute_pipeline({ computeProgramInfo });
-        g_render->begin_pass({ .id = TRIANGULATE_CHUNK_PASS, .dependencies = (1 << GENERATE_CHUNK_PASS), .pipeline = triangulateChunkPipeline });
+        const SePassDependencies triangulateChunkDependency = g_render->begin_pass({ .dependencies = generateChunkDependency, .pipeline = triangulateChunkPipeline });
         executeComputePass(triangulateChunkCs);
         g_render->end_pass();
         //
@@ -494,8 +494,7 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* updateIn
         });
         g_render->begin_pass
         ({
-            .id                 = 0,
-            .dependencies       = 0,
+            .dependencies       = triangulateChunkDependency,
             .pipeline           = pipeline,
             .renderTargets      = { { g_render->swap_chain_texture(), SE_PASS_RENDER_TARGET_LOAD_OP_CLEAR } },
             .numRenderTargets   = 1,
@@ -535,6 +534,6 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* updateIn
             g_render->draw({ .numVertices = numVerts, .numInstances = 1 });
         }
         g_render->end_pass();
+        g_render->end_frame();
     }
-    g_render->end_frame();
 }

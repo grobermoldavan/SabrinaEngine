@@ -17,7 +17,7 @@ namespace utils
     }
 
     template<size_t value>
-    inline size_t power_of_two()
+    inline constexpr size_t power_of_two()
     {
         static_assert(((value - 1) & value) == 0);
         return value;

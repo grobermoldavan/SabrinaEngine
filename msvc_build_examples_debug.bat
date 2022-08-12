@@ -98,7 +98,7 @@ EXIT /B 0
     -Z7 -Od -EHsc -MT ^
     %~1 ^
     /LD /I "." /I "%VK_SDK_PATH%\Include" /I %build_dll_additional_include_path% /DSE_DEBUG ^
-    /std:c++20 /W4 /wd4201 /wd4324 /wd4100 /wd4505 /utf-8 /validate-charset^
+    /std:c++20 /W4 /wd4201 /wd4324 /wd4100 /wd4505 /utf-8 /validate-charset /GR-^
     kernel32.lib user32.lib ^
     /link /DEBUG:FULL /OUT:%%build_dll_target_folder%%%build_dll_file_name%.dll
 
@@ -121,7 +121,7 @@ EXIT /B 0
     -Z7 -Od -EHsc -MT ^
     %build_exe_source_file_path% ^
     /I "." /I "%VK_SDK_PATH%\Include" /I %build_exe_engine_include_path% /DSE_DEBUG ^
-    /std:c++20 /W4 /wd4201 /wd4324 /wd4100 /wd4505 /utf-8 /validate-charset^
+    /std:c++20 /W4 /wd4201 /wd4324 /wd4100 /wd4505 /utf-8 /validate-charset /GR-^
     kernel32.lib user32.lib ^
     /link /DEBUG:FULL /OUT:%%build_exe_target_folder%%%build_exe_result_file_name%.exe
 

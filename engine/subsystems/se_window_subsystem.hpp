@@ -91,14 +91,16 @@ namespace win
         return SE_WINDOW_SUBSYSTEM_GLOBAL_NAME->get_input();
     }
 
-    inline uint32_t get_width()
+    template<typename T = uint32_t>
+    inline T get_width()
     {
-        return SE_WINDOW_SUBSYSTEM_GLOBAL_NAME->get_width();
+        return (T)SE_WINDOW_SUBSYSTEM_GLOBAL_NAME->get_width();
     }
 
-    inline uint32_t get_height()
+    template<typename T = uint32_t>
+    inline T get_height()
     {
-        return SE_WINDOW_SUBSYSTEM_GLOBAL_NAME->get_height();
+        return (T)SE_WINDOW_SUBSYSTEM_GLOBAL_NAME->get_height();
     }
 
     inline void* get_native_handle()

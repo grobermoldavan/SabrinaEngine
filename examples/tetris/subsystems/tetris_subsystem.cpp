@@ -4,11 +4,13 @@
 #include "engine/engine.hpp"
 
 const SeRenderAbstractionSubsystemInterface* g_render;
+const SeUiSubsystemInterface* g_ui;
 
 SE_DLL_EXPORT void se_init(SabrinaEngine* engine)
 {
     se_init_global_subsystem_pointers(engine);
     g_render = se_get_subsystem_interface<SeRenderAbstractionSubsystemInterface>(engine);
+    g_ui = se_get_subsystem_interface<SeUiSubsystemInterface>(engine);
     tetris_render_init();
 }
 

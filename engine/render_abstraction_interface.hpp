@@ -11,6 +11,7 @@
 constexpr size_t SE_MAX_SPECIALIZATION_CONSTANTS    = 8;
 constexpr size_t SE_MAX_BINDINGS                    = 8;
 constexpr size_t SE_MAX_PASS_DEPENDENCIES           = 64;
+constexpr size_t SE_MAX_PASS_RENDER_TARGETS         = 8;
 
 enum SePassRenderTargetLoadOp
 {
@@ -118,10 +119,9 @@ struct SePassRenderTarget
 
 struct SeBeginPassInfo
 {
-    uint64_t            id;
     SePassDependencies  dependencies;
     SeRenderRef         pipeline;
-    SePassRenderTarget  renderTargets[8];
+    SePassRenderTarget  renderTargets[SE_MAX_PASS_RENDER_TARGETS];
     size_t              numRenderTargets;
     SePassRenderTarget  depthStencilTarget;
     bool                hasDepthStencil;
@@ -270,7 +270,7 @@ struct SeRenderAbstractionSubsystemInterface
 
     bool                                (*begin_frame)                          ();
     void                                (*end_frame)                            ();
-    void                                (*begin_pass)                           (const SeBeginPassInfo& info);
+    SePassDependencies                  (*begin_pass)                           (const SeBeginPassInfo& info);
     void                                (*end_pass)                             ();
 
     SeRenderRef                         (*program)                              (const SeProgramInfo& info);
@@ -287,6 +287,7 @@ struct SeRenderAbstractionSubsystemInterface
     SeFloat4x4                          (*perspective)                          (float fovDeg, float aspect, float nearPlane, float farPlane);
     SeFloat4x4                          (*orthographic)                         (float left, float right, float bottom, float top, float nearPlane, float farPlane);
     SeComputeWorkgroupSize              (*workgroup_size)                       (SeRenderRef program);
+    SePassDependencies                  (*dependencies_for_texture)             (SeRenderRef texture);
 };
 
 using ColorPacked = uint32_t;

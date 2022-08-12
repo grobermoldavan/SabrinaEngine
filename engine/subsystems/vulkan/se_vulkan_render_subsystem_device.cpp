@@ -130,7 +130,7 @@ void se_vk_device_swap_chain_create(SeVkDevice* device, uint32_t width, uint32_t
         {
             imageCount = supportDetails.capabilities.maxImageCount;
         }
-        uint32_t queueFamiliesIndices[SE_VK_MAX_UNIQUE_COMMAND_QUEUES] = {0};
+        uint32_t queueFamiliesIndices[SE_VK_MAX_UNIQUE_COMMAND_QUEUES] = { };
         VkSwapchainCreateInfoKHR swapChainCreateInfo
         {
             .sType                  = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
@@ -236,14 +236,6 @@ void se_vk_device_swap_chain_destroy(SeVkDevice* device)
         vkDestroyImageView(device->gpu.logicalHandle, device->swapChain.images[it].view, callbacks);
     vkDestroySwapchainKHR(device->gpu.logicalHandle, device->swapChain.handle, callbacks);
 }
-
-// void se_vk_device_handle_window_resized(SeWindowHandle window, void* userData)
-// {
-//     SeVkDevice* const device = (SeVkDevice*)userData;
-//     vkDeviceWaitIdle(device->gpu.logicalHandle);
-//     se_vk_device_swap_chain_destroy(device);
-//     se_vk_device_swap_chain_create(device, device->windowHandle);
-// }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL se_vk_debug_callback(
                                             VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
