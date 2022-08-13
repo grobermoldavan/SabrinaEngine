@@ -39,6 +39,7 @@ struct SeStringSubsystemInterface
     SeStringBuilder (*builder_begin)            (bool isTmp, size_t capacity, const char* source);
     SeStringBuilder (*builder_begin_from_source)(bool isTmp, const char* source);
     void            (*builder_append)           (SeStringBuilder& builder, const char* source);
+    void            (*builder_append_fmt)       (SeStringBuilder& builder, const char* fmt, const char** args, size_t numArgs);
     SeString        (*builder_end)              (SeStringBuilder& builder);
 
     void            (*int64_to_cstr)            (int64_t value, char* buffer, size_t bufferSize);
@@ -54,40 +55,6 @@ struct SeStringSubsystem
 
 #define SE_STRING_SUBSYSTEM_GLOBAL_NAME g_stringSubsystemIface
 const struct SeStringSubsystemInterface* SE_STRING_SUBSYSTEM_GLOBAL_NAME = nullptr;
-
-namespace string_builder
-{
-    inline SeStringBuilder begin(SeStringLifetime lifetime = SeStringLifetime::Temporary, const char* source = nullptr)
-    {
-        return SE_STRING_SUBSYSTEM_GLOBAL_NAME->builder_begin_from_source(lifetime == SeStringLifetime::Temporary, source);
-    }
-
-    inline SeStringBuilder begin(size_t capacity, SeStringLifetime lifetime = SeStringLifetime::Temporary, const char* source = nullptr)
-    {
-        return SE_STRING_SUBSYSTEM_GLOBAL_NAME->builder_begin(lifetime == SeStringLifetime::Temporary, capacity, source);
-    }
-
-    inline void append(SeStringBuilder& builder, const char* source)
-    {
-        SE_STRING_SUBSYSTEM_GLOBAL_NAME->builder_append(builder, source);
-    }
-
-    inline void append(SeStringBuilder& builder, char symbol)
-    {
-        const char smallStr[2] = { symbol, 0 };
-        SE_STRING_SUBSYSTEM_GLOBAL_NAME->builder_append(builder, smallStr);
-    }
-
-    inline void append(SeStringBuilder& builder, const SeString& source)
-    {
-        SE_STRING_SUBSYSTEM_GLOBAL_NAME->builder_append(builder, source.memory);
-    }
-
-    inline SeString end(SeStringBuilder& builder)
-    {
-        return SE_STRING_SUBSYSTEM_GLOBAL_NAME->builder_end(builder);
-    }
-}
 
 namespace string
 {
@@ -142,12 +109,77 @@ namespace string
     }
 
     template <class T>
-    concept cstring = std::is_same_v<T, const char*> || std::is_same_v<T, char*>;
+    concept cstring = std::is_convertible_v<T, const char*>;
 
     template<cstring T>
     SeString cast(const T& value, SeStringLifetime lifetime = SeStringLifetime::Temporary)
     {
         return string::create(value, lifetime);
+    }
+}
+
+namespace string_builder
+{
+    namespace impl
+    {
+        template<size_t it, typename Arg>
+        void fill_args(char** argsStr, const Arg& arg)
+        {
+            argsStr[it] = string::cstr(string::cast(arg, SeStringLifetime::Temporary));
+        }
+
+        template<size_t it, typename Arg, typename ... Other>
+        void fill_args(char** argsStr, const Arg& arg, const Other& ... other)
+        {
+            argsStr[it] = string::cstr(string::cast(arg, SeStringLifetime::Temporary));
+            fill_args<it + 1, Other...>(argsStr, other...);
+        }
+    }
+
+    inline SeStringBuilder begin(const char* source = nullptr, SeStringLifetime lifetime = SeStringLifetime::Temporary)
+    {
+        return SE_STRING_SUBSYSTEM_GLOBAL_NAME->builder_begin_from_source(lifetime == SeStringLifetime::Temporary, source);
+    }
+
+    inline SeStringBuilder begin(size_t capacity, const char* source = nullptr, SeStringLifetime lifetime = SeStringLifetime::Temporary)
+    {
+        return SE_STRING_SUBSYSTEM_GLOBAL_NAME->builder_begin(lifetime == SeStringLifetime::Temporary, capacity, source);
+    }
+
+    inline void append(SeStringBuilder& builder, const char* source)
+    {
+        SE_STRING_SUBSYSTEM_GLOBAL_NAME->builder_append(builder, source);
+    }
+
+    inline void append(SeStringBuilder& builder, char symbol)
+    {
+        const char smallStr[2] = { symbol, 0 };
+        SE_STRING_SUBSYSTEM_GLOBAL_NAME->builder_append(builder, smallStr);
+    }
+
+    inline void append(SeStringBuilder& builder, const SeString& source)
+    {
+        SE_STRING_SUBSYSTEM_GLOBAL_NAME->builder_append(builder, source.memory);
+    }
+
+    template<typename ... Args>
+    void append_fmt(SeStringBuilder& builder, const char* fmt, const Args& ... args)
+    {
+        if constexpr (sizeof...(Args) == 0)
+        {
+            SE_STRING_SUBSYSTEM_GLOBAL_NAME->builder_append(builder, fmt);
+        }
+        else
+        {
+            char* argsStr[sizeof...(args)];
+            impl::fill_args<0, Args...>(argsStr, args...);
+            SE_STRING_SUBSYSTEM_GLOBAL_NAME->builder_append_fmt(builder, fmt, (const char**)argsStr, sizeof...(args));
+        }
+    }
+
+    inline SeString end(SeStringBuilder& builder)
+    {
+        return SE_STRING_SUBSYSTEM_GLOBAL_NAME->builder_end(builder);
     }
 }
 

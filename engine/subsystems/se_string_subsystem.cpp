@@ -59,7 +59,6 @@ SeString se_string_create(bool isTmp, size_t length, const char* source)
         };
         return { memory, length, allocation };
     }
-    
 }
 
 SeString se_string_create_from_source(bool isTmp, const char* source)
@@ -98,11 +97,10 @@ SeStringBuilder se_string_builder_begin_from_source(bool isTmp, const char* sour
     return se_string_builder_begin(isTmp, source ? strlen(source) : 32, source);
 }
 
-void se_string_builder_append(SeStringBuilder& builder, const char* source)
+void se_string_builder_append_with_specified_length(SeStringBuilder& builder, const char* source, size_t sourceLength)
 {
     se_assert(source);
     const size_t oldLength = builder.length;
-    const size_t sourceLength = strlen(source);
     const size_t newLength = oldLength + sourceLength;
     if (newLength > builder.capacity)
     {
@@ -115,6 +113,50 @@ void se_string_builder_append(SeStringBuilder& builder, const char* source)
     }
     memcpy(builder.memory + oldLength, source, sourceLength);
     builder.length += sourceLength;
+}
+
+void se_string_builder_append(SeStringBuilder& builder, const char* source)
+{
+    se_string_builder_append_with_specified_length(builder, source, strlen(source));
+}
+
+void se_string_builder_append_fmt(SeStringBuilder& builder, const char* fmt, const char** args, size_t numArgs)
+{
+    enum ParserState
+    {
+        IN_TEXT,
+        IN_ARG,
+    };
+    ParserState state = IN_TEXT;
+    size_t argIt = 0;
+    size_t fmtPivot = 0;
+    const size_t fmtLength = strlen(fmt);
+    for (size_t it = 0; it < fmtLength; it++)
+    {
+        switch (state)
+        {
+            case IN_TEXT:
+            {
+                if (fmt[it] == '{')
+                {
+                    const size_t textCopySize = it - fmtPivot;
+                    const char* arg = args[argIt++];
+                    se_string_builder_append_with_specified_length(builder, fmt + fmtPivot, textCopySize);
+                    se_string_builder_append(builder, arg);
+                    state = IN_ARG;
+                }
+            } break;
+            case IN_ARG:
+            {
+                if (fmt[it] == '}')
+                {
+                    fmtPivot = it + 1;
+                    state = IN_TEXT;
+                }
+            } break;
+        }
+    }
+    se_string_builder_append_with_specified_length(builder, fmt + fmtPivot, fmtLength - fmtPivot);
 }
 
 SeString se_string_builder_end(SeStringBuilder& builder)
@@ -160,6 +202,7 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
         .builder_begin              = se_string_builder_begin,
         .builder_begin_from_source  = se_string_builder_begin_from_source,
         .builder_append             = se_string_builder_append,
+        .builder_append_fmt         = se_string_builder_append_fmt,
         .builder_end                = se_string_builder_end,
         .int64_to_cstr              = se_string_from_int64,
         .uint64_to_cstr             = se_string_from_uint64,

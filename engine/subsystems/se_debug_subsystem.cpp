@@ -9,18 +9,18 @@
 
 HANDLE g_outputHandle = INVALID_HANDLE_VALUE;
 
-void se_debug_platform_init()
+inline void se_debug_platform_init()
 {
     SetConsoleOutputCP(CP_UTF8);
     g_outputHandle = GetStdHandle(STD_OUTPUT_HANDLE);
 }
 
-void se_debug_platform_terminate()
+inline void se_debug_platform_terminate()
 {
     g_outputHandle = INVALID_HANDLE_VALUE;
 }
 
-void se_debug_platform_output(const char* str)
+inline void se_debug_platform_output(const char* str)
 {
     static const char* nextLine = "\n";
     static const DWORD nextLineLen = (DWORD)strlen(nextLine);
@@ -28,7 +28,7 @@ void se_debug_platform_output(const char* str)
     WriteFile(g_outputHandle, nextLine, nextLineLen, NULL, NULL);
 }
 
-void se_debug_platform_thread_yeild()
+inline void se_debug_platform_thread_yeild()
 {
     SwitchToThread();
 }
@@ -39,13 +39,7 @@ void se_debug_platform_thread_yeild()
 
 SeDebugSubsystemInterface g_iface;
 
-struct SeLogEntry
-{
-    static constexpr size_t MEMORY_SIZE = 1024;
-    char memory[MEMORY_SIZE];
-};
-
-ThreadSafeQueue<SeLogEntry> g_logQueue;
+ThreadSafeQueue<SeString> g_logQueue;
 uint64_t g_isFlushing;
 
 void se_debug_wait_for_flush()
@@ -63,10 +57,10 @@ bool se_debug_try_flush()
     if (platform::get()->atomic_64_bit_cas(&g_isFlushing, &expected, 1, SE_ACQUIRE_RELEASE))
     {
         // If flag is locked by this thread, print all messages
-        SeLogEntry entry;
+        SeString entry;
         while (thread_safe_queue::dequeue(g_logQueue, &entry))
         {
-            se_debug_platform_output(entry.memory);
+            se_debug_platform_output(string::cstr(entry));
         }
         platform::get()->atomic_64_bit_store(&g_isFlushing, 0, SE_RELEASE);
         return true;
@@ -75,68 +69,9 @@ bool se_debug_try_flush()
     return false;
 }
 
-void se_debug_submit(const char* fmt, const char** args, size_t numArgs)
+void se_debug_submit(SeString msg)
 {
-    //
-    // Prepare log entry
-    //
-
-    enum ParserState
-    {
-        IN_TEXT,
-        IN_ARG,
-    };
-
-    SeLogEntry entry;
-    const size_t fmtLength = strlen(fmt);
-    ParserState state = IN_TEXT;
-    size_t argIt = 0;
-    size_t bufferPivot = 0;
-    size_t fmtPivot = 0;
-
-    auto copyToBuffer = [&entry, &bufferPivot](const char* text, size_t length)
-    {
-        const size_t availableSize = SeLogEntry::MEMORY_SIZE - bufferPivot - 1;
-        const size_t copySize = availableSize > length ? length : availableSize;
-        memcpy(entry.memory + bufferPivot, text, copySize);
-        bufferPivot += copySize;
-    };
-
-    for (size_t it = 0; it < fmtLength; it++)
-    {
-        switch (state)
-        {
-            case IN_TEXT:
-            {
-                if (fmt[it] == '{')
-                {
-                    const size_t textCopySize = it - fmtPivot;
-                    const char* arg = args[argIt++];
-                    copyToBuffer(fmt + fmtPivot, textCopySize);
-                    copyToBuffer(arg, strlen(arg));
-                    state = IN_ARG;
-                }
-            } break;
-            case IN_ARG:
-            {
-                if (fmt[it] == '}')
-                {
-                    fmtPivot = it + 1;
-                    state = IN_TEXT;
-                }
-            } break;
-        }
-    }
-
-    copyToBuffer(fmt + fmtPivot, fmtLength - fmtPivot);
-    entry.memory[bufferPivot] = 0;
-
-    //
-    // Push entry to log queue
-    //
-
-    se_debug_wait_for_flush();
-    while (!thread_safe_queue::enqueue(g_logQueue, entry))
+    while (!thread_safe_queue::enqueue(g_logQueue, msg))
     {
         if (!se_debug_try_flush())
         {

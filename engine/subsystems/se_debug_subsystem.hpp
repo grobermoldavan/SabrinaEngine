@@ -7,7 +7,7 @@ struct SeDebugSubsystemInterface
 {
     static constexpr const char* NAME = "SeDebugSubsystemInterface";
 
-    void (*print)(const char* fmt, const char** args, size_t numArgs);
+    void (*print)(SeString msg);
     void (*abort)();
     bool isInited;
 };
@@ -25,19 +25,6 @@ namespace debug
 {
     namespace impl
     {
-        template<size_t it, typename Arg>
-        void fill_args(char** argsStr, const Arg& arg)
-        {
-            argsStr[it] = string::cstr(string::cast(arg, SeStringLifetime::Temporary));
-        }
-
-        template<size_t it, typename Arg, typename ... Other>
-        void fill_args(char** argsStr, const Arg& arg, const Other& ... other)
-        {
-            argsStr[it] = string::cstr(string::cast(arg, SeStringLifetime::Temporary));
-            fill_args<it + 1, Other...>(argsStr, other...);
-        }
-
         void assert_simple()
         {
             int* a = 0;
@@ -48,27 +35,19 @@ namespace debug
     template<typename ... Args>
     void message(const char* fmt, const Args& ... args)
     {
-        char* argsStr[sizeof...(args)] = { };
-        debug::impl::fill_args<0, Args...>(argsStr, args...);
-        SE_DEBUG_SUBSYSTEM_GLOBAL_NAME->print(fmt, (const char**)argsStr, sizeof...(args));
-    }
-
-    void message(const char* fmt)
-    {
-        SE_DEBUG_SUBSYSTEM_GLOBAL_NAME->print(fmt, nullptr, 0);
+        SeStringBuilder builder = string_builder::begin(nullptr, SeStringLifetime::Temporary);
+        string_builder::append_fmt(builder, fmt, args...);
+        SeString formattedString = string_builder::end(builder);
+        SE_DEBUG_SUBSYSTEM_GLOBAL_NAME->print(formattedString);
     }
 
     template<typename ... Args>
     void error(const char* fmt, const Args& ... args)
     {
-        char* argsStr[sizeof...(args)] = { };
-        debug::impl::fill_args<0, Args...>(argsStr, args...);
-        SE_DEBUG_SUBSYSTEM_GLOBAL_NAME->print(fmt, (const char**)argsStr, sizeof...(args));
-    }
-
-    void error(const char* fmt)
-    {
-        SE_DEBUG_SUBSYSTEM_GLOBAL_NAME->print(fmt, nullptr, 0);
+        SeStringBuilder builder = string_builder::begin(nullptr, SeStringLifetime::Temporary);
+        string_builder::append_fmt(builder, fmt, args...);
+        SeString formattedString = string_builder::end(builder);
+        SE_DEBUG_SUBSYSTEM_GLOBAL_NAME->print(formattedString);
     }
 
     void assert_impl(bool result, const char* condition, const char* file, size_t line)
