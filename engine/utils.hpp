@@ -27,6 +27,30 @@ namespace utils
     {
         return ((value - 1) & value) == 0;
     }
+
+    template<typename Flags, typename T>
+    Flags _flagify(Flags prev, T flag)
+    {
+        return prev | (Flags(1) << Flags(flag));
+    }
+
+    template<typename Flags, typename T, typename ... Other>
+    Flags _flagify(Flags prev, T flag, Other ... other)
+    {
+        return _flagify(prev | (Flags(1) << Flags(flag)), other...);
+    }
+
+    template<typename Flags, typename T, typename ... Other>
+    Flags flagify(T flag, Other ... other)
+    {
+        return _flagify(Flags(0), flag, other...);
+    }
+
+    template<typename Flags, typename T>
+    Flags flagify(T flag)
+    {
+        return _flagify(Flags(0), flag);
+    }
 }
 
 #endif

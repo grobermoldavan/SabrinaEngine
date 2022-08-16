@@ -615,7 +615,7 @@ struct FontGroup
 
 namespace font_group
 {
-    int direct_cast_to_int(uint32_t value)
+    inline int direct_cast_to_int(uint32_t value)
     {
         return *((int*)&value);
     };
@@ -892,14 +892,16 @@ struct UiContext
 
 const UiStyle DEFAULT_STYLE =
 {
-    { .color = col::pack({ 1.0f, 1.0f, 1.0f, 1.0f }) },
-    { .dim = ui_dim::pix(10) },
-    { .dim = ui_dim::pix(12) },
-    { .color = col::pack({ 0.87f, 0.81f, 0.83f, 1.0f }) },
-    { .color = col::pack({ 0.36f, 0.45f, 0.58f, 0.8f }) },
-    { .color = col::pack({ 0.95f, 0.75f, 0.79f, 1.0f }) },
-    { .dim = ui_dim::pix(16.0f) },
-    { .dim = ui_dim::pix(2.0f) },
+    /* FONT_COLOR                   */ { .color = col::pack({ 1.0f, 1.0f, 1.0f, 1.0f }) },
+    /* FONT_HEIGHT                  */ { .dim = 10.0f },
+    /* FONT_LINE_STEP               */ { .dim = 12.0f },
+    /* PRIMARY_COLOR                */ { .color = col::pack({ 0.87f, 0.81f, 0.83f, 1.0f }) },
+    /* SECONDARY_COLOR              */ { .color = col::pack({ 0.36f, 0.45f, 0.58f, 0.8f }) },
+    /* ACCENT_COLOR                 */ { .color = col::pack({ 0.95f, 0.75f, 0.79f, 1.0f }) },
+    /* WINDOW_TOP_PANEL_THICKNESS   */ { .dim = 16.0f },
+    /* WINDOW_BORDER_THICKNESS      */ { .dim = 2.0f },
+    /* TEXT_PIVOT_X                 */ { .pivot = SeUiPivot::BOTTOM_LEFT },
+    /* TEXT_PIVOT_Y                 */ { .pivot = SeUiPivot::BOTTOM_LEFT },
 };
 
 SeUiSubsystemInterface                  g_iface;
@@ -973,17 +975,6 @@ namespace utils
 
 namespace ui_impl
 {
-    inline float dim_to_pix(SeUiDim dim)
-    {
-        switch (dim.type)
-        {
-            case SeUiDim::PIXELS:           { return dim.dim; }
-            case SeUiDim::TARGET_RELATIVE:  { se_assert(false); }
-            default:                        { se_assert(false); }
-        }
-        return 0;
-    }
-
     inline UiTextureData ui_texture_data_create(const FontGroup* fontGroup)
     {
         return
@@ -1298,9 +1289,9 @@ namespace ui_impl
         // Get base data and draw call
         //
         const FontGroup* const fontGroup = g_currentContext.currentFontGroup;
-        const float textHeight = dim_to_pix(g_currentContext.currentStyle[SeUiStyleParam::FONT_HEIGHT].dim);
-        const float baselineX = dim_to_pix(info.baselineX);
-        const float baselineY = dim_to_pix(info.baselineY);
+        const float textHeight = g_currentContext.currentStyle[SeUiStyleParam::FONT_HEIGHT].dim;
+        const float baselineX = info.baselineX;
+        const float baselineY = info.baselineY;
         UiDrawCall* const drawCall = get_draw_call(ui_texture_data_create(fontGroup), fontGroup->textureInfo,
         {
             .rComponent = col::unpack(g_currentContext.currentStyle[SeUiStyleParam::FONT_COLOR].color),
@@ -1316,6 +1307,7 @@ namespace ui_impl
         //
         float positionX = baselineX;
         int previousCodepoint = 0;
+        const size_t from = dynamic_array::size(drawCall->vertices);
         for (uint32_t codepoint : Utf8{ info.utf8text })
         {
             const FontGroup::CodepointInfo* const codepointInfo = hash_table::get(fontGroup->codepointToInfo, codepoint);
@@ -1347,6 +1339,21 @@ namespace ui_impl
             positionX += advance;
             previousCodepoint = codepointSigned;
         }
+
+        const bool isCenteredX = g_currentContext.currentStyle[SeUiStyleParam::TEXT_PIVOT_X].pivot == SeUiPivot::CENTER;
+        const bool isCenteredY = g_currentContext.currentStyle[SeUiStyleParam::TEXT_PIVOT_Y].pivot == SeUiPivot::CENTER;
+        if (isCenteredX || isCenteredY)
+        {
+            const float halfWidth = (positionX - baselineX) / 2.0f;
+            const float halfHeight = textHeight / 2.0f;
+            const size_t to = dynamic_array::size(drawCall->vertices);
+            for (size_t it = from; it < to; it++)
+            {
+                UiRenderVertex* const vert = &drawCall->vertices[it];
+                if (isCenteredX) vert->x -= halfWidth;
+                if (isCenteredY) vert->y -= halfHeight;
+            }
+        }
     }
 
     bool begin_window(const SeUiWindowInfo& info)
@@ -1358,12 +1365,12 @@ namespace ui_impl
         UiObjectData* data;
         UiObjectUid uid;
         const bool isFirst = object_data_get(&data, &uid, info.uid);
-        const float bottomLeftX         = isFirst ? dim_to_pix(info.bottomLeftX) : data->bottomLeftX;
-        const float bottomLeftY         = isFirst ? dim_to_pix(info.bottomLeftY) : data->bottomLeftY;
-        const float topRightX           = isFirst ? dim_to_pix(info.topRightX) : data->topRightX;
-        const float topRightY           = isFirst ? dim_to_pix(info.topRightY) : data->topRightY;
-        const float topPanelThickness   = dim_to_pix(g_currentContext.currentStyle[SeUiStyleParam::WINDOW_TOP_PANEL_THICKNESS].dim);
-        const float borderThickness     = dim_to_pix(g_currentContext.currentStyle[SeUiStyleParam::WINDOW_BORDER_THICKNESS].dim);
+        const float bottomLeftX         = isFirst ? info.bottomLeftX : data->bottomLeftX;
+        const float bottomLeftY         = isFirst ? info.bottomLeftY : data->bottomLeftY;
+        const float topRightX           = isFirst ? info.topRightX : data->topRightX;
+        const float topRightY           = isFirst ? info.topRightY : data->topRightY;
+        const float topPanelThickness   = g_currentContext.currentStyle[SeUiStyleParam::WINDOW_TOP_PANEL_THICKNESS].dim;
+        const float borderThickness     = g_currentContext.currentStyle[SeUiStyleParam::WINDOW_BORDER_THICKNESS].dim;
         if (isFirst)
         {
             data->bottomLeftX   = bottomLeftX;
@@ -1516,8 +1523,8 @@ namespace ui_impl
         // Get base data and draw call
         //
         const FontGroup* const fontGroup = g_currentContext.currentFontGroup;
-        const float textHeight = dim_to_pix(g_currentContext.currentStyle[SeUiStyleParam::FONT_HEIGHT].dim);
-        const float lineStep = dim_to_pix(g_currentContext.currentStyle[SeUiStyleParam::FONT_LINE_STEP].dim);
+        const float textHeight = g_currentContext.currentStyle[SeUiStyleParam::FONT_HEIGHT].dim;
+        const float lineStep = g_currentContext.currentStyle[SeUiStyleParam::FONT_LINE_STEP].dim;
         UiDrawCall* const drawCall = get_draw_call(ui_texture_data_create(fontGroup), fontGroup->textureInfo,
         {
             .rComponent = col::unpack(g_currentContext.currentStyle[SeUiStyleParam::FONT_COLOR].color),

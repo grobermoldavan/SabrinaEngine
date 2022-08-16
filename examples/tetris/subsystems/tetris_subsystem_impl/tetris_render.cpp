@@ -250,20 +250,21 @@ void tetris_render_update(const SeWindowSubsystemInput* input, float dt)
         if (g_ui->begin_ui({ g_render, { colorTexture, SE_PASS_RENDER_TARGET_LOAD_OP_LOAD } }))
         {
             g_ui->set_font_group({ g_fontDataEnglish });
-            g_ui->set_style_param(SeUiStyleParam::FONT_HEIGHT, { .dim = ui_dim::pix(50) });
+            g_ui->set_style_param(SeUiStyleParam::FONT_HEIGHT, { .dim = 30.0f });
+            g_ui->set_style_param(SeUiStyleParam::TEXT_PIVOT_X, { .pivot = SeUiPivot::CENTER });
             g_ui->text_line
             ({
                 "Epic tetris game",
-                ui_dim::pix(100.0f),
-                ui_dim::pix(win::get_height<float>() - 100.0f),
+                win::get_width<float>() * 0.5f,
+                win::get_height<float>() - 40.0f,
             });
             SeStringBuilder builder = string_builder::begin();
             string_builder::append_fmt(builder, "Points : {}", g_state.points);
             g_ui->text_line
             ({
                 string::cstr(string_builder::end(builder)),
-                ui_dim::pix(100.0f),
-                ui_dim::pix(win::get_height<float>() - 200.0f),
+                win::get_width<float>() * 0.5f,
+                win::get_height<float>() - 80.0f,
             });
             uiDependency = g_ui->end_ui(drawDependency);
         }

@@ -6,30 +6,6 @@
 #include "engine/data_providers.hpp"
 #include "engine/hash.hpp"
 
-struct SeUiDim
-{
-    enum Type
-    {
-        PIXELS,
-        TARGET_RELATIVE,
-    };
-    Type type;
-    float dim;
-};
-
-namespace ui_dim
-{
-    inline constexpr SeUiDim pix(float dim)
-    {
-        return { SeUiDim::PIXELS, dim };
-    }
-
-    inline constexpr SeUiDim rel(float dim)
-    {
-        return { SeUiDim::TARGET_RELATIVE, dim };
-    }
-}
-
 struct SeUiFontGroupInfo
 {
     static constexpr size_t MAX_FONTS = 8;
@@ -45,8 +21,14 @@ struct SeUiBeginInfo
 struct SeUiTextLineInfo
 {
     const char* utf8text;
-    SeUiDim     baselineX;
-    SeUiDim     baselineY;
+    float       baselineX;
+    float       baselineY;
+};
+
+enum struct SeUiPivot : uint32_t
+{
+    BOTTOM_LEFT,
+    CENTER,
 };
 
 struct SeUiStyleParam
@@ -61,12 +43,15 @@ struct SeUiStyleParam
         ACCENT_COLOR                = 5,
         WINDOW_TOP_PANEL_THICKNESS  = 6,
         WINDOW_BORDER_THICKNESS     = 7,
+        TEXT_PIVOT_X                = 8,
+        TEXT_PIVOT_Y                = 9,
         _COUNT,
     };
     union
     {
         ColorPacked color;
-        SeUiDim dim;
+        float       dim;
+        SeUiPivot   pivot;
     };
 };
 
@@ -84,10 +69,10 @@ struct SeUiFlags
 struct SeUiWindowInfo
 {
     const char* uid;
-    SeUiDim     bottomLeftX;
-    SeUiDim     bottomLeftY;
-    SeUiDim     topRightX;
-    SeUiDim     topRightY;
+    float       bottomLeftX;
+    float       bottomLeftY;
+    float       topRightX;
+    float       topRightY;
     uint32_t    flags;
 };
 

@@ -46,18 +46,18 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
             // Set font (in this case we combine two fonts into one atlas)
             //
             g_ui->set_font_group({ g_fontDataEnglish, g_fontDataRussian });
-            g_ui->set_style_param(SeUiStyleParam::FONT_HEIGHT, { .dim = ui_dim::pix(20) });
-            g_ui->set_style_param(SeUiStyleParam::FONT_LINE_STEP, { .dim = ui_dim::pix(25) });
+            g_ui->set_style_param(SeUiStyleParam::FONT_HEIGHT, { .dim = 20.0f });
+            g_ui->set_style_param(SeUiStyleParam::FONT_LINE_STEP, { .dim = 25.0f });
 
             //
             // Windows
             //
             if (g_ui->begin_window({
                 .uid            = "first_window",
-                .bottomLeftX    = ui_dim::pix(100),
-                .bottomLeftY    = ui_dim::pix(100),
-                .topRightX      = ui_dim::pix(400),
-                .topRightY      = ui_dim::pix(400),
+                .bottomLeftX    = 100.0f,
+                .bottomLeftY    = 100.0f,
+                .topRightX      = 400.0f,
+                .topRightY      = 400.0f,
                 .flags          = SeUiFlags::MOVABLE | SeUiFlags::RESIZABLE_X | SeUiFlags::RESIZABLE_Y,
             }))
             {
@@ -69,15 +69,15 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
             g_ui->set_style_param(SeUiStyleParam::PRIMARY_COLOR, { .color = col::pack({ 0.73f, 0.11f, 0.14f, 1.0f }) });
             g_ui->set_style_param(SeUiStyleParam::SECONDARY_COLOR, { .color = col::pack({ 0.09f, 0.01f, 0.01f, 0.7f }) });
             g_ui->set_style_param(SeUiStyleParam::ACCENT_COLOR, { .color = col::pack({ 0.88f, 0.73f, 0.73f, 1.0f }) });
-            g_ui->set_style_param(SeUiStyleParam::WINDOW_TOP_PANEL_THICKNESS, { .dim = ui_dim::pix(10.0f) });
-            g_ui->set_style_param(SeUiStyleParam::WINDOW_BORDER_THICKNESS, { .dim = ui_dim::pix(3.0f) });
+            g_ui->set_style_param(SeUiStyleParam::WINDOW_TOP_PANEL_THICKNESS, { .dim = 10.0f });
+            g_ui->set_style_param(SeUiStyleParam::WINDOW_BORDER_THICKNESS, { .dim = 3.0f });
 
             if (g_ui->begin_window({
                 .uid            = "second_window",
-                .bottomLeftX    = ui_dim::pix(250),
-                .bottomLeftY    = ui_dim::pix(250),
-                .topRightX      = ui_dim::pix(600),
-                .topRightY      = ui_dim::pix(600),
+                .bottomLeftX    = 250.0f,
+                .bottomLeftY    = 250.0f,
+                .topRightX      = 600.0f,
+                .topRightY      = 600.0f,
                 .flags          = SeUiFlags::MOVABLE | SeUiFlags::RESIZABLE_X | SeUiFlags::RESIZABLE_Y,
             }))
             {
@@ -96,13 +96,13 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
                 str = string_builder::end(builder);
             }
             g_ui->set_style_param(SeUiStyleParam::FONT_COLOR, { .color = col::pack({ 0.0f, 1.0f, 0.0f, 1.0f }) });
-            g_ui->text_line({ string::cstr(str), ui_dim::pix(100), ui_dim::pix(100) });
+            g_ui->text_line({ string::cstr(str), 100.0f, 100.0f });
 
             g_ui->set_style_param(SeUiStyleParam::FONT_COLOR, { .color = col::pack({ 1.0f, 1.0f, 0.0f, 1.0f }) });
-            g_ui->text_line({ string::cstr(str), ui_dim::pix(100), ui_dim::pix(200) });
+            g_ui->text_line({ string::cstr(str), 100.0f, 200.0f });
 
             g_ui->set_style_param(SeUiStyleParam::FONT_COLOR, { .color = col::pack({ 1.0f, 0.0f, 0.0f, 1.0f }) });
-            g_ui->text_line({ string::cstr(str), ui_dim::pix(100), ui_dim::pix(300) });
+            g_ui->text_line({ string::cstr(str), 100.0f, 300.0f });
 
             g_ui->end_ui(0);
         }
