@@ -183,6 +183,17 @@ namespace string_builder
     }
 }
 
+namespace string
+{
+    template<typename ... Args>
+    SeString create_fmt(SeStringLifetime lifetime, const char* fmt, const Args& ... args)
+    {
+        SeStringBuilder builder = string_builder::begin(nullptr, lifetime);
+        string_builder::append_fmt(builder, fmt, args...);
+        return string_builder::end(builder);
+    }
+}
+
 namespace utils
 {
     template<>

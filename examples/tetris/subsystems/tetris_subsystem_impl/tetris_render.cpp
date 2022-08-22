@@ -258,11 +258,9 @@ void tetris_render_update(const SeWindowSubsystemInput* input, float dt)
                 win::get_width<float>() * 0.5f,
                 win::get_height<float>() - 40.0f,
             });
-            SeStringBuilder builder = string_builder::begin();
-            string_builder::append_fmt(builder, "Points : {}", g_state.points);
             g_ui->text_line
             ({
-                string::cstr(string_builder::end(builder)),
+                string::cstr(string::create_fmt(SeStringLifetime::Temporary, "Points : {}", g_state.points)),
                 win::get_width<float>() * 0.5f,
                 win::get_height<float>() - 80.0f,
             });
