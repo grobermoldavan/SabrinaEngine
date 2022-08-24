@@ -46,63 +46,67 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
             // Set font (in this case we combine two fonts into one atlas)
             //
             g_ui->set_font_group({ g_fontDataEnglish, g_fontDataRussian });
-            g_ui->set_style_param(SeUiStyleParam::FONT_HEIGHT, { .dim = 20.0f });
-            g_ui->set_style_param(SeUiStyleParam::FONT_LINE_STEP, { .dim = 25.0f });
+            g_ui->set_param(SeUiParam::FONT_HEIGHT, { .dim = 20.0f });
+            g_ui->set_param(SeUiParam::FONT_LINE_STEP, { .dim = 25.0f });
 
             //
             // Windows
             //
+            g_ui->set_param(SeUiParam::PIVOT_POSITION_X, { .dim = 100.0f });
+            g_ui->set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = 100.0f });
             if (g_ui->begin_window({
-                .uid            = "first_window",
-                .bottomLeftX    = 100.0f,
-                .bottomLeftY    = 100.0f,
-                .topRightX      = 400.0f,
-                .topRightY      = 400.0f,
-                .flags          = SeUiFlags::MOVABLE | SeUiFlags::RESIZABLE_X | SeUiFlags::RESIZABLE_Y,
+                .uid    = "first_window",
+                .width  = 300.0f,
+                .height = 300.0f,
+                .flags  = SeUiFlags::MOVABLE | SeUiFlags::RESIZABLE_X | SeUiFlags::RESIZABLE_Y,
             }))
             {
-                g_ui->window_text({ "TEXT IN WINDOW, text in window yyyiii, TEXT IN WINDOW, TEXT IN WINDOW" });
-                g_ui->window_text({ "AMOGUS AMOGUS AMOGUS" });
+                g_ui->text({ "TEXT IN WINDOW, text in window yyyiii, TEXT IN WINDOW, TEXT IN WINDOW" });
+                g_ui->text({ "AMOGUS AMOGUS AMOGUS" });
                 g_ui->end_window();
             }
 
-            g_ui->set_style_param(SeUiStyleParam::PRIMARY_COLOR, { .color = col::pack({ 0.73f, 0.11f, 0.14f, 1.0f }) });
-            g_ui->set_style_param(SeUiStyleParam::SECONDARY_COLOR, { .color = col::pack({ 0.09f, 0.01f, 0.01f, 0.7f }) });
-            g_ui->set_style_param(SeUiStyleParam::ACCENT_COLOR, { .color = col::pack({ 0.88f, 0.73f, 0.73f, 1.0f }) });
-            g_ui->set_style_param(SeUiStyleParam::WINDOW_TOP_PANEL_THICKNESS, { .dim = 10.0f });
-            g_ui->set_style_param(SeUiStyleParam::WINDOW_BORDER_THICKNESS, { .dim = 3.0f });
+            g_ui->set_param(SeUiParam::PRIMARY_COLOR, { .color = col::pack({ 0.73f, 0.11f, 0.14f, 1.0f }) });
+            g_ui->set_param(SeUiParam::SECONDARY_COLOR, { .color = col::pack({ 0.09f, 0.01f, 0.01f, 0.7f }) });
+            g_ui->set_param(SeUiParam::ACCENT_COLOR, { .color = col::pack({ 0.88f, 0.73f, 0.73f, 1.0f }) });
+            g_ui->set_param(SeUiParam::WINDOW_TOP_PANEL_THICKNESS, { .dim = 10.0f });
+            g_ui->set_param(SeUiParam::WINDOW_BORDER_THICKNESS, { .dim = 3.0f });
+            // This window will be centered around pivot position
+            g_ui->set_param(SeUiParam::PIVOT_TYPE_X, { .pivot = SeUiPivotType::CENTER });
+            g_ui->set_param(SeUiParam::PIVOT_TYPE_Y, { .pivot = SeUiPivotType::CENTER });
+            g_ui->set_param(SeUiParam::PIVOT_POSITION_X, { .dim = 400.0f });
+            g_ui->set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = 400.0f });
 
             if (g_ui->begin_window({
-                .uid            = "second_window",
-                .bottomLeftX    = 250.0f,
-                .bottomLeftY    = 250.0f,
-                .topRightX      = 600.0f,
-                .topRightY      = 600.0f,
-                .flags          = SeUiFlags::MOVABLE | SeUiFlags::RESIZABLE_X | SeUiFlags::RESIZABLE_Y,
+                .uid    = "second_window",
+                .width  = 300.0f,
+                .height = 300.0f,
+                .flags  = SeUiFlags::MOVABLE | SeUiFlags::RESIZABLE_X | SeUiFlags::RESIZABLE_Y,
             }))
             {
-                g_ui->window_text({ "ТЕКСТ В ОКНЕ, текст в окне уууй, ТЕКСТ В ОКНЕ, ТЕКСТ В ОКНЕ" });
+                g_ui->text({ "ТЕКСТ В ОКНЕ, текст в окне уууй, ТЕКСТ В ОКНЕ, ТЕКСТ В ОКНЕ" });
                 g_ui->end_window();
             }
 
             //
             // Text lines
             //
-            SeString str;
-            {
-                SeStringBuilder builder = string_builder::begin();
-                string_builder::append(builder, "Frame (кадр) : ");
-                string_builder::append(builder, string::cast(frameIndex));
-                str = string_builder::end(builder);
-            }
-            g_ui->set_style_param(SeUiStyleParam::FONT_COLOR, { .color = col::pack({ 0.0f, 1.0f, 0.0f, 1.0f }) });
-            g_ui->text_line({ string::cstr(str), 100.0f, 100.0f });
+            SeString str = string::create_fmt(SeStringLifetime::Temporary, "Frame (кадр) : {}", frameIndex);
 
-            g_ui->set_style_param(SeUiStyleParam::FONT_COLOR, { .color = col::pack({ 1.0f, 1.0f, 0.0f, 1.0f }) });
-            g_ui->text_line({ string::cstr(str), 100.0f, 200.0f });
+            g_ui->set_param(SeUiParam::PIVOT_POSITION_X, { .dim = 100.0f });
+            g_ui->set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = 100.0f });
+            g_ui->set_param(SeUiParam::FONT_COLOR, { .color = col::pack({ 0.0f, 1.0f, 0.0f, 1.0f }) });
+            g_ui->text({ string::cstr(str) });
 
-            g_ui->set_style_param(SeUiStyleParam::FONT_COLOR, { .color = col::pack({ 1.0f, 0.0f, 0.0f, 1.0f }) });
-            g_ui->text_line({ string::cstr(str), 100.0f, 300.0f });
+            g_ui->set_param(SeUiParam::PIVOT_POSITION_X, { .dim = 100.0f });
+            g_ui->set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = 200.0f });
+            g_ui->set_param(SeUiParam::FONT_COLOR, { .color = col::pack({ 1.0f, 1.0f, 0.0f, 1.0f }) });
+            g_ui->text({ string::cstr(str) });
+
+            g_ui->set_param(SeUiParam::PIVOT_POSITION_X, { .dim = 100.0f });
+            g_ui->set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = 300.0f });
+            g_ui->set_param(SeUiParam::FONT_COLOR, { .color = col::pack({ 1.0f, 0.0f, 0.0f, 1.0f }) });
+            g_ui->text({ string::cstr(str) });
 
             g_ui->end_ui(0);
         }

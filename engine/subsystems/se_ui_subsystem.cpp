@@ -810,7 +810,7 @@ struct UiTextureData
     };
 };
 
-using UiStyle = SeUiStyleParam[SeUiStyleParam::_COUNT];
+using UiParams = SeUiParam[SeUiParam::_COUNT];
 
 struct UiActionFlags
 {
@@ -848,7 +848,7 @@ struct UiContext
     SePassRenderTarget                              target;
 
     const FontGroup*                                currentFontGroup;
-    UiStyle                                         currentStyle;
+    UiParams                                        currentParams;
     
     DynamicArray<UiDrawCall>                        frameDrawCalls;
     HashTable<UiTextureData, SeRenderRef>           frameTextureDataToRef;
@@ -872,7 +872,7 @@ struct UiContext
     UiObjectUid                                     activeObjectUid;
 };
 
-const UiStyle DEFAULT_STYLE =
+const UiParams DEFAULT_PARAMS =
 {
     /* FONT_COLOR                   */ { .color = col::pack({ 1.0f, 1.0f, 1.0f, 1.0f }) },
     /* FONT_HEIGHT                  */ { .dim = 10.0f },
@@ -882,8 +882,10 @@ const UiStyle DEFAULT_STYLE =
     /* ACCENT_COLOR                 */ { .color = col::pack({ 0.95f, 0.75f, 0.79f, 1.0f }) },
     /* WINDOW_TOP_PANEL_THICKNESS   */ { .dim = 16.0f },
     /* WINDOW_BORDER_THICKNESS      */ { .dim = 2.0f },
-    /* TEXT_PIVOT_X                 */ { .pivot = SeUiPivot::BOTTOM_LEFT },
-    /* TEXT_PIVOT_Y                 */ { .pivot = SeUiPivot::BOTTOM_LEFT },
+    /* PIVOT_POSITION_X             */ { .dim = 0.0f },
+    /* PIVOT_POSITION_Y             */ { .dim = 0.0f },
+    /* PIVOT_TYPE_X                 */ { .pivot = SeUiPivotType::BOTTOM_LEFT },
+    /* PIVOT_TYPE_Y                 */ { .pivot = SeUiPivotType::BOTTOM_LEFT },
 };
 
 SeUiSubsystemInterface                  g_iface;
@@ -925,9 +927,7 @@ namespace utils
     template<>
     bool compare<UiRenderColorsUnpacked>(const UiRenderColorsUnpacked& first, const UiRenderColorsUnpacked& second)
     {
-        return
-            compare(first.tint, second.tint)  &&
-            (first.mode == second.mode);
+        return compare(first.tint, second.tint) && (first.mode == second.mode);
     }
 
     template<>
@@ -1069,7 +1069,7 @@ namespace ui_impl
         g_currentContext.render            = info.render;
         g_currentContext.target            = info.target;
         g_currentContext.currentFontGroup  = nullptr;
-        memcpy(g_currentContext.currentStyle, DEFAULT_STYLE, sizeof(UiStyle));
+        memcpy(g_currentContext.currentParams, DEFAULT_PARAMS, sizeof(UiParams));
         dynamic_array::construct(g_currentContext.frameDrawCalls, app_allocators::frame(), 16);
         hash_table::construct(g_currentContext.frameTextureDataToRef, app_allocators::frame(), 16);
 
@@ -1216,7 +1216,6 @@ namespace ui_impl
             {
                 continue;
             }
-            // Alloc buffers
             const SeRenderRef colorsBuffer = render->memory_buffer
             ({
                 data_provider::from_memory(dynamic_array::raw(drawCall.colorsArray), dynamic_array::raw_size(drawCall.colorsArray))
@@ -1225,7 +1224,6 @@ namespace ui_impl
             ({
                 data_provider::from_memory(dynamic_array::raw(drawCall.vertices), dynamic_array::raw_size(drawCall.vertices))
             });
-            // Bind and draw
             render->bind
             ({
                 .set = 1,
@@ -1281,12 +1279,12 @@ namespace ui_impl
         g_currentContext.currentFontGroup = fontGroup;
     }
 
-    void set_style_param(SeUiStyleParam::Type type, const SeUiStyleParam& param)
+    void set_param(SeUiParam::Type type, const SeUiParam& param)
     {
-        g_currentContext.currentStyle[type] = param;
+        g_currentContext.currentParams[type] = param;
     }
 
-    void text_line(const SeUiTextLineInfo& info)
+    void text(const SeUiTextInfo& info)
     {
         se_assert(info.utf8text);
         se_assert(g_currentContext.currentFontGroup);
@@ -1294,18 +1292,22 @@ namespace ui_impl
         // Get base data and draw call
         //
         const FontGroup* const fontGroup = g_currentContext.currentFontGroup;
-        const float textHeight = g_currentContext.currentStyle[SeUiStyleParam::FONT_HEIGHT].dim;
-        const float baselineX = info.baselineX;
-        const float baselineY = info.baselineY;
+        const float textHeight = g_currentContext.currentParams[SeUiParam::FONT_HEIGHT].dim;
+        const float lineStep = g_currentContext.currentParams[SeUiParam::FONT_LINE_STEP].dim;
+        const float baselineX = g_currentContext.currentParams[SeUiParam::PIVOT_POSITION_X].dim;
+        const float baselineY = g_currentContext.currentParams[SeUiParam::PIVOT_POSITION_Y].dim;
         const auto [drawCall, colorIndex] = get_draw_call(ui_texture_data_create(fontGroup), fontGroup->textureInfo,
         {
-            .tint = col::unpack(g_currentContext.currentStyle[SeUiStyleParam::FONT_COLOR].color),
+            .tint = col::unpack(g_currentContext.currentParams[SeUiParam::FONT_COLOR].color),
             .mode = UiRenderColorsUnpacked::MODE_TEXT,
         });
+        const UiObjectData* const activeWindow = hash_table::get(g_currentContext.uidToObjectData, g_currentContext.currentWindowUid);
         //
         // Process codepoints
         //
-        float positionX = baselineX;
+        const float positionYStep = lineStep;
+        float positionX = activeWindow ? g_currentContext.windowWorkRegionBottomLeftX : baselineX;
+        float positionY = activeWindow ? g_currentContext.windowWorkRegionTopRightY - lineStep : baselineY;
         int previousCodepoint = 0;
         const size_t from = dynamic_array::size(drawCall->vertices);
         for (uint32_t codepoint : Utf8{ info.utf8text })
@@ -1325,11 +1327,35 @@ namespace ui_impl
             stbtt_GetCodepointBitmapBox(&font->stbInfo, codepointSigned, scale, scale, &x0, &y0, &x1, &y1);
             const float width = (float)(x1 - x0);
             const float height = (float)(y1 - y0);
+            float baseX = positionX + (float)x0 - bearing;
+            float baseY = positionY - (float)y1;
+            // Clamp to active window
+            if (activeWindow)
+            {
+                bool doesFitVertically = true;
+                while (true)
+                {
+                    baseX = positionX + (float)x0 - bearing;
+                    baseY = positionY - (float)y1;
+                    doesFitVertically = baseY > g_currentContext.windowWorkRegionBottomLeftY;
+                    if (!doesFitVertically)
+                    {
+                        break;
+                    }
+                    const bool doesFitHorisontally = (baseX + width) < g_currentContext.windowWorkRegionTopRightX;
+                    if (doesFitHorisontally)
+                    {
+                        break;
+                    }
+                    previousCodepoint = 0;
+                    positionY -= positionYStep;
+                    positionX = g_currentContext.windowWorkRegionBottomLeftX;
+                }
+                if (!doesFitVertically) break;
+            }
             const float additionalAdvance = scale * (float)stbtt_GetCodepointKernAdvance(&font->stbInfo, previousCodepoint, codepointSigned);
             positionX += additionalAdvance;
             const RenderAtlasRectNormalized& rect = fontGroup->atlas.uvRects[codepointInfo->atlasRectIndex];
-            const float baseX = positionX + (float)x0 - bearing;
-            const float baseY = baselineY - (float)y1;
             dynamic_array::push(drawCall->vertices, { baseX        , baseY         , rect.p1x, rect.p1y, colorIndex, });
             dynamic_array::push(drawCall->vertices, { baseX        , baseY + height, rect.p1x, rect.p2y, colorIndex, });
             dynamic_array::push(drawCall->vertices, { baseX + width, baseY + height, rect.p2x, rect.p2y, colorIndex, });
@@ -1339,19 +1365,29 @@ namespace ui_impl
             positionX += advance;
             previousCodepoint = codepointSigned;
         }
-
-        const bool isCenteredX = g_currentContext.currentStyle[SeUiStyleParam::TEXT_PIVOT_X].pivot == SeUiPivot::CENTER;
-        const bool isCenteredY = g_currentContext.currentStyle[SeUiStyleParam::TEXT_PIVOT_Y].pivot == SeUiPivot::CENTER;
-        if (isCenteredX || isCenteredY)
+        //
+        // Center if needed
+        //
+        if (activeWindow)
         {
-            const float halfWidth = (positionX - baselineX) / 2.0f;
-            const float halfHeight = textHeight / 2.0f;
-            const size_t to = dynamic_array::size(drawCall->vertices);
-            for (size_t it = from; it < to; it++)
+            // @TODO : support SeUiParam::PIVOT_TYPE_X and SeUiParam::PIVOT_TYPE_Y for in-window text
+            g_currentContext.windowWorkRegionTopRightY = positionY;
+        }
+        else
+        {
+            const bool isCenteredX = g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_X].pivot == SeUiPivotType::CENTER;
+            const bool isCenteredY = g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_Y].pivot == SeUiPivotType::CENTER;
+            if (isCenteredX || isCenteredY)
             {
-                UiRenderVertex* const vert = &drawCall->vertices[it];
-                if (isCenteredX) vert->x -= halfWidth;
-                if (isCenteredY) vert->y -= halfHeight;
+                const float halfWidth = (positionX - baselineX) / 2.0f;
+                const float halfHeight = textHeight / 2.0f;
+                const size_t to = dynamic_array::size(drawCall->vertices);
+                for (size_t it = from; it < to; it++)
+                {
+                    UiRenderVertex* const vert = &drawCall->vertices[it];
+                    if (isCenteredX) vert->x -= halfWidth;
+                    if (isCenteredY) vert->y -= halfHeight;
+                }
             }
         }
     }
@@ -1365,12 +1401,16 @@ namespace ui_impl
         UiObjectData* data;
         UiObjectUid uid;
         const bool isFirst = object_data_get(&data, &uid, info.uid);
-        const float bottomLeftX         = isFirst ? info.bottomLeftX : data->bottomLeftX;
-        const float bottomLeftY         = isFirst ? info.bottomLeftY : data->bottomLeftY;
-        const float topRightX           = isFirst ? info.topRightX : data->topRightX;
-        const float topRightY           = isFirst ? info.topRightY : data->topRightY;
-        const float topPanelThickness   = g_currentContext.currentStyle[SeUiStyleParam::WINDOW_TOP_PANEL_THICKNESS].dim;
-        const float borderThickness     = g_currentContext.currentStyle[SeUiStyleParam::WINDOW_BORDER_THICKNESS].dim;
+        const bool isCenteredX = g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_X].pivot == SeUiPivotType::CENTER;
+        const bool isCenteredY = g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_Y].pivot == SeUiPivotType::CENTER;
+        const float dimX = g_currentContext.currentParams[SeUiParam::PIVOT_POSITION_X].dim - (isCenteredX ? info.width / 2.0f : 0.0f);
+        const float dimY = g_currentContext.currentParams[SeUiParam::PIVOT_POSITION_Y].dim - (isCenteredY ? info.height / 2.0f : 0.0f);
+        const float bottomLeftX         = isFirst ? dimX : data->bottomLeftX;
+        const float bottomLeftY         = isFirst ? dimY : data->bottomLeftY;
+        const float topRightX           = isFirst ? bottomLeftX + info.width : data->topRightX;
+        const float topRightY           = isFirst ? bottomLeftY + info.height : data->topRightY;
+        const float topPanelThickness   = g_currentContext.currentParams[SeUiParam::WINDOW_TOP_PANEL_THICKNESS].dim;
+        const float borderThickness     = g_currentContext.currentParams[SeUiParam::WINDOW_BORDER_THICKNESS].dim;
         if (isFirst)
         {
             data->bottomLeftX   = bottomLeftX;
@@ -1433,7 +1473,7 @@ namespace ui_impl
         //
         const auto [drawCallBorders, colorIndexBorders] = get_draw_call
         ({
-            .tint = col::unpack(g_currentContext.currentStyle[SeUiStyleParam::PRIMARY_COLOR].color),
+            .tint = col::unpack(g_currentContext.currentParams[SeUiParam::PRIMARY_COLOR].color),
             .mode = UiRenderColorsUnpacked::MODE_SIMPLE,
         });
         pushQuad(drawCallBorders, colorIndexBorders, bottomLeftX, topRightY - topPanelThickness, topRightX, topRightY);
@@ -1445,7 +1485,7 @@ namespace ui_impl
         //
         const auto [drawCallBackground, colorIndexBackground] = get_draw_call
         ({
-            .tint = col::unpack(g_currentContext.currentStyle[SeUiStyleParam::SECONDARY_COLOR].color),
+            .tint = col::unpack(g_currentContext.currentParams[SeUiParam::SECONDARY_COLOR].color),
             .mode = UiRenderColorsUnpacked::MODE_SIMPLE,
         });
         pushQuad(drawCallBackground, colorIndexBackground, bottomLeftX + borderThickness, bottomLeftY + borderThickness, topRightX - borderThickness, topRightY - topPanelThickness);
@@ -1457,103 +1497,6 @@ namespace ui_impl
     {
         g_currentContext.currentWindowUid = { };
     }
-
-    void window_text(const SeUiWindowTextInfo& info)
-    {
-        se_assert(info.utf8text);
-        se_assert(g_currentContext.currentFontGroup);
-        //
-        // Get base data and draw call
-        //
-        const FontGroup* const fontGroup = g_currentContext.currentFontGroup;
-        const float textHeight = g_currentContext.currentStyle[SeUiStyleParam::FONT_HEIGHT].dim;
-        const float lineStep = g_currentContext.currentStyle[SeUiStyleParam::FONT_LINE_STEP].dim;
-        const auto [drawCall, colorIndex] = get_draw_call(ui_texture_data_create(fontGroup), fontGroup->textureInfo,
-        {
-            .tint = col::unpack(g_currentContext.currentStyle[SeUiStyleParam::FONT_COLOR].color),
-            .mode = UiRenderColorsUnpacked::MODE_TEXT,
-        });
-        //
-        // Draw text
-        //
-        const float groupScale = font_group::scale_for_pixel_height(*fontGroup, textHeight);
-
-        // Position y step based on font info
-        // const float lineGap = (float)fontGroup->lineGapUnscaled * groupScale;
-        // const float ascent = (float)fontGroup->ascentUnscaled * groupScale;
-        // const float descent = (float)fontGroup->descentUnscaled * groupScale;
-        // const float positionYStep = ascent - descent + lineGap;
-        // float positionX = g_currentContext.windowWorkRegionBottomLeftX;
-        // float positionY = g_currentContext.windowWorkRegionTopRightY - ascent;
-
-        // Position y step based on style info
-        const float positionYStep = lineStep;
-        float positionX = g_currentContext.windowWorkRegionBottomLeftX;;
-        float positionY = g_currentContext.windowWorkRegionTopRightY - lineStep;
-
-        //
-        // TODO : move text printing code to a separate function
-        //
-        int previousCodepoint = 0;
-        for (uint32_t codepoint : Utf8{ info.utf8text })
-        {
-            const FontGroup::CodepointInfo* const codepointInfo = hash_table::get(fontGroup->codepointToInfo, codepoint);
-            se_assert(codepointInfo);
-            const FontInfo* const font = codepointInfo->font;
-            // This scale calculation is similar to stbtt_ScaleForPixelHeight but ignores descend parameter of the font
-            const float scale = textHeight / (float)font->ascentUnscaled;
-            const float advance = scale * (float)codepointInfo->advanceWidthUnscaled;
-            const float bearing = scale * (float)codepointInfo->leftSideBearingUnscaled;
-            const int codepointSigned = font_group::direct_cast_to_int(codepoint);
-            int x0;
-            int y0;
-            int x1;
-            int y1;
-            stbtt_GetCodepointBitmapBox(&font->stbInfo, codepointSigned, scale, scale, &x0, &y0, &x1, &y1);
-            const float width = (float)(x1 - x0);
-            const float height = (float)(y1 - y0);
-            //
-            // Check if there is space for codepoint
-            //
-            float baseX = 0.0f;
-            float baseY = 0.0f;
-            bool doesFitVertically = true;
-            while (true)
-            {
-                baseX = positionX + (float)x0 - bearing;
-                baseY = positionY - (float)y1;
-                doesFitVertically = baseY > g_currentContext.windowWorkRegionBottomLeftY;
-                if (!doesFitVertically)
-                {
-                    break;
-                }
-                const bool doesFitHorisontally = (baseX + width) < g_currentContext.windowWorkRegionTopRightX;
-                if (!doesFitHorisontally)
-                {
-                    previousCodepoint = 0;
-                    positionY -= positionYStep;
-                    positionX = g_currentContext.windowWorkRegionBottomLeftX;
-                    continue;
-                }
-                break;
-            }
-            if (!doesFitVertically) break;
-
-            const float additionalAdvance = scale * (float)stbtt_GetCodepointKernAdvance(&font->stbInfo, previousCodepoint, codepointSigned);
-            positionX += additionalAdvance;
-            const RenderAtlasRectNormalized& rect = fontGroup->atlas.uvRects[codepointInfo->atlasRectIndex];
-            dynamic_array::push(drawCall->vertices, { baseX        , baseY         , rect.p1x, rect.p1y, colorIndex, });
-            dynamic_array::push(drawCall->vertices, { baseX        , baseY + height, rect.p1x, rect.p2y, colorIndex, });
-            dynamic_array::push(drawCall->vertices, { baseX + width, baseY + height, rect.p2x, rect.p2y, colorIndex, });
-            dynamic_array::push(drawCall->vertices, { baseX        , baseY         , rect.p1x, rect.p1y, colorIndex, });
-            dynamic_array::push(drawCall->vertices, { baseX + width, baseY + height, rect.p2x, rect.p2y, colorIndex, });
-            dynamic_array::push(drawCall->vertices, { baseX + width, baseY         , rect.p2x, rect.p1y, colorIndex, });
-            positionX += advance;
-            previousCodepoint = codepointSigned;
-        }
-
-        g_currentContext.windowWorkRegionTopRightY = positionY;
-    }
 }
 
 SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
@@ -1563,11 +1506,11 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
         .begin_ui           = ui_impl::begin,
         .end_ui             = ui_impl::end,
         .set_font_group     = ui_impl::set_font_group,
-        .set_style_param    = ui_impl::set_style_param,
-        .text_line          = ui_impl::text_line,
+        .set_param          = ui_impl::set_param,
+        .text               = ui_impl::text,
         .begin_window       = ui_impl::begin_window,
         .end_window         = ui_impl::end_window,
-        .window_text        = ui_impl::window_text,
+        .button             = nullptr,
     };
     se_init_global_subsystem_pointers(engine);
 }

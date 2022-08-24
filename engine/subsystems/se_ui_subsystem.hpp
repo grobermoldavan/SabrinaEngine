@@ -6,32 +6,25 @@
 #include "engine/data_providers.hpp"
 #include "engine/hash.hpp"
 
-struct SeUiFontGroupInfo
-{
-    static constexpr size_t MAX_FONTS = 8;
-    DataProvider fonts[MAX_FONTS];
-};
-
 struct SeUiBeginInfo
 {
     const SeRenderAbstractionSubsystemInterface*    render;
     SePassRenderTarget                              target;
 };
 
-struct SeUiTextLineInfo
+struct SeUiFontGroupInfo
 {
-    const char* utf8text;
-    float       baselineX;
-    float       baselineY;
+    static constexpr size_t MAX_FONTS = 8;
+    DataProvider fonts[MAX_FONTS];
 };
 
-enum struct SeUiPivot : uint32_t
+enum struct SeUiPivotType : uint32_t
 {
     BOTTOM_LEFT,
     CENTER,
 };
 
-struct SeUiStyleParam
+struct SeUiParam
 {
     enum Type
     {
@@ -43,16 +36,23 @@ struct SeUiStyleParam
         ACCENT_COLOR                = 5,
         WINDOW_TOP_PANEL_THICKNESS  = 6,
         WINDOW_BORDER_THICKNESS     = 7,
-        TEXT_PIVOT_X                = 8,
-        TEXT_PIVOT_Y                = 9,
+        PIVOT_POSITION_X            = 8,
+        PIVOT_POSITION_Y            = 9,
+        PIVOT_TYPE_X                = 10,
+        PIVOT_TYPE_Y                = 11,
         _COUNT,
     };
     union
     {
-        ColorPacked color;
-        float       dim;
-        SeUiPivot   pivot;
+        ColorPacked     color;
+        float           dim;
+        SeUiPivotType   pivot;
     };
+};
+
+struct SeUiTextInfo
+{
+    const char* utf8text;
 };
 
 struct SeUiFlags
@@ -69,15 +69,14 @@ struct SeUiFlags
 struct SeUiWindowInfo
 {
     const char* uid;
-    float       bottomLeftX;
-    float       bottomLeftY;
-    float       topRightX;
-    float       topRightY;
+    float       width;
+    float       height;
     uint32_t    flags;
 };
 
-struct SeUiWindowTextInfo
+struct SeUiButtonInfo
 {
+    const char* uid;
     const char* utf8text;
 };
 
@@ -88,14 +87,12 @@ struct SeUiSubsystemInterface
     bool (*begin_ui)(const SeUiBeginInfo& info);
     SePassDependencies (*end_ui)(SePassDependencies dependencies);
 
-    void (*set_font_group)(const SeUiFontGroupInfo& info);
-    void (*set_style_param)(SeUiStyleParam::Type type, const SeUiStyleParam& param);
-
-    void (*text_line)(const SeUiTextLineInfo& info);
-
-    bool (*begin_window)(const SeUiWindowInfo& info);
-    void (*end_window)();
-    void (*window_text)(const SeUiWindowTextInfo& info);
+    void (*set_font_group)  (const SeUiFontGroupInfo& info);
+    void (*set_param)       (SeUiParam::Type type, const SeUiParam& param);
+    void (*text)            (const SeUiTextInfo& info);
+    bool (*begin_window)    (const SeUiWindowInfo& info);
+    void (*end_window)      ();
+    bool (*button)          (const SeUiButtonInfo& info);
 };
 
 struct SeUiSubsystem

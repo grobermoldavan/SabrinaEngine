@@ -250,20 +250,13 @@ void tetris_render_update(const SeWindowSubsystemInput* input, float dt)
         if (g_ui->begin_ui({ g_render, { colorTexture, SE_PASS_RENDER_TARGET_LOAD_OP_LOAD } }))
         {
             g_ui->set_font_group({ g_fontDataEnglish });
-            g_ui->set_style_param(SeUiStyleParam::FONT_HEIGHT, { .dim = 30.0f });
-            g_ui->set_style_param(SeUiStyleParam::TEXT_PIVOT_X, { .pivot = SeUiPivot::CENTER });
-            g_ui->text_line
-            ({
-                "Epic tetris game",
-                win::get_width<float>() * 0.5f,
-                win::get_height<float>() - 40.0f,
-            });
-            g_ui->text_line
-            ({
-                string::cstr(string::create_fmt(SeStringLifetime::Temporary, "Points : {}", g_state.points)),
-                win::get_width<float>() * 0.5f,
-                win::get_height<float>() - 80.0f,
-            });
+            g_ui->set_param(SeUiParam::FONT_HEIGHT, { .dim = 30.0f });
+            g_ui->set_param(SeUiParam::PIVOT_TYPE_X, { .pivot = SeUiPivotType::CENTER });
+            g_ui->set_param(SeUiParam::PIVOT_POSITION_X, { .dim = win::get_width<float>() * 0.5f });
+            g_ui->set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = win::get_height<float>() - 40.0f });
+            g_ui->text({ "Epic tetris game" });
+            g_ui->set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = win::get_height<float>() - 80.0f });
+            g_ui->text({ string::cstr(string::create_fmt(SeStringLifetime::Temporary, "Points : {}", g_state.points)) });
             uiDependency = g_ui->end_ui(drawDependency);
         }
         //
