@@ -40,6 +40,7 @@ struct SeUiParam
         PIVOT_POSITION_Y            = 9,
         PIVOT_TYPE_X                = 10,
         PIVOT_TYPE_Y                = 11,
+        BUTTON_BORDER_SIZE          = 12,
         _COUNT,
     };
     union
@@ -62,22 +63,31 @@ struct SeUiFlags
         MOVABLE     = 0x00000001,
         RESIZABLE_X = 0x00000002,
         RESIZABLE_Y = 0x00000004,
-        HIDEABLE    = 0x00000008,
     };
+    using Type = uint32_t;
 };
 
 struct SeUiWindowInfo
 {
-    const char* uid;
-    float       width;
-    float       height;
-    uint32_t    flags;
+    const char*     uid;
+    float           width;
+    float           height;
+    SeUiFlags::Type flags;
+};
+
+enum struct SeUiButtonMode
+{
+    HOLD,
+    TOGGLE,
 };
 
 struct SeUiButtonInfo
 {
-    const char* uid;
-    const char* utf8text;
+    const char*     uid;
+    const char*     utf8text;
+    float           width;
+    float           height;
+    SeUiButtonMode  mode;
 };
 
 struct SeUiSubsystemInterface

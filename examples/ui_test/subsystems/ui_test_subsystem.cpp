@@ -98,15 +98,36 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
             g_ui->set_param(SeUiParam::FONT_COLOR, { .color = col::pack({ 0.0f, 1.0f, 0.0f, 1.0f }) });
             g_ui->text({ string::cstr(str) });
 
-            g_ui->set_param(SeUiParam::PIVOT_POSITION_X, { .dim = 100.0f });
             g_ui->set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = 200.0f });
             g_ui->set_param(SeUiParam::FONT_COLOR, { .color = col::pack({ 1.0f, 1.0f, 0.0f, 1.0f }) });
             g_ui->text({ string::cstr(str) });
 
-            g_ui->set_param(SeUiParam::PIVOT_POSITION_X, { .dim = 100.0f });
             g_ui->set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = 300.0f });
             g_ui->set_param(SeUiParam::FONT_COLOR, { .color = col::pack({ 1.0f, 0.0f, 0.0f, 1.0f }) });
             g_ui->text({ string::cstr(str) });
+
+            //
+            // Buttons
+            //
+            g_ui->set_param(SeUiParam::PIVOT_TYPE_X, { .pivot = SeUiPivotType::BOTTOM_LEFT });
+            g_ui->set_param(SeUiParam::PIVOT_TYPE_Y, { .pivot = SeUiPivotType::BOTTOM_LEFT });
+            g_ui->set_param(SeUiParam::FONT_COLOR, { .color = col::pack({ 1.0f, 1.0f, 1.0f, 1.0f }) });
+            g_ui->set_param(SeUiParam::PIVOT_POSITION_X, { .dim = win::get_width() / 2.0f });
+            g_ui->set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = 400.0f });
+            if (g_ui->button({ "button", "Toggle button", 0, 0, SeUiButtonMode::TOGGLE }))
+            {
+                g_ui->set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = 350.0f });
+                g_ui->text({ "You've toggled the button" });
+            }
+
+            g_ui->set_param(SeUiParam::FONT_HEIGHT, { .dim = 100.0f });
+            g_ui->set_param(SeUiParam::PIVOT_TYPE_X, { .pivot = SeUiPivotType::CENTER });
+            g_ui->set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = 200.0f });
+            if (g_ui->button({ "button2", "Hold button", 0, 0, SeUiButtonMode::HOLD }))
+            {
+                g_ui->set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = 50.0f });
+                g_ui->text({ "You're holding the button" });
+            }
 
             g_ui->end_ui(0);
         }

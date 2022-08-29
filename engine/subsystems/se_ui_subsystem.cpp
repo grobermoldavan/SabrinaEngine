@@ -822,18 +822,29 @@ struct UiActionFlags
         CAN_BE_RESIZED_Y_TOP    = 0x00000008,
         CAN_BE_RESIZED_Y_BOTTOM = 0x00000010,
     };
+    using Type = uint32_t;
+};
+
+struct UiStateFlags
+{
+    enum
+    {
+        IS_TOGGLED = 0x00000001,
+    };
+    using Type = uint32_t;
 };
 
 struct UiObjectData
 {
-    float       bottomLeftX;
-    float       bottomLeftY;
-    float       topRightX;
-    float       topRightY;
-    float       minWidth;
-    float       minHeight;
-    uint32_t    settingsFlags;
-    uint32_t    actionFlags;
+    float               bottomLeftX;
+    float               bottomLeftY;
+    float               topRightX;
+    float               topRightY;
+    float               minWidth;
+    float               minHeight;
+    SeUiFlags::Type     settingsFlags;
+    UiActionFlags::Type actionFlags;
+    UiStateFlags::Type  stateFlags;
 };
 
 struct UiObjectUid
@@ -843,7 +854,6 @@ struct UiObjectUid
 
 struct UiContext
 {
-    // Frame state
     const SeRenderAbstractionSubsystemInterface*    render;
     SePassRenderTarget                              target;
 
@@ -859,17 +869,19 @@ struct UiContext
     bool                                            isMouseDown;
     bool                                            isMouseJustDown;
 
-    UiObjectUid                                     hoveredObjectUid;
+    UiObjectUid                                     previousHoveredObjectUid;
+    UiObjectUid                                     currentHoveredObjectUid;
+    UiObjectUid                                     previousActiveObjectUid;
+    UiObjectUid                                     currentActiveObjectUid;
     UiObjectUid                                     currentWindowUid;
+    bool                                            isJustActivated;
 
-    float                                           windowWorkRegionBottomLeftX;
-    float                                           windowWorkRegionBottomLeftY;
-    float                                           windowWorkRegionTopRightX;
-    float                                           windowWorkRegionTopRightY;
+    float                                           workRegionBottomLeftX;
+    float                                           workRegionBottomLeftY;
+    float                                           workRegionTopRightX;
+    float                                           workRegionTopRightY;
 
-    // Persistent state
     HashTable<UiObjectUid, UiObjectData>            uidToObjectData;
-    UiObjectUid                                     activeObjectUid;
 };
 
 const UiParams DEFAULT_PARAMS =
@@ -886,6 +898,7 @@ const UiParams DEFAULT_PARAMS =
     /* PIVOT_POSITION_Y             */ { .dim = 0.0f },
     /* PIVOT_TYPE_X                 */ { .pivot = SeUiPivotType::BOTTOM_LEFT },
     /* PIVOT_TYPE_Y                 */ { .pivot = SeUiPivotType::BOTTOM_LEFT },
+    /* BUTTON_BORDER_SIZE           */ { .dim = 5.0f },
 };
 
 SeUiSubsystemInterface                  g_iface;
@@ -1060,12 +1073,74 @@ namespace ui_impl
         return { drawCall, dynamic_array::size<uint32_t>(drawCall->colorsArray) - 1 };
     }
 
+    inline void push_quad(UiDrawCall* drawCall, uint32_t colorIndex, float x1, float y1, float x2, float y2)
+    {
+        dynamic_array::push(drawCall->vertices, { x1, y1, 0, 0, colorIndex });
+        dynamic_array::push(drawCall->vertices, { x1, y2, 0, 0, colorIndex });
+        dynamic_array::push(drawCall->vertices, { x2, y2, 0, 0, colorIndex });
+        dynamic_array::push(drawCall->vertices, { x1, y1, 0, 0, colorIndex });
+        dynamic_array::push(drawCall->vertices, { x2, y2, 0, 0, colorIndex });
+        dynamic_array::push(drawCall->vertices, { x2, y1, 0, 0, colorIndex });
+    };
+
+    inline struct { float x1; float y1; float x2; float y2; } get_corners(float width, float height)
+    {
+        const bool isCenteredX = g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_X].pivot == SeUiPivotType::CENTER;
+        const bool isCenteredY = g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_Y].pivot == SeUiPivotType::CENTER;
+        const float dimX = g_currentContext.currentParams[SeUiParam::PIVOT_POSITION_X].dim - (isCenteredX ? width / 2.0f : 0.0f);
+        const float dimY = g_currentContext.currentParams[SeUiParam::PIVOT_POSITION_Y].dim - (isCenteredY ? height / 2.0f : 0.0f);
+        return { dimX, dimY, dimX + width, dimY + height };
+    }
+
+    inline bool is_under_cursor(float blX, float blY, float trX, float trY)
+    {
+        return
+            (blX <= g_currentContext.mouseX) &&
+            (blY <= g_currentContext.mouseY) &&
+            (trX >= g_currentContext.mouseX) &&
+            (trY >= g_currentContext.mouseY);
+    }
+
+    struct { float x1; float y1; float x2; float y2; } get_text_bbox(const char* utf8text)
+    {
+        const FontGroup* const fontGroup = g_currentContext.currentFontGroup;
+        const float textHeight = g_currentContext.currentParams[SeUiParam::FONT_HEIGHT].dim;
+        const float baselineX = 0;
+        const float baselineY = 0;
+        float positionX = 0;
+        float biggestAscent = 0;
+        float biggestDescent = 0;
+        int previousCodepoint = 0;
+        for (uint32_t codepoint : Utf8{ utf8text })
+        {
+            const FontGroup::CodepointInfo* const codepointInfo = hash_table::get(fontGroup->codepointToInfo, codepoint);
+            se_assert(codepointInfo);
+            const FontInfo* const font = codepointInfo->font;
+            // This scale calculation is similar to stbtt_ScaleForPixelHeight but ignores descend parameter of the font
+            const float scale = textHeight / (float)font->ascentUnscaled;
+            const float advance = scale * (float)codepointInfo->advanceWidthUnscaled;
+            const float bearing = scale * (float)codepointInfo->leftSideBearingUnscaled;
+            const int codepointSigned = font_group::direct_cast_to_int(codepoint);
+            int x0;
+            int y0;
+            int x1;
+            int y1;
+            stbtt_GetCodepointBitmapBox(&font->stbInfo, codepointSigned, scale, scale, &x0, &y0, &x1, &y1);
+            const float descent = (float)y1;
+            if (biggestDescent < descent) biggestDescent = descent;
+            const float ascent = (float)-y0;
+            if (biggestAscent < ascent) biggestAscent = ascent;
+            const float additionalAdvance = scale * (float)stbtt_GetCodepointKernAdvance(&font->stbInfo, previousCodepoint, codepointSigned);
+            positionX += additionalAdvance + advance;
+            previousCodepoint = codepointSigned;
+        }
+        return { 0, -biggestDescent, positionX, biggestAscent };
+    }
+
     bool begin(const SeUiBeginInfo& info)
     {
         se_assert(info.render);
-        //
-        // Set frame data
-        //
+        
         g_currentContext.render            = info.render;
         g_currentContext.target            = info.target;
         g_currentContext.currentFontGroup  = nullptr;
@@ -1082,19 +1157,20 @@ namespace ui_impl
         g_currentContext.mouseY            = mouseY;
         g_currentContext.isMouseDown       = win::is_mouse_button_pressed(input, SE_LMB);
         g_currentContext.isMouseJustDown   = win::is_mouse_button_just_pressed(input, SE_LMB);
-        
-        g_currentContext.hoveredObjectUid = { };
+        g_currentContext.isJustActivated =
+            utils::compare(g_currentContext.previousActiveObjectUid, { }) &&
+            !utils::compare(g_currentContext.currentActiveObjectUid, { });
+        g_currentContext.previousHoveredObjectUid = g_currentContext.currentHoveredObjectUid;
+        g_currentContext.previousActiveObjectUid = g_currentContext.currentActiveObjectUid;
+        g_currentContext.currentHoveredObjectUid = { };
         g_currentContext.currentWindowUid = { };
-        //
-        // Update active object
-        //
         if (!g_currentContext.isMouseDown)
         {
-            g_currentContext.activeObjectUid = { };
+            g_currentContext.currentActiveObjectUid = { };
         }
         else
         {
-            UiObjectData* const activeObject = hash_table::get(g_currentContext.uidToObjectData, g_currentContext.activeObjectUid);
+            UiObjectData* const activeObject = hash_table::get(g_currentContext.uidToObjectData, g_currentContext.currentActiveObjectUid);
             if (activeObject)
             {
                 const float currentWidth = activeObject->topRightX - activeObject->bottomLeftX;
@@ -1306,8 +1382,8 @@ namespace ui_impl
         // Process codepoints
         //
         const float positionYStep = lineStep;
-        float positionX = activeWindow ? g_currentContext.windowWorkRegionBottomLeftX : baselineX;
-        float positionY = activeWindow ? g_currentContext.windowWorkRegionTopRightY - lineStep : baselineY;
+        float positionX = activeWindow ? g_currentContext.workRegionBottomLeftX : baselineX;
+        float positionY = activeWindow ? g_currentContext.workRegionTopRightY - lineStep : baselineY;
         int previousCodepoint = 0;
         const size_t from = dynamic_array::size(drawCall->vertices);
         for (uint32_t codepoint : Utf8{ info.utf8text })
@@ -1337,19 +1413,19 @@ namespace ui_impl
                 {
                     baseX = positionX + (float)x0 - bearing;
                     baseY = positionY - (float)y1;
-                    doesFitVertically = baseY > g_currentContext.windowWorkRegionBottomLeftY;
+                    doesFitVertically = baseY > g_currentContext.workRegionBottomLeftY;
                     if (!doesFitVertically)
                     {
                         break;
                     }
-                    const bool doesFitHorisontally = (baseX + width) < g_currentContext.windowWorkRegionTopRightX;
+                    const bool doesFitHorisontally = (baseX + width) < g_currentContext.workRegionTopRightX;
                     if (doesFitHorisontally)
                     {
                         break;
                     }
                     previousCodepoint = 0;
                     positionY -= positionYStep;
-                    positionX = g_currentContext.windowWorkRegionBottomLeftX;
+                    positionX = g_currentContext.workRegionBottomLeftX;
                 }
                 if (!doesFitVertically) break;
             }
@@ -1371,7 +1447,7 @@ namespace ui_impl
         if (activeWindow)
         {
             // @TODO : support SeUiParam::PIVOT_TYPE_X and SeUiParam::PIVOT_TYPE_Y for in-window text
-            g_currentContext.windowWorkRegionTopRightY = positionY;
+            g_currentContext.workRegionTopRightY = positionY;
         }
         else
         {
@@ -1390,112 +1466,179 @@ namespace ui_impl
                 }
             }
         }
+#if 0
+        const auto [drawCallBaseline, colorIndexBaseline] = get_draw_call
+        ({
+            .tint = { 1, 1, 1, 1 },
+            .mode = UiRenderColorsUnpacked::MODE_SIMPLE,
+        });
+        push_quad(drawCallBaseline, colorIndexBaseline, baselineX, baselineY, baselineX + 2, baselineY + 2);
+#endif
     }
 
     bool begin_window(const SeUiWindowInfo& info)
     {
         static constexpr float BORDER_PANEL_TOLERANCE = 5.0f;
         //
-        // Get object data and window position/style info
+        // Update object data
         //
         UiObjectData* data;
         UiObjectUid uid;
         const bool isFirst = object_data_get(&data, &uid, info.uid);
-        const bool isCenteredX = g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_X].pivot == SeUiPivotType::CENTER;
-        const bool isCenteredY = g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_Y].pivot == SeUiPivotType::CENTER;
-        const float dimX = g_currentContext.currentParams[SeUiParam::PIVOT_POSITION_X].dim - (isCenteredX ? info.width / 2.0f : 0.0f);
-        const float dimY = g_currentContext.currentParams[SeUiParam::PIVOT_POSITION_Y].dim - (isCenteredY ? info.height / 2.0f : 0.0f);
-        const float bottomLeftX         = isFirst ? dimX : data->bottomLeftX;
-        const float bottomLeftY         = isFirst ? dimY : data->bottomLeftY;
-        const float topRightX           = isFirst ? bottomLeftX + info.width : data->topRightX;
-        const float topRightY           = isFirst ? bottomLeftY + info.height : data->topRightY;
-        const float topPanelThickness   = g_currentContext.currentParams[SeUiParam::WINDOW_TOP_PANEL_THICKNESS].dim;
-        const float borderThickness     = g_currentContext.currentParams[SeUiParam::WINDOW_BORDER_THICKNESS].dim;
-        if (isFirst)
+        auto [bottomLeftX, bottomLeftY, topRightX, topRightY] = get_corners(info.width, info.height);
+        const bool isResizeable = info.flags & (SeUiFlags::RESIZABLE_X | SeUiFlags::RESIZABLE_Y);
+        if (isResizeable && !isFirst)
         {
-            data->bottomLeftX   = bottomLeftX;
-            data->bottomLeftY   = bottomLeftY;
-            data->topRightX     = topRightX;
-            data->topRightY     = topRightY;
+            bottomLeftX = data->bottomLeftX;
+            bottomLeftY = data->bottomLeftY;
+            topRightX = data->topRightX;
+            topRightY = data->topRightY;
         }
+        data->bottomLeftX = bottomLeftX;
+        data->bottomLeftY = bottomLeftY;
+        data->topRightX = topRightX;
+        data->topRightY = topRightY;
         data->settingsFlags = info.flags;
+        const float topPanelThickness = g_currentContext.currentParams[SeUiParam::WINDOW_TOP_PANEL_THICKNESS].dim;
+        const float borderThickness = g_currentContext.currentParams[SeUiParam::WINDOW_BORDER_THICKNESS].dim;
         data->minWidth = topPanelThickness * 3.0f;
         data->minHeight = topPanelThickness + borderThickness * 2.0f;
         //
         // Update action flags, active object uid and work region info
         //
-        const bool isWindowUnderCursor =
-            (bottomLeftX <= g_currentContext.mouseX) &&
-            (bottomLeftY <= g_currentContext.mouseY) &&
-            (topRightX   >= g_currentContext.mouseX) &&
-            (topRightY   >= g_currentContext.mouseY);
-        if (isWindowUnderCursor)
+        if (is_under_cursor(bottomLeftX, bottomLeftY, topRightX, topRightY))
         {
-            g_currentContext.hoveredObjectUid = uid;
-        }
-        if (g_currentContext.isMouseJustDown && isWindowUnderCursor)
-        {
-            g_currentContext.activeObjectUid = uid;
-            const bool isTopPanelUnderCursor = isWindowUnderCursor && ((topRightY - topPanelThickness) <= g_currentContext.mouseY);
-            const bool isLeftBorderUnderCursor = isWindowUnderCursor && !isTopPanelUnderCursor && ((bottomLeftX + borderThickness + BORDER_PANEL_TOLERANCE) >= g_currentContext.mouseX);
-            const bool isRightBorderUnderCursor = isWindowUnderCursor && !isTopPanelUnderCursor && ((topRightX - borderThickness - BORDER_PANEL_TOLERANCE) <= g_currentContext.mouseX);
-            const bool isBottomBorderUnderCursor = isWindowUnderCursor && !isTopPanelUnderCursor && ((bottomLeftY + borderThickness + BORDER_PANEL_TOLERANCE) >= g_currentContext.mouseY);
-            if (isTopPanelUnderCursor) data->actionFlags |= UiActionFlags::CAN_BE_MOVED;
-            if (isLeftBorderUnderCursor) data->actionFlags |= UiActionFlags::CAN_BE_RESIZED_X_LEFT;
-            if (isRightBorderUnderCursor) data->actionFlags |= UiActionFlags::CAN_BE_RESIZED_X_RIGHT;
-            if (isBottomBorderUnderCursor) data->actionFlags |= UiActionFlags::CAN_BE_RESIZED_Y_BOTTOM;
-        }
-        else if (!g_currentContext.isMouseDown)
-        {
-            data->actionFlags = 0;
+            g_currentContext.currentHoveredObjectUid = uid;
+            if (g_currentContext.isMouseJustDown)
+            {
+                g_currentContext.currentActiveObjectUid = uid;
+                const bool isTopPanelUnderCursor = ((topRightY - topPanelThickness) <= g_currentContext.mouseY);
+                const bool isLeftBorderUnderCursor = !isTopPanelUnderCursor && ((bottomLeftX + borderThickness + BORDER_PANEL_TOLERANCE) >= g_currentContext.mouseX);
+                const bool isRightBorderUnderCursor = !isTopPanelUnderCursor && ((topRightX - borderThickness - BORDER_PANEL_TOLERANCE) <= g_currentContext.mouseX);
+                const bool isBottomBorderUnderCursor = !isTopPanelUnderCursor && ((bottomLeftY + borderThickness + BORDER_PANEL_TOLERANCE) >= g_currentContext.mouseY);
+                if (isTopPanelUnderCursor) data->actionFlags |= UiActionFlags::CAN_BE_MOVED;
+                if (isLeftBorderUnderCursor) data->actionFlags |= UiActionFlags::CAN_BE_RESIZED_X_LEFT;
+                if (isRightBorderUnderCursor) data->actionFlags |= UiActionFlags::CAN_BE_RESIZED_X_RIGHT;
+                if (isBottomBorderUnderCursor) data->actionFlags |= UiActionFlags::CAN_BE_RESIZED_Y_BOTTOM;
+            }
+            else if (!g_currentContext.isMouseDown)
+            {
+                data->actionFlags = 0;
+            }
         }
         g_currentContext.currentWindowUid = uid;
-        g_currentContext.windowWorkRegionBottomLeftX = bottomLeftX + borderThickness;
-        g_currentContext.windowWorkRegionBottomLeftY = bottomLeftY + borderThickness;
-        g_currentContext.windowWorkRegionTopRightX = topRightX - borderThickness;
-        g_currentContext.windowWorkRegionTopRightY = topRightY - topPanelThickness;
+        g_currentContext.workRegionBottomLeftX = bottomLeftX + borderThickness;
+        g_currentContext.workRegionBottomLeftY = bottomLeftY + borderThickness;
+        g_currentContext.workRegionTopRightX = topRightX - borderThickness;
+        g_currentContext.workRegionTopRightY = topRightY - topPanelThickness;
         //
-        // Push window data
-        //
-        auto pushQuad = [&](UiDrawCall* drawCall, uint32_t colorIndex, float x1, float y1, float x2, float y2)
-        {
-            dynamic_array::push(drawCall->vertices, { x1, y1, 0, 0, colorIndex });
-            dynamic_array::push(drawCall->vertices, { x1, y2, 0, 0, colorIndex });
-            dynamic_array::push(drawCall->vertices, { x2, y2, 0, 0, colorIndex });
-            dynamic_array::push(drawCall->vertices, { x1, y1, 0, 0, colorIndex });
-            dynamic_array::push(drawCall->vertices, { x2, y2, 0, 0, colorIndex });
-            dynamic_array::push(drawCall->vertices, { x2, y1, 0, 0, colorIndex });
-        };
-        constexpr float oneThird = 1.0f / 3.0f;
-        constexpr float oneFourth = 1.0f / 4.0f;
-        //
-        // Top panel and borders
+        // Draw top panel and borders
         //
         const auto [drawCallBorders, colorIndexBorders] = get_draw_call
         ({
             .tint = col::unpack(g_currentContext.currentParams[SeUiParam::PRIMARY_COLOR].color),
             .mode = UiRenderColorsUnpacked::MODE_SIMPLE,
         });
-        pushQuad(drawCallBorders, colorIndexBorders, bottomLeftX, topRightY - topPanelThickness, topRightX, topRightY);
-        pushQuad(drawCallBorders, colorIndexBorders, bottomLeftX, bottomLeftY, bottomLeftX + borderThickness, topRightY - topPanelThickness);
-        pushQuad(drawCallBorders, colorIndexBorders, topRightX - borderThickness, bottomLeftY, topRightX, topRightY - topPanelThickness);
-        pushQuad(drawCallBorders, colorIndexBorders, bottomLeftX + borderThickness, bottomLeftY, topRightX - borderThickness, bottomLeftY + borderThickness);
+        push_quad(drawCallBorders, colorIndexBorders, bottomLeftX, topRightY - topPanelThickness, topRightX, topRightY);
+        push_quad(drawCallBorders, colorIndexBorders, bottomLeftX, bottomLeftY, bottomLeftX + borderThickness, topRightY - topPanelThickness);
+        push_quad(drawCallBorders, colorIndexBorders, topRightX - borderThickness, bottomLeftY, topRightX, topRightY - topPanelThickness);
+        push_quad(drawCallBorders, colorIndexBorders, bottomLeftX + borderThickness, bottomLeftY, topRightX - borderThickness, bottomLeftY + borderThickness);
         //
-        // Background
+        // Draw background
         //
         const auto [drawCallBackground, colorIndexBackground] = get_draw_call
         ({
             .tint = col::unpack(g_currentContext.currentParams[SeUiParam::SECONDARY_COLOR].color),
             .mode = UiRenderColorsUnpacked::MODE_SIMPLE,
         });
-        pushQuad(drawCallBackground, colorIndexBackground, bottomLeftX + borderThickness, bottomLeftY + borderThickness, topRightX - borderThickness, topRightY - topPanelThickness);
-
+        push_quad(drawCallBackground, colorIndexBackground, bottomLeftX + borderThickness, bottomLeftY + borderThickness, topRightX - borderThickness, topRightY - topPanelThickness);
         return true;
     }
 
     void end_window()
     {
         g_currentContext.currentWindowUid = { };
+    }
+
+    bool button(const SeUiButtonInfo& info)
+    {
+        UiObjectData* data;
+        UiObjectUid uid;
+        object_data_get(&data, &uid, info.uid);
+        //
+        // Get button size
+        //
+        float buttonWidth = info.width;
+        float buttonHeight = info.height;
+        float textOffsetY = 0.0f;
+        if (info.utf8text)
+        {
+            const float border = g_currentContext.currentParams[SeUiParam::BUTTON_BORDER_SIZE].dim;
+            const auto [bbx1, bby1, bbx2, bby2] = get_text_bbox(info.utf8text);
+            const float textWidth = bbx2 - bbx1 + border * 2.0f;
+            const float textHeight = bby2 - bby1 + border * 2.0f;
+            if (textWidth > buttonWidth) buttonWidth = textWidth;
+            if (textHeight > buttonHeight) buttonHeight = textHeight;
+            // With negative boundin_box_y1 value we need to draw text above of the pivot, so we negate this value to get a positive result
+            textOffsetY = -bby1 + border;
+        }
+        auto [bottomLeftX, bottomLeftY, topRightX, topRightY] = get_corners(buttonWidth, buttonHeight);
+        //
+        // Update state
+        //
+        const bool isUnderCursor = is_under_cursor(bottomLeftX, bottomLeftY, topRightX, topRightY);
+        if (isUnderCursor)
+        {
+            g_currentContext.currentHoveredObjectUid = uid;
+            if (g_currentContext.isMouseJustDown)
+            {
+                g_currentContext.currentActiveObjectUid = uid;
+            }
+        }
+        const bool isPressed = utils::compare(g_currentContext.previousActiveObjectUid, uid);
+        if (isPressed && g_currentContext.isJustActivated)
+        {
+            if (data->stateFlags & (1 << UiStateFlags::IS_TOGGLED))
+                data->stateFlags &= ~(1 << UiStateFlags::IS_TOGGLED);
+            else
+                data->stateFlags |= 1 << UiStateFlags::IS_TOGGLED;
+        }
+        const bool isToggled = data->stateFlags & (1 << UiStateFlags::IS_TOGGLED);
+        //
+        // Draw button
+        //
+        ColorUnpacked buttonColor = col::unpack(g_currentContext.currentParams[SeUiParam::PRIMARY_COLOR].color);
+        if (isPressed)
+        {
+            const float SCALE = 0.5f;
+            buttonColor.r *= SCALE;
+            buttonColor.g *= SCALE;
+            buttonColor.b *= SCALE;
+        }
+        const auto [drawCallBorders, colorIndexBorders] = get_draw_call({ buttonColor, UiRenderColorsUnpacked::MODE_SIMPLE });
+        push_quad(drawCallBorders, colorIndexBorders, bottomLeftX, bottomLeftY, topRightX, topRightY);
+        //
+        // Draw text
+        //
+        if (info.utf8text)
+        {
+            const float cachedPivotX = g_currentContext.currentParams[SeUiParam::PIVOT_POSITION_X].dim;
+            const float cachedPivotY = g_currentContext.currentParams[SeUiParam::PIVOT_POSITION_Y].dim;
+            const SeUiPivotType cachedPivotTypeX = g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_X].pivot;
+            const SeUiPivotType cachedPivotTypeY = g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_Y].pivot;
+            g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_X].pivot = SeUiPivotType::CENTER;
+            g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_Y].pivot = SeUiPivotType::BOTTOM_LEFT;
+            g_currentContext.currentParams[SeUiParam::PIVOT_POSITION_X].dim = bottomLeftX + buttonWidth / 2.0f;
+            g_currentContext.currentParams[SeUiParam::PIVOT_POSITION_Y].dim = bottomLeftY + textOffsetY;
+            text({ info.utf8text });
+            g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_X].pivot = cachedPivotTypeX;
+            g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_Y].pivot = cachedPivotTypeY;
+            g_currentContext.currentParams[SeUiParam::PIVOT_POSITION_X].dim = cachedPivotX;
+            g_currentContext.currentParams[SeUiParam::PIVOT_POSITION_Y].dim = cachedPivotY;
+        }
+        return
+            (info.mode == SeUiButtonMode::HOLD && isPressed) ||
+            (info.mode == SeUiButtonMode::TOGGLE && isToggled);
     }
 }
 
@@ -1510,7 +1653,7 @@ SE_DLL_EXPORT void se_load(SabrinaEngine* engine)
         .text               = ui_impl::text,
         .begin_window       = ui_impl::begin_window,
         .end_window         = ui_impl::end_window,
-        .button             = nullptr,
+        .button             = ui_impl::button,
     };
     se_init_global_subsystem_pointers(engine);
 }
