@@ -141,6 +141,7 @@ struct RenderAtlas
 struct RenderAtlasLayoutBuilder
 {
     static constexpr size_t STEP = 256;
+    static constexpr size_t BORDER = 1;
     struct Node
     {
         RenderAtlasRectSize size;
@@ -188,10 +189,15 @@ namespace render_atlas
             return builder;
         }
 
-        const RenderAtlasLayoutBuilder::Node* push(RenderAtlasLayoutBuilder& builder, RenderAtlasRectSize requirement)
+        const RenderAtlasLayoutBuilder::Node* push(RenderAtlasLayoutBuilder& builder, RenderAtlasRectSize initialRequirement)
         {
-            se_assert(requirement.width);
-            se_assert(requirement.height);
+            se_assert(initialRequirement.width);
+            se_assert(initialRequirement.height);
+            const RenderAtlasRectSize requirement
+            {
+                .width = initialRequirement.width + RenderAtlasLayoutBuilder::BORDER * 2,
+                .height = initialRequirement.height + RenderAtlasLayoutBuilder::BORDER * 2,
+            };
             const RenderAtlasLayoutBuilder::Node* bestNode = nullptr;
             while (!bestNode)
             {
@@ -245,6 +251,17 @@ namespace render_atlas
             }
             const RenderAtlasLayoutBuilder::Node bestNodeCached = *bestNode;
             dynamic_array::remove(builder.freeNodes, bestNode);
+            /*
+                +-----+-----+  +-----+-----+
+                |     |     |  |     |     |
+                | req | p12 |  | req |     |
+                |     |     |  |     |     |
+                +-----+-----+  +-----+ p21 |
+                |           |  |     |     |
+                |    p11    |  | p22 |     |
+                |           |  |     |     |
+                +-----------+  +-----+-----+
+            */
             const size_t p11 = bestNodeCached.size.width                       * (bestNodeCached.size.height - requirement.height);
             const size_t p12 = (bestNodeCached.size.width - requirement.width) * requirement.height;
             const size_t p21 = (bestNodeCached.size.width - requirement.width) * bestNodeCached.size.height;
@@ -342,10 +359,10 @@ namespace render_atlas
                 dynamic_array::push(uvRects,
                 {
                     // @NOTE : here we flip first and second Y coords because uv coordinates start from top left corner, not bottom left
-                    (float)rect.p1x / (float)builder.width,
-                    (float)rect.p2y / (float)builder.height,
-                    (float)rect.p2x / (float)builder.width,
-                    (float)rect.p1y / (float)builder.height,
+                    (float)(rect.p1x + RenderAtlasLayoutBuilder::BORDER) / (float)builder.width,
+                    (float)(rect.p2y - RenderAtlasLayoutBuilder::BORDER) / (float)builder.height,
+                    (float)(rect.p2x - RenderAtlasLayoutBuilder::BORDER) / (float)builder.width,
+                    (float)(rect.p1y + RenderAtlasLayoutBuilder::BORDER) / (float)builder.height,
                 });
             }
             dynamic_array::destroy(builder.occupiedNodes);
@@ -375,13 +392,15 @@ namespace render_atlas
     template<typename PixelDst, typename PixelSrc>
     void blit(RenderAtlas<PixelDst>& atlas, const RenderAtlasRect& rect, const PixelSrc* source, RenderAtlasPutFunciton<PixelDst, PixelSrc> put)
     {
-        const size_t width = rect.p2x - rect.p1x;
-        const size_t height = rect.p2y - rect.p1y;
-        for (size_t h = 0; h < height; h++)
-            for (size_t w = 0; w < width; w++)
+        const size_t sourceWidth = rect.p2x - rect.p1x - RenderAtlasLayoutBuilder::BORDER * 2;
+        const size_t sourceHeight = rect.p2y - rect.p1y - RenderAtlasLayoutBuilder::BORDER * 2;
+        const size_t fromX = rect.p1x + RenderAtlasLayoutBuilder::BORDER;
+        const size_t fromY = rect.p1y + RenderAtlasLayoutBuilder::BORDER;
+        for (size_t h = 0; h < sourceHeight; h++)
+            for (size_t w = 0; w < sourceWidth; w++)
             {
-                const PixelSrc* const p = &source[h * width + w];
-                PixelDst* const to = &atlas.bitmap[(rect.p1y + h) * atlas.width + rect.p1x + w];
+                const PixelSrc* const p = &source[h * sourceWidth + w];
+                PixelDst* const to = &atlas.bitmap[(fromY + h) * atlas.width + fromX + w];
                 put(p, to);
             }
     }
