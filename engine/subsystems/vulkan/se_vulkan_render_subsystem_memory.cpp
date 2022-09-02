@@ -1,6 +1,4 @@
 
-#include <type_traits>
-
 #include "se_vulkan_render_subsystem_memory.hpp"
 #include "se_vulkan_render_subsystem_device.hpp"
 #include "se_vulkan_render_subsystem_frame_manager.hpp"

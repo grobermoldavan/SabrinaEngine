@@ -4,6 +4,8 @@
 #include <inttypes.h>
 #include <stdbool.h>
 #include <string.h>
+#include <type_traits>
+#include <concepts>
 
 #ifdef _WIN32
 #   define SE_DLL_EXPORT extern "C" __declspec(dllexport)

@@ -5,15 +5,18 @@
 
 namespace utils
 {
+    template<typename First, typename Second> struct IsComparable { static constexpr bool value = std::is_same_v<First, Second>; };
+    template<typename First, typename Second> concept comparable_to = IsComparable<First, Second>::value;
+
     inline bool compare_raw(const void* first, const void* second, size_t size)
     {
         return memcmp(first, second, size) == 0;
     }
 
-    template<typename T>
-    bool compare(const T& first, const T& second)
+    template<typename First, typename Second>
+    bool compare(const First& first, const Second& second)
     {
-        return compare_raw(&first, &second, sizeof(T));
+        return std::is_same_v<First, Second> && compare_raw(&first, &second, sizeof(First));
     }
 
     template<size_t value>

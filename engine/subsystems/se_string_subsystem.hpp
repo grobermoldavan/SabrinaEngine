@@ -4,8 +4,6 @@
 #include "engine/common_includes.hpp"
 #include "engine/hash.hpp"
 #include "engine/utils.hpp"
-#include <concepts>
-#include <type_traits>
 
 enum struct SeStringLifetime
 {
@@ -58,6 +56,9 @@ const struct SeStringSubsystemInterface* SE_STRING_SUBSYSTEM_GLOBAL_NAME = nullp
 
 namespace string
 {
+    template <class T>
+    concept cstring = std::is_convertible_v<T, const char*>;
+
     inline char* cstr(SeString str)
     {
         return str.memory;
@@ -107,9 +108,6 @@ namespace string
         SE_STRING_SUBSYSTEM_GLOBAL_NAME->double_to_cstr(value, buffer, sizeof(buffer));
         return string::create(buffer, lifetime);
     }
-
-    template <class T>
-    concept cstring = std::is_convertible_v<T, const char*>;
 
     template<cstring T>
     SeString cast(const T& value, SeStringLifetime lifetime = SeStringLifetime::Temporary)
@@ -196,10 +194,27 @@ namespace string
 
 namespace utils
 {
+    template<string::cstring T> struct IsComparable<SeString, T> { static constexpr bool value = true; };
+    template<string::cstring T> struct IsComparable<T, SeString> { static constexpr bool value = true; };
+
     template<>
-    bool compare<SeString>(const SeString& first, const SeString& second)
+    bool compare<SeString, SeString>(const SeString& first, const SeString& second)
     {
         return first.length == second.length && compare_raw(first.memory, second.memory, first.length);
+    }
+
+    template<string::cstring T>
+    bool compare(const SeString& first, const T& second)
+    {
+        const char* const cstr = (const char*)second;
+        return first.length == strlen(cstr) && compare_raw(first.memory, cstr, first.length);
+    }
+
+    template<string::cstring T>
+    bool compare(const T& first, const SeString& second)
+    {
+        const char* const cstr = (const char*)first;
+        return strlen(cstr) == second.length && compare_raw(cstr, second.memory, second.length);
     }
 }
 
@@ -212,12 +227,26 @@ namespace hash_value
         {
             hash_value::builder::absorb_raw(builder, { value.memory, value.length });
         }
+
+        template<string::cstring T>
+        void absorb(HashValueBuilder& builder, const T& value)
+        {
+            const char* const cstr = (const char*)value;
+            hash_value::builder::absorb_raw(builder, { (void*)cstr, strlen(cstr) });
+        }
     }
 
     template<>
     HashValue generate<SeString>(const SeString& value)
     {
         return hash_value::generate_raw({ value.memory, value.length });
+    }
+
+    template<string::cstring T>
+    HashValue generate(const T& value)
+    {
+        const char* const cstr = (const char*)value;
+        return hash_value::generate_raw({ (void*)cstr, strlen(cstr) });
     }
 }
 

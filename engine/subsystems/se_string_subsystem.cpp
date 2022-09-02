@@ -41,6 +41,8 @@ void se_string_deallocate_buffer(const AllocatorBindings& allocator, const char*
 
 SeString se_string_create(bool isTmp, size_t length, const char* source)
 {
+    if (!isTmp) { debug::message("Allocating new string of length {}, text \"{}\"", length, source); }
+
     const AllocatorBindings allocator = isTmp ? app_allocators::frame() : app_allocators::persistent();
     char* const memory = source
         ? se_string_allocate_new_buffer(allocator, length, strlen(source), source)

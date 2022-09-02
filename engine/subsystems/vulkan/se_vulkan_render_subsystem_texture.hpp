@@ -48,7 +48,7 @@ void se_vk_destroy<SeVkTexture>(SeVkTexture* res)
 namespace utils
 {
     template<>
-    bool compare<SeVkTextureInfo>(const SeVkTextureInfo& first, const SeVkTextureInfo& second)
+    bool compare<SeVkTextureInfo, SeVkTextureInfo>(const SeVkTextureInfo& first, const SeVkTextureInfo& second)
     {
         return compare_raw(&first, &second, offsetof(SeVkTextureInfo, data)) && compare(first.data, second.data);
     }

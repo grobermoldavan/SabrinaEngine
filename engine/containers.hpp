@@ -2,8 +2,6 @@
 #define _SE_CONTAINERS_HPP_
 
 #include <stdlib.h>
-#include <stdbool.h>
-#include <type_traits>
 
 #include "common_includes.hpp"
 #include "allocator_bindings.hpp"
@@ -697,8 +695,9 @@ namespace hash_table
             return (MeowU64From(hash, 0) % (capacity / 2)) + (MeowU64From(hash, 1) % (capacity / 2 + 1));
         }
 
-        template<typename Key, typename Value>
-        size_t index_of(const HashTable<Key, Value>& table, const Key& key)
+        template<typename Key, typename Value, typename ProvidedKey>
+        requires utils::comparable_to<Key, ProvidedKey>
+        size_t index_of(const HashTable<Key, Value>& table, const ProvidedKey& key)
         {
             using Entry = HashTable<Key, Value>::Entry;
             HashValue hash = hash_value::generate(key);
@@ -843,22 +842,25 @@ namespace hash_table
         return &entry.value;
     }
 
-    template<typename Key, typename Value>
-    Value* get(HashTable<Key, Value>& table, const Key& key)
+    template<typename Key, typename Value, typename ProvidedKey>
+    requires utils::comparable_to<Key, ProvidedKey>
+    Value* get(HashTable<Key, Value>& table, const ProvidedKey& key)
     {
         const size_t position = impl::index_of(table, key);
         return position == table.capacity ? nullptr : &table.memory[position].value;
     }
 
-    template<typename Key, typename Value>
-    const Value* get(const HashTable<Key, Value>& table, const Key& key)
+    template<typename Key, typename Value, typename ProvidedKey>
+    requires utils::comparable_to<Key, ProvidedKey>
+    const Value* get(const HashTable<Key, Value>& table, const ProvidedKey& key)
     {
         const size_t position = impl::index_of(table, key);
         return position == table.capacity ? nullptr : &table.memory[position].value;
     }
 
-    template<typename Key, typename Value>
-    void remove(HashTable<Key, Value>& table, const Key& key)
+    template<typename Key, typename Value, typename ProvidedKey>
+    requires utils::comparable_to<Key, ProvidedKey>
+    void remove(HashTable<Key, Value>& table, const ProvidedKey& key)
     {
         const size_t position = impl::index_of(table, key);
         if (position != table.capacity) impl::remove(table, position);
@@ -875,6 +877,24 @@ namespace hash_table
     size_t size(const HashTable<Key, Value>& table)
     {
         return table.size;
+    }
+
+    template<typename Key, typename Value>
+    Key key(const HashTable<Key, Value>& table, const Value* value)
+    {
+        using Entry = HashTable<Key, Value>::Entry;
+        
+        const intptr_t from = (intptr_t)table.memory;
+        const intptr_t to = (intptr_t)table.memory + table.capacity * sizeof(Entry);
+        const intptr_t candidate = (intptr_t)value;
+        se_assert(candidate >= from && candidate < to);
+
+        const size_t offsetInEntryStructure = offsetof(Entry, value);
+        const size_t index = (candidate - from - offsetInEntryStructure) / sizeof(Entry);
+        const Entry& entry = table.memory[index];
+        se_assert(entry.isOccupied);
+
+        return entry.key;
     }
 }
 

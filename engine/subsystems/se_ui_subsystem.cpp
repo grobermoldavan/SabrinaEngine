@@ -606,6 +606,236 @@ namespace font_info
 
 // =======================================================================
 //
+// Codepoint hash table
+// Special variation of hash table, optimized for a uint32_t codepoint keys
+// Mostly a copy paste from original HashTable
+//
+// =======================================================================
+
+template<typename T>
+struct CodepointHashTable
+{
+    struct Entry
+    {
+        uint32_t key;
+        uint32_t isOccupied;
+        T value;
+    };
+    AllocatorBindings allocator;
+    Entry* memory;
+    size_t capacity;
+    size_t size;
+};
+
+namespace codepoint_hash_table
+{
+    template<typename T>
+    CodepointHashTable<T> create(AllocatorBindings allocator, size_t capacity)
+    {
+        using Entry = CodepointHashTable<T>::Entry;
+        Entry* const memory = (Entry*)allocator.alloc(allocator.allocator, sizeof(Entry) * capacity * 2, se_default_alignment, se_alloc_tag);
+        memset(memory, 0, sizeof(Entry) * capacity * 2);
+        return
+        {
+            allocator,
+            memory,
+            capacity * 2,
+            0
+        };
+    }
+
+    template<typename T>
+    void destroy(CodepointHashTable<T>& table)
+    {
+        using Entry = CodepointHashTable<T>::Entry;
+        const AllocatorBindings& allocator = table.allocator;
+        allocator.dealloc(allocator.allocator, table.memory, sizeof(Entry) * table.capacity);
+    }
+
+    template<typename T>
+    T* set(CodepointHashTable<T>& table, uint32_t key, const T& value)
+    {
+        using Entry = CodepointHashTable<T>::Entry;
+        //
+        // Expand if needed
+        //
+        if (table.size >= (table.capacity / 2))
+        {
+            const size_t oldCapacity = table.capacity;
+            const size_t newCapacity = oldCapacity * 2;
+            CodepointHashTable<T> newTable = codepoint_hash_table::create<T>(table.allocator, newCapacity);
+            for (size_t it = 0; it < oldCapacity; it++)
+            {
+                Entry& entry = table.memory[it];
+                if (entry.isOccupied) codepoint_hash_table::set(newTable, entry.key, entry.value);
+            }
+            codepoint_hash_table::destroy(table);
+            table = newTable;
+        }
+        //
+        // Find position
+        //
+        const size_t capacity = table.capacity;
+        const size_t initialPosition = key % capacity;
+        size_t currentPosition = initialPosition;
+        do
+        {
+            const Entry& entry = table.memory[currentPosition];
+            if (!entry.isOccupied || entry.key == key) break;
+            currentPosition = ((currentPosition + 1) % capacity);
+        } while (currentPosition != initialPosition);
+        //
+        // Fill data
+        //
+        Entry& entry = table.memory[currentPosition];
+        if (!entry.isOccupied)
+        {
+            entry.isOccupied = true;
+            entry.key = key;
+            table.size += 1;
+        }
+        memcpy(&entry.value, &value, sizeof(T));
+        return &entry.value;
+    }
+
+    template<typename T>
+    size_t index_of(const CodepointHashTable<T>& table, uint32_t key)
+    {
+        using Entry = CodepointHashTable<T>::Entry;
+        const size_t capacity = table.capacity;
+        const size_t initialPosition = key % capacity;
+        size_t currentPosition = initialPosition;
+        do
+        {
+            const Entry& data = table.memory[currentPosition];
+            if (!data.isOccupied) break;
+            if (data.key == key) return currentPosition;
+            currentPosition = ((currentPosition + 1) % table.capacity);
+        } while (currentPosition != initialPosition);
+        return capacity;
+    }
+
+    template<typename T>
+    inline T* get(CodepointHashTable<T>& table, uint32_t key)
+    {
+        const size_t position = index_of(table, key);
+        return position != table.capacity ? &table.memory[position].value : nullptr;
+    }
+
+    template<typename T>
+    inline const T* get(const CodepointHashTable<T>& table, uint32_t key)
+    {
+        const size_t position = index_of(table, key);
+        return position != table.capacity ? &table.memory[position].value : nullptr;
+    }
+
+    template<typename T>
+    inline size_t size(CodepointHashTable<T>& table)
+    {
+        return table.size;
+    }
+}
+
+template<typename Value, typename Table>
+struct CodepointHashTableIterator;
+
+template<typename Value, typename Table>
+struct CodepointHashTableIteratorValue
+{
+    uint32_t                                    key;
+    Value&                                      value;
+    CodepointHashTableIterator<Value, Table>*   iterator;
+};
+
+template<typename Value, typename Table>
+struct CodepointHashTableIterator
+{
+    Table* table;
+    size_t index;
+
+    bool                                            operator != (const CodepointHashTableIterator& other) const;
+    CodepointHashTableIteratorValue<Value, Table>   operator *  ();
+    CodepointHashTableIterator&                     operator ++ ();
+};
+
+template<typename Value>
+CodepointHashTableIterator<Value, CodepointHashTable<Value>> begin(CodepointHashTable<Value>& table)
+{
+    if (table.size == 0) return { &table, table.capacity };
+    size_t it = 0;
+    while (it < table.capacity && !table.memory[it].isOccupied) { it++; }
+    return { &table, it };
+}
+
+template<typename Value>
+CodepointHashTableIterator<Value, CodepointHashTable<Value>> end(CodepointHashTable<Value>& table)
+{
+    return { &table, table.capacity };
+}
+
+template<typename Value>
+CodepointHashTableIterator<const Value, const CodepointHashTable<Value>> begin(const CodepointHashTable<Value>& table)
+{
+    if (table.size == 0) return { &table, table.capacity };
+    size_t it = 0;
+    while (it < table.capacity && !table.memory[it].isOccupied) { it++; }
+    return { &table, it };
+}
+
+template<typename Value>
+CodepointHashTableIterator<const Value, const CodepointHashTable<Value>> end(const CodepointHashTable<Value>& table)
+{
+    return { &table, table.capacity };
+}
+
+template<typename Value, typename Table>
+bool CodepointHashTableIterator<Value, Table>::operator != (const CodepointHashTableIterator<Value, Table>& other) const
+{
+    return (table != other.table) || (index != other.index);
+}
+
+template<typename Value, typename Table>
+CodepointHashTableIteratorValue<Value, Table> CodepointHashTableIterator<Value, Table>::operator * ()
+{
+    return { table->memory[index].key, table->memory[index].value, this };
+}
+
+template<typename Value, typename Table>
+CodepointHashTableIterator<Value, Table>& CodepointHashTableIterator<Value, Table>::operator ++ ()
+{
+    do { index++; } while (index < table->capacity && !table->memory[index].isOccupied);
+    return *this;
+}
+
+namespace iter
+{
+    template<typename Value>
+    const Value& value(const CodepointHashTableIteratorValue<const Value, const CodepointHashTable<Value>>& val)
+    {
+        return val.value;
+    }
+
+    template<typename Value>
+    Value& value(CodepointHashTableIteratorValue<Value, CodepointHashTable<Value>>& val)
+    {
+        return val.value;
+    }
+
+    template<typename Value, typename Table>
+    uint32_t key(const CodepointHashTableIteratorValue<Value, Table>& val)
+    {
+        return val.key;
+    }
+
+    template<typename Value, typename Table>
+    size_t index(const CodepointHashTableIteratorValue<Value, Table>& val)
+    {
+        return val.iterator->index;
+    }
+}
+
+// =======================================================================
+//
 // Font group
 //
 // =======================================================================
@@ -625,8 +855,7 @@ struct FontGroup
     const FontInfo*                     fonts[SeUiFontGroupInfo::MAX_FONTS];
     RenderAtlas<uint8_t>                atlas;
     SeTextureInfo                       textureInfo;
-    HashTable<uint32_t, CodepointInfo>  codepointToInfo;
-
+    CodepointHashTable<CodepointInfo>   codepointToInfo;
     int                                 lineGapUnscaled;
     int                                 ascentUnscaled;
     int                                 descentUnscaled;
@@ -653,7 +882,7 @@ namespace font_group
         //
         // Load all fonts and map codepoints to fonts
         //
-        HashTable<uint32_t, const FontInfo*> codepointToFont = hash_table::create<uint32_t, const FontInfo*>(app_allocators::frame(), 256);
+        CodepointHashTable<const FontInfo*> codepointToFont = codepoint_hash_table::create<const FontInfo*>(app_allocators::frame(), 256);
         for (size_t it = 0; it < numFonts; it++)
         {
             const FontInfo* font = fonts[it];
@@ -661,16 +890,16 @@ namespace font_group
             for (auto codepointIt : font->supportedCodepoints)
             {
                 const uint32_t codepoint = iter::value(codepointIt);
-                if (!hash_table::get(codepointToFont, codepoint))
+                if (!codepoint_hash_table::get(codepointToFont, codepoint))
                 {
-                    hash_table::set(codepointToFont, codepoint, font);
+                    codepoint_hash_table::set(codepointToFont, codepoint, font);
                 }
             }
             groupInfo.lineGapUnscaled = groupInfo.lineGapUnscaled > font->lineGapUnscaled ? groupInfo.lineGapUnscaled : font->lineGapUnscaled;
             groupInfo.ascentUnscaled = groupInfo.ascentUnscaled > font->ascentUnscaled ? groupInfo.ascentUnscaled : font->ascentUnscaled;
             groupInfo.descentUnscaled = groupInfo.descentUnscaled < font->descentUnscaled ? groupInfo.descentUnscaled : font->descentUnscaled;
         }
-        const size_t numCodepoints = hash_table::size(codepointToFont);
+        const size_t numCodepoints = codepoint_hash_table::size(codepointToFont);
         //
         // Get all codepoint bitmaps and fill codepoint infos
         //
@@ -679,8 +908,8 @@ namespace font_group
             RenderAtlasRectSize size;
             uint8_t* memory;
         };
-        HashTable<uint32_t, CodepointBitmapInfo> codepointToBitmap = hash_table::create<uint32_t, CodepointBitmapInfo>(app_allocators::frame(), numCodepoints);
-        hash_table::construct(groupInfo.codepointToInfo, app_allocators::persistent(), numCodepoints);
+        CodepointHashTable<CodepointBitmapInfo> codepointToBitmap = codepoint_hash_table::create<CodepointBitmapInfo>(app_allocators::frame(), numCodepoints);
+        groupInfo.codepointToInfo = codepoint_hash_table::create<FontGroup::CodepointInfo>(app_allocators::persistent(), numCodepoints);
         for (auto it : codepointToFont)
         {
             //
@@ -695,7 +924,7 @@ namespace font_group
             int yOff;
             // @TODO : setup custom malloc and free for stbtt
             unsigned char* bitmap = stbtt_GetCodepointBitmap(&font->stbInfo, scale, scale, direct_cast_to_int(codepoint), &width, &height, &xOff, &yOff);
-            hash_table::set(codepointToBitmap, codepoint, { { (size_t)width, (size_t)height }, (uint8_t*)bitmap });
+            codepoint_hash_table::set(codepointToBitmap, codepoint, { { (size_t)width, (size_t)height }, (uint8_t*)bitmap });
             //
             // Info
             //
@@ -709,7 +938,7 @@ namespace font_group
                 .advanceWidthUnscaled       = advanceWidth,
                 .leftSideBearingUnscaled    = leftSideBearing,
             };
-            hash_table::set(groupInfo.codepointToInfo, codepoint, codepointInfo);
+            codepoint_hash_table::set(groupInfo.codepointToInfo, codepoint, codepointInfo);
         }
         //
         // Build atlas layout
@@ -732,13 +961,13 @@ namespace font_group
         {
             const RenderAtlasRect& rect = iter::value(it);
             const uint32_t codepoint = *hash_table::get(atlasRectToCodepoint, rect);
-            const CodepointBitmapInfo bitmap = *hash_table::get(codepointToBitmap, codepoint);
+            const CodepointBitmapInfo bitmap = *codepoint_hash_table::get(codepointToBitmap, codepoint);
             if (bitmap.memory)
             {
                 const RenderAtlasPutFunciton<uint8_t, uint8_t> put = [](const uint8_t* from, uint8_t* to) { *to = *from; };
                 render_atlas::blit(groupInfo.atlas, rect, bitmap.memory, put);
             }
-            FontGroup::CodepointInfo* info = hash_table::get(groupInfo.codepointToInfo, codepoint);
+            FontGroup::CodepointInfo* const info = codepoint_hash_table::get(groupInfo.codepointToInfo, codepoint);
             se_assert(info);
             info->atlasRectIndex = (uint32_t)iter::index(it);
         }
@@ -755,8 +984,8 @@ namespace font_group
             if (bitmap.memory) stbtt_FreeBitmap((unsigned char*)bitmap.memory, nullptr);
         }
 
-        hash_table::destroy(codepointToFont);
-        hash_table::destroy(codepointToBitmap);
+        codepoint_hash_table::destroy(codepointToFont);
+        codepoint_hash_table::destroy(codepointToBitmap);
         hash_table::destroy(atlasRectToCodepoint);
 
         return groupInfo;
@@ -765,7 +994,7 @@ namespace font_group
     void destroy(FontGroup& group)
     {
         render_atlas::destroy(group.atlas);
-        hash_table::destroy(group.codepointToInfo);
+        codepoint_hash_table::destroy(group.codepointToInfo);
     }
 
     float scale_for_pixel_height(const FontGroup& group, float height)
@@ -866,11 +1095,6 @@ struct UiObjectData
     UiStateFlags::Type  stateFlags;
 };
 
-struct UiObjectUid
-{
-    char data[64];
-};
-
 struct UiContext
 {
     const SeRenderAbstractionSubsystemInterface*    render;
@@ -888,11 +1112,11 @@ struct UiContext
     bool                                            isMouseDown;
     bool                                            isMouseJustDown;
 
-    UiObjectUid                                     previousHoveredObjectUid;
-    UiObjectUid                                     currentHoveredObjectUid;
-    UiObjectUid                                     previousActiveObjectUid;
-    UiObjectUid                                     currentActiveObjectUid;
-    UiObjectUid                                     currentWindowUid;
+    SeString                                        previousHoveredObjectUid;
+    SeString                                        currentHoveredObjectUid;
+    SeString                                        previousActiveObjectUid;
+    SeString                                        currentActiveObjectUid;
+    SeString                                        currentWindowUid;
     bool                                            isJustActivated;
 
     float                                           workRegionBottomLeftX;
@@ -900,7 +1124,7 @@ struct UiContext
     float                                           workRegionTopRightX;
     float                                           workRegionTopRightY;
 
-    HashTable<UiObjectUid, UiObjectData>            uidToObjectData;
+    HashTable<SeString, UiObjectData>               uidToObjectData;
 };
 
 const UiParams DEFAULT_PARAMS =
@@ -957,13 +1181,13 @@ namespace hash_value
 namespace utils
 {
     template<>
-    bool compare<UiRenderColorsUnpacked>(const UiRenderColorsUnpacked& first, const UiRenderColorsUnpacked& second)
+    bool compare<UiRenderColorsUnpacked, UiRenderColorsUnpacked>(const UiRenderColorsUnpacked& first, const UiRenderColorsUnpacked& second)
     {
         return compare(first.tint, second.tint) && (first.mode == second.mode);
     }
 
     template<>
-    bool compare<UiTextureData>(const UiTextureData& first, const UiTextureData& second)
+    bool compare<UiTextureData, UiTextureData>(const UiTextureData& first, const UiTextureData& second)
     {
         if (first.type != second.type) return false;
         if (first.type == UiTextureData::TYPE_FONT)
@@ -1002,29 +1226,16 @@ namespace ui_impl
         };
     }
 
-    inline UiObjectUid object_uid_create(const char* str)
+    struct { SeString uid; UiObjectData* data; bool isFirst; } object_data_get(const char* cstrUid)
     {
-        se_assert(str);
-        const size_t len = strlen(str);
-        se_assert(len && len < sizeof(UiObjectUid::data));
-        UiObjectUid uid = { };
-        memcpy(uid.data, str, len);
-        return uid;
-    }
-
-    inline bool object_data_get(UiObjectData** outData, UiObjectUid* outUid, const char* cstrUid)
-    {
-        const UiObjectUid uid = object_uid_create(cstrUid);
-        UiObjectData* data = hash_table::get(g_currentContext.uidToObjectData, uid);
+        UiObjectData* data = hash_table::get(g_currentContext.uidToObjectData, cstrUid);
         const bool isFirstAccess = data == nullptr;
         if (!data)
         {
-            data = hash_table::set(g_currentContext.uidToObjectData, uid, { });
+            data = hash_table::set(g_currentContext.uidToObjectData, string::create(cstrUid, SeStringLifetime::Persistent), { });
         }
         se_assert(data);
-        *outData = data;
-        *outUid = uid;
-        return isFirstAccess;
+        return { hash_table::key(g_currentContext.uidToObjectData, data), data, isFirstAccess };
     }
 
     struct { UiDrawCall* drawCall; uint32_t colorIndex; } get_draw_call(const UiRenderColorsUnpacked& colors)
@@ -1132,7 +1343,7 @@ namespace ui_impl
         int previousCodepoint = 0;
         for (uint32_t codepoint : Utf8{ utf8text })
         {
-            const FontGroup::CodepointInfo* const codepointInfo = hash_table::get(fontGroup->codepointToInfo, codepoint);
+            const FontGroup::CodepointInfo* const codepointInfo = codepoint_hash_table::get(fontGroup->codepointToInfo, codepoint);
             se_assert(codepointInfo);
             const FontInfo* const font = codepointInfo->font;
             // This scale calculation is similar to stbtt_ScaleForPixelHeight but ignores descend parameter of the font
@@ -1177,8 +1388,8 @@ namespace ui_impl
         g_currentContext.isMouseDown       = win::is_mouse_button_pressed(input, SE_LMB);
         g_currentContext.isMouseJustDown   = win::is_mouse_button_just_pressed(input, SE_LMB);
         g_currentContext.isJustActivated =
-            utils::compare(g_currentContext.previousActiveObjectUid, { }) &&
-            !utils::compare(g_currentContext.currentActiveObjectUid, { });
+            utils::compare(g_currentContext.previousActiveObjectUid, SeString{ }) &&
+            !utils::compare(g_currentContext.currentActiveObjectUid, SeString{ });
         g_currentContext.previousHoveredObjectUid = g_currentContext.currentHoveredObjectUid;
         g_currentContext.previousActiveObjectUid = g_currentContext.currentActiveObjectUid;
         g_currentContext.currentHoveredObjectUid = { };
@@ -1407,7 +1618,7 @@ namespace ui_impl
         const size_t from = dynamic_array::size(drawCall->vertices);
         for (uint32_t codepoint : Utf8{ info.utf8text })
         {
-            const FontGroup::CodepointInfo* const codepointInfo = hash_table::get(fontGroup->codepointToInfo, codepoint);
+            const FontGroup::CodepointInfo* const codepointInfo = codepoint_hash_table::get(fontGroup->codepointToInfo, codepoint);
             se_assert(codepointInfo);
             const FontInfo* const font = codepointInfo->font;
             // This scale calculation is similar to stbtt_ScaleForPixelHeight but ignores descend parameter of the font
@@ -1501,9 +1712,7 @@ namespace ui_impl
         //
         // Update object data
         //
-        UiObjectData* data;
-        UiObjectUid uid;
-        const bool isFirst = object_data_get(&data, &uid, info.uid);
+        auto [uid, data, isFirst] = object_data_get(info.uid);
         auto [bottomLeftX, bottomLeftY, topRightX, topRightY] = get_corners(info.width, info.height);
         const bool isResizeable = info.flags & (SeUiFlags::RESIZABLE_X | SeUiFlags::RESIZABLE_Y);
         if (isResizeable && !isFirst)
@@ -1581,9 +1790,7 @@ namespace ui_impl
 
     bool button(const SeUiButtonInfo& info)
     {
-        UiObjectData* data;
-        UiObjectUid uid;
-        object_data_get(&data, &uid, info.uid);
+        auto [uid, data, isFirst] = object_data_get(info.uid);
         //
         // Get button size
         //
@@ -1695,6 +1902,7 @@ SE_DLL_EXPORT void* se_get_interface(SabrinaEngine* engine)
 
 SE_DLL_EXPORT void se_terminate(SabrinaEngine* engine)
 {
+    for (auto it : g_currentContext.uidToObjectData) string::destroy(iter::key(it));
     hash_table::destroy(g_currentContext.uidToObjectData);
 
     data_provider::destroy(g_drawUiVs);

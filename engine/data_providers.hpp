@@ -38,7 +38,7 @@ struct DataProviderResult
 namespace utils
 {
     template<>
-    bool compare<DataProvider>(const DataProvider& first, const DataProvider& second)
+    bool compare<DataProvider, DataProvider>(const DataProvider& first, const DataProvider& second)
     {
         if (first.type != second.type) return false;
         switch (first.type)
