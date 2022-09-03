@@ -24,6 +24,7 @@
 #define se_clamp(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 #define se_min(a, b) ((a) < (b) ? (a) : (b))
 #define se_max(a, b) ((a) > (b) ? (a) : (b))
+#define se_lerp(a, b, t) ((a) + (t) * ((b) - (a)))
 
 struct SeFloat2
 {
@@ -155,6 +156,8 @@ SeFloat2 operator + (SeFloat2 first, SeFloat2 second)           { return { first
 SeFloat2 operator - (SeFloat2 first, SeFloat2 second)           { return { first.x - second.x, first.y - second.y }; }
 SeFloat2 operator * (SeFloat2 vec, float value)                 { return { vec.x * value, vec.y * value }; }
 SeFloat2 operator / (SeFloat2 vec, float value)                 { return { vec.x / value, vec.y / value }; }
+SeFloat2 operator * (float value, SeFloat2 vec)                 { return { vec.x * value, vec.y * value }; }
+SeFloat2 operator / (float value, SeFloat2 vec)                 { return { vec.x / value, vec.y / value }; }
 
 SeFloat2& operator += (SeFloat2& first, SeFloat2 second)        { first.x += second.x; first.y += second.y; return first; }
 SeFloat2& operator -= (SeFloat2& first, SeFloat2 second)        { first.x -= second.x; first.y -= second.y; return first; }
@@ -178,6 +181,8 @@ SeFloat3 operator + (const SeFloat3& first, const SeFloat3& second)     { return
 SeFloat3 operator - (const SeFloat3& first, const SeFloat3& second)     { return { first.x - second.x, first.y - second.y, first.z - second.z }; }
 SeFloat3 operator * (const SeFloat3& vec, float value)                  { return { vec.x * value, vec.y * value, vec.z * value }; }
 SeFloat3 operator / (const SeFloat3& vec, float value)                  { return { vec.x / value, vec.y / value, vec.z / value }; }
+SeFloat3 operator * (float value, const SeFloat3& vec)                  { return { vec.x * value, vec.y * value, vec.z * value }; }
+SeFloat3 operator / (float value, const SeFloat3& vec)                  { return { vec.x / value, vec.y / value, vec.z / value }; }
 
 SeFloat3& operator += (SeFloat3& first, const SeFloat3& second)         { first.x += second.x; first.y += second.y; first.z += second.z; return first; }
 SeFloat3& operator -= (SeFloat3& first, const SeFloat3& second)         { first.x -= second.x; first.y -= second.y; first.z -= second.z; return first; }
@@ -200,6 +205,8 @@ SeFloat4 operator + (const SeFloat4& first, const SeFloat4& second)     { return
 SeFloat4 operator - (const SeFloat4& first, const SeFloat4& second)     { return { first.x - second.x, first.y - second.y, first.z - second.z, first.w - second.w }; }
 SeFloat4 operator * (const SeFloat4& vec, float value)                  { return { vec.x * value, vec.y * value, vec.z * value, vec.w * value }; }
 SeFloat4 operator / (const SeFloat4& vec, float value)                  { return { vec.x / value, vec.y / value, vec.z / value, vec.w / value }; }
+SeFloat4 operator * (float value, const SeFloat4& vec)                  { return { vec.x * value, vec.y * value, vec.z * value, vec.w * value }; }
+SeFloat4 operator / (float value, const SeFloat4& vec)                  { return { vec.x / value, vec.y / value, vec.z / value, vec.w / value }; }
 
 SeFloat4& operator += (SeFloat4& first, const SeFloat4& second)         { first.x += second.x; first.y += second.y; first.z += second.z; first.w += second.w; return first; }
 SeFloat4& operator -= (SeFloat4& first, const SeFloat4& second)         { first.x -= second.x; first.y -= second.y; first.z -= second.z; first.w -= second.w; return first; }
