@@ -13,7 +13,7 @@ int main(int argc, char* argv[])
     const SeEngineSettings settings
     {
         .applicationName    = "Sabrina engine - ui example",
-        .isFullscreenWindow = true,
+        .isFullscreenWindow = false,
         .isResizableWindow  = true,
         .windowWidth        = 640,
         .windowHeight       = 480,

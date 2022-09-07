@@ -36,11 +36,12 @@ struct SeUiParam
         ACCENT_COLOR                = 5,
         WINDOW_TOP_PANEL_THICKNESS  = 6,
         WINDOW_BORDER_THICKNESS     = 7,
-        PIVOT_POSITION_X            = 8,
-        PIVOT_POSITION_Y            = 9,
-        PIVOT_TYPE_X                = 10,
-        PIVOT_TYPE_Y                = 11,
-        BUTTON_BORDER_SIZE          = 12,
+        WINDOW_INNER_PADDING        = 8,
+        PIVOT_POSITION_X            = 9,
+        PIVOT_POSITION_Y            = 10,
+        PIVOT_TYPE_X                = 11,
+        PIVOT_TYPE_Y                = 12,
+        BUTTON_BORDER_SIZE          = 13,
         _COUNT,
     };
     union
@@ -79,6 +80,7 @@ enum struct SeUiButtonMode
 {
     HOLD,
     TOGGLE,
+    CLICK,
 };
 
 struct SeUiButtonInfo

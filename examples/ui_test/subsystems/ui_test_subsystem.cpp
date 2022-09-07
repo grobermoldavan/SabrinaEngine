@@ -16,6 +16,86 @@ enum struct MenuState
     BUTTON_EXAMPLE,
 } g_menuState = MenuState::MAIN;
 
+enum Language
+{
+    ENGLISH,
+    RUSSIAN,
+    __LANGUAGE_COUNT,
+} g_currentLanguage = Language::ENGLISH;
+
+enum LocalizedString
+{
+    CURRENT_LANGUAGE,
+    MM_TEXT_EXAMPLES,
+    MM_WINDOW_EXAMPLES,
+    MM_BUTTON_EXAMPLES,
+    LINE_OF_TEXT,
+    TEXT_INSIDE_WINDOW,
+    EVERY_TEXT_COMMAND_STARTS_FROM_THE_NEW_LINE,
+    WINDOW_CAN_BE_MOVED_AND_RESIZED,
+    BUTTON_MODES,
+    TOGGLE_BUTTON,
+    YOU_VE_TOGGLED_THE_BUTTON,
+    HOLD_BUTTON,
+    YOU_RE_HOLDING_THE_BUTTON,
+    __LOCALIZED_STRING_COUNT,
+};
+
+using LocalizationSet = const char*[LocalizedString::__LOCALIZED_STRING_COUNT];
+LocalizationSet LOCALIZATION_SETS[Language::__LANGUAGE_COUNT] =
+{
+    {
+        /* CURRENT_LANGUAGE */                              "English",
+        /* MM_TEXT_EXAMPLES */                              "Text examples",
+        /* MM_WINDOW_EXAMPLES */                            "Window examples",
+        /* MM_BUTTON_EXAMPLES */                            "Button examples",
+        /* LINE_OF_TEXT */                                  "Line of text",
+        /* TEXT_INSIDE_WINDOW */                            "Text inside window",
+        /* EVERY_TEXT_COMMAND_STARTS_FROM_THE_NEW_LINE */   "Every \"text\" command starts from the new line",
+        /* WINDOW_CAN_BE_MOVED_AND_RESIZED */               "This window can be moved and resized",
+        /* BUTTON_MODES */                                  "Buttons have three modes - TOGGLE, HOLD and CLICK",
+        /* TOGGLE_BUTTON */                                 "Toggle button",
+        /* YOU_VE_TOGGLED_THE_BUTTON */                     "You've toggled the button",
+        /* HOLD_BUTTON */                                   "Hold button",
+        /* YOU_RE_HOLDING_THE_BUTTON */                     "You're holding the button",
+    },
+    {
+        /* CURRENT_LANGUAGE */                              "Русский",
+        /* MM_TEXT_EXAMPLES */                              "Примеры текста",
+        /* MM_WINDOW_EXAMPLES */                            "Примеры окон",
+        /* MM_BUTTON_EXAMPLES */                            "Примеры кнопок",
+        /* LINE_OF_TEXT */                                  "Линия текста",
+        /* TEXT_INSIDE_WINDOW */                            "Текст внутри окна",
+        /* EVERY_TEXT_COMMAND_STARTS_FROM_THE_NEW_LINE */   "Каждая комманда \"text\" начинается с новой строки",
+        /* WINDOW_CAN_BE_MOVED_AND_RESIZED */               "Это окно можно двигать и менять ему размер",
+        /* BUTTON_MODES */                                  "У кнопок есть три режима - TOGGLE, HOLD and CLICK",
+        /* TOGGLE_BUTTON */                                 "TOGGLE кнопка",
+        /* YOU_VE_TOGGLED_THE_BUTTON */                     "Вы переключили кнопку",
+        /* HOLD_BUTTON */                                   "HOLD кнопка",
+        /* YOU_RE_HOLDING_THE_BUTTON */                     "Вы удерживаете кнопку",
+    },
+};
+
+inline const char* get_local(LocalizedString str)
+{
+    return LOCALIZATION_SETS[g_currentLanguage][str];
+}
+
+void draw_language_selection()
+{
+    g_ui->set_param(SeUiParam::FONT_HEIGHT, { .dim = 40 });
+    g_ui->set_param(SeUiParam::FONT_COLOR, { .color = col::pack({ 1.0f, 1.0f, 1.0f, 1.0f }) });
+    g_ui->set_param(SeUiParam::PRIMARY_COLOR, { .color = col::pack({ 0.2f, 0.2f, 0.2f, 1.0f }) });
+    g_ui->set_param(SeUiParam::PIVOT_TYPE_X, { .pivot = SeUiPivotType::BOTTOM_LEFT });
+    g_ui->set_param(SeUiParam::PIVOT_TYPE_Y, { .pivot = SeUiPivotType::BOTTOM_LEFT });
+    g_ui->set_param(SeUiParam::PIVOT_POSITION_X, { .dim = 10.0f });
+    g_ui->set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = 10.0f });
+    if (g_ui->button({ "lang_selection", get_local(LocalizedString::CURRENT_LANGUAGE), 0, 0, SeUiButtonMode::CLICK }))
+    {
+        g_currentLanguage = g_currentLanguage == Language::ENGLISH ? Language::RUSSIAN : Language::ENGLISH;
+    }
+}
+
 void update_main_menu(SabrinaEngine* engine)
 {
     const SeWindowSubsystemInput* input = win::get_input();
@@ -29,19 +109,19 @@ void update_main_menu(SabrinaEngine* engine)
     g_ui->set_param(SeUiParam::PIVOT_POSITION_X, { .dim = win::get_width<float>() / 2.0f });
 
     g_ui->set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = win::get_height<float>() / 2.0f + FONT_HEIGHT * 2.0f });
-    if (g_ui->button({ "mm_to_text", "Text examples", 0, 0, SeUiButtonMode::HOLD }))
+    if (g_ui->button({ "mm_to_text", get_local(LocalizedString::MM_TEXT_EXAMPLES), 0, 0, SeUiButtonMode::CLICK }))
     {
         g_menuState = MenuState::TEXT_EXAMPLE;
     }
 
     g_ui->set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = win::get_height<float>() / 2.0f });
-    if (g_ui->button({ "mm_to_window", "Window examples", 0, 0, SeUiButtonMode::HOLD }))
+    if (g_ui->button({ "mm_to_window", get_local(LocalizedString::MM_WINDOW_EXAMPLES), 0, 0, SeUiButtonMode::CLICK }))
     {
         g_menuState = MenuState::WINDOW_EXAMPLE;
     }
 
     g_ui->set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = win::get_height<float>() / 2.0f - FONT_HEIGHT * 2.0f });
-    if (g_ui->button({ "mm_to_button", "Button examples", 0, 0, SeUiButtonMode::HOLD }))
+    if (g_ui->button({ "mm_to_button", get_local(LocalizedString::MM_BUTTON_EXAMPLES), 0, 0, SeUiButtonMode::CLICK }))
     {
         g_menuState = MenuState::BUTTON_EXAMPLE;
     }
@@ -94,7 +174,7 @@ void update_text_example(float dt)
         const ColorUnpacked resultColor = se_lerp(colorFrom, colorTo, lerpValue);
 
         g_ui->set_param(SeUiParam::FONT_COLOR, { .color = col::pack(resultColor) });
-        g_ui->text({ string::cstr(string::create_fmt(SeStringLifetime::Temporary, "Line of text. Линия текста. Color time ms: {}", clampedTime)) });
+        g_ui->text({ string::cstr(string::create_fmt(SeStringLifetime::Temporary, "{} : {}", get_local(LocalizedString::LINE_OF_TEXT), clampedTime)) });
 
         positionY += fontHeight + ADDITIONAL_STEP;
         fontHeight *= FONT_HEIGHT_STEP;
@@ -118,16 +198,16 @@ void update_window_example()
         .flags  = SeUiFlags::MOVABLE | SeUiFlags::RESIZABLE_X | SeUiFlags::RESIZABLE_Y,
     }))
     {
-        g_ui->text({ "Text inside window." });
-        g_ui->text({ "Every \"text\" command starts from the new line."});
-        g_ui->text({ "This window can be moved and resized."});
+        g_ui->text({ get_local(LocalizedString::TEXT_INSIDE_WINDOW) });
+        g_ui->text({ get_local(LocalizedString::EVERY_TEXT_COMMAND_STARTS_FROM_THE_NEW_LINE) });
+        g_ui->text({ get_local(LocalizedString::WINDOW_CAN_BE_MOVED_AND_RESIZED) });
         g_ui->end_window();
     }
 
     // This window will have different colors
-    g_ui->set_param(SeUiParam::PRIMARY_COLOR, { .color = col::pack({ 0.73f, 0.11f, 0.14f, 1.0f }) });
-    g_ui->set_param(SeUiParam::SECONDARY_COLOR, { .color = col::pack({ 0.09f, 0.01f, 0.01f, 0.7f }) });
-    g_ui->set_param(SeUiParam::ACCENT_COLOR, { .color = col::pack({ 0.88f, 0.73f, 0.73f, 1.0f }) });
+    g_ui->set_param(SeUiParam::PRIMARY_COLOR, { .color = col::pack({ 0.87f, 0.81f, 0.83f, 1.0f }) });
+    g_ui->set_param(SeUiParam::SECONDARY_COLOR, { .color = col::pack({ 0.36f, 0.45f, 0.58f, 0.8f }) });
+    g_ui->set_param(SeUiParam::ACCENT_COLOR, { .color = col::pack({ 0.95f, 0.75f, 0.79f, 1.0f }) });
     g_ui->set_param(SeUiParam::WINDOW_TOP_PANEL_THICKNESS, { .dim = 10.0f });
     g_ui->set_param(SeUiParam::WINDOW_BORDER_THICKNESS, { .dim = 3.0f });
 
@@ -144,9 +224,13 @@ void update_window_example()
         .flags  = SeUiFlags::MOVABLE | SeUiFlags::RESIZABLE_X | SeUiFlags::RESIZABLE_Y,
     }))
     {
-        g_ui->text({ "Текст в окне." });
-        g_ui->text({ "Каждая комманда \"text\" начинается с новой линии."});
-        g_ui->text({ "Это окно можно двигать и менять ему размер." });
+        g_ui->text({ get_local(LocalizedString::TEXT_INSIDE_WINDOW) });
+        g_ui->text({ get_local(LocalizedString::EVERY_TEXT_COMMAND_STARTS_FROM_THE_NEW_LINE) });
+        g_ui->text({ get_local(LocalizedString::WINDOW_CAN_BE_MOVED_AND_RESIZED) });
+        if (g_ui->button({ "win_button", get_local(LocalizedString::HOLD_BUTTON), 0, 0, SeUiButtonMode::HOLD }))
+        {
+            g_ui->text({ get_local(LocalizedString::YOU_RE_HOLDING_THE_BUTTON) });
+        }
         g_ui->end_window();
     }
 }
@@ -161,25 +245,25 @@ void update_button_example()
     g_ui->set_param(SeUiParam::PIVOT_TYPE_Y, { .pivot = SeUiPivotType::CENTER });
     g_ui->set_param(SeUiParam::PIVOT_POSITION_X, { .dim = win::get_width<float>() / 2.0f });
     g_ui->set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = win::get_height<float>() - 100.0f });
-    g_ui->text({ "Buttons have two modes - TOGGLE and HOLD" });
+    g_ui->text({ get_local(LocalizedString::BUTTON_MODES) });
     
     g_ui->set_param(SeUiParam::FONT_HEIGHT, { .dim = 50.0f });
     g_ui->set_param(SeUiParam::PIVOT_POSITION_X, { .dim = win::get_width<float>() / 4.0f });
     g_ui->set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = win::get_height<float>() - 200.0f });
     
     // You can specify button size, but this size will be expanded if button text is too big
-    if (g_ui->button({ "button", "Toggle button", 0, 0, SeUiButtonMode::TOGGLE }))
+    if (g_ui->button({ "button", get_local(LocalizedString::TOGGLE_BUTTON), 0, 0, SeUiButtonMode::TOGGLE }))
     {
         g_ui->set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = win::get_height<float>() - 270.0f });
-        g_ui->text({ "You've toggled the button" });
+        g_ui->text({ get_local(LocalizedString::YOU_VE_TOGGLED_THE_BUTTON) });
     }
 
     g_ui->set_param(SeUiParam::PIVOT_POSITION_X, { .dim = win::get_width<float>() / 4.0f * 3.0f });
     g_ui->set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = win::get_height<float>() - 200.0f });
-    if (g_ui->button({ "button2", "Hold button", 0, 0, SeUiButtonMode::HOLD }))
+    if (g_ui->button({ "button2", get_local(LocalizedString::HOLD_BUTTON), 0, 0, SeUiButtonMode::HOLD }))
     {
         g_ui->set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = win::get_height<float>() - 270.0f });
-        g_ui->text({ "You're holding the button" });
+        g_ui->text({ get_local(LocalizedString::YOU_RE_HOLDING_THE_BUTTON) });
     }
 }
 
@@ -208,7 +292,6 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
         if (g_ui->begin_ui({ g_render, { g_render->swap_chain_texture(), SE_PASS_RENDER_TARGET_LOAD_OP_CLEAR } }))
         {
             g_ui->set_font_group({ g_fontDataEnglish, g_fontDataRussian });
-
             switch (g_menuState)
             {
                 case MenuState::MAIN:           update_main_menu(engine);       break;
@@ -216,6 +299,7 @@ SE_DLL_EXPORT void se_update(SabrinaEngine* engine, const SeUpdateInfo* info)
                 case MenuState::WINDOW_EXAMPLE: update_window_example();        break;
                 case MenuState::BUTTON_EXAMPLE: update_button_example();        break;
             }
+            draw_language_selection();
             g_ui->end_ui(0);
         }
         g_render->end_frame();

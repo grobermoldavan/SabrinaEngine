@@ -1082,12 +1082,17 @@ struct UiStateFlags
     using Type = uint32_t;
 };
 
+struct UiQuadCoords
+{
+    float blX;
+    float blY;
+    float trX;
+    float trY;
+};
+
 struct UiObjectData
 {
-    float               bottomLeftX;
-    float               bottomLeftY;
-    float               topRightX;
-    float               topRightY;
+    UiQuadCoords        quad;
     float               minWidth;
     float               minHeight;
     SeUiFlags::Type     settingsFlags;
@@ -1130,13 +1135,14 @@ struct UiContext
 const UiParams DEFAULT_PARAMS =
 {
     /* FONT_COLOR                   */ { .color = col::pack({ 1.0f, 1.0f, 1.0f, 1.0f }) },
-    /* FONT_HEIGHT                  */ { .dim = 10.0f },
-    /* FONT_LINE_STEP               */ { .dim = 12.0f },
-    /* PRIMARY_COLOR                */ { .color = col::pack({ 0.87f, 0.81f, 0.83f, 1.0f }) },
-    /* SECONDARY_COLOR              */ { .color = col::pack({ 0.36f, 0.45f, 0.58f, 0.8f }) },
-    /* ACCENT_COLOR                 */ { .color = col::pack({ 0.95f, 0.75f, 0.79f, 1.0f }) },
+    /* FONT_HEIGHT                  */ { .dim = 30.0f },
+    /* FONT_LINE_STEP               */ { .dim = 35.0f },
+    /* PRIMARY_COLOR                */ { .color = col::pack({ 0.73f, 0.11f, 0.14f, 1.0f }) },
+    /* SECONDARY_COLOR              */ { .color = col::pack({ 0.09f, 0.01f, 0.01f, 0.7f }) },
+    /* ACCENT_COLOR                 */ { .color = col::pack({ 0.88f, 0.73f, 0.73f, 1.0f }) },
     /* WINDOW_TOP_PANEL_THICKNESS   */ { .dim = 16.0f },
     /* WINDOW_BORDER_THICKNESS      */ { .dim = 2.0f },
+    /* WINDOW_INNER_PADDING         */ { .dim = 5.0f },
     /* PIVOT_POSITION_X             */ { .dim = 0.0f },
     /* PIVOT_POSITION_Y             */ { .dim = 0.0f },
     /* PIVOT_TYPE_X                 */ { .pivot = SeUiPivotType::BOTTOM_LEFT },
@@ -1226,7 +1232,7 @@ namespace ui_impl
         };
     }
 
-    struct { SeString uid; UiObjectData* data; bool isFirst; } object_data_get(const char* cstrUid)
+    inline struct { SeString uid; UiObjectData* data; bool isFirst; } object_data_get(const char* cstrUid)
     {
         UiObjectData* data = hash_table::get(g_currentContext.uidToObjectData, cstrUid);
         const bool isFirstAccess = data == nullptr;
@@ -1303,17 +1309,42 @@ namespace ui_impl
         return { drawCall, dynamic_array::size<uint32_t>(drawCall->colorsArray) - 1 };
     }
 
-    inline void push_quad(UiDrawCall* drawCall, uint32_t colorIndex, float x1, float y1, float x2, float y2)
+    inline UiQuadCoords clamp_to_work_region(const UiQuadCoords& quad)
     {
-        dynamic_array::push(drawCall->vertices, { x1, y1, 0, 0, colorIndex });
-        dynamic_array::push(drawCall->vertices, { x1, y2, 0, 0, colorIndex });
-        dynamic_array::push(drawCall->vertices, { x2, y2, 0, 0, colorIndex });
-        dynamic_array::push(drawCall->vertices, { x1, y1, 0, 0, colorIndex });
-        dynamic_array::push(drawCall->vertices, { x2, y2, 0, 0, colorIndex });
-        dynamic_array::push(drawCall->vertices, { x2, y1, 0, 0, colorIndex });
-    };
+        const float wrx1 = g_currentContext.workRegionBottomLeftX;
+        const float wry1 = g_currentContext.workRegionBottomLeftY;
+        const float wrx2 = g_currentContext.workRegionTopRightX;
+        const float wry2 = g_currentContext.workRegionTopRightY;
+        return
+        {
+            se_clamp(quad.blX, wrx1, wrx2),
+            se_clamp(quad.blY, wry1, wry2),
+            se_clamp(quad.trX, wrx1, wrx2),
+            se_clamp(quad.trY, wry1, wry2),
+        };
+    }
 
-    inline struct { float x1; float y1; float x2; float y2; } get_corners(float width, float height)
+    inline void push_quad(UiDrawCall* drawCall, uint32_t colorIndex, const UiQuadCoords& unclamped, float u1 = 0, float v1 = 0, float u2 = 0, float v2 = 0)
+    {
+        const UiQuadCoords clamped = clamp_to_work_region(unclamped);
+        if (clamped.blX == clamped.trX || clamped.blY == clamped.trY) return; // Out of bounds
+
+        const float width = unclamped.trX - unclamped.blX;
+        const float height = unclamped.trY - unclamped.blY;
+        const float u1clamped = se_lerp(u1, u2, (clamped.blX - unclamped.blX) / width);
+        const float v1clamped = se_lerp(v1, v2, (clamped.blY - unclamped.blY) / height);
+        const float u2clamped = se_lerp(u2, u1, (unclamped.trX - clamped.trX) / width);
+        const float v2clamped = se_lerp(v2, v1, (unclamped.trY - clamped.trY) / height);
+
+        dynamic_array::push(drawCall->vertices, { clamped.blX, clamped.blY, u1clamped, v1clamped, colorIndex });
+        dynamic_array::push(drawCall->vertices, { clamped.blX, clamped.trY, u1clamped, v2clamped, colorIndex });
+        dynamic_array::push(drawCall->vertices, { clamped.trX, clamped.trY, u2clamped, v2clamped, colorIndex });
+        dynamic_array::push(drawCall->vertices, { clamped.blX, clamped.blY, u1clamped, v1clamped, colorIndex });
+        dynamic_array::push(drawCall->vertices, { clamped.trX, clamped.trY, u2clamped, v2clamped, colorIndex });
+        dynamic_array::push(drawCall->vertices, { clamped.trX, clamped.blY, u2clamped, v1clamped, colorIndex });
+    }
+
+    inline UiQuadCoords get_corners(float width, float height)
     {
         const bool isCenteredX = g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_X].pivot == SeUiPivotType::CENTER;
         const bool isCenteredY = g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_Y].pivot == SeUiPivotType::CENTER;
@@ -1322,19 +1353,30 @@ namespace ui_impl
         return { dimX, dimY, dimX + width, dimY + height };
     }
 
-    inline bool is_under_cursor(float blX, float blY, float trX, float trY)
+    inline UiQuadCoords get_corners_in_work_region(float width, float height)
     {
         return
-            (blX <= g_currentContext.mouseX) &&
-            (blY <= g_currentContext.mouseY) &&
-            (trX >= g_currentContext.mouseX) &&
-            (trY >= g_currentContext.mouseY);
+        {
+            g_currentContext.workRegionBottomLeftX,
+            g_currentContext.workRegionTopRightY - height,
+            g_currentContext.workRegionBottomLeftX + width,
+            g_currentContext.workRegionTopRightY,
+        };
     }
 
-    struct { float x1; float y1; float x2; float y2; } get_text_bbox(const char* utf8text)
+    inline bool is_under_cursor(const UiQuadCoords& quad)
+    {
+        return
+            (quad.blX <= g_currentContext.mouseX) &&
+            (quad.blY <= g_currentContext.mouseY) &&
+            (quad.trX >= g_currentContext.mouseX) &&
+            (quad.trY >= g_currentContext.mouseY);
+    }
+
+    UiQuadCoords get_text_bbox(const char* utf8text)
     {
         const FontGroup* const fontGroup = g_currentContext.currentFontGroup;
-        const float textHeight = g_currentContext.currentParams[SeUiParam::FONT_HEIGHT].dim;
+        const float fontHeight = g_currentContext.currentParams[SeUiParam::FONT_HEIGHT].dim;
         const float baselineX = 0;
         const float baselineY = 0;
         float positionX = 0;
@@ -1347,24 +1389,71 @@ namespace ui_impl
             se_assert(codepointInfo);
             const FontInfo* const font = codepointInfo->font;
             // This scale calculation is similar to stbtt_ScaleForPixelHeight but ignores descend parameter of the font
-            const float scale = textHeight / (float)font->ascentUnscaled;
-            const float advance = scale * (float)codepointInfo->advanceWidthUnscaled;
-            const float bearing = scale * (float)codepointInfo->leftSideBearingUnscaled;
+            const float scale = fontHeight / float(font->ascentUnscaled);
+            const float advance = scale * float(codepointInfo->advanceWidthUnscaled);
+            const float bearing = scale * float(codepointInfo->leftSideBearingUnscaled);
             const int codepointSigned = font_group::direct_cast_to_int(codepoint);
             int x0;
             int y0;
             int x1;
             int y1;
             stbtt_GetCodepointBitmapBox(&font->stbInfo, codepointSigned, scale, scale, &x0, &y0, &x1, &y1);
-            const float descent = (float)y1;
+            const float descent = float(y1);
             if (biggestDescent < descent) biggestDescent = descent;
-            const float ascent = (float)-y0;
+            const float ascent = float(-y0);
             if (biggestAscent < ascent) biggestAscent = ascent;
-            const float additionalAdvance = scale * (float)stbtt_GetCodepointKernAdvance(&font->stbInfo, previousCodepoint, codepointSigned);
+            const float additionalAdvance = scale * float(stbtt_GetCodepointKernAdvance(&font->stbInfo, previousCodepoint, codepointSigned));
             positionX += additionalAdvance + advance;
             previousCodepoint = codepointSigned;
         }
         return { 0, -biggestDescent, positionX, biggestAscent };
+    }
+
+    void draw_text_at_pos(const char* utf8text, float baselineX, float baselineY)
+    {
+        if (/*this is an incorrect check : baselineY >= g_currentContext.workRegionTopRightY || */ baselineX >= g_currentContext.workRegionTopRightX)
+        {
+            return;
+        }
+        const FontGroup* const fontGroup = g_currentContext.currentFontGroup;
+        const float fontHeight = g_currentContext.currentParams[SeUiParam::FONT_HEIGHT].dim;
+        const auto [drawCall, colorIndex] = get_draw_call(ui_texture_data_create(fontGroup), fontGroup->textureInfo,
+        {
+            .tint = col::unpack(g_currentContext.currentParams[SeUiParam::FONT_COLOR].color),
+            .mode = UiRenderColorsUnpacked::MODE_TEXT,
+        });
+        //
+        // Process codepoints
+        //
+        float positionX = baselineX;
+        int previousCodepoint = 0;
+        for (uint32_t codepoint : Utf8{ utf8text })
+        {
+            const FontGroup::CodepointInfo* const codepointInfo = codepoint_hash_table::get(fontGroup->codepointToInfo, codepoint);
+            se_assert(codepointInfo);
+            const FontInfo* const font = codepointInfo->font;
+            // This scale calculation is similar to stbtt_ScaleForPixelHeight but ignores descend parameter of the font
+            const float scale = fontHeight / float(font->ascentUnscaled);
+            const float bearing = scale * float(codepointInfo->leftSideBearingUnscaled);
+            const int codepointSigned = font_group::direct_cast_to_int(codepoint);
+            int x0;
+            int y0;
+            int x1;
+            int y1;
+            stbtt_GetCodepointBitmapBox(&font->stbInfo, codepointSigned, scale, scale, &x0, &y0, &x1, &y1);
+            const float width = float(x1 - x0);
+            const float height = float(y1 - y0);
+            const float additionalAdvance = scale * float(stbtt_GetCodepointKernAdvance(&font->stbInfo, previousCodepoint, codepointSigned));
+            positionX += additionalAdvance;
+            const float bottomLeftX = positionX + float(x0) - bearing;
+            const float bottomLeftY = baselineY - float(y1);
+            const float topRightX = bottomLeftX + width;
+            const float topRightY = bottomLeftY + height;
+            const RenderAtlasRectNormalized& rect = fontGroup->atlas.uvRects[codepointInfo->atlasRectIndex];
+            push_quad(drawCall, colorIndex, { bottomLeftX, bottomLeftY, topRightX, topRightY }, rect.p1x, rect.p1y, rect.p2x, rect.p2y);
+            positionX += scale * float(codepointInfo->advanceWidthUnscaled);
+            previousCodepoint = codepointSigned;
+        }
     }
 
     bool begin(const SeUiBeginInfo& info)
@@ -1390,10 +1479,14 @@ namespace ui_impl
         g_currentContext.isJustActivated =
             utils::compare(g_currentContext.previousActiveObjectUid, SeString{ }) &&
             !utils::compare(g_currentContext.currentActiveObjectUid, SeString{ });
-        g_currentContext.previousHoveredObjectUid = g_currentContext.currentHoveredObjectUid;
-        g_currentContext.previousActiveObjectUid = g_currentContext.currentActiveObjectUid;
-        g_currentContext.currentHoveredObjectUid = { };
-        g_currentContext.currentWindowUid = { };
+        g_currentContext.previousHoveredObjectUid   = g_currentContext.currentHoveredObjectUid;
+        g_currentContext.previousActiveObjectUid    = g_currentContext.currentActiveObjectUid;
+        g_currentContext.currentHoveredObjectUid    = { };
+        g_currentContext.currentWindowUid           = { };
+        g_currentContext.workRegionBottomLeftX      = 0.0f;
+        g_currentContext.workRegionBottomLeftY      = 0.0f;
+        g_currentContext.workRegionTopRightX        = win::get_width<float>();
+        g_currentContext.workRegionTopRightY        = win::get_height<float>();
         if (!g_currentContext.isMouseDown)
         {
             g_currentContext.currentActiveObjectUid = { };
@@ -1403,54 +1496,54 @@ namespace ui_impl
             UiObjectData* const activeObject = hash_table::get(g_currentContext.uidToObjectData, g_currentContext.currentActiveObjectUid);
             if (activeObject)
             {
-                const float currentWidth = activeObject->topRightX - activeObject->bottomLeftX;
-                const float currentHeight = activeObject->topRightY - activeObject->bottomLeftY;
+                const float currentWidth = activeObject->quad.trX - activeObject->quad.blX;
+                const float currentHeight = activeObject->quad.trY - activeObject->quad.blY;
                 se_assert(currentWidth >= 0.0f);
                 se_assert(currentHeight >= 0.0f);
                 const bool isPositiveDeltaX = g_currentContext.mouseDeltaX >= 0.0f;
                 const bool isPositiveDeltaY = g_currentContext.mouseDeltaY >= 0.0f;
-                const float maxDeltaTowardsCenterX = (activeObject->topRightX - activeObject->bottomLeftX) - activeObject->minWidth;
-                const float maxDeltaTowardsCenterY = (activeObject->topRightY - activeObject->bottomLeftY) - activeObject->minHeight;
+                const float maxDeltaTowardsCenterX = (activeObject->quad.trX - activeObject->quad.blX) - activeObject->minWidth;
+                const float maxDeltaTowardsCenterY = (activeObject->quad.trY - activeObject->quad.blY) - activeObject->minHeight;
                 se_assert(maxDeltaTowardsCenterX >= 0.0f);
                 se_assert(maxDeltaTowardsCenterY >= 0.0f);
                 if ((activeObject->settingsFlags & SeUiFlags::MOVABLE) && (activeObject->actionFlags & UiActionFlags::CAN_BE_MOVED))
                 {
-                    activeObject->bottomLeftX = activeObject->bottomLeftX + g_currentContext.mouseDeltaX;
-                    activeObject->bottomLeftY = activeObject->bottomLeftY + g_currentContext.mouseDeltaY;
-                    activeObject->topRightX = activeObject->topRightX + g_currentContext.mouseDeltaX;
-                    activeObject->topRightY = activeObject->topRightY + g_currentContext.mouseDeltaY;
+                    activeObject->quad.blX = activeObject->quad.blX + g_currentContext.mouseDeltaX;
+                    activeObject->quad.blY = activeObject->quad.blY + g_currentContext.mouseDeltaY;
+                    activeObject->quad.trX = activeObject->quad.trX + g_currentContext.mouseDeltaX;
+                    activeObject->quad.trY = activeObject->quad.trY + g_currentContext.mouseDeltaY;
                 }
                 if ((activeObject->settingsFlags & SeUiFlags::RESIZABLE_X) && (activeObject->actionFlags & UiActionFlags::CAN_BE_RESIZED_X_LEFT))
                 {
-                    const bool canChangeSize = isPositiveDeltaX ? g_currentContext.mouseX > activeObject->bottomLeftX : g_currentContext.mouseX < activeObject->bottomLeftX;
+                    const bool canChangeSize = isPositiveDeltaX ? g_currentContext.mouseX > activeObject->quad.blX : g_currentContext.mouseX < activeObject->quad.blX;
                     const float actualDelta = canChangeSize
                         ? (g_currentContext.mouseDeltaX > maxDeltaTowardsCenterX ? maxDeltaTowardsCenterX : g_currentContext.mouseDeltaX)
                         : 0.0f;
-                    activeObject->bottomLeftX = activeObject->bottomLeftX + actualDelta;
+                    activeObject->quad.blX = activeObject->quad.blX + actualDelta;
                 }
                 if ((activeObject->settingsFlags & SeUiFlags::RESIZABLE_X) && (activeObject->actionFlags & UiActionFlags::CAN_BE_RESIZED_X_RIGHT))
                 {
-                    const bool canChangeSize = isPositiveDeltaX ? g_currentContext.mouseX > activeObject->topRightX : g_currentContext.mouseX < activeObject->topRightX;
+                    const bool canChangeSize = isPositiveDeltaX ? g_currentContext.mouseX > activeObject->quad.trX : g_currentContext.mouseX < activeObject->quad.trX;
                     const float actualDelta = canChangeSize
                         ? (g_currentContext.mouseDeltaX < -maxDeltaTowardsCenterX ? -maxDeltaTowardsCenterX : g_currentContext.mouseDeltaX)
                         : 0.0f;
-                    activeObject->topRightX = activeObject->topRightX + actualDelta;
+                    activeObject->quad.trX = activeObject->quad.trX + actualDelta;
                 }
                 if ((activeObject->settingsFlags & SeUiFlags::RESIZABLE_Y) && (activeObject->actionFlags & UiActionFlags::CAN_BE_RESIZED_Y_TOP))
                 {
-                    const bool canChangeSize = isPositiveDeltaY ? g_currentContext.mouseY > activeObject->topRightY : g_currentContext.mouseY < activeObject->topRightY;
+                    const bool canChangeSize = isPositiveDeltaY ? g_currentContext.mouseY > activeObject->quad.trY : g_currentContext.mouseY < activeObject->quad.trY;
                     const float actualDelta = canChangeSize
                         ? (g_currentContext.mouseDeltaY < -maxDeltaTowardsCenterY ? -maxDeltaTowardsCenterY : g_currentContext.mouseDeltaY)
                         : 0.0f;
-                    activeObject->topRightY = activeObject->topRightY + actualDelta;
+                    activeObject->quad.trY = activeObject->quad.trY + actualDelta;
                 }
                 if ((activeObject->settingsFlags & SeUiFlags::RESIZABLE_Y) && (activeObject->actionFlags & UiActionFlags::CAN_BE_RESIZED_Y_BOTTOM))
                 {
-                    const bool canChangeSize = isPositiveDeltaY ? g_currentContext.mouseY > activeObject->bottomLeftY : g_currentContext.mouseY < activeObject->bottomLeftY;
+                    const bool canChangeSize = isPositiveDeltaY ? g_currentContext.mouseY > activeObject->quad.blY : g_currentContext.mouseY < activeObject->quad.blY;
                     const float actualDelta = canChangeSize
                         ? (g_currentContext.mouseDeltaY > maxDeltaTowardsCenterY ? maxDeltaTowardsCenterY : g_currentContext.mouseDeltaY)
                         : 0.0f;
-                    activeObject->bottomLeftY = activeObject->bottomLeftY + actualDelta;
+                    activeObject->quad.blY = activeObject->quad.blY + actualDelta;
                 }
             }
         }
@@ -1466,9 +1559,9 @@ namespace ui_impl
         ({
             .magFilter          = SE_SAMPLER_FILTER_LINEAR,
             .minFilter          = SE_SAMPLER_FILTER_LINEAR,
-            .addressModeU       = SE_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-            .addressModeV       = SE_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-            .addressModeW       = SE_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+            .addressModeU       = SE_SAMPLER_ADDRESS_MODE_REPEAT,
+            .addressModeV       = SE_SAMPLER_ADDRESS_MODE_REPEAT,
+            .addressModeW       = SE_SAMPLER_ADDRESS_MODE_REPEAT,
             .mipmapMode         = SE_SAMPLER_MIPMAP_MODE_LINEAR,
             .mipLodBias         = 0.0f,
             .minLod             = 0.0f,
@@ -1502,13 +1595,11 @@ namespace ui_impl
         //
         // Bind projection matrix
         //
-        const SeTextureSize targetSize = render->texture_size(g_currentContext.target.texture);
-        se_assert(targetSize.z == 1);
         const SeRenderRef projectionBuffer = render->memory_buffer
         ({
             data_provider::from_memory
             (
-                float4x4::transposed(render->orthographic(0, (float)targetSize.x, 0, (float)targetSize.y, 0, 2))
+                float4x4::transposed(render->orthographic(0, win::get_width<float>(), 0, win::get_height<float>(), 0, 2))
             )
         });
         render->bind({ .set = 0, .bindings = { { 0, projectionBuffer } } });
@@ -1592,118 +1683,25 @@ namespace ui_impl
 
     void text(const SeUiTextInfo& info)
     {
-        se_assert(info.utf8text);
-        se_assert(g_currentContext.currentFontGroup);
-        //
-        // Get base data and draw call
-        //
-        const FontGroup* const fontGroup = g_currentContext.currentFontGroup;
-        const float textHeight = g_currentContext.currentParams[SeUiParam::FONT_HEIGHT].dim;
-        const float lineStep = g_currentContext.currentParams[SeUiParam::FONT_LINE_STEP].dim;
-        const float baselineX = g_currentContext.currentParams[SeUiParam::PIVOT_POSITION_X].dim;
-        const float baselineY = g_currentContext.currentParams[SeUiParam::PIVOT_POSITION_Y].dim;
-        const auto [drawCall, colorIndex] = get_draw_call(ui_texture_data_create(fontGroup), fontGroup->textureInfo,
-        {
-            .tint = col::unpack(g_currentContext.currentParams[SeUiParam::FONT_COLOR].color),
-            .mode = UiRenderColorsUnpacked::MODE_TEXT,
-        });
         const UiObjectData* const activeWindow = hash_table::get(g_currentContext.uidToObjectData, g_currentContext.currentWindowUid);
-        //
-        // Process codepoints
-        //
-        const float positionYStep = lineStep;
-        float positionX = activeWindow ? g_currentContext.workRegionBottomLeftX : baselineX;
-        float positionY = activeWindow ? g_currentContext.workRegionTopRightY - lineStep : baselineY;
-        int previousCodepoint = 0;
-        const size_t from = dynamic_array::size(drawCall->vertices);
-        for (uint32_t codepoint : Utf8{ info.utf8text })
-        {
-            const FontGroup::CodepointInfo* const codepointInfo = codepoint_hash_table::get(fontGroup->codepointToInfo, codepoint);
-            se_assert(codepointInfo);
-            const FontInfo* const font = codepointInfo->font;
-            // This scale calculation is similar to stbtt_ScaleForPixelHeight but ignores descend parameter of the font
-            const float scale = textHeight / (float)font->ascentUnscaled;
-            const float advance = scale * (float)codepointInfo->advanceWidthUnscaled;
-            const float bearing = scale * (float)codepointInfo->leftSideBearingUnscaled;
-            const int codepointSigned = font_group::direct_cast_to_int(codepoint);
-            int x0;
-            int y0;
-            int x1;
-            int y1;
-            stbtt_GetCodepointBitmapBox(&font->stbInfo, codepointSigned, scale, scale, &x0, &y0, &x1, &y1);
-            const float width = (float)(x1 - x0);
-            const float height = (float)(y1 - y0);
-            float baseX = positionX + (float)x0 - bearing;
-            float baseY = positionY - (float)y1;
-            // Clamp to active window
-            if (activeWindow)
-            {
-                bool doesFitVertically = true;
-                while (true)
-                {
-                    baseX = positionX + (float)x0 - bearing;
-                    baseY = positionY - (float)y1;
-                    doesFitVertically = baseY > g_currentContext.workRegionBottomLeftY;
-                    if (!doesFitVertically)
-                    {
-                        break;
-                    }
-                    const bool doesFitHorisontally = (baseX + width) < g_currentContext.workRegionTopRightX;
-                    if (doesFitHorisontally)
-                    {
-                        break;
-                    }
-                    previousCodepoint = 0;
-                    positionY -= positionYStep;
-                    positionX = g_currentContext.workRegionBottomLeftX;
-                }
-                if (!doesFitVertically) break;
-            }
-            const float additionalAdvance = scale * (float)stbtt_GetCodepointKernAdvance(&font->stbInfo, previousCodepoint, codepointSigned);
-            positionX += additionalAdvance;
-            const RenderAtlasRectNormalized& rect = fontGroup->atlas.uvRects[codepointInfo->atlasRectIndex];
-            dynamic_array::push(drawCall->vertices, { baseX        , baseY         , rect.p1x, rect.p1y, colorIndex, });
-            dynamic_array::push(drawCall->vertices, { baseX        , baseY + height, rect.p1x, rect.p2y, colorIndex, });
-            dynamic_array::push(drawCall->vertices, { baseX + width, baseY + height, rect.p2x, rect.p2y, colorIndex, });
-            dynamic_array::push(drawCall->vertices, { baseX        , baseY         , rect.p1x, rect.p1y, colorIndex, });
-            dynamic_array::push(drawCall->vertices, { baseX + width, baseY + height, rect.p2x, rect.p2y, colorIndex, });
-            dynamic_array::push(drawCall->vertices, { baseX + width, baseY         , rect.p2x, rect.p1y, colorIndex, });
-            positionX += advance;
-            previousCodepoint = codepointSigned;
-        }
-        //
-        // Center if needed
-        //
+        const float fontHeight = g_currentContext.currentParams[SeUiParam::FONT_HEIGHT].dim;
         if (activeWindow)
         {
-            // @TODO : support SeUiParam::PIVOT_TYPE_X and SeUiParam::PIVOT_TYPE_Y for in-window text
-            g_currentContext.workRegionTopRightY = positionY;
+            const float lineStep = g_currentContext.currentParams[SeUiParam::FONT_LINE_STEP].dim;
+            const float baselineX = g_currentContext.workRegionBottomLeftX;
+            const float baselineY = g_currentContext.workRegionTopRightY - fontHeight;
+            draw_text_at_pos(info.utf8text, baselineX, baselineY);
+            g_currentContext.workRegionTopRightY -= lineStep;
         }
         else
         {
-            const bool isCenteredX = g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_X].pivot == SeUiPivotType::CENTER;
-            const bool isCenteredY = g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_Y].pivot == SeUiPivotType::CENTER;
-            if (isCenteredX || isCenteredY)
-            {
-                const float halfWidth = (positionX - baselineX) / 2.0f;
-                const float halfHeight = textHeight / 2.0f;
-                const size_t to = dynamic_array::size(drawCall->vertices);
-                for (size_t it = from; it < to; it++)
-                {
-                    UiRenderVertex* const vert = &drawCall->vertices[it];
-                    if (isCenteredX) vert->x -= halfWidth;
-                    if (isCenteredY) vert->y -= halfHeight;
-                }
-            }
+            float baselineX = g_currentContext.currentParams[SeUiParam::PIVOT_POSITION_X].dim;
+            float baselineY = g_currentContext.currentParams[SeUiParam::PIVOT_POSITION_Y].dim;
+            const auto [x1, y1, x2, y2] = get_text_bbox(info.utf8text);
+            if (g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_X].pivot == SeUiPivotType::CENTER) baselineX -= (x2 - x1) / 2.0f;
+            if (g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_Y].pivot == SeUiPivotType::CENTER) baselineY -= fontHeight / 2.0f;
+            draw_text_at_pos(info.utf8text, baselineX, baselineY);
         }
-#if 0
-        const auto [drawCallBaseline, colorIndexBaseline] = get_draw_call
-        ({
-            .tint = { 1, 1, 1, 1 },
-            .mode = UiRenderColorsUnpacked::MODE_SIMPLE,
-        });
-        push_quad(drawCallBaseline, colorIndexBaseline, baselineX, baselineY, baselineX + 2, baselineY + 2);
-#endif
     }
 
     bool begin_window(const SeUiWindowInfo& info)
@@ -1713,19 +1711,16 @@ namespace ui_impl
         // Update object data
         //
         auto [uid, data, isFirst] = object_data_get(info.uid);
-        auto [bottomLeftX, bottomLeftY, topRightX, topRightY] = get_corners(info.width, info.height);
+        UiQuadCoords quad = get_corners(info.width, info.height);
         const bool isResizeable = info.flags & (SeUiFlags::RESIZABLE_X | SeUiFlags::RESIZABLE_Y);
         if (isResizeable && !isFirst)
         {
-            bottomLeftX = data->bottomLeftX;
-            bottomLeftY = data->bottomLeftY;
-            topRightX = data->topRightX;
-            topRightY = data->topRightY;
+            quad = data->quad;
         }
-        data->bottomLeftX = bottomLeftX;
-        data->bottomLeftY = bottomLeftY;
-        data->topRightX = topRightX;
-        data->topRightY = topRightY;
+        else
+        {
+            data->quad = quad;
+        }
         data->settingsFlags = info.flags;
         const float topPanelThickness = g_currentContext.currentParams[SeUiParam::WINDOW_TOP_PANEL_THICKNESS].dim;
         const float borderThickness = g_currentContext.currentParams[SeUiParam::WINDOW_BORDER_THICKNESS].dim;
@@ -1734,16 +1729,16 @@ namespace ui_impl
         //
         // Update action flags, active object uid and work region info
         //
-        if (is_under_cursor(bottomLeftX, bottomLeftY, topRightX, topRightY))
+        if (is_under_cursor(quad))
         {
             g_currentContext.currentHoveredObjectUid = uid;
             if (g_currentContext.isMouseJustDown)
             {
                 g_currentContext.currentActiveObjectUid = uid;
-                const bool isTopPanelUnderCursor = ((topRightY - topPanelThickness) <= g_currentContext.mouseY);
-                const bool isLeftBorderUnderCursor = !isTopPanelUnderCursor && ((bottomLeftX + borderThickness + BORDER_PANEL_TOLERANCE) >= g_currentContext.mouseX);
-                const bool isRightBorderUnderCursor = !isTopPanelUnderCursor && ((topRightX - borderThickness - BORDER_PANEL_TOLERANCE) <= g_currentContext.mouseX);
-                const bool isBottomBorderUnderCursor = !isTopPanelUnderCursor && ((bottomLeftY + borderThickness + BORDER_PANEL_TOLERANCE) >= g_currentContext.mouseY);
+                const bool isTopPanelUnderCursor = ((quad.trY - topPanelThickness) <= g_currentContext.mouseY);
+                const bool isLeftBorderUnderCursor = !isTopPanelUnderCursor && ((quad.blX + borderThickness + BORDER_PANEL_TOLERANCE) >= g_currentContext.mouseX);
+                const bool isRightBorderUnderCursor = !isTopPanelUnderCursor && ((quad.trX - borderThickness - BORDER_PANEL_TOLERANCE) <= g_currentContext.mouseX);
+                const bool isBottomBorderUnderCursor = !isTopPanelUnderCursor && ((quad.blY + borderThickness + BORDER_PANEL_TOLERANCE) >= g_currentContext.mouseY);
                 if (isTopPanelUnderCursor) data->actionFlags |= UiActionFlags::CAN_BE_MOVED;
                 if (isLeftBorderUnderCursor) data->actionFlags |= UiActionFlags::CAN_BE_RESIZED_X_LEFT;
                 if (isRightBorderUnderCursor) data->actionFlags |= UiActionFlags::CAN_BE_RESIZED_X_RIGHT;
@@ -1754,11 +1749,6 @@ namespace ui_impl
                 data->actionFlags = 0;
             }
         }
-        g_currentContext.currentWindowUid = uid;
-        g_currentContext.workRegionBottomLeftX = bottomLeftX + borderThickness;
-        g_currentContext.workRegionBottomLeftY = bottomLeftY + borderThickness;
-        g_currentContext.workRegionTopRightX = topRightX - borderThickness;
-        g_currentContext.workRegionTopRightY = topRightY - topPanelThickness;
         //
         // Draw top panel and borders
         //
@@ -1767,10 +1757,10 @@ namespace ui_impl
             .tint = col::unpack(g_currentContext.currentParams[SeUiParam::PRIMARY_COLOR].color),
             .mode = UiRenderColorsUnpacked::MODE_SIMPLE,
         });
-        push_quad(drawCallBorders, colorIndexBorders, bottomLeftX, topRightY - topPanelThickness, topRightX, topRightY);
-        push_quad(drawCallBorders, colorIndexBorders, bottomLeftX, bottomLeftY, bottomLeftX + borderThickness, topRightY - topPanelThickness);
-        push_quad(drawCallBorders, colorIndexBorders, topRightX - borderThickness, bottomLeftY, topRightX, topRightY - topPanelThickness);
-        push_quad(drawCallBorders, colorIndexBorders, bottomLeftX + borderThickness, bottomLeftY, topRightX - borderThickness, bottomLeftY + borderThickness);
+        push_quad(drawCallBorders, colorIndexBorders, { quad.blX, quad.trY - topPanelThickness, quad.trX, quad.trY });
+        push_quad(drawCallBorders, colorIndexBorders, { quad.blX, quad.blY, quad.blX + borderThickness, quad.trY - topPanelThickness });
+        push_quad(drawCallBorders, colorIndexBorders, { quad.trX - borderThickness, quad.blY, quad.trX, quad.trY - topPanelThickness });
+        push_quad(drawCallBorders, colorIndexBorders, { quad.blX + borderThickness, quad.blY, quad.trX - borderThickness, quad.blY + borderThickness });
         //
         // Draw background
         //
@@ -1779,13 +1769,25 @@ namespace ui_impl
             .tint = col::unpack(g_currentContext.currentParams[SeUiParam::SECONDARY_COLOR].color),
             .mode = UiRenderColorsUnpacked::MODE_SIMPLE,
         });
-        push_quad(drawCallBackground, colorIndexBackground, bottomLeftX + borderThickness, bottomLeftY + borderThickness, topRightX - borderThickness, topRightY - topPanelThickness);
+        push_quad(drawCallBackground, colorIndexBackground, { quad.blX + borderThickness, quad.blY + borderThickness, quad.trX - borderThickness, quad.trY - topPanelThickness });
+
+        g_currentContext.currentWindowUid = uid;
+        const float windowPadding = g_currentContext.currentParams[SeUiParam::WINDOW_INNER_PADDING].dim;
+        g_currentContext.workRegionBottomLeftX = quad.blX + borderThickness + windowPadding;
+        g_currentContext.workRegionBottomLeftY = quad.blY + borderThickness + windowPadding;
+        g_currentContext.workRegionTopRightX = quad.trX - borderThickness - windowPadding;
+        g_currentContext.workRegionTopRightY = quad.trY - topPanelThickness - windowPadding;
+
         return true;
     }
 
     void end_window()
     {
         g_currentContext.currentWindowUid = { };
+        g_currentContext.workRegionBottomLeftX = 0.0f;
+        g_currentContext.workRegionBottomLeftY = 0.0f;
+        g_currentContext.workRegionTopRightX = win::get_width<float>();
+        g_currentContext.workRegionTopRightY = win::get_height<float>();
     }
 
     bool button(const SeUiButtonInfo& info)
@@ -1797,22 +1799,26 @@ namespace ui_impl
         float buttonWidth = info.width;
         float buttonHeight = info.height;
         float textOffsetY = 0.0f;
+        float textWidth = 0.0f;
         if (info.utf8text)
         {
             const float border = g_currentContext.currentParams[SeUiParam::BUTTON_BORDER_SIZE].dim;
             const auto [bbx1, bby1, bbx2, bby2] = get_text_bbox(info.utf8text);
-            const float textWidth = bbx2 - bbx1 + border * 2.0f;
-            const float textHeight = bby2 - bby1 + border * 2.0f;
-            if (textWidth > buttonWidth) buttonWidth = textWidth;
-            if (textHeight > buttonHeight) buttonHeight = textHeight;
+            textWidth = bbx2 - bbx1;
+            const float textWidthWithBorder = textWidth + border * 2.0f;
+            const float textHeightWithBorder = bby2 - bby1 + border * 2.0f;
+            if (textWidthWithBorder > buttonWidth) buttonWidth = textWidthWithBorder;
+            if (textHeightWithBorder > buttonHeight) buttonHeight = textHeightWithBorder;
             // With negative boundin_box_y1 value we need to draw text above of the pivot, so we negate this value to get a positive result
             textOffsetY = -bby1 + border;
         }
-        auto [bottomLeftX, bottomLeftY, topRightX, topRightY] = get_corners(buttonWidth, buttonHeight);
+        const UiObjectData* const activeWindow = hash_table::get(g_currentContext.uidToObjectData, g_currentContext.currentWindowUid);
+        const UiQuadCoords quad = activeWindow ? get_corners_in_work_region(buttonWidth, buttonHeight) : get_corners(buttonWidth, buttonHeight);
         //
         // Update state
         //
-        const bool isUnderCursor = is_under_cursor(bottomLeftX, bottomLeftY, topRightX, topRightY);
+        
+        const bool isUnderCursor = is_under_cursor(clamp_to_work_region(quad));
         if (isUnderCursor)
         {
             g_currentContext.currentHoveredObjectUid = uid;
@@ -1822,7 +1828,8 @@ namespace ui_impl
             }
         }
         const bool isPressed = utils::compare(g_currentContext.previousActiveObjectUid, uid);
-        if (isPressed && g_currentContext.isJustActivated)
+        const bool isClicked = isPressed && g_currentContext.isJustActivated;
+        if (isClicked)
         {
             if (data->stateFlags & (1 << UiStateFlags::IS_TOGGLED))
                 data->stateFlags &= ~(1 << UiStateFlags::IS_TOGGLED);
@@ -1841,30 +1848,25 @@ namespace ui_impl
             buttonColor.g *= SCALE;
             buttonColor.b *= SCALE;
         }
-        const auto [drawCallBorders, colorIndexBorders] = get_draw_call({ buttonColor, UiRenderColorsUnpacked::MODE_SIMPLE });
-        push_quad(drawCallBorders, colorIndexBorders, bottomLeftX, bottomLeftY, topRightX, topRightY);
+        const auto [drawCallButton, colorIndexButton] = get_draw_call({ buttonColor, UiRenderColorsUnpacked::MODE_SIMPLE });
+        push_quad(drawCallButton, colorIndexButton, quad);
         //
         // Draw text
         //
         if (info.utf8text)
         {
-            const float cachedPivotX = g_currentContext.currentParams[SeUiParam::PIVOT_POSITION_X].dim;
-            const float cachedPivotY = g_currentContext.currentParams[SeUiParam::PIVOT_POSITION_Y].dim;
-            const SeUiPivotType cachedPivotTypeX = g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_X].pivot;
-            const SeUiPivotType cachedPivotTypeY = g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_Y].pivot;
-            g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_X].pivot = SeUiPivotType::CENTER;
-            g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_Y].pivot = SeUiPivotType::BOTTOM_LEFT;
-            g_currentContext.currentParams[SeUiParam::PIVOT_POSITION_X].dim = bottomLeftX + buttonWidth / 2.0f;
-            g_currentContext.currentParams[SeUiParam::PIVOT_POSITION_Y].dim = bottomLeftY + textOffsetY;
-            text({ info.utf8text });
-            g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_X].pivot = cachedPivotTypeX;
-            g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_Y].pivot = cachedPivotTypeY;
-            g_currentContext.currentParams[SeUiParam::PIVOT_POSITION_X].dim = cachedPivotX;
-            g_currentContext.currentParams[SeUiParam::PIVOT_POSITION_Y].dim = cachedPivotY;
+            const float posX = quad.blX + buttonWidth / 2.0f - textWidth / 2.0f;
+            const float posY = quad.blY + textOffsetY;
+            draw_text_at_pos(info.utf8text, posX, posY);
+        }
+        if (activeWindow)
+        {
+            g_currentContext.workRegionTopRightY -= buttonHeight;
         }
         return
             (info.mode == SeUiButtonMode::HOLD && isPressed) ||
-            (info.mode == SeUiButtonMode::TOGGLE && isToggled);
+            (info.mode == SeUiButtonMode::TOGGLE && isToggled) ||
+            (info.mode == SeUiButtonMode::CLICK && isClicked);
     }
 }
 
