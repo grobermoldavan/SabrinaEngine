@@ -1,16 +1,13 @@
 
 #include "engine/engine.hpp"
-#include "subsystems/marching_cubes_subsystem.hpp"
+#include "engine/engine.cpp"
+
+#include "impl/cubes.hpp"
+#include "impl/cubes.cpp"
 
 int main(int argc, char* argv[])
 {
-    SabrinaEngine engine = { };
-    se_initialize(&engine);
-    se_add_default_subsystems(&engine);
-    se_add_subsystem<SeVulkanRenderAbstractionSubsystem>(&engine);
-    se_add_subsystem<MarchingCubesSubsystem>(&engine);
-    
-    const SeEngineSettings settings
+    const SeSettings settings
     {
         .applicationName    = "Sabrina engine - marching cubes example",
         .isFullscreenWindow = false,
@@ -18,8 +15,7 @@ int main(int argc, char* argv[])
         .windowWidth        = 640,
         .windowHeight       = 480,
     };
-    se_run(&engine, &settings);
+    engine::run(&settings, init, update, terminate);
     return 0;
 }
 
-#include "engine/engine.cpp"

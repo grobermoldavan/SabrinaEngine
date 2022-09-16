@@ -1,16 +1,33 @@
 
 #include "engine/engine.hpp"
-#include "subsystems/tetris_subsystem.hpp"
+#include "engine/engine.cpp"
+
+#include "impl/tetris_controller.hpp"
+#include "impl/tetris_render.hpp"
+
+#include "impl/tetris_controller.cpp"
+#include "impl/tetris_render.cpp"
+
+void init()
+{
+    tetris_render_init();
+}
+
+void terminate()
+{
+    tetris_render_terminate();
+}
+
+void update(const SeUpdateInfo& info)
+{
+    if (win::is_close_button_pressed() || win::is_keyboard_button_pressed(SeKeyboard::ESCAPE)) engine::stop();
+    tetris_controller_update(info.dt);
+    tetris_render_update(info.dt);
+}
 
 int main(int argc, char* argv[])
 {
-    SabrinaEngine engine = {0};
-    se_initialize(&engine); 
-    se_add_default_subsystems(&engine);
-    se_add_subsystem<SeVulkanRenderAbstractionSubsystem>(&engine);
-    se_add_subsystem<TetrisSubsystem>(&engine);
-    
-    const SeEngineSettings settings
+    const SeSettings settings
     {
         .applicationName    = "Sabrina engine - tetris example",
         .isFullscreenWindow = false,
@@ -18,8 +35,6 @@ int main(int argc, char* argv[])
         .windowWidth        = 640,
         .windowHeight       = 480,
     };
-    se_run(&engine, &settings);
+    engine::run(&settings, init, update, terminate);
     return 0;
 }
-
-#include "engine/engine.cpp"

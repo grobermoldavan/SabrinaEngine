@@ -8,31 +8,6 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
-HMODULE se_hmodule_from_se_handle(SeLibraryHandle handle)
-{
-    HMODULE result = { };
-    memcpy(&result, &handle, sizeof(result));
-    return result;
-}
-
-SeLibraryHandle se_load_dynamic_library(const char* path)
-{
-    HMODULE handle = LoadLibraryA(path);
-    SeLibraryHandle result;
-    memcpy(&result, &handle, sizeof(HMODULE));
-    return result;
-}
-
-void se_unload_dynamic_library(SeLibraryHandle handle)
-{
-    FreeLibrary(se_hmodule_from_se_handle(handle));
-}
-
-void* se_get_dynamic_library_function_address(SeLibraryHandle handle, const char* functionName)
-{
-    return GetProcAddress(se_hmodule_from_se_handle(handle), functionName);
-}
-
 uint64_t se_get_perf_counter()
 {
     LARGE_INTEGER counter;
@@ -51,67 +26,63 @@ uint64_t se_get_perf_frequency()
 #   error Unsupported platform
 #endif
 
-void se_initialize(SabrinaEngine* engine)
+bool g_shouldRun = false;
+
+namespace engine
 {
-    *engine =
+    void run(const SeSettings* settings, SeInitPfn init, SeUpdatePfn update, SeTerminatePfn terminate)
     {
-        .load_dynamic_library   = se_load_dynamic_library,
-        .find_function_address  = se_get_dynamic_library_function_address,
-        .subsystemStorage       = { },
-        .shouldRun              = true,
-    };
+        allocators::engine::init();
+        string::engine::init();
+        debug::engine::init();
+        win::engine::init(settings);
+        render::engine::init();
+        ui::engine::init();
+        if (init) init();
+
+        g_shouldRun = true;
+        
+        size_t frame = 0;
+        const double counterFrequency = (double)se_get_perf_frequency();
+        uint64_t prevCounter = se_get_perf_counter();
+        while (g_shouldRun)
+        {
+            const uint64_t newCounter = se_get_perf_counter();
+            const float dt = (float)((double)(newCounter - prevCounter) / counterFrequency);
+            
+            allocators::engine::update();
+            debug::engine::update();
+            win::engine::update();
+            if (update) update({ dt, frame });
+
+            prevCounter = newCounter;
+            frame += 1;
+        }
+
+        if (terminate) terminate();
+        ui::engine::terminate();
+        render::engine::terminate();
+        win::engine::terminate();
+        debug::engine::terminate();
+        string::engine::terminate();
+        allocators::engine::terminate();
+    }
+
+    void stop()
+    {
+        g_shouldRun = false;
+    }
 }
 
-void se_run(SabrinaEngine* engine, const SeEngineSettings* settings)
-{
-    // First load all subsystems
-    for (size_t i = 0; i < engine->subsystemStorage.size; i++)
-    {
-        const SeLibraryHandle handle = engine->subsystemStorage.storage[i].libraryHandle;
-        const SeSubsystemFunc load = (SeSubsystemFunc)se_get_dynamic_library_function_address(handle, "se_load");
-        if (load) load(engine);
-    }
-    // Init subsystems after load (here subsytems can safely query interfaces of other subsystems)
-    for (size_t i = 0; i < engine->subsystemStorage.size; i++)
-    {
-        const SeLibraryHandle handle = engine->subsystemStorage.storage[i].libraryHandle;
-        const SeSubsystemInitFunc init = (SeSubsystemInitFunc)se_get_dynamic_library_function_address(handle, "se_init");
-        if (init) init(engine, settings);
-    }
-    // Update loop
-    size_t frame = 0;
-    const double counterFrequency = (double)se_get_perf_frequency();
-    uint64_t prevCounter = se_get_perf_counter();
-    while (engine->shouldRun)
-    {
-        const uint64_t newCounter = se_get_perf_counter();
-        const float dt = (float)((double)(newCounter - prevCounter) / counterFrequency);
-        const SeUpdateInfo info { dt, frame };
-        for (size_t i = 0; i < engine->subsystemStorage.size; i++)
-        {
-            const SeSubsystemUpdateFunc update = engine->subsystemStorage.storage[i].update;
-            if (update) update(engine, &info);
-        }
-        prevCounter = newCounter;
-        frame += 1;
-    }
-    // Terminate subsystems (here subsytems can safely query interfaces of other subsystems)
-    for (size_t i = engine->subsystemStorage.size; i > 0; i--)
-    {
-        const SeLibraryHandle handle = engine->subsystemStorage.storage[i - 1].libraryHandle;
-        const SeSubsystemFunc terminate = (SeSubsystemFunc)se_get_dynamic_library_function_address(handle, "se_terminate");
-        if (terminate) terminate(engine);
-    }
-    // Unload subsystems
-    for (size_t i = engine->subsystemStorage.size; i > 0; i--)
-    {
-        const SeLibraryHandle handle = engine->subsystemStorage.storage[i - 1].libraryHandle;
-        const SeSubsystemFunc unload = (SeSubsystemFunc)se_get_dynamic_library_function_address(handle, "se_unload");
-        if (unload) unload(engine);
-    }
-    // Unload lib handle
-    for (size_t i = engine->subsystemStorage.size; i > 0; i--)
-    {
-        se_unload_dynamic_library(engine->subsystemStorage.storage[i - 1].libraryHandle);
-    }
-}
+#ifdef SE_VULKAN
+#   include "engine/render/se_vulkan.cpp"
+#else
+#   error Unsupported graphics api
+#endif
+
+#include "engine/subsystems/se_platform.cpp"
+#include "engine/subsystems/se_application_allocators.cpp"
+#include "engine/subsystems/se_string.cpp"
+#include "engine/subsystems/se_debug.cpp"
+#include "engine/subsystems/se_window.cpp"
+#include "engine/subsystems/se_ui.cpp"
