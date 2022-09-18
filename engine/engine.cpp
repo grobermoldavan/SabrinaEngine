@@ -36,6 +36,7 @@ namespace engine
         string::engine::init();
         debug::engine::init();
         win::engine::init(settings);
+        assets::engine::init(settings);
         render::engine::init();
         ui::engine::init();
         if (init) init();
@@ -62,6 +63,7 @@ namespace engine
         if (terminate) terminate();
         ui::engine::terminate();
         render::engine::terminate();
+        assets::engine::terminate();
         win::engine::terminate();
         debug::engine::terminate();
         string::engine::terminate();
@@ -85,4 +87,5 @@ namespace engine
 #include "engine/subsystems/se_string.cpp"
 #include "engine/subsystems/se_debug.cpp"
 #include "engine/subsystems/se_window.cpp"
+#include "engine/subsystems/se_assets.cpp"
 #include "engine/subsystems/se_ui.cpp"

@@ -15,6 +15,7 @@
 #include "engine/subsystems/se_string.hpp"
 #include "engine/subsystems/se_debug.hpp"
 #include "engine/subsystems/se_window.hpp"
+#include "engine/subsystems/se_assets.hpp"
 #include "engine/subsystems/se_ui.hpp"
 
 struct SeSettings
@@ -24,6 +25,8 @@ struct SeSettings
     bool        isResizableWindow;
     uint32_t    windowWidth;
     uint32_t    windowHeight;
+    size_t      maxAssetsCpuUsage;
+    size_t      maxAssetsGpuUsage;
 };
 
 struct SeUpdateInfo
