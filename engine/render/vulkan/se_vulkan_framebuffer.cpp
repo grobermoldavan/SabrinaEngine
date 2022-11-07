@@ -20,7 +20,7 @@ void se_vk_framebuffer_construct(SeVkFramebuffer* framebuffer, SeVkFramebufferIn
     const SeVkTexture* const tex = *info->textures[0];
     *framebuffer =
     {
-        .object         = { SE_VK_TYPE_FRAMEBUFFER, g_framebufferIndex++ },
+        .object         = { SeVkObject::Type::FRAMEBUFFER, 0, g_framebufferIndex++ },
         .device         = info->device,
         .pass           = info->pass,
         .textures       = { },
@@ -29,7 +29,7 @@ void se_vk_framebuffer_construct(SeVkFramebuffer* framebuffer, SeVkFramebufferIn
         .extent         = { tex->extent.width, tex->extent.height },
     };
 
-    VkImageView attachmentViews[SE_VK_FRAMEBUFFER_MAX_TEXTURES];
+    VkImageView attachmentViews[SeVkConfig::FRAMEBUFFER_MAX_TEXTURES];
     for (uint32_t it = 0; it < info->numTextures; it++)
     {
         attachmentViews[it] = info->textures[it]->view;

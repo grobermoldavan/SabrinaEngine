@@ -854,7 +854,7 @@ struct FontGroup
 
     const FontInfo*                     fonts[SeUiFontGroupInfo::MAX_FONTS];
     RenderAtlas<uint8_t>                atlas;
-    SeTextureInfo                       textureInfo;
+    SeTextureRef                        texture;
     CodepointHashTable<CodepointInfo>   codepointToInfo;
     int                                 lineGapUnscaled;
     int                                 ascentUnscaled;
@@ -874,7 +874,7 @@ namespace font_group
         {
             .fonts              = { },
             .atlas              = { },
-            .textureInfo        = { },
+            .texture            = { },
             .codepointToInfo    = { },
             .lineGapUnscaled    = 0,
             .ascentUnscaled     = 0,
@@ -971,13 +971,13 @@ namespace font_group
             se_assert(info);
             info->atlasRectIndex = (uint32_t)iter::index(it);
         }
-        groupInfo.textureInfo =
-        {
-            .width  = groupInfo.atlas.width,
-            .height = groupInfo.atlas.height,
-            .format = SE_TEXTURE_FORMAT_R_8,
-            .data   = data_provider::from_memory(groupInfo.atlas.bitmap, groupInfo.atlas.width * groupInfo.atlas.height * sizeof(uint8_t)),
-        };
+        groupInfo.texture = render::texture
+        ({
+            .format     = SeTextureFormat::R_8,
+            .width      = uint32_t(groupInfo.atlas.width),
+            .height     = uint32_t(groupInfo.atlas.height),
+            .data       = data_provider::from_memory(groupInfo.atlas.bitmap, groupInfo.atlas.width * groupInfo.atlas.height * sizeof(uint8_t)),
+        });
         for (auto it : codepointToBitmap)
         {
             const CodepointBitmapInfo bitmap = iter::value(it);
@@ -995,6 +995,7 @@ namespace font_group
     {
         render_atlas::destroy(group.atlas);
         codepoint_hash_table::destroy(group.codepointToInfo);
+        render::destroy(group.texture);
     }
 
     float scale_for_pixel_height(const FontGroup& group, float height)
@@ -1031,31 +1032,20 @@ struct UiRenderColorsUnpacked
     static constexpr int32_t MODE_TEXT = 0;
     static constexpr int32_t MODE_SIMPLE = 1;
 
-    ColorUnpacked   tint;
+    SeColorUnpacked tint;
     int32_t         mode;
     float           _pad[3];
 };
 
-struct UiDrawCall
+struct UiRenderDrawData
 {
-    DynamicArray<UiRenderVertex>            vertices;
-    DynamicArray<UiRenderColorsUnpacked>    colorsArray;
-    SeRenderRef                             texture;
+    uint32_t    firstVertexIndex;
+    float       _pad[3];
 };
 
-struct UiTextureData
+struct UiDrawCall
 {
-    enum Type
-    {
-        TYPE_FONT,
-        TYPE_WINDOW,
-    };
-    Type type;
-    union
-    {
-        struct { const FontGroup* fontGroup; } font;
-        struct { DataProvider data; } window;
-    };
+    SeTextureRef texture;
 };
 
 using UiParams = SeUiParam[SeUiParam::_COUNT];
@@ -1102,13 +1092,23 @@ struct UiObjectData
 
 struct UiContext
 {
+    static constexpr size_t COLORS_BUFFER_CAPACITY = 1024;
+    static constexpr size_t COLORS_BUFFER_SIZE_BYTES = sizeof(UiRenderColorsUnpacked) * COLORS_BUFFER_CAPACITY;
+    static constexpr size_t VERTICES_BUFFER_CAPACITY = 1024 * 32;
+    static constexpr size_t VERTICES_BUFFER_SIZE_BYTES = sizeof(UiRenderVertex) * VERTICES_BUFFER_CAPACITY;
+    static constexpr size_t DRAW_DATAS_BUFFER_CAPACITY = 1024;
+    static constexpr size_t DRAW_DATAS_BUFFER_SIZE_BYTES = sizeof(UiRenderDrawData) * DRAW_DATAS_BUFFER_CAPACITY;
+
     SePassRenderTarget                              target;
 
     const FontGroup*                                currentFontGroup;
     UiParams                                        currentParams;
     
     DynamicArray<UiDrawCall>                        frameDrawCalls;
-    HashTable<UiTextureData, SeRenderRef>           frameTextureDataToRef;
+    DynamicArray<UiRenderDrawData>                  frameDrawDatas;
+    DynamicArray<UiRenderVertex>                    frameVertices;
+    DynamicArray<UiRenderColorsUnpacked>            frameColors;
+
     float                                           mouseX;
     float                                           mouseY;
     float                                           mouseDeltaX;
@@ -1129,6 +1129,12 @@ struct UiContext
     float                                           workRegionTopRightY;
 
     HashTable<SeString, UiObjectData>               uidToObjectData;
+    HashTable<DataProvider, FontInfo>               fontInfos;
+    HashTable<SeUiFontGroupInfo, FontGroup>         fontGroups;
+
+    SeProgramRef                                    drawUiVs;
+    SeProgramRef                                    drawUiFs;
+    SeSamplerRef                                    sampler;
 };
 
 const UiParams DEFAULT_PARAMS =
@@ -1149,27 +1155,12 @@ const UiParams DEFAULT_PARAMS =
     /* BUTTON_BORDER_SIZE           */ { .dim = 5.0f },
 };
 
-UiContext                               g_currentContext;
-HashTable<DataProvider, FontInfo>       g_fontInfos;
-HashTable<SeUiFontGroupInfo, FontGroup> g_fontGroups;
-DataProvider                            g_drawUiVs;
-DataProvider                            g_drawUiFs;
+UiContext g_uiCtx;
 
 namespace hash_value
 {
     namespace builder
     {
-        template<>
-        void absorb<UiTextureData>(HashValueBuilder& builder, const UiTextureData& value)
-        {
-            switch (value.type)
-            {
-                case UiTextureData::TYPE_FONT:      { hash_value::builder::absorb(builder, value.font.fontGroup); } break;
-                case UiTextureData::TYPE_WINDOW:    { hash_value::builder::absorb(builder, value.window.data); } break;
-                default:                            { }
-            }
-        }
-
         template<>
         void absorb<SeUiFontGroupInfo>(HashValueBuilder& builder, const SeUiFontGroupInfo& input)
         {
@@ -1179,14 +1170,6 @@ namespace hash_value
                 hash_value::builder::absorb(builder, input.fonts[it]);
             }
         }
-    }
-
-    template<>
-    HashValue generate<UiTextureData>(const UiTextureData& value)
-    {
-        HashValueBuilder builder = hash_value::builder::begin();
-        hash_value::builder::absorb(builder, value);
-        return hash_value::builder::end(builder);
     }
 
     template<>
@@ -1205,131 +1188,71 @@ namespace utils
     {
         return compare(first.tint, second.tint) && (first.mode == second.mode);
     }
-
-    template<>
-    bool compare<UiTextureData, UiTextureData>(const UiTextureData& first, const UiTextureData& second)
-    {
-        if (first.type != second.type) return false;
-        if (first.type == UiTextureData::TYPE_FONT)
-        {
-            return compare(first.font.fontGroup, second.font.fontGroup);
-        }
-        else if (first.type == UiTextureData::TYPE_WINDOW)
-        {
-            return compare(first.window.data, second.window.data);
-        }
-        else
-        {
-            se_assert(false);
-            return false;
-        }
-    }
 }
 
 namespace ui
 {
     namespace impl
     {
-        inline UiTextureData ui_texture_data_create(const FontGroup* fontGroup)
-        {
-            return
-            {
-                .type = UiTextureData::TYPE_FONT,
-                .font = { fontGroup },
-            };
-        }
-
-        inline UiTextureData ui_texture_data_create(DataProvider windowTextureData)
-        {
-            return
-            {
-                .type = UiTextureData::TYPE_WINDOW,
-                .window = { windowTextureData },
-            };
-        }
-
         inline struct { SeString uid; UiObjectData* data; bool isFirst; } object_data_get(const char* cstrUid)
         {
-            UiObjectData* data = hash_table::get(g_currentContext.uidToObjectData, cstrUid);
+            UiObjectData* data = hash_table::get(g_uiCtx.uidToObjectData, cstrUid);
             const bool isFirstAccess = data == nullptr;
             if (!data)
             {
-                data = hash_table::set(g_currentContext.uidToObjectData, string::create(cstrUid, SeStringLifetime::Persistent), { });
+                data = hash_table::set(g_uiCtx.uidToObjectData, string::create(cstrUid, SeStringLifetime::Persistent), { });
             }
             se_assert(data);
-            return { hash_table::key(g_currentContext.uidToObjectData, data), data, isFirstAccess };
+            return { hash_table::key(g_uiCtx.uidToObjectData, data), data, isFirstAccess };
         }
 
-        struct { UiDrawCall* drawCall; uint32_t colorIndex; } get_draw_call(const UiRenderColorsUnpacked& colors)
+        uint32_t set_draw_cal(const UiRenderColorsUnpacked& colors)
         {
-            const size_t numDrawCalls = dynamic_array::size(g_currentContext.frameDrawCalls);
-            const UiDrawCall* const lastDrawCall = numDrawCalls ? &g_currentContext.frameDrawCalls[numDrawCalls - 1] : nullptr;
+            const size_t numDrawCalls = dynamic_array::size(g_uiCtx.frameDrawCalls);
+            const UiDrawCall* const lastDrawCall = numDrawCalls ? &g_uiCtx.frameDrawCalls[numDrawCalls - 1] : nullptr;
             if (!lastDrawCall)
             {
-                UiDrawCall& pushedDrawCall = dynamic_array::push(g_currentContext.frameDrawCalls,
-                {
-                    .vertices       = dynamic_array::create<UiRenderVertex>(allocators::frame(), 256),
-                    .colorsArray    = dynamic_array::create<UiRenderColorsUnpacked>(allocators::frame(), 256),
-                    .texture        = NULL_RENDER_REF,
-                });
-                dynamic_array::push(pushedDrawCall.colorsArray, colors);
+                dynamic_array::push(g_uiCtx.frameDrawCalls, { .texture = { } });
+                dynamic_array::push(g_uiCtx.frameDrawDatas, { .firstVertexIndex = dynamic_array::size<uint32_t>(g_uiCtx.frameVertices), });
+                se_assert(dynamic_array::size(g_uiCtx.frameColors) == 0);
+                dynamic_array::push(g_uiCtx.frameColors, colors);
             }
-            UiDrawCall* const drawCall = &g_currentContext.frameDrawCalls[dynamic_array::size(g_currentContext.frameDrawCalls) - 1];
-            if (!utils::compare(drawCall->colorsArray[dynamic_array::size(drawCall->colorsArray) - 1], colors))
-            {
-                dynamic_array::push(drawCall->colorsArray, colors);
-            }
-            return { drawCall, dynamic_array::size<uint32_t>(drawCall->colorsArray) - 1 };
+            if (!utils::compare(g_uiCtx.frameColors[dynamic_array::size(g_uiCtx.frameColors) - 1], colors))
+                dynamic_array::push(g_uiCtx.frameColors, colors);
+
+            return dynamic_array::size<uint32_t>(g_uiCtx.frameColors) - 1;
         }
 
-        struct { UiDrawCall* drawCall; uint32_t colorIndex; } get_draw_call(const UiTextureData& textureData, const SeTextureInfo& textureInfo, const UiRenderColorsUnpacked& colors)
+        uint32_t set_draw_cal(SeTextureRef textureRef, const UiRenderColorsUnpacked& colors)
         {
-            //
-            // Get texture
-            //
-            SeRenderRef* textureRef = hash_table::get(g_currentContext.frameTextureDataToRef, textureData);
-            if (!textureRef)
-            {
-                textureRef = hash_table::set(g_currentContext.frameTextureDataToRef, textureData, render::texture(textureInfo));
-            }
-            se_assert(textureRef);
             //
             // Get draw call
             //
-            const size_t numDrawCalls = dynamic_array::size(g_currentContext.frameDrawCalls);
-            const UiDrawCall* const lastDrawCall = numDrawCalls ? &g_currentContext.frameDrawCalls[numDrawCalls - 1] : nullptr;
-            if (!lastDrawCall || (lastDrawCall->texture != NULL_RENDER_REF && lastDrawCall->texture != *textureRef))
+            const size_t numDrawCalls = dynamic_array::size(g_uiCtx.frameDrawCalls);
+            const UiDrawCall* const lastDrawCall = numDrawCalls ? &g_uiCtx.frameDrawCalls[numDrawCalls - 1] : nullptr;
+            if (!lastDrawCall || (lastDrawCall->texture && !utils::compare(lastDrawCall->texture, textureRef)))
             {
-                UiDrawCall& pushedDrawCall = dynamic_array::push(g_currentContext.frameDrawCalls,
-                {
-                    .vertices       = dynamic_array::create<UiRenderVertex>(allocators::frame(), 256),
-                    .colorsArray    = dynamic_array::create<UiRenderColorsUnpacked>(allocators::frame(), 256),
-                    .texture        = *textureRef,
-                });
-                dynamic_array::push(pushedDrawCall.colorsArray, colors);
+                dynamic_array::push(g_uiCtx.frameDrawCalls, { .texture = { } });
+                dynamic_array::push(g_uiCtx.frameDrawDatas, { .firstVertexIndex = dynamic_array::size<uint32_t>(g_uiCtx.frameVertices), });
             }
             //
             // Push texture and color
             //
-            UiDrawCall* const drawCall = &g_currentContext.frameDrawCalls[dynamic_array::size(g_currentContext.frameDrawCalls) - 1];
-            if (drawCall->texture == NULL_RENDER_REF)
-            {
-                drawCall->texture = *textureRef;
-            }
-            se_assert(drawCall->texture == *textureRef);
-            if (!utils::compare(drawCall->colorsArray[dynamic_array::size(drawCall->colorsArray) - 1], colors))
-            {
-                dynamic_array::push(drawCall->colorsArray, colors);
-            }
-            return { drawCall, dynamic_array::size<uint32_t>(drawCall->colorsArray) - 1 };
+            UiDrawCall* const drawCall = &g_uiCtx.frameDrawCalls[dynamic_array::size(g_uiCtx.frameDrawCalls) - 1];
+            if (!drawCall->texture) drawCall->texture = textureRef;
+            se_assert(utils::compare(drawCall->texture, textureRef));
+            if (!utils::compare(g_uiCtx.frameColors[dynamic_array::size(g_uiCtx.frameColors) - 1], colors))
+                dynamic_array::push(g_uiCtx.frameColors, colors);
+
+            return dynamic_array::size<uint32_t>(g_uiCtx.frameColors) - 1;
         }
 
         inline UiQuadCoords clamp_to_work_region(const UiQuadCoords& quad)
         {
-            const float wrx1 = g_currentContext.workRegionBottomLeftX;
-            const float wry1 = g_currentContext.workRegionBottomLeftY;
-            const float wrx2 = g_currentContext.workRegionTopRightX;
-            const float wry2 = g_currentContext.workRegionTopRightY;
+            const float wrx1 = g_uiCtx.workRegionBottomLeftX;
+            const float wry1 = g_uiCtx.workRegionBottomLeftY;
+            const float wrx2 = g_uiCtx.workRegionTopRightX;
+            const float wry2 = g_uiCtx.workRegionTopRightY;
             return
             {
                 se_clamp(quad.blX, wrx1, wrx2),
@@ -1339,7 +1262,7 @@ namespace ui
             };
         }
 
-        inline void push_quad(UiDrawCall* drawCall, uint32_t colorIndex, const UiQuadCoords& unclamped, float u1 = 0, float v1 = 0, float u2 = 0, float v2 = 0)
+        inline void push_quad(uint32_t colorIndex, const UiQuadCoords& unclamped, float u1 = 0, float v1 = 0, float u2 = 0, float v2 = 0)
         {
             const UiQuadCoords clamped = clamp_to_work_region(unclamped);
             if (clamped.blX == clamped.trX || clamped.blY == clamped.trY) return; // Out of bounds
@@ -1351,20 +1274,20 @@ namespace ui
             const float u2clamped = se_lerp(u2, u1, (unclamped.trX - clamped.trX) / width);
             const float v2clamped = se_lerp(v2, v1, (unclamped.trY - clamped.trY) / height);
 
-            dynamic_array::push(drawCall->vertices, { clamped.blX, clamped.blY, u1clamped, v1clamped, colorIndex });
-            dynamic_array::push(drawCall->vertices, { clamped.blX, clamped.trY, u1clamped, v2clamped, colorIndex });
-            dynamic_array::push(drawCall->vertices, { clamped.trX, clamped.trY, u2clamped, v2clamped, colorIndex });
-            dynamic_array::push(drawCall->vertices, { clamped.blX, clamped.blY, u1clamped, v1clamped, colorIndex });
-            dynamic_array::push(drawCall->vertices, { clamped.trX, clamped.trY, u2clamped, v2clamped, colorIndex });
-            dynamic_array::push(drawCall->vertices, { clamped.trX, clamped.blY, u2clamped, v1clamped, colorIndex });
+            dynamic_array::push(g_uiCtx.frameVertices, { clamped.blX, clamped.blY, u1clamped, v1clamped, colorIndex });
+            dynamic_array::push(g_uiCtx.frameVertices, { clamped.blX, clamped.trY, u1clamped, v2clamped, colorIndex });
+            dynamic_array::push(g_uiCtx.frameVertices, { clamped.trX, clamped.trY, u2clamped, v2clamped, colorIndex });
+            dynamic_array::push(g_uiCtx.frameVertices, { clamped.blX, clamped.blY, u1clamped, v1clamped, colorIndex });
+            dynamic_array::push(g_uiCtx.frameVertices, { clamped.trX, clamped.trY, u2clamped, v2clamped, colorIndex });
+            dynamic_array::push(g_uiCtx.frameVertices, { clamped.trX, clamped.blY, u2clamped, v1clamped, colorIndex });
         }
 
         inline UiQuadCoords get_corners(float width, float height)
         {
-            const bool isCenteredX = g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_X].pivot == SeUiPivotType::CENTER;
-            const bool isCenteredY = g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_Y].pivot == SeUiPivotType::CENTER;
-            const float dimX = g_currentContext.currentParams[SeUiParam::PIVOT_POSITION_X].dim - (isCenteredX ? width / 2.0f : 0.0f);
-            const float dimY = g_currentContext.currentParams[SeUiParam::PIVOT_POSITION_Y].dim - (isCenteredY ? height / 2.0f : 0.0f);
+            const bool isCenteredX = g_uiCtx.currentParams[SeUiParam::PIVOT_TYPE_X].pivot == SeUiPivotType::CENTER;
+            const bool isCenteredY = g_uiCtx.currentParams[SeUiParam::PIVOT_TYPE_Y].pivot == SeUiPivotType::CENTER;
+            const float dimX = g_uiCtx.currentParams[SeUiParam::PIVOT_POSITION_X].dim - (isCenteredX ? width / 2.0f : 0.0f);
+            const float dimY = g_uiCtx.currentParams[SeUiParam::PIVOT_POSITION_Y].dim - (isCenteredY ? height / 2.0f : 0.0f);
             return { dimX, dimY, dimX + width, dimY + height };
         }
 
@@ -1372,26 +1295,26 @@ namespace ui
         {
             return
             {
-                g_currentContext.workRegionBottomLeftX,
-                g_currentContext.workRegionTopRightY - height,
-                g_currentContext.workRegionBottomLeftX + width,
-                g_currentContext.workRegionTopRightY,
+                g_uiCtx.workRegionBottomLeftX,
+                g_uiCtx.workRegionTopRightY - height,
+                g_uiCtx.workRegionBottomLeftX + width,
+                g_uiCtx.workRegionTopRightY,
             };
         }
 
         inline bool is_under_cursor(const UiQuadCoords& quad)
         {
             return
-                (quad.blX <= g_currentContext.mouseX) &&
-                (quad.blY <= g_currentContext.mouseY) &&
-                (quad.trX >= g_currentContext.mouseX) &&
-                (quad.trY >= g_currentContext.mouseY);
+                (quad.blX <= g_uiCtx.mouseX) &&
+                (quad.blY <= g_uiCtx.mouseY) &&
+                (quad.trX >= g_uiCtx.mouseX) &&
+                (quad.trY >= g_uiCtx.mouseY);
         }
 
         UiQuadCoords get_text_bbox(const char* utf8text)
         {
-            const FontGroup* const fontGroup = g_currentContext.currentFontGroup;
-            const float fontHeight = g_currentContext.currentParams[SeUiParam::FONT_HEIGHT].dim;
+            const FontGroup* const fontGroup = g_uiCtx.currentFontGroup;
+            const float fontHeight = g_uiCtx.currentParams[SeUiParam::FONT_HEIGHT].dim;
             const float baselineX = 0;
             const float baselineY = 0;
             float positionX = 0;
@@ -1426,15 +1349,15 @@ namespace ui
 
         void draw_text_at_pos(const char* utf8text, float baselineX, float baselineY)
         {
-            if (/*this is an incorrect check : baselineY >= g_currentContext.workRegionTopRightY || */ baselineX >= g_currentContext.workRegionTopRightX)
+            if (/*this is an incorrect check : baselineY >= g_uiCtx.workRegionTopRightY || */ baselineX >= g_uiCtx.workRegionTopRightX)
             {
                 return;
             }
-            const FontGroup* const fontGroup = g_currentContext.currentFontGroup;
-            const float fontHeight = g_currentContext.currentParams[SeUiParam::FONT_HEIGHT].dim;
-            const auto [drawCall, colorIndex] = get_draw_call(ui_texture_data_create(fontGroup), fontGroup->textureInfo,
+            const FontGroup* const fontGroup = g_uiCtx.currentFontGroup;
+            const float fontHeight = g_uiCtx.currentParams[SeUiParam::FONT_HEIGHT].dim;
+            const uint32_t colorIndex = set_draw_cal(fontGroup->texture,
             {
-                .tint = col::unpack(g_currentContext.currentParams[SeUiParam::FONT_COLOR].color),
+                .tint = col::unpack(g_uiCtx.currentParams[SeUiParam::FONT_COLOR].color),
                 .mode = UiRenderColorsUnpacked::MODE_TEXT,
             });
             //
@@ -1465,7 +1388,7 @@ namespace ui
                 const float topRightX = bottomLeftX + width;
                 const float topRightY = bottomLeftY + height;
                 const RenderAtlasRectNormalized& rect = fontGroup->atlas.uvRects[codepointInfo->atlasRectIndex];
-                push_quad(drawCall, colorIndex, { bottomLeftX, bottomLeftY, topRightX, topRightY }, rect.p1x, rect.p1y, rect.p2x, rect.p2y);
+                push_quad(colorIndex, { bottomLeftX, bottomLeftY, topRightX, topRightY }, rect.p1x, rect.p1y, rect.p2x, rect.p2y);
                 positionX += scale * float(codepointInfo->advanceWidthUnscaled);
                 previousCodepoint = codepointSigned;
             }
@@ -1474,87 +1397,90 @@ namespace ui
 
     bool begin(const SeUiBeginInfo& info)
     {
-        g_currentContext.target            = info.target;
-        g_currentContext.currentFontGroup  = nullptr;
-        memcpy(g_currentContext.currentParams, DEFAULT_PARAMS, sizeof(UiParams));
-        dynamic_array::construct(g_currentContext.frameDrawCalls, allocators::frame(), 16);
-        hash_table::construct(g_currentContext.frameTextureDataToRef, allocators::frame(), 16);
+        g_uiCtx.target            = info.target;
+        g_uiCtx.currentFontGroup  = nullptr;
+        memcpy(g_uiCtx.currentParams, DEFAULT_PARAMS, sizeof(UiParams));
+
+        dynamic_array::construct(g_uiCtx.frameDrawCalls, allocators::frame(), 16);
+        dynamic_array::construct(g_uiCtx.frameDrawDatas, allocators::frame(), 16);
+        dynamic_array::construct(g_uiCtx.frameVertices, allocators::frame(), 512);
+        dynamic_array::construct(g_uiCtx.frameColors, allocators::frame(), 16);
 
         const SeMousePos mousePos = win::get_mouse_pos();
         const float mouseX = float(mousePos.x);
         const float mouseY = float(mousePos.y);
-        g_currentContext.mouseDeltaX       = mouseX - g_currentContext.mouseX;
-        g_currentContext.mouseDeltaY       = mouseY - g_currentContext.mouseY;
-        g_currentContext.mouseX            = mouseX;
-        g_currentContext.mouseY            = mouseY;
-        g_currentContext.isMouseDown       = win::is_mouse_button_pressed(SeMouse::LMB);
-        g_currentContext.isMouseJustDown   = win::is_mouse_button_just_pressed(SeMouse::LMB);
-        g_currentContext.isJustActivated =
-            utils::compare(g_currentContext.previousActiveObjectUid, SeString{ }) &&
-            !utils::compare(g_currentContext.currentActiveObjectUid, SeString{ });
-        g_currentContext.previousHoveredObjectUid   = g_currentContext.currentHoveredObjectUid;
-        g_currentContext.previousActiveObjectUid    = g_currentContext.currentActiveObjectUid;
-        g_currentContext.currentHoveredObjectUid    = { };
-        g_currentContext.currentWindowUid           = { };
-        g_currentContext.workRegionBottomLeftX      = 0.0f;
-        g_currentContext.workRegionBottomLeftY      = 0.0f;
-        g_currentContext.workRegionTopRightX        = win::get_width<float>();
-        g_currentContext.workRegionTopRightY        = win::get_height<float>();
-        if (!g_currentContext.isMouseDown)
+        g_uiCtx.mouseDeltaX       = mouseX - g_uiCtx.mouseX;
+        g_uiCtx.mouseDeltaY       = mouseY - g_uiCtx.mouseY;
+        g_uiCtx.mouseX            = mouseX;
+        g_uiCtx.mouseY            = mouseY;
+        g_uiCtx.isMouseDown       = win::is_mouse_button_pressed(SeMouse::LMB);
+        g_uiCtx.isMouseJustDown   = win::is_mouse_button_just_pressed(SeMouse::LMB);
+        g_uiCtx.isJustActivated =
+            utils::compare(g_uiCtx.previousActiveObjectUid, SeString{ }) &&
+            !utils::compare(g_uiCtx.currentActiveObjectUid, SeString{ });
+        g_uiCtx.previousHoveredObjectUid   = g_uiCtx.currentHoveredObjectUid;
+        g_uiCtx.previousActiveObjectUid    = g_uiCtx.currentActiveObjectUid;
+        g_uiCtx.currentHoveredObjectUid    = { };
+        g_uiCtx.currentWindowUid           = { };
+        g_uiCtx.workRegionBottomLeftX      = 0.0f;
+        g_uiCtx.workRegionBottomLeftY      = 0.0f;
+        g_uiCtx.workRegionTopRightX        = win::get_width<float>();
+        g_uiCtx.workRegionTopRightY        = win::get_height<float>();
+        if (!g_uiCtx.isMouseDown)
         {
-            g_currentContext.currentActiveObjectUid = { };
+            g_uiCtx.currentActiveObjectUid = { };
         }
         else
         {
-            UiObjectData* const activeObject = hash_table::get(g_currentContext.uidToObjectData, g_currentContext.currentActiveObjectUid);
+            UiObjectData* const activeObject = hash_table::get(g_uiCtx.uidToObjectData, g_uiCtx.currentActiveObjectUid);
             if (activeObject)
             {
                 const float currentWidth = activeObject->quad.trX - activeObject->quad.blX;
                 const float currentHeight = activeObject->quad.trY - activeObject->quad.blY;
                 se_assert(currentWidth >= 0.0f);
                 se_assert(currentHeight >= 0.0f);
-                const bool isPositiveDeltaX = g_currentContext.mouseDeltaX >= 0.0f;
-                const bool isPositiveDeltaY = g_currentContext.mouseDeltaY >= 0.0f;
+                const bool isPositiveDeltaX = g_uiCtx.mouseDeltaX >= 0.0f;
+                const bool isPositiveDeltaY = g_uiCtx.mouseDeltaY >= 0.0f;
                 const float maxDeltaTowardsCenterX = (activeObject->quad.trX - activeObject->quad.blX) - activeObject->minWidth;
                 const float maxDeltaTowardsCenterY = (activeObject->quad.trY - activeObject->quad.blY) - activeObject->minHeight;
                 se_assert(maxDeltaTowardsCenterX >= 0.0f);
                 se_assert(maxDeltaTowardsCenterY >= 0.0f);
                 if ((activeObject->settingsFlags & SeUiFlags::MOVABLE) && (activeObject->actionFlags & UiActionFlags::CAN_BE_MOVED))
                 {
-                    activeObject->quad.blX = activeObject->quad.blX + g_currentContext.mouseDeltaX;
-                    activeObject->quad.blY = activeObject->quad.blY + g_currentContext.mouseDeltaY;
-                    activeObject->quad.trX = activeObject->quad.trX + g_currentContext.mouseDeltaX;
-                    activeObject->quad.trY = activeObject->quad.trY + g_currentContext.mouseDeltaY;
+                    activeObject->quad.blX = activeObject->quad.blX + g_uiCtx.mouseDeltaX;
+                    activeObject->quad.blY = activeObject->quad.blY + g_uiCtx.mouseDeltaY;
+                    activeObject->quad.trX = activeObject->quad.trX + g_uiCtx.mouseDeltaX;
+                    activeObject->quad.trY = activeObject->quad.trY + g_uiCtx.mouseDeltaY;
                 }
                 if ((activeObject->settingsFlags & SeUiFlags::RESIZABLE_X) && (activeObject->actionFlags & UiActionFlags::CAN_BE_RESIZED_X_LEFT))
                 {
-                    const bool canChangeSize = isPositiveDeltaX ? g_currentContext.mouseX > activeObject->quad.blX : g_currentContext.mouseX < activeObject->quad.blX;
+                    const bool canChangeSize = isPositiveDeltaX ? g_uiCtx.mouseX > activeObject->quad.blX : g_uiCtx.mouseX < activeObject->quad.blX;
                     const float actualDelta = canChangeSize
-                        ? (g_currentContext.mouseDeltaX > maxDeltaTowardsCenterX ? maxDeltaTowardsCenterX : g_currentContext.mouseDeltaX)
+                        ? (g_uiCtx.mouseDeltaX > maxDeltaTowardsCenterX ? maxDeltaTowardsCenterX : g_uiCtx.mouseDeltaX)
                         : 0.0f;
                     activeObject->quad.blX = activeObject->quad.blX + actualDelta;
                 }
                 if ((activeObject->settingsFlags & SeUiFlags::RESIZABLE_X) && (activeObject->actionFlags & UiActionFlags::CAN_BE_RESIZED_X_RIGHT))
                 {
-                    const bool canChangeSize = isPositiveDeltaX ? g_currentContext.mouseX > activeObject->quad.trX : g_currentContext.mouseX < activeObject->quad.trX;
+                    const bool canChangeSize = isPositiveDeltaX ? g_uiCtx.mouseX > activeObject->quad.trX : g_uiCtx.mouseX < activeObject->quad.trX;
                     const float actualDelta = canChangeSize
-                        ? (g_currentContext.mouseDeltaX < -maxDeltaTowardsCenterX ? -maxDeltaTowardsCenterX : g_currentContext.mouseDeltaX)
+                        ? (g_uiCtx.mouseDeltaX < -maxDeltaTowardsCenterX ? -maxDeltaTowardsCenterX : g_uiCtx.mouseDeltaX)
                         : 0.0f;
                     activeObject->quad.trX = activeObject->quad.trX + actualDelta;
                 }
                 if ((activeObject->settingsFlags & SeUiFlags::RESIZABLE_Y) && (activeObject->actionFlags & UiActionFlags::CAN_BE_RESIZED_Y_TOP))
                 {
-                    const bool canChangeSize = isPositiveDeltaY ? g_currentContext.mouseY > activeObject->quad.trY : g_currentContext.mouseY < activeObject->quad.trY;
+                    const bool canChangeSize = isPositiveDeltaY ? g_uiCtx.mouseY > activeObject->quad.trY : g_uiCtx.mouseY < activeObject->quad.trY;
                     const float actualDelta = canChangeSize
-                        ? (g_currentContext.mouseDeltaY < -maxDeltaTowardsCenterY ? -maxDeltaTowardsCenterY : g_currentContext.mouseDeltaY)
+                        ? (g_uiCtx.mouseDeltaY < -maxDeltaTowardsCenterY ? -maxDeltaTowardsCenterY : g_uiCtx.mouseDeltaY)
                         : 0.0f;
                     activeObject->quad.trY = activeObject->quad.trY + actualDelta;
                 }
                 if ((activeObject->settingsFlags & SeUiFlags::RESIZABLE_Y) && (activeObject->actionFlags & UiActionFlags::CAN_BE_RESIZED_Y_BOTTOM))
                 {
-                    const bool canChangeSize = isPositiveDeltaY ? g_currentContext.mouseY > activeObject->quad.blY : g_currentContext.mouseY < activeObject->quad.blY;
+                    const bool canChangeSize = isPositiveDeltaY ? g_uiCtx.mouseY > activeObject->quad.blY : g_uiCtx.mouseY < activeObject->quad.blY;
                     const float actualDelta = canChangeSize
-                        ? (g_currentContext.mouseDeltaY > maxDeltaTowardsCenterY ? maxDeltaTowardsCenterY : g_currentContext.mouseDeltaY)
+                        ? (g_uiCtx.mouseDeltaY > maxDeltaTowardsCenterY ? maxDeltaTowardsCenterY : g_uiCtx.mouseDeltaY)
                         : 0.0f;
                     activeObject->quad.blY = activeObject->quad.blY + actualDelta;
                 }
@@ -1565,104 +1491,98 @@ namespace ui
 
     SePassDependencies end(SePassDependencies dependencies)
     {
-        const SeRenderRef vertexProgram = render::program({ g_drawUiVs });
-        const SeRenderRef fragmentProgram = render::program({ g_drawUiFs });
-        const SeRenderRef sampler = render::sampler
+        const SePassDependencies result = render::begin_graphics_pass
         ({
-            .magFilter          = SE_SAMPLER_FILTER_LINEAR,
-            .minFilter          = SE_SAMPLER_FILTER_LINEAR,
-            .addressModeU       = SE_SAMPLER_ADDRESS_MODE_REPEAT,
-            .addressModeV       = SE_SAMPLER_ADDRESS_MODE_REPEAT,
-            .addressModeW       = SE_SAMPLER_ADDRESS_MODE_REPEAT,
-            .mipmapMode         = SE_SAMPLER_MIPMAP_MODE_LINEAR,
-            .mipLodBias         = 0.0f,
-            .minLod             = 0.0f,
-            .maxLod             = 0.0f,
-            .anisotropyEnable   = false,
-            .maxAnisotropy      = 0.0f,
-            .compareEnabled     = false,
-            .compareOp          = SE_COMPARE_OP_ALWAYS,
-        });
-        const SeRenderRef pipeline = render::graphics_pipeline
-        ({
-            .vertexProgram          = { .program = vertexProgram, },
-            .fragmentProgram        = { .program = fragmentProgram, },
+            .dependencies           = dependencies,
+            .vertexProgram          = { .program = g_uiCtx.drawUiVs, },
+            .fragmentProgram        = { .program = g_uiCtx.drawUiFs, },
             .frontStencilOpState    = { .isEnabled = false, },
             .backStencilOpState     = { .isEnabled = false, },
             .depthState             = { .isTestEnabled = false, .isWriteEnabled = false, },
-            .polygonMode            = SE_PIPELINE_POLYGON_FILL_MODE_FILL,
-            .cullMode               = SE_PIPELINE_CULL_MODE_NONE,
-            .frontFace              = SE_PIPELINE_FRONT_FACE_CLOCKWISE,
-            .samplingType           = SE_SAMPLING_1,
-        });
-        const SePassDependencies result = render::begin_pass
-        ({
-            .dependencies       = dependencies,
-            .pipeline           = pipeline,
-            .renderTargets      = { g_currentContext.target },
-            .numRenderTargets   = 1,
-            .depthStencilTarget = 0,
-            .hasDepthStencil    = false,
+            .polygonMode            = SePipelinePolygonMode::FILL,
+            .cullMode               = SePipelineCullMode::NONE,
+            .frontFace              = SePipelineFrontFace::CLOCKWISE,
+            .samplingType           = SeSamplingType::_1,
+            .renderTargets          = { g_uiCtx.target },
         });
         //
-        // Bind projection matrix
+        // Bind stuff
         //
-        const SeRenderRef projectionBuffer = render::memory_buffer
+        const SeBufferRef projectionBuffer = render::scratch_memory_buffer
         ({
             data_provider::from_memory
             (
                 float4x4::transposed(render::orthographic(0, win::get_width<float>(), 0, win::get_height<float>(), 0, 2))
             )
         });
-        render::bind({ .set = 0, .bindings = { { 0, projectionBuffer } } });
+        const SeBufferRef drawDatasBuffer = render::scratch_memory_buffer
+        ({
+            data_provider::from_memory(dynamic_array::raw(g_uiCtx.frameDrawDatas), dynamic_array::raw_size(g_uiCtx.frameDrawDatas))
+        });
+        const SeBufferRef verticesBuffer = render::scratch_memory_buffer
+        ({
+            data_provider::from_memory(dynamic_array::raw(g_uiCtx.frameVertices), dynamic_array::raw_size(g_uiCtx.frameVertices))
+        });
+        const SeBufferRef colorBuffer = render::scratch_memory_buffer
+        ({
+            data_provider::from_memory(dynamic_array::raw(g_uiCtx.frameColors), dynamic_array::raw_size(g_uiCtx.frameColors))
+        });
+        render::bind
+        ({
+            .set = 0,
+            .bindings =
+            {
+                { .binding = 0, .type = SeBinding::BUFFER, .buffer = { projectionBuffer } },
+                { .binding = 1, .type = SeBinding::BUFFER, .buffer = { verticesBuffer } },
+                { .binding = 2, .type = SeBinding::BUFFER, .buffer = { colorBuffer } },
+            }
+        });
         //
         // Process draw calls
         //
-        for (auto it : g_currentContext.frameDrawCalls)
+        se_assert(dynamic_array::size(g_uiCtx.frameDrawCalls) == dynamic_array::size(g_uiCtx.frameDrawDatas));
+        const size_t numDrawCalls = dynamic_array::size(g_uiCtx.frameDrawCalls);
+        for (auto it : g_uiCtx.frameDrawCalls)
         {
             const UiDrawCall& drawCall = iter::value(it);
-            if (!dynamic_array::size(drawCall.vertices))
-            {
-                continue;
-            }
-            const SeRenderRef colorsBuffer = render::memory_buffer
-            ({
-                data_provider::from_memory(dynamic_array::raw(drawCall.colorsArray), dynamic_array::raw_size(drawCall.colorsArray))
-            });
-            const SeRenderRef verticesBuffer = render::memory_buffer
-            ({
-                data_provider::from_memory(dynamic_array::raw(drawCall.vertices), dynamic_array::raw_size(drawCall.vertices))
-            });
+            const size_t drawCallIndex = iter::index(it);
             render::bind
             ({
                 .set = 1,
                 .bindings =
                 {
-                    { 0, drawCall.texture, sampler },
-                    { 1, colorsBuffer },
-                    { 2, verticesBuffer },
+                    { .binding = 0, .type = SeBinding::TEXTURE, .texture = { drawCall.texture, g_uiCtx.sampler } },
+                    { .binding = 1, .type = SeBinding::BUFFER, .buffer = {
+                        .buffer = drawDatasBuffer,
+                        .offset = drawCallIndex * sizeof(UiRenderDrawData),
+                        .size   = sizeof(UiRenderDrawData),
+                    } },
                 },
             });
-            render::draw({ dynamic_array::size<uint32_t>(drawCall.vertices), 1 });
+            const uint32_t firstVertexIndex = g_uiCtx.frameDrawDatas[iter::index(it)].firstVertexIndex;
+            const uint32_t lastVertexIndex = drawCallIndex == (numDrawCalls - 1)
+                ? dynamic_array::size<uint32_t>(g_uiCtx.frameVertices) - 1
+                : g_uiCtx.frameDrawDatas[drawCallIndex + 1].firstVertexIndex;
+            render::draw
+            ({
+                .numVertices = lastVertexIndex - firstVertexIndex + 1,
+                .numInstances = 1,
+            });
         }
         render::end_pass();
         //
         // Clear context
         //
-        for (auto it : g_currentContext.frameDrawCalls)
-        {
-            UiDrawCall& drawCall = iter::value(it);
-            dynamic_array::destroy(drawCall.vertices);
-            dynamic_array::destroy(drawCall.colorsArray);
-        }
-        dynamic_array::destroy(g_currentContext.frameDrawCalls);
-        hash_table::destroy(g_currentContext.frameTextureDataToRef);
+        dynamic_array::destroy(g_uiCtx.frameDrawCalls);
+        dynamic_array::destroy(g_uiCtx.frameDrawDatas);
+        dynamic_array::destroy(g_uiCtx.frameVertices);
+        dynamic_array::destroy(g_uiCtx.frameColors);
         return result;
     }
 
     void set_font_group(const SeUiFontGroupInfo& info)
     {
-        const FontGroup* fontGroup = hash_table::get(g_fontGroups, info);
+        const FontGroup* fontGroup = hash_table::get(g_uiCtx.fontGroups, info);
         if (!fontGroup)
         {
             const FontInfo* fonts[SeUiFontGroupInfo::MAX_FONTS];
@@ -1674,44 +1594,44 @@ namespace ui
                 {
                     break;
                 }
-                const FontInfo* font = hash_table::get(g_fontInfos, fontData);
+                const FontInfo* font = hash_table::get(g_uiCtx.fontInfos, fontData);
                 if (!font)
                 {
-                    font = hash_table::set(g_fontInfos, fontData, font_info::create(fontData));
+                    font = hash_table::set(g_uiCtx.fontInfos, fontData, font_info::create(fontData));
                 }
                 se_assert(font);
                 fonts[fontIt] = font;
             };
-            fontGroup = hash_table::set(g_fontGroups, info, font_group::create(fonts, fontIt));
+            fontGroup = hash_table::set(g_uiCtx.fontGroups, info, font_group::create(fonts, fontIt));
         }
         se_assert(fontGroup);
-        g_currentContext.currentFontGroup = fontGroup;
+        g_uiCtx.currentFontGroup = fontGroup;
     }
 
     void set_param(SeUiParam::Type type, const SeUiParam& param)
     {
-        g_currentContext.currentParams[type] = param;
+        g_uiCtx.currentParams[type] = param;
     }
 
     void text(const SeUiTextInfo& info)
     {
-        const UiObjectData* const activeWindow = hash_table::get(g_currentContext.uidToObjectData, g_currentContext.currentWindowUid);
-        const float fontHeight = g_currentContext.currentParams[SeUiParam::FONT_HEIGHT].dim;
+        const UiObjectData* const activeWindow = hash_table::get(g_uiCtx.uidToObjectData, g_uiCtx.currentWindowUid);
+        const float fontHeight = g_uiCtx.currentParams[SeUiParam::FONT_HEIGHT].dim;
         if (activeWindow)
         {
-            const float lineStep = g_currentContext.currentParams[SeUiParam::FONT_LINE_STEP].dim;
-            const float baselineX = g_currentContext.workRegionBottomLeftX;
-            const float baselineY = g_currentContext.workRegionTopRightY - fontHeight;
+            const float lineStep = g_uiCtx.currentParams[SeUiParam::FONT_LINE_STEP].dim;
+            const float baselineX = g_uiCtx.workRegionBottomLeftX;
+            const float baselineY = g_uiCtx.workRegionTopRightY - fontHeight;
             impl::draw_text_at_pos(info.utf8text, baselineX, baselineY);
-            g_currentContext.workRegionTopRightY -= lineStep;
+            g_uiCtx.workRegionTopRightY -= lineStep;
         }
         else
         {
-            float baselineX = g_currentContext.currentParams[SeUiParam::PIVOT_POSITION_X].dim;
-            float baselineY = g_currentContext.currentParams[SeUiParam::PIVOT_POSITION_Y].dim;
+            float baselineX = g_uiCtx.currentParams[SeUiParam::PIVOT_POSITION_X].dim;
+            float baselineY = g_uiCtx.currentParams[SeUiParam::PIVOT_POSITION_Y].dim;
             const auto [x1, y1, x2, y2] = impl::get_text_bbox(info.utf8text);
-            if (g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_X].pivot == SeUiPivotType::CENTER) baselineX -= (x2 - x1) / 2.0f;
-            if (g_currentContext.currentParams[SeUiParam::PIVOT_TYPE_Y].pivot == SeUiPivotType::CENTER) baselineY -= fontHeight / 2.0f;
+            if (g_uiCtx.currentParams[SeUiParam::PIVOT_TYPE_X].pivot == SeUiPivotType::CENTER) baselineX -= (x2 - x1) / 2.0f;
+            if (g_uiCtx.currentParams[SeUiParam::PIVOT_TYPE_Y].pivot == SeUiPivotType::CENTER) baselineY -= fontHeight / 2.0f;
             impl::draw_text_at_pos(info.utf8text, baselineX, baselineY);
         }
     }
@@ -1734,8 +1654,8 @@ namespace ui
             data->quad = quad;
         }
         data->settingsFlags = info.flags;
-        const float topPanelThickness = g_currentContext.currentParams[SeUiParam::WINDOW_TOP_PANEL_THICKNESS].dim;
-        const float borderThickness = g_currentContext.currentParams[SeUiParam::WINDOW_BORDER_THICKNESS].dim;
+        const float topPanelThickness = g_uiCtx.currentParams[SeUiParam::WINDOW_TOP_PANEL_THICKNESS].dim;
+        const float borderThickness = g_uiCtx.currentParams[SeUiParam::WINDOW_BORDER_THICKNESS].dim;
         data->minWidth = topPanelThickness * 3.0f;
         data->minHeight = topPanelThickness + borderThickness * 2.0f;
         //
@@ -1743,20 +1663,20 @@ namespace ui
         //
         if (impl::is_under_cursor(quad))
         {
-            g_currentContext.currentHoveredObjectUid = uid;
-            if (g_currentContext.isMouseJustDown)
+            g_uiCtx.currentHoveredObjectUid = uid;
+            if (g_uiCtx.isMouseJustDown)
             {
-                g_currentContext.currentActiveObjectUid = uid;
-                const bool isTopPanelUnderCursor = ((quad.trY - topPanelThickness) <= g_currentContext.mouseY);
-                const bool isLeftBorderUnderCursor = !isTopPanelUnderCursor && ((quad.blX + borderThickness + BORDER_PANEL_TOLERANCE) >= g_currentContext.mouseX);
-                const bool isRightBorderUnderCursor = !isTopPanelUnderCursor && ((quad.trX - borderThickness - BORDER_PANEL_TOLERANCE) <= g_currentContext.mouseX);
-                const bool isBottomBorderUnderCursor = !isTopPanelUnderCursor && ((quad.blY + borderThickness + BORDER_PANEL_TOLERANCE) >= g_currentContext.mouseY);
+                g_uiCtx.currentActiveObjectUid = uid;
+                const bool isTopPanelUnderCursor = ((quad.trY - topPanelThickness) <= g_uiCtx.mouseY);
+                const bool isLeftBorderUnderCursor = !isTopPanelUnderCursor && ((quad.blX + borderThickness + BORDER_PANEL_TOLERANCE) >= g_uiCtx.mouseX);
+                const bool isRightBorderUnderCursor = !isTopPanelUnderCursor && ((quad.trX - borderThickness - BORDER_PANEL_TOLERANCE) <= g_uiCtx.mouseX);
+                const bool isBottomBorderUnderCursor = !isTopPanelUnderCursor && ((quad.blY + borderThickness + BORDER_PANEL_TOLERANCE) >= g_uiCtx.mouseY);
                 if (isTopPanelUnderCursor) data->actionFlags |= UiActionFlags::CAN_BE_MOVED;
                 if (isLeftBorderUnderCursor) data->actionFlags |= UiActionFlags::CAN_BE_RESIZED_X_LEFT;
                 if (isRightBorderUnderCursor) data->actionFlags |= UiActionFlags::CAN_BE_RESIZED_X_RIGHT;
                 if (isBottomBorderUnderCursor) data->actionFlags |= UiActionFlags::CAN_BE_RESIZED_Y_BOTTOM;
             }
-            else if (!g_currentContext.isMouseDown)
+            else if (!g_uiCtx.isMouseDown)
             {
                 data->actionFlags = 0;
             }
@@ -1764,42 +1684,42 @@ namespace ui
         //
         // Draw top panel and borders
         //
-        const auto [drawCallBorders, colorIndexBorders] = impl::get_draw_call
+        const uint32_t colorIndexBorders = impl::set_draw_cal
         ({
-            .tint = col::unpack(g_currentContext.currentParams[SeUiParam::PRIMARY_COLOR].color),
+            .tint = col::unpack(g_uiCtx.currentParams[SeUiParam::PRIMARY_COLOR].color),
             .mode = UiRenderColorsUnpacked::MODE_SIMPLE,
         });
-        impl::push_quad(drawCallBorders, colorIndexBorders, { quad.blX, quad.trY - topPanelThickness, quad.trX, quad.trY });
-        impl::push_quad(drawCallBorders, colorIndexBorders, { quad.blX, quad.blY, quad.blX + borderThickness, quad.trY - topPanelThickness });
-        impl::push_quad(drawCallBorders, colorIndexBorders, { quad.trX - borderThickness, quad.blY, quad.trX, quad.trY - topPanelThickness });
-        impl::push_quad(drawCallBorders, colorIndexBorders, { quad.blX + borderThickness, quad.blY, quad.trX - borderThickness, quad.blY + borderThickness });
+        impl::push_quad(colorIndexBorders, { quad.blX, quad.trY - topPanelThickness, quad.trX, quad.trY });
+        impl::push_quad(colorIndexBorders, { quad.blX, quad.blY, quad.blX + borderThickness, quad.trY - topPanelThickness });
+        impl::push_quad(colorIndexBorders, { quad.trX - borderThickness, quad.blY, quad.trX, quad.trY - topPanelThickness });
+        impl::push_quad(colorIndexBorders, { quad.blX + borderThickness, quad.blY, quad.trX - borderThickness, quad.blY + borderThickness });
         //
         // Draw background
         //
-        const auto [drawCallBackground, colorIndexBackground] = impl::get_draw_call
+        const uint32_t colorIndexBackground = impl::set_draw_cal
         ({
-            .tint = col::unpack(g_currentContext.currentParams[SeUiParam::SECONDARY_COLOR].color),
+            .tint = col::unpack(g_uiCtx.currentParams[SeUiParam::SECONDARY_COLOR].color),
             .mode = UiRenderColorsUnpacked::MODE_SIMPLE,
         });
-        impl::push_quad(drawCallBackground, colorIndexBackground, { quad.blX + borderThickness, quad.blY + borderThickness, quad.trX - borderThickness, quad.trY - topPanelThickness });
+        impl::push_quad(colorIndexBackground, { quad.blX + borderThickness, quad.blY + borderThickness, quad.trX - borderThickness, quad.trY - topPanelThickness });
 
-        g_currentContext.currentWindowUid = uid;
-        const float windowPadding = g_currentContext.currentParams[SeUiParam::WINDOW_INNER_PADDING].dim;
-        g_currentContext.workRegionBottomLeftX = quad.blX + borderThickness + windowPadding;
-        g_currentContext.workRegionBottomLeftY = quad.blY + borderThickness + windowPadding;
-        g_currentContext.workRegionTopRightX = quad.trX - borderThickness - windowPadding;
-        g_currentContext.workRegionTopRightY = quad.trY - topPanelThickness - windowPadding;
+        g_uiCtx.currentWindowUid = uid;
+        const float windowPadding = g_uiCtx.currentParams[SeUiParam::WINDOW_INNER_PADDING].dim;
+        g_uiCtx.workRegionBottomLeftX = quad.blX + borderThickness + windowPadding;
+        g_uiCtx.workRegionBottomLeftY = quad.blY + borderThickness + windowPadding;
+        g_uiCtx.workRegionTopRightX = quad.trX - borderThickness - windowPadding;
+        g_uiCtx.workRegionTopRightY = quad.trY - topPanelThickness - windowPadding;
 
         return true;
     }
 
     void end_window()
     {
-        g_currentContext.currentWindowUid = { };
-        g_currentContext.workRegionBottomLeftX = 0.0f;
-        g_currentContext.workRegionBottomLeftY = 0.0f;
-        g_currentContext.workRegionTopRightX = win::get_width<float>();
-        g_currentContext.workRegionTopRightY = win::get_height<float>();
+        g_uiCtx.currentWindowUid = { };
+        g_uiCtx.workRegionBottomLeftX = 0.0f;
+        g_uiCtx.workRegionBottomLeftY = 0.0f;
+        g_uiCtx.workRegionTopRightX = win::get_width<float>();
+        g_uiCtx.workRegionTopRightY = win::get_height<float>();
     }
 
     bool button(const SeUiButtonInfo& info)
@@ -1814,7 +1734,7 @@ namespace ui
         float textWidth = 0.0f;
         if (info.utf8text)
         {
-            const float border = g_currentContext.currentParams[SeUiParam::BUTTON_BORDER_SIZE].dim;
+            const float border = g_uiCtx.currentParams[SeUiParam::BUTTON_BORDER_SIZE].dim;
             const auto [bbx1, bby1, bbx2, bby2] = impl::get_text_bbox(info.utf8text);
             textWidth = bbx2 - bbx1;
             const float textWidthWithBorder = textWidth + border * 2.0f;
@@ -1824,23 +1744,22 @@ namespace ui
             // With negative boundin_box_y1 value we need to draw text above of the pivot, so we negate this value to get a positive result
             textOffsetY = -bby1 + border;
         }
-        const UiObjectData* const activeWindow = hash_table::get(g_currentContext.uidToObjectData, g_currentContext.currentWindowUid);
+        const UiObjectData* const activeWindow = hash_table::get(g_uiCtx.uidToObjectData, g_uiCtx.currentWindowUid);
         const UiQuadCoords quad = activeWindow ? impl::get_corners_in_work_region(buttonWidth, buttonHeight) : impl::get_corners(buttonWidth, buttonHeight);
         //
         // Update state
         //
-        
         const bool isUnderCursor = impl::is_under_cursor(impl::clamp_to_work_region(quad));
         if (isUnderCursor)
         {
-            g_currentContext.currentHoveredObjectUid = uid;
-            if (g_currentContext.isMouseJustDown)
+            g_uiCtx.currentHoveredObjectUid = uid;
+            if (g_uiCtx.isMouseJustDown)
             {
-                g_currentContext.currentActiveObjectUid = uid;
+                g_uiCtx.currentActiveObjectUid = uid;
             }
         }
-        const bool isPressed = utils::compare(g_currentContext.previousActiveObjectUid, uid);
-        const bool isClicked = isPressed && g_currentContext.isJustActivated;
+        const bool isPressed = utils::compare(g_uiCtx.previousActiveObjectUid, uid);
+        const bool isClicked = isPressed && g_uiCtx.isJustActivated;
         if (isClicked)
         {
             if (data->stateFlags & (1 << UiStateFlags::IS_TOGGLED))
@@ -1852,7 +1771,7 @@ namespace ui
         //
         // Draw button
         //
-        ColorUnpacked buttonColor = col::unpack(g_currentContext.currentParams[SeUiParam::PRIMARY_COLOR].color);
+        SeColorUnpacked buttonColor = col::unpack(g_uiCtx.currentParams[SeUiParam::PRIMARY_COLOR].color);
         if (isPressed)
         {
             const float SCALE = 0.5f;
@@ -1860,8 +1779,8 @@ namespace ui
             buttonColor.g *= SCALE;
             buttonColor.b *= SCALE;
         }
-        const auto [drawCallButton, colorIndexButton] = impl::get_draw_call({ buttonColor, UiRenderColorsUnpacked::MODE_SIMPLE });
-        impl::push_quad(drawCallButton, colorIndexButton, quad);
+        const uint32_t colorIndexButton = impl::set_draw_cal({ buttonColor, UiRenderColorsUnpacked::MODE_SIMPLE });
+        impl::push_quad(colorIndexButton, quad);
         //
         // Draw text
         //
@@ -1873,7 +1792,7 @@ namespace ui
         }
         if (activeWindow)
         {
-            g_currentContext.workRegionTopRightY -= buttonHeight;
+            g_uiCtx.workRegionTopRightY -= buttonHeight;
         }
         return
             (info.mode == SeUiButtonMode::HOLD && isPressed) ||
@@ -1883,23 +1802,40 @@ namespace ui
 
     void engine::init()
     {
-        g_drawUiVs = data_provider::from_file("assets/default/shaders/ui_draw.vert.spv");
-        g_drawUiFs = data_provider::from_file("assets/default/shaders/ui_draw.frag.spv");
-        hash_table::construct(g_fontInfos, allocators::persistent());
-        hash_table::construct(g_fontGroups, allocators::persistent());
-        g_currentContext = { };
-        hash_table::construct(g_currentContext.uidToObjectData, allocators::persistent());
+        g_uiCtx = { };
+        g_uiCtx.drawUiVs = render::program({ data_provider::from_file("assets/default/shaders/ui_draw.vert.spv") });
+        g_uiCtx.drawUiFs = render::program({ data_provider::from_file("assets/default/shaders/ui_draw.frag.spv") });
+        g_uiCtx.sampler = render::sampler
+        ({
+            .magFilter          = SeSamplerFilter::LINEAR,
+            .minFilter          = SeSamplerFilter::LINEAR,
+            .addressModeU       = SeSamplerAddressMode::REPEAT,
+            .addressModeV       = SeSamplerAddressMode::REPEAT,
+            .addressModeW       = SeSamplerAddressMode::REPEAT,
+            .mipmapMode         = SeSamplerMipmapMode::LINEAR,
+            .mipLodBias         = 0.0f,
+            .minLod             = 0.0f,
+            .maxLod             = 0.0f,
+            .anisotropyEnable   = false,
+            .maxAnisotropy      = 0.0f,
+            .compareEnabled     = false,
+            .compareOp          = SeCompareOp::ALWAYS,
+        });
+        
+        hash_table::construct(g_uiCtx.fontInfos, allocators::persistent());
+        hash_table::construct(g_uiCtx.fontGroups, allocators::persistent());
+        hash_table::construct(g_uiCtx.uidToObjectData, allocators::persistent());
     }
 
     void engine::terminate()
     {
-        for (auto it : g_currentContext.uidToObjectData) string::destroy(iter::key(it));
-        hash_table::destroy(g_currentContext.uidToObjectData);
-        data_provider::destroy(g_drawUiVs);
-        data_provider::destroy(g_drawUiFs);
-        for (auto it : g_fontGroups) font_group::destroy(iter::value(it));
-        for (auto it : g_fontInfos) font_info::destroy(iter::value(it));
-        hash_table::destroy(g_fontGroups);
-        hash_table::destroy(g_fontInfos);
+        for (auto it : g_uiCtx.uidToObjectData) string::destroy(iter::key(it));
+        hash_table::destroy(g_uiCtx.uidToObjectData);
+
+        for (auto it : g_uiCtx.fontGroups) font_group::destroy(iter::value(it));
+        hash_table::destroy(g_uiCtx.fontGroups);
+
+        for (auto it : g_uiCtx.fontInfos) font_info::destroy(iter::value(it));
+        hash_table::destroy(g_uiCtx.fontInfos);
     }
 }

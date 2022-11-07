@@ -45,7 +45,7 @@ struct SeUiParam
     };
     union
     {
-        ColorPacked     color;
+        SeColorPacked     color;
         float           dim;
         SeUiPivotType   pivot;
     };

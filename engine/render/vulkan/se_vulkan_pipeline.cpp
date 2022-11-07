@@ -29,7 +29,7 @@ bool se_vk_pipeline_has_vertex_input(const SimpleSpirvReflection* reflection)
 
 SeVkDescriptorSetLayoutCreateInfos se_vk_pipeline_get_discriptor_set_layout_create_infos(const AllocatorBindings& allocator, const SimpleSpirvReflection** programReflections, size_t numProgramReflections)
 {
-    SeVkGeneralBitmask setBindingMasks[SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS] = {0};
+    SeVkGeneralBitmask setBindingMasks[SeVkConfig::RENDER_PIPELINE_MAX_DESCRIPTOR_SETS] = {0};
     //
     // Fill binding masks
     //
@@ -39,13 +39,13 @@ SeVkDescriptorSetLayoutCreateInfos se_vk_pipeline_get_discriptor_set_layout_crea
         for (size_t uniformIt = 0; uniformIt < reflection->numUniforms; uniformIt++)
         {
             const SsrUniform* uniform = &reflection->uniforms[uniformIt];
-            se_assert(uniform->set < SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS);
+            se_assert(uniform->set < SeVkConfig::RENDER_PIPELINE_MAX_DESCRIPTOR_SETS);
             se_assert(uniform->binding < SE_VK_GENERAL_BITMASK_WIDTH);
             setBindingMasks[uniform->set] |= 1 << uniform->binding;
         }
     }
     bool isEmptySetFound = false;
-    for (size_t it = 0; it < SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS; it++)
+    for (size_t it = 0; it < SeVkConfig::RENDER_PIPELINE_MAX_DESCRIPTOR_SETS; it++)
     {
         se_assert((!isEmptySetFound || !setBindingMasks[it]) && "Empty descriptor sets in between of non-empty ones are not supported");
         isEmptySetFound = isEmptySetFound || !setBindingMasks[it];
@@ -55,7 +55,7 @@ SeVkDescriptorSetLayoutCreateInfos se_vk_pipeline_get_discriptor_set_layout_crea
     //
     size_t numLayouts = 0;
     size_t numBindings = 0;
-    for (size_t it = 0; it < SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS; it++)
+    for (size_t it = 0; it < SeVkConfig::RENDER_PIPELINE_MAX_DESCRIPTOR_SETS; it++)
     {
         if (!setBindingMasks[it]) continue;
         numLayouts += 1;
@@ -85,7 +85,7 @@ SeVkDescriptorSetLayoutCreateInfos se_vk_pipeline_get_discriptor_set_layout_crea
     //
     {
         size_t layoutBindingsIt = 0;
-        for (size_t it = 0; it < SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS; it++)
+        for (size_t it = 0; it < SeVkConfig::RENDER_PIPELINE_MAX_DESCRIPTOR_SETS; it++)
         {
             if (!setBindingMasks[it]) continue;
             uint32_t numBindingsInSet = 0;
@@ -258,7 +258,7 @@ void se_vk_pipeline_create_descriptor_sets_and_layout(SeVkPipeline* pipeline, co
     // Pipeline layout
     //
     {
-        VkDescriptorSetLayout descriptorSetLayoutHandles[SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS] = {0};
+        VkDescriptorSetLayout descriptorSetLayoutHandles[SeVkConfig::RENDER_PIPELINE_MAX_DESCRIPTOR_SETS] = {0};
         for (size_t it = 0; it < pipeline->numDescriptorSetLayouts; it++)
         {
             descriptorSetLayoutHandles[it] = pipeline->descriptorSetLayouts[it].handle;
@@ -289,7 +289,7 @@ void se_vk_pipeline_graphics_construct(SeVkPipeline* pipeline, SeVkGraphicsPipel
     SeVkProgram* const fragmentProgram = info->fragmentProgram.program;
     *pipeline =
     {
-        .object                     = { SE_VK_TYPE_GRAPHICS_PIPELINE, g_pipelineIndex++ },
+        .object                     = { SeVkObject::Type::GRAPHICS_PIPELINE, 0, g_pipelineIndex++ },
         .device                     = device,
         .bindPoint                  = VK_PIPELINE_BIND_POINT_GRAPHICS,
         .handle                     = VK_NULL_HANDLE,
@@ -399,7 +399,7 @@ void se_vk_pipeline_compute_construct(SeVkPipeline* pipeline, SeVkComputePipelin
     SeVkProgram* const program = info->program.program;
     *pipeline =
     {
-        .object                     = { SE_VK_TYPE_GRAPHICS_PIPELINE, g_pipelineIndex++ },
+        .object                     = { SeVkObject::Type::COMPUTE_PIPELINE, 0, g_pipelineIndex++ },
         .device                     = device,
         .bindPoint                  = VK_PIPELINE_BIND_POINT_COMPUTE,
         .handle                     = VK_NULL_HANDLE,

@@ -11,123 +11,203 @@ constexpr size_t SE_MAX_BINDINGS                    = 8;
 constexpr size_t SE_MAX_PASS_DEPENDENCIES           = 64;
 constexpr size_t SE_MAX_PASS_RENDER_TARGETS         = 8;
 
-enum SePassRenderTargetLoadOp
+enum struct SeRenderTargetLoadOp : uint32_t
 {
-    SE_PASS_RENDER_TARGET_LOAD_OP_LOAD,
-    SE_PASS_RENDER_TARGET_LOAD_OP_CLEAR,
-    SE_PASS_RENDER_TARGET_LOAD_OP_DONT_CARE,
+    UNDEFINED,
+    LOAD,
+    CLEAR,
+    DONT_CARE,
 };
 
-enum SeTextureFormat
+enum struct SeTextureFormat : uint32_t
 {
-    SE_TEXTURE_FORMAT_DEPTH_STENCIL,
-    SE_TEXTURE_FORMAT_R_8,
-    SE_TEXTURE_FORMAT_RGBA_8,
-    SE_TEXTURE_FORMAT_RGBA_32F,
+    DEPTH_STENCIL,
+    R_8,
+    RGBA_8,
+    RGBA_32F,
 };
 
-enum SePipelinePolygonMode
+enum struct SePipelinePolygonMode : uint32_t
 {
-    SE_PIPELINE_POLYGON_FILL_MODE_FILL,
-    SE_PIPELINE_POLYGON_FILL_MODE_LINE,
-    SE_PIPELINE_POLYGON_FILL_MODE_POINT,
+    FILL,
+    LINE,
+    POINT,
 };
 
-enum SePipelineCullMode
+enum struct SePipelineCullMode : uint32_t
 {
-    SE_PIPELINE_CULL_MODE_NONE,
-    SE_PIPELINE_CULL_MODE_FRONT,
-    SE_PIPELINE_CULL_MODE_BACK,
-    SE_PIPELINE_CULL_MODE_FRONT_BACK,
+    NONE,
+    FRONT,
+    BACK,
+    FRONT_BACK,
 };
 
-enum SePipelineFrontFace
+enum struct SePipelineFrontFace : uint32_t
 {
-    SE_PIPELINE_FRONT_FACE_CLOCKWISE,
-    SE_PIPELINE_FRONT_FACE_COUNTER_CLOCKWISE,
+    CLOCKWISE,
+    COUNTER_CLOCKWISE,
 };
 
-enum SeSamplingType
+enum struct SeSamplingType : uint32_t
 {
-    SE_SAMPLING_1  = 0x00000001,
-    SE_SAMPLING_2  = 0x00000002,
-    SE_SAMPLING_4  = 0x00000004,
-    SE_SAMPLING_8  = 0x00000008,
-    SE_SAMPLING_16 = 0x00000010,
-    SE_SAMPLING_32 = 0x00000020,
-    SE_SAMPLING_64 = 0x00000040,
+    _1  = 0x00000001,
+    _2  = 0x00000002,
+    _4  = 0x00000004,
+    _8  = 0x00000008,
+    _16 = 0x00000010,
+    _32 = 0x00000020,
+    _64 = 0x00000040,
 };
 
-enum SeStencilOp
+enum struct SeStencilOp : uint32_t
 {
-    SE_STENCIL_OP_KEEP,
-    SE_STENCIL_OP_ZERO,
-    SE_STENCIL_OP_REPLACE,
-    SE_STENCIL_OP_INCREMENT_AND_CLAMP,
-    SE_STENCIL_OP_DECREMENT_AND_CLAMP,
-    SE_STENCIL_OP_INVERT,
-    SE_STENCIL_OP_INCREMENT_AND_WRAP,
-    SE_STENCIL_OP_DECREMENT_AND_WRAP,
+    KEEP,
+    ZERO,
+    REPLACE,
+    INCREMENT_AND_CLAMP,
+    DECREMENT_AND_CLAMP,
+    INVERT,
+    INCREMENT_AND_WRAP,
+    DECREMENT_AND_WRAP,
 };
 
-enum SeCompareOp
+enum struct SeCompareOp : uint32_t
 {
-    SE_COMPARE_OP_NEVER,
-    SE_COMPARE_OP_LESS,
-    SE_COMPARE_OP_EQUAL,
-    SE_COMPARE_OP_LESS_OR_EQUAL,
-    SE_COMPARE_OP_GREATER,
-    SE_COMPARE_OP_NOT_EQUAL,
-    SE_COMPARE_OP_GREATER_OR_EQUAL,
-    SE_COMPARE_OP_ALWAYS,
+    NEVER,
+    LESS,
+    EQUAL,
+    LESS_OR_EQUAL,
+    GREATER,
+    NOT_EQUAL,
+    GREATER_OR_EQUAL,
+    ALWAYS,
 };
 
-enum SeSamplerFilter
+enum struct SeSamplerFilter : uint32_t
 {
-    SE_SAMPLER_FILTER_NEAREST,
-    SE_SAMPLER_FILTER_LINEAR,
+    NEAREST,
+    LINEAR,
 };
 
-enum SeSamplerAddressMode
+enum struct SeSamplerAddressMode : uint32_t
 {
-    SE_SAMPLER_ADDRESS_MODE_REPEAT,
-    SE_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT,
-    SE_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-    SE_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+    REPEAT,
+    MIRRORED_REPEAT,
+    CLAMP_TO_EDGE,
+    CLAMP_TO_BORDER,
 };
 
-enum SeSamplerMipmapMode
+enum struct SeSamplerMipmapMode : uint32_t
 {
-    SE_SAMPLER_MIPMAP_MODE_NEAREST,
-    SE_SAMPLER_MIPMAP_MODE_LINEAR,
+    NEAREST,
+    LINEAR,
 };
 
-using SeRenderRef = uint64_t;
+enum struct SeRenderRefType : uint32_t
+{
+    PROGRAM,
+    BUFFER,
+    SAMPLER,
+};
 
-constexpr SeRenderRef NULL_RENDER_REF = 0;
+template<SeRenderRefType type> 
+struct SeRenderRef
+{
+    uint32_t index;
+    uint32_t generation;
+    operator bool () const { return generation != 0; }
+};
 
-#define se_pass_dependency(id) (1ull << id)
+using SeProgramRef = SeRenderRef<SeRenderRefType::PROGRAM>;
+using SeSamplerRef = SeRenderRef<SeRenderRefType::SAMPLER>;
+
+struct SeBufferRef
+{
+    uint32_t index;
+    uint32_t generation : 31;
+    uint32_t isScratch : 1;
+    operator bool () const { return (index != 0) | (generation != 0) | (isScratch != 0); }
+};
+
+struct SeTextureRef
+{
+    uint32_t index;
+    uint32_t generation : 31;
+    uint32_t isSwapChain : 1;
+    operator bool () const { return (index != 0) | (generation != 0) | (isSwapChain != 0); }
+};
+
 using SePassDependencies = uint64_t;
 
-struct SePassRenderTarget
+struct SeStencilOpState
 {
-    SeRenderRef texture;
-    SePassRenderTargetLoadOp loadOp;
+    bool        isEnabled;
+    uint32_t    compareMask;
+    uint32_t    writeMask;
+    uint32_t    reference;
+    SeStencilOp failOp;
+    SeStencilOp passOp;
+    SeStencilOp depthFailOp;
+    SeCompareOp compareOp;
 };
 
-struct SeBeginPassInfo
+struct SeDepthState
 {
-    SePassDependencies  dependencies;
-    SeRenderRef         pipeline;
-    SePassRenderTarget  renderTargets[SE_MAX_PASS_RENDER_TARGETS];
-    size_t              numRenderTargets;
-    SePassRenderTarget  depthStencilTarget;
-    bool                hasDepthStencil;
+    bool isTestEnabled;
+    bool isWriteEnabled;
 };
 
 struct SeProgramInfo
 {
     DataProvider data;
+};
+
+struct SeSpecializationConstant
+{
+    uint32_t constantId;
+    union
+    {
+        int32_t     asInt;
+        uint32_t    asUint;
+        float       asFloat;
+        bool        asBool;
+    };
+};
+
+struct SeProgramWithConstants
+{
+    SeProgramRef                program;
+    SeSpecializationConstant    specializationConstants[SE_MAX_SPECIALIZATION_CONSTANTS];
+    size_t                      numSpecializationConstants;
+};
+
+struct SePassRenderTarget
+{
+    SeTextureRef texture;
+    SeRenderTargetLoadOp loadOp;
+    operator bool () const { return loadOp != SeRenderTargetLoadOp::UNDEFINED; }
+};
+
+struct SeGraphicsPassInfo
+{
+    SePassDependencies      dependencies;
+    SeProgramWithConstants  vertexProgram;
+    SeProgramWithConstants  fragmentProgram;
+    SeStencilOpState        frontStencilOpState;
+    SeStencilOpState        backStencilOpState;
+    SeDepthState            depthState;
+    SePipelinePolygonMode   polygonMode;
+    SePipelineCullMode      cullMode;
+    SePipelineFrontFace     frontFace;
+    SeSamplingType          samplingType;
+    SePassRenderTarget      renderTargets[SE_MAX_PASS_RENDER_TARGETS];
+    SePassRenderTarget      depthStencilTarget;
+};
+
+struct SeComputePassInfo
+{
+    SePassDependencies      dependencies;
+    SeProgramWithConstants  program;
 };
 
 struct SeRenderProgramComputeWorkGroupSize
@@ -139,9 +219,9 @@ struct SeRenderProgramComputeWorkGroupSize
 
 struct SeTextureInfo
 {
-    size_t          width;
-    size_t          height;
     SeTextureFormat format;
+    uint32_t        width;
+    uint32_t        height;
     DataProvider    data;
 };
 
@@ -162,71 +242,43 @@ struct SeSamplerInfo
     SeCompareOp             compareOp;
 };
 
-struct SeStencilOpState
-{
-    bool        isEnabled;
-    uint32_t    compareMask;
-    uint32_t    writeMask;
-    uint32_t    reference;
-    SeStencilOp failOp;
-    SeStencilOp passOp;
-    SeStencilOp depthFailOp;
-    SeCompareOp compareOp;
-};
-
-struct SeDepthState
-{
-    bool isTestEnabled;
-    bool isWriteEnabled;
-};
-
-struct SeSpecializationConstant
-{
-    uint32_t constantId;
-    union
-    {
-        int32_t     asInt;
-        uint32_t    asUint;
-        float       asFloat;
-        bool        asBool;
-    };
-};
-
-struct SeProgramWithConstants
-{
-    SeRenderRef                 program;
-    SeSpecializationConstant    specializationConstants[SE_MAX_SPECIALIZATION_CONSTANTS];
-    size_t                      numSpecializationConstants;
-};
-
-struct SeGraphicsPipelineInfo
-{
-    SeProgramWithConstants  vertexProgram;
-    SeProgramWithConstants  fragmentProgram;
-    SeStencilOpState        frontStencilOpState;
-    SeStencilOpState        backStencilOpState;
-    SeDepthState            depthState;
-    SePipelinePolygonMode   polygonMode;
-    SePipelineCullMode      cullMode;
-    SePipelineFrontFace     frontFace;
-    SeSamplingType          samplingType;
-};
-
-struct SeComputePipelineInfo
-{
-    SeProgramWithConstants program;
-};
-
 struct SeMemoryBufferInfo
 {
     DataProvider data;
 };
 
+struct SeMemoryBufferWriteInfo
+{
+    SeBufferRef buffer;
+    DataProvider data;
+    size_t offset;
+};
+
 struct SeBinding
 {
-    uint32_t    binding;
-    SeRenderRef object;
-    SeRenderRef sampler;
+    enum Type : uint32_t
+    {
+        __UNDEFINED,
+        TEXTURE,
+        BUFFER,
+    };
+    uint32_t binding;
+    Type type;
+    union
+    {
+        struct
+        {
+            SeTextureRef texture;
+            SeSamplerRef sampler;
+        } texture;
+        struct
+        {
+            SeBufferRef buffer;
+            size_t offset;
+            size_t size;
+        } buffer;
+    };
+    operator bool () const { return type != __UNDEFINED; }
 };
 
 struct SeCommandBindInfo
@@ -237,15 +289,15 @@ struct SeCommandBindInfo
 
 struct SeCommandDrawInfo
 {
-    uint32_t    numVertices;
-    uint32_t    numInstances;
+    uint32_t numVertices;
+    uint32_t numInstances;
 };
 
 struct SeCommandDispatchInfo
 {
-    uint32_t    groupCountX;
-    uint32_t    groupCountY;
-    uint32_t    groupCountZ;
+    uint32_t groupCountX;
+    uint32_t groupCountY;
+    uint32_t groupCountZ;
 };
 
 struct SeComputeWorkgroupSize
@@ -257,46 +309,56 @@ struct SeComputeWorkgroupSize
 
 struct SeTextureSize
 {
-    size_t x;
-    size_t y;
-    size_t z;
+    size_t width;
+    size_t height;
+    size_t depth;
 };
 
 namespace render
 {
     bool                    begin_frame                 ();
     void                    end_frame                   ();
-    SePassDependencies      begin_pass                  (const SeBeginPassInfo& info);
+
+    SePassDependencies      begin_graphics_pass         (const SeGraphicsPassInfo& info);
+    SePassDependencies      begin_compute_pass          (const SeComputePassInfo& info);
     void                    end_pass                    ();
-    SeRenderRef             program                     (const SeProgramInfo& info);
-    SeRenderRef             texture                     (const SeTextureInfo& info);
-    SeRenderRef             swap_chain_texture          ();
-    SeTextureSize           texture_size                (SeRenderRef texture);
-    SeRenderRef             graphics_pipeline           (const SeGraphicsPipelineInfo& info);
-    SeRenderRef             compute_pipeline            (const SeComputePipelineInfo& info);
-    SeRenderRef             memory_buffer               (const SeMemoryBufferInfo& info);
-    SeRenderRef             sampler                     (const SeSamplerInfo& info);
+
+    SeProgramRef            program                     (const SeProgramInfo& info);
+    SeTextureRef            texture                     (const SeTextureInfo& info);
+    SeTextureRef            swap_chain_texture          ();
+    SeBufferRef             memory_buffer               (const SeMemoryBufferInfo& info);
+    SeBufferRef             scratch_memory_buffer       (const SeMemoryBufferInfo& info);
+    SeSamplerRef            sampler                     (const SeSamplerInfo& info);
+
     void                    bind                        (const SeCommandBindInfo& info);
     void                    draw                        (const SeCommandDrawInfo& info);
     void                    dispatch                    (const SeCommandDispatchInfo& info);
+    void                    write                       (const SeMemoryBufferWriteInfo& info);
+
     SeFloat4x4              perspective                 (float fovDeg, float aspect, float nearPlane, float farPlane);
     SeFloat4x4              orthographic                (float left, float right, float bottom, float top, float nearPlane, float farPlane);
-    SeComputeWorkgroupSize  workgroup_size              (SeRenderRef program);
-    SePassDependencies      dependencies_for_texture    (SeRenderRef texture);
+    SeTextureSize           texture_size                (SeTextureRef texture);
+    SeComputeWorkgroupSize  workgroup_size              (SeProgramRef program);
+
+    void                    destroy                     (SeProgramRef ref);
+    void                    destroy                     (SeSamplerRef ref);
+    void                    destroy                     (SeBufferRef ref);
+    void                    destroy                     (SeTextureRef ref);
 
     namespace engine
     {
         void init();
         void terminate();
+        void update();
     }
 };
 
-using ColorPacked = uint32_t;
-using ColorUnpacked = SeFloat4;
+using SeColorPacked = uint32_t;
+using SeColorUnpacked = SeFloat4;
 
 namespace col
 {
-    inline constexpr ColorPacked pack(const ColorUnpacked& color)
+    inline constexpr SeColorPacked pack(const SeColorUnpacked& color)
     {
         const uint32_t r = (uint32_t)(se_clamp(color.r, 0.0f, 1.0f) * 255.0f);
         const uint32_t g = (uint32_t)(se_clamp(color.g, 0.0f, 1.0f) * 255.0f);
@@ -305,7 +367,7 @@ namespace col
         return r | (g << 8) | (b << 16) | (a << 24);
     }
 
-    inline constexpr ColorUnpacked unpack(ColorPacked color)
+    inline constexpr SeColorUnpacked unpack(SeColorPacked color)
     {
         return
         {

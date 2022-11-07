@@ -135,7 +135,7 @@ void update_text_example(float dt)
     constexpr float     ADDITIONAL_STEP     = 5.0f;
     constexpr TimeMs    COLOR_INTERVAL_MS   = 2000;
     constexpr float     COLOR_TIME_SCALE    = 1.2f;
-    constexpr ColorUnpacked COLORS[] =
+    constexpr SeColorUnpacked COLORS[] =
     {
         { 1.0f, 0.0f, 0.0f, 1.0f },
         { 0.0f, 1.0f, 0.0f, 1.0f },
@@ -164,9 +164,9 @@ void update_text_example(float dt)
         const TimeMs        clampedTime = colorTimes[it] % MAX_COLOR_TIME_MS;
         const size_t        colorIndex  = clampedTime / COLOR_INTERVAL_MS;
         const float         lerpValue   = float(clampedTime % COLOR_INTERVAL_MS) / float(COLOR_INTERVAL_MS);
-        const ColorUnpacked colorFrom   = COLORS[colorIndex];
-        const ColorUnpacked colorTo     = COLORS[(colorIndex + 1) % NUM_COLORS];
-        const ColorUnpacked resultColor = se_lerp(colorFrom, colorTo, lerpValue);
+        const SeColorUnpacked colorFrom   = COLORS[colorIndex];
+        const SeColorUnpacked colorTo     = COLORS[(colorIndex + 1) % NUM_COLORS];
+        const SeColorUnpacked resultColor = se_lerp(colorFrom, colorTo, lerpValue);
 
         ui::set_param(SeUiParam::FONT_COLOR, { .color = col::pack(resultColor) });
         ui::text({ string::cstr(string::create_fmt(SeStringLifetime::Temporary, "{} : {}", get_local(LocalizedString::LINE_OF_TEXT), clampedTime)) });
@@ -277,7 +277,7 @@ void update(const SeUpdateInfo& info)
     if (win::is_close_button_pressed()) engine::stop();
     if (render::begin_frame())
     {
-        if (ui::begin({ render::swap_chain_texture(), SE_PASS_RENDER_TARGET_LOAD_OP_CLEAR }))
+        if (ui::begin({ render::swap_chain_texture(), SeRenderTargetLoadOp::CLEAR }))
         {
             ui::set_font_group({ g_fontDataEnglish, g_fontDataRussian });
             switch (g_menuState)

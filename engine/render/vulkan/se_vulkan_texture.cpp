@@ -16,8 +16,8 @@ size_t g_numStbiAllocations = 0;
 #define STBI_MALLOC(sz) se_vk_texture_stbi_alloc(sz)
 void* se_vk_texture_stbi_alloc(size_t size)
 {
-    AllocatorBindings allocator = allocators::persistent();
-    void* ptr = allocator.alloc(allocator.allocator, size, se_default_alignment, se_alloc_tag);
+    const AllocatorBindings allocator = allocators::persistent();
+    void* const ptr = allocator.alloc(allocator.allocator, size, se_default_alignment, se_alloc_tag);
     se_assert(g_numStbiAllocations < MAX_STBI_ALLOCATIONS);
     g_stbiAllocations[g_numStbiAllocations++] = { ptr, size };
     return ptr;
@@ -236,7 +236,7 @@ void se_vk_texture_construct(SeVkTexture* texture, SeVkTextureInfo* info)
             (!(isDepthFormat || isStencilFormat)    ? VK_IMAGE_ASPECT_COLOR_BIT     : 0) ;
         *texture =
         {
-            .object                 = { SE_VK_TYPE_TEXTURE, g_textureIndex++ },
+            .object                 = { SeVkObject::Type::TEXTURE, 0, g_textureIndex++ },
             .device                 = info->device,
             .extent                 = textureExtent,
             .format                 = info->format,
@@ -250,7 +250,7 @@ void se_vk_texture_construct(SeVkTexture* texture, SeVkTextureInfo* info)
         //
         // Create image
         //
-        uint32_t queueFamilyIndices[SE_VK_MAX_UNIQUE_COMMAND_QUEUES];
+        uint32_t queueFamilyIndices[SeVkConfig::MAX_UNIQUE_COMMAND_QUEUES];
         VkImageCreateInfo imageCreateInfo =
         {
             .sType                  = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -405,7 +405,7 @@ void se_vk_texture_construct_from_swap_chain(SeVkTexture* texture, SeVkDevice* d
 {
     *texture =
     {
-        .object                 = { SE_VK_TYPE_TEXTURE, g_textureIndex++ },
+        .object                 = { SeVkObject::Type::TEXTURE, 0, g_textureIndex++ },
         .device                 = device,
         .extent                 = { extent->width, extent->height, 1 },
         .format                 = format,

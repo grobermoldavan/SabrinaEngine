@@ -11,8 +11,6 @@
 #include "se_vulkan_sampler.hpp"
 #include "se_vulkan_command_buffer.hpp"
 
-constexpr size_t SE_VK_GRAPH_MAX_POOLS_IN_ARRAY = 64;
-
 enum SeVkGraphContextType
 {
     SE_VK_GRAPH_CONTEXT_TYPE_BETWEEN_FRAMES,
@@ -42,15 +40,14 @@ struct SeVkGraphCommand
 
 struct SeVkGraphPass
 {
-    SeBeginPassInfo info;
+    enum { GRAPHICS, COMPUTE } type;
+    union
+    {
+        SeGraphicsPassInfo graphicsPassInfo;
+        SeComputePassInfo computePassInfo;
+    };
     SeVkRenderPassInfo renderPassInfo;
     DynamicArray<SeVkGraphCommand> commands;
-};
-
-struct SeVkGraphTextureInfoIndexed
-{
-    SeVkTextureInfo info;
-    size_t index;
 };
 
 struct SeVkGraphPipelineWithFrame
@@ -67,7 +64,7 @@ struct SeVkGraphDescriptorPool
 
 struct SeVkGraphDescriptorPoolArray
 {
-    SeVkGraphDescriptorPool pools[SE_VK_GRAPH_MAX_POOLS_IN_ARRAY];
+    SeVkGraphDescriptorPool pools[SeVkConfig::GRAPH_MAX_POOLS_IN_ARRAY];
     size_t numPools;
     size_t lastFrame;
 };
@@ -83,32 +80,19 @@ struct SeVkGraph
 {
     SeVkDevice*                                             device;
     SeVkGraphContextType                                    context;
-
-    DynamicArray<DynamicArray<SeVkCommandBuffer*>>          frameCommandBuffers;
-
-    DynamicArray<SeVkTextureInfo>                           textureInfos;
+    
     DynamicArray<SeVkGraphPass>                             passes;
-    DynamicArray<SeGraphicsPipelineInfo>                    graphicsPipelineInfos;
-    DynamicArray<SeComputePipelineInfo>                     computePipelineInfos;
-    DynamicArray<SeVkMemoryBufferView>                      scratchBufferViews;
 
-    HashTable<SeVkTextureInfo               , size_t>                               textureInfoToCount;
-    HashTable<SeVkGraphTextureInfoIndexed   , SeVkGraphWithFrame<SeVkTexture>>      textureInfoIndexedToTexture;
-    HashTable<SeVkProgramInfo               , SeVkGraphWithFrame<SeVkProgram>>      programInfoToProgram;
     HashTable<SeVkRenderPassInfo            , SeVkGraphWithFrame<SeVkRenderPass>>   renderPassInfoToRenderPass;
     HashTable<SeVkFramebufferInfo           , SeVkGraphWithFrame<SeVkFramebuffer>>  framebufferInfoToFramebuffer;
     HashTable<SeVkGraphicsPipelineInfo      , SeVkGraphWithFrame<SeVkPipeline>>     graphicsPipelineInfoToGraphicsPipeline;
     HashTable<SeVkComputePipelineInfo       , SeVkGraphWithFrame<SeVkPipeline>>     computePipelineInfoToComputePipeline;
-    HashTable<SeVkSamplerInfo               , SeVkGraphWithFrame<SeVkSampler>>      samplerInfoToSampler;
     HashTable<SeVkGraphPipelineWithFrame    , SeVkGraphDescriptorPoolArray>         pipelineToDescriptorPools;
-
-    SeVkMemoryBuffer* stagingBuffer;
 };
 
 struct SeVkGraphInfo
 {
     SeVkDevice* device;
-    size_t numFrames;
 };
 
 void        se_vk_graph_construct(SeVkGraph* graph, const SeVkGraphInfo* info);
@@ -117,47 +101,24 @@ void        se_vk_graph_destroy(SeVkGraph* graph);
 void        se_vk_graph_begin_frame(SeVkGraph* graph);
 void        se_vk_graph_end_frame(SeVkGraph* graph);
 
-SePassDependencies  se_vk_graph_begin_pass(SeVkGraph* graph, const SeBeginPassInfo& info);
+SePassDependencies  se_vk_graph_begin_graphics_pass(SeVkGraph* graph, const SeGraphicsPassInfo& info);
+SePassDependencies  se_vk_graph_begin_compute_pass(SeVkGraph* graph, const SeComputePassInfo& info);
 void                se_vk_graph_end_pass(SeVkGraph* graph);
 
-SeRenderRef         se_vk_graph_program(SeVkGraph* graph, const SeProgramInfo& info);
-SeRenderRef         se_vk_graph_texture(SeVkGraph* graph, const SeTextureInfo& info);
-SeRenderRef         se_vk_graph_swap_chain_texture(SeVkGraph* graph);
-SeTextureSize       se_vk_grap_texture_size(SeVkGraph* graph, SeRenderRef texture);
-SeRenderRef         se_vk_graph_memory_buffer(SeVkGraph* graph, const SeMemoryBufferInfo& info);
-SeRenderRef         se_vk_graph_graphics_pipeline(SeVkGraph* graph, const SeGraphicsPipelineInfo& info);
-SeRenderRef         se_vk_graph_compute_pipeline(SeVkGraph* graph, const SeComputePipelineInfo& info);
-SeRenderRef         se_vk_graph_sampler(SeVkGraph* graph, const SeSamplerInfo& info);
 void                se_vk_graph_command_bind(SeVkGraph* graph, const SeCommandBindInfo& info);
 void                se_vk_graph_command_draw(SeVkGraph* graph, const SeCommandDrawInfo& info);
 void                se_vk_graph_command_dispatch(SeVkGraph* graph, const SeCommandDispatchInfo& info);
-SePassDependencies  se_vk_graph_dependencies_for_texture(const SeVkGraph* graph, SeRenderRef texture);
 
 namespace hash_value
 {
     namespace builder
     {
         template<>
-        void absorb<SeVkGraphTextureInfoIndexed>(HashValueBuilder& builder, const SeVkGraphTextureInfoIndexed& value)
-        {
-            hash_value::builder::absorb(builder, value.info);
-            hash_value::builder::absorb_raw(builder, { (void*)&value.index, sizeof(value.index) });
-        }
-
-        template<>
         void absorb<SeVkGraphPipelineWithFrame>(HashValueBuilder& builder, const SeVkGraphPipelineWithFrame& value)
         {
             hash_value::builder::absorb(builder, *value.pipeline);
             hash_value::builder::absorb(builder, value.frame);
         }
-    }
-
-    template<>
-    HashValue generate<SeVkGraphTextureInfoIndexed>(const SeVkGraphTextureInfoIndexed& value)
-    {
-        HashValueBuilder builder = hash_value::builder::begin();
-        hash_value::builder::absorb(builder, value);
-        return hash_value::builder::end(builder);
     }
 
     template<>

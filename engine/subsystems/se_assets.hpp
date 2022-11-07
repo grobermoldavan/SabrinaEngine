@@ -2,17 +2,15 @@
 #define _SE_ASSETS_HPP_
 
 #include "engine/se_common_includes.hpp"
+#include "engine/se_data_providers.hpp"
+#include "engine/se_math.hpp"
 
 struct SeAssetCategory
 {
     using Type = uint8_t;
     enum : Type
     {
-        RENDER_TEXTURE,
-        RENDER_BUFFER,
-        RENDER_PROGRAM,
-        RENDER_MODEL,
-        FONT,
+        MESH,
         SOUND,
         __COUNT,
     };

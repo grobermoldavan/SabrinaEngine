@@ -40,18 +40,18 @@ void update(const SeUpdateInfo& info)
 {
     if (win::is_close_button_pressed() || win::is_keyboard_button_pressed(SeKeyboard::ESCAPE)) engine::stop();
 
-    const InputInstanceData instances[] =
+    static const InputInstanceData instances[] =
     {
         { .trfWS = SE_F4X4_IDENTITY },
     };
-    const InputVertex vertices[] =
+    static const InputVertex vertices[] =
     {
         { .positionLS = { -1, -1, 3 }, .uv = { 0, 0 }, .color = { 0.7f, 0.5f, 0.5f, 1.0f, } },
         { .positionLS = {  1, -1, 3 }, .uv = { 1, 1 }, .color = { 0.7f, 0.5f, 0.5f, 1.0f, } },
         { .positionLS = {  0,  1, 3 }, .uv = { 1, 0 }, .color = { 0.7f, 0.5f, 0.5f, 1.0f, } },
     };
-    const float aspect = ((float)win::get_width()) / ((float)win::get_height());
-    const FrameData frameData
+    static const float aspect = ((float)win::get_width()) / ((float)win::get_height());
+    static const FrameData frameData
     {
         .viewProjection = float4x4::transposed
         (
@@ -64,35 +64,36 @@ void update(const SeUpdateInfo& info)
     };
     if (render::begin_frame())
     {
-        const SeRenderRef vertexProgram = render::program({ vertexProgramData });
-        const SeRenderRef fragmentProgram = render::program({ fragmentProgramData });
-        const SeRenderRef frameDataBuffer = render::memory_buffer({ data_provider::from_memory(&frameData, sizeof(frameData)) });
-        const SeRenderRef instancesBuffer = render::memory_buffer({ data_provider::from_memory(instances, sizeof(instances)) });
-        const SeRenderRef verticesBuffer = render::memory_buffer({ data_provider::from_memory(vertices, sizeof(vertices)) });
-        const SeRenderRef pipeline = render::graphics_pipeline
+        static const SeProgramRef vertexProgram = render::program({ vertexProgramData });
+        static const SeProgramRef fragmentProgram = render::program({ fragmentProgramData });
+        static const SeBufferRef frameDataBuffer = render::memory_buffer({ data_provider::from_memory(&frameData, sizeof(frameData)) });
+        static const SeBufferRef instancesBuffer = render::memory_buffer({ data_provider::from_memory(instances, sizeof(instances)) });
+        static const SeBufferRef verticesBuffer = render::memory_buffer({ data_provider::from_memory(vertices, sizeof(vertices)) });
+        render::begin_graphics_pass
         ({
+            .dependencies           = 0,
             .vertexProgram          = { .program = vertexProgram, },
             .fragmentProgram        = { .program = fragmentProgram, },
             .frontStencilOpState    = { .isEnabled = false, },
             .backStencilOpState     = { .isEnabled = false, },
             .depthState             = { .isTestEnabled = false, .isWriteEnabled = false, },
-            .polygonMode            = SE_PIPELINE_POLYGON_FILL_MODE_FILL,
-            .cullMode               = SE_PIPELINE_CULL_MODE_NONE,
-            .frontFace              = SE_PIPELINE_FRONT_FACE_CLOCKWISE,
-            .samplingType           = SE_SAMPLING_1,
-        });
-        render::begin_pass
-        ({
-            .dependencies       = 0,
-            .pipeline           = pipeline,
-            .renderTargets      = { { render::swap_chain_texture(), SE_PASS_RENDER_TARGET_LOAD_OP_CLEAR } },
-            .numRenderTargets   = 1,
-            .depthStencilTarget = { },
-            .hasDepthStencil    = false,
+            .polygonMode            = SePipelinePolygonMode::FILL,
+            .cullMode               = SePipelineCullMode::NONE,
+            .frontFace              = SePipelineFrontFace::CLOCKWISE,
+            .samplingType           = SeSamplingType::_1,
+            .renderTargets          = { { render::swap_chain_texture(), SeRenderTargetLoadOp::CLEAR } },
+            .depthStencilTarget     = { },
         });
         {
-            render::bind({ .set = 0, .bindings = { { 0, frameDataBuffer } } });
-            render::bind({ .set = 1, .bindings = { { 0, verticesBuffer }, { 1, instancesBuffer } } });
+            render::bind({ .set = 0, .bindings =
+            {
+                { .binding = 0, .type = SeBinding::BUFFER, .buffer = { frameDataBuffer } }
+            } });
+            render::bind({ .set = 1, .bindings =
+            {
+                { .binding = 0, .type = SeBinding::BUFFER, .buffer = { verticesBuffer } },
+                { .binding = 1, .type = SeBinding::BUFFER, .buffer = { instancesBuffer } }
+            } });
             render::draw({ .numVertices = se_array_size(vertices), .numInstances = se_array_size(instances) });
         }
         render::end_pass();
@@ -106,7 +107,7 @@ int main(int argc, char* argv[])
     {
         .applicationName    = "Sabrina engine - triangle example",
         .isFullscreenWindow = false,
-        .isResizableWindow  = true,
+        .isResizableWindow  = false,
         .windowWidth        = 640,
         .windowHeight       = 480,
     };

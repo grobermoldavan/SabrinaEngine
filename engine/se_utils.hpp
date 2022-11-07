@@ -16,7 +16,8 @@ namespace utils
     template<typename First, typename Second>
     bool compare(const First& first, const Second& second)
     {
-        return std::is_same_v<First, Second> && compare_raw(&first, &second, sizeof(First));
+        static_assert(std::is_same_v<First, Second>);
+        return compare_raw(&first, &second, sizeof(First));
     }
 
     template<size_t value>

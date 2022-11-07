@@ -4,26 +4,32 @@
 #include "se_vulkan_base.hpp"
 #include "se_vulkan_memory_buffer.hpp"
 
-#define SE_VK_FRAME_MANAGER_MAX_NUM_FRAMES 6
 #define SE_VK_FRAME_MANAGER_INVALID_FRAME 0xDEAD
 
-#define se_vk_frame_manager_get_active_frame(manager) (&(manager)->frames[(manager)->frameNumber % (manager)->numFrames])
-#define se_vk_frame_manager_get_active_frame_index(manager) ((manager)->frameNumber % (manager)->numFrames)
+#define se_vk_frame_manager_get_active_frame(manager) (&(manager)->frames[(manager)->frameNumber % SeVkConfig::NUM_FRAMES_IN_FLIGHT])
+#define se_vk_frame_manager_get_active_frame_index(manager) ((manager)->frameNumber % SeVkConfig::NUM_FRAMES_IN_FLIGHT)
+#define se_vk_frame_manager_get_frame(manager, index) (&(manager)->frames[(index) % SeVkConfig::NUM_FRAMES_IN_FLIGHT])
 
 struct SeVkFrame
 {
-    SeVkMemoryBuffer*   scratchBuffer;
-    size_t              scratchBufferTop;
-    VkSemaphore         imageAvailableSemaphore;
-    SeVkCommandBuffer*  lastBuffer;
+    struct ScratchBufferView
+    {
+        size_t offset;
+        size_t size;
+    };
+
+    VkSemaphore                         imageAvailableSemaphore;
+    DynamicArray<SeVkCommandBuffer*>    commandBuffers;
+    SeVkMemoryBuffer*                   scratchBuffer;
+    DynamicArray<ScratchBufferView>     scratchBufferViews;
+    size_t                              scratchBufferTop;
 };
 
 struct SeVkFrameManager
 {
     SeVkDevice* device;
-    SeVkFrame   frames[SE_VK_FRAME_MANAGER_MAX_NUM_FRAMES];
-    size_t      imageToFrame[SE_VK_FRAME_MANAGER_MAX_NUM_FRAMES];
-    size_t      numFrames;
+    SeVkFrame   frames[SeVkConfig::NUM_FRAMES_IN_FLIGHT];
+    size_t      imageToFrame[SeVkConfig::MAX_SWAP_CHAIN_IMAGES];
     size_t      frameNumber;
     size_t      scratchBufferAlignment;
 };
@@ -31,13 +37,15 @@ struct SeVkFrameManager
 struct SeVkFrameManagerCreateInfo
 {
     SeVkDevice* device;
-    size_t numFrames;
 };
+
+struct SeVkCommandBufferInfo;
 
 void se_vk_frame_manager_construct(SeVkFrameManager* manager, const SeVkFrameManagerCreateInfo* createInfo);
 void se_vk_frame_manager_destroy(SeVkFrameManager* manager);
 void se_vk_frame_manager_advance(SeVkFrameManager* manager);
 
-SeVkMemoryBufferView se_vk_frame_manager_alloc_scratch_buffer(SeVkFrameManager* manager, size_t size);
+SeVkCommandBuffer* se_vk_frame_manager_get_cmd(SeVkFrameManager* manager, SeVkCommandBufferInfo* info);
+uint32_t se_vk_frame_manager_alloc_scratch_buffer(SeVkFrameManager* manager, DataProvider data);
 
 #endif

@@ -54,6 +54,7 @@ namespace engine
             allocators::engine::update();
             debug::engine::update();
             win::engine::update();
+            render::engine::update();
             if (update) update({ dt, frame });
 
             prevCounter = newCounter;
@@ -79,7 +80,7 @@ namespace engine
 #ifdef SE_VULKAN
 #   include "engine/render/se_vulkan.cpp"
 #else
-#   error Unsupported graphics api
+#   error Graphics api is not defined
 #endif
 
 #include "engine/subsystems/se_platform.cpp"

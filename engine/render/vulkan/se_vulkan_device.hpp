@@ -20,9 +20,6 @@
 #define se_vk_device_get_physical_device_properties(device)         (&(device)->gpu.deviceProperties_10)
 #define se_vk_device_get_swap_chain_texture(device, index)          ((device)->swapChain.textures[index])
 
-#define SE_VK_MAX_UNIQUE_COMMAND_QUEUES 4
-#define SE_VK_MAX_SWAP_CHAIN_IMAGES     16
-
 enum SeVkCommandQueueFlagBits
 {
     SE_VK_CMD_QUEUE_GRAPHICS    = 0x00000001,
@@ -59,7 +56,7 @@ struct SeVkGpu
     VkPhysicalDeviceVulkan11Properties  deviceProperties_11;
     VkPhysicalDeviceVulkan12Properties  deviceProperties_12;
     VkPhysicalDeviceMemoryProperties    memoryProperties;
-    SeVkCommandQueue                    commandQueues[SE_VK_MAX_UNIQUE_COMMAND_QUEUES];
+    SeVkCommandQueue                    commandQueues[SeVkConfig::MAX_UNIQUE_COMMAND_QUEUES];
     VkPhysicalDevice                    physicalHandle;
     VkDevice                            logicalHandle;
     VkFormat                            depthStencilFormat;
@@ -77,9 +74,23 @@ struct SeVkSwapChain
     VkSwapchainKHR                  handle;
     VkSurfaceFormatKHR              surfaceFormat;
     VkExtent2D                      extent;
-    SeVkSwapChainImage              images[SE_VK_MAX_SWAP_CHAIN_IMAGES];
-    ObjectPoolEntryRef<SeVkTexture> textures[SE_VK_MAX_SWAP_CHAIN_IMAGES];
+    SeVkSwapChainImage              images[SeVkConfig::MAX_SWAP_CHAIN_IMAGES];
+    ObjectPoolEntryRef<SeVkTexture> textures[SeVkConfig::MAX_SWAP_CHAIN_IMAGES];
     size_t                          numTextures;
+};
+
+struct SeVkGraveyard
+{
+    template<typename Ref>
+    struct Entry
+    {
+        Ref ref;
+        size_t frameIndex;
+    };
+    DynamicArray<Entry<SeProgramRef>>   programs;
+    DynamicArray<Entry<SeSamplerRef>>   samplers;
+    DynamicArray<Entry<SeBufferRef>>    buffers;
+    DynamicArray<Entry<SeTextureRef>>   textures;
 };
 
 struct SeVkDevice
@@ -94,12 +105,17 @@ struct SeVkDevice
     SeVkDeviceFlags                 flags;
     SeVkFrameManager                frameManager;
     SeVkGraph                       graph;
+    SeVkGraveyard                   graveyard;
 };
 
 SeVkDevice*                         se_vk_device_create(void* nativeWindowHandle);
 void                                se_vk_device_destroy(SeVkDevice* device);
 void                                se_vk_device_begin_frame(SeVkDevice* device, VkExtent2D extent);
 void                                se_vk_device_end_frame(SeVkDevice* device);
+
+template<typename Ref> void         se_vk_device_submit_to_graveyard(SeVkDevice* device, Ref ref);
+template<typename Ref> void         se_vk_device_update_graveyard_collection(SeVkDevice* device, DynamicArray<SeVkGraveyard::Entry<Ref>>& collection);
+void                                se_vk_device_update_graveyard(SeVkDevice* device);
 
 SeVkFlags                           se_vk_device_get_supported_sampling_types(SeVkDevice* device);
 VkSampleCountFlags                  se_vk_device_get_supported_framebuffer_multisample_types(SeVkDevice* device);

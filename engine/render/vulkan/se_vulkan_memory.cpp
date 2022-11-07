@@ -26,7 +26,7 @@ struct SeVkMemoryObjectPools
 
 constexpr size_t MEMORY_BLOCK_SIZE_BYTES     = 64ull;
 constexpr size_t DEFAULT_CHUNK_SIZE_BYTES    = 32ull * 1024ull * 1024ull;
-constexpr size_t STAGING_BUFFER_SIZE         = se_megabytes(16);
+constexpr size_t STAGING_BUFFER_SIZE         = se_megabytes(8);
 
 void* se_vk_memory_manager_alloc(void* pUserData, size_t size, size_t alignment, VkSystemAllocationScope allocationScope)
 {
@@ -226,7 +226,7 @@ void se_vk_memory_manager_set_device(SeVkMemoryManager* manager, SeVkDevice* dev
         .size       = STAGING_BUFFER_SIZE,
         .usage      = VK_BUFFER_USAGE_TRANSFER_DST_BIT   | 
                       VK_BUFFER_USAGE_TRANSFER_SRC_BIT   ,
-        .visibility = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+        .visibility = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
     };
     se_vk_memory_buffer_construct(manager->stagingBuffer, &stagingBufferInfo);
 }
@@ -243,7 +243,9 @@ SeVkMemory se_vk_memory_manager_allocate(SeVkMemoryManager* manager, SeVkGpuAllo
     const size_t requiredNumberOfBlocks = 1 + ((request.size - 1) / MEMORY_BLOCK_SIZE_BYTES);
     uint32_t memoryTypeIndex = 0;
     if (!se_vk_utils_get_memory_type_index(manager->memoryProperties, request.memoryTypeBits, request.properties, &memoryTypeIndex))
+    {
         se_assert_msg(false, "Unable to find memory type index");
+    }
     //
     // 1. Try to find memory in available chunks
     //
@@ -299,8 +301,8 @@ SeVkMemory se_vk_memory_manager_allocate(SeVkMemoryManager* manager, SeVkGpuAllo
     // 3. Allocate memory in new chunk
     //
     {
-        SeVkGpuMemoryChunk* chunk = &manager->gpu_chunks[dynamic_array::size(manager->gpu_chunks) - 1];
-        size_t inChunkOffset = se_vk_memory_chunk_find_aligned_free_space(chunk, requiredNumberOfBlocks, request.alignment);
+        SeVkGpuMemoryChunk* const chunk = &manager->gpu_chunks[dynamic_array::size(manager->gpu_chunks) - 1];
+        const size_t inChunkOffset = se_vk_memory_chunk_find_aligned_free_space(chunk, requiredNumberOfBlocks, request.alignment);
         se_assert(inChunkOffset != chunk->memorySize);
         se_vk_memory_manager_set_in_use(chunk, requiredNumberOfBlocks, inChunkOffset);
         return

@@ -41,7 +41,7 @@ void se_vk_program_construct(SeVkProgram* program, SeVkProgramInfo* info)
     auto [bytecode, bytecodeSize] = data_provider::get(info->data);
     *program =
     {
-        .object     = { SE_VK_TYPE_PROGRAM, g_programIndex++ },
+        .object     = { SeVkObject::Type::PROGRAM, 0, g_programIndex++ },
         .device     = info->device,
         .handle     = se_vk_utils_create_shader_module(logicalHandle, (const uint32_t*)bytecode, bytecodeSize, callbacks),
         .reflection = { },

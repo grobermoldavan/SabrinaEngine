@@ -69,7 +69,7 @@ float se_vk_gpu_get_device_rating(VkPhysicalDevice device, VkSurfaceKHR surface,
 
 const SeVkCommandQueue* se_vk_gpu_get_command_queue(const SeVkGpu* gpu, SeVkCommandQueueFlags flags)
 {
-    for (size_t it = 0; it < SE_VK_MAX_UNIQUE_COMMAND_QUEUES; it++)
+    for (size_t it = 0; it < SeVkConfig::MAX_UNIQUE_COMMAND_QUEUES; it++)
     {
         const SeVkCommandQueue* const queue = &gpu->commandQueues[it];
         if (queue->flags & flags)
@@ -130,7 +130,7 @@ void se_vk_device_swap_chain_create(SeVkDevice* device, uint32_t width, uint32_t
         {
             imageCount = supportDetails.capabilities.maxImageCount;
         }
-        uint32_t queueFamiliesIndices[SE_VK_MAX_UNIQUE_COMMAND_QUEUES] = { };
+        uint32_t queueFamiliesIndices[SeVkConfig::MAX_UNIQUE_COMMAND_QUEUES] = { };
         VkSwapchainCreateInfoKHR swapChainCreateInfo
         {
             .sType                  = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
@@ -168,7 +168,7 @@ void se_vk_device_swap_chain_create(SeVkDevice* device, uint32_t width, uint32_t
     {
         uint32_t swapChainImageCount;
         se_vk_check(vkGetSwapchainImagesKHR(device->gpu.logicalHandle, device->swapChain.handle, &swapChainImageCount, nullptr));
-        se_assert(swapChainImageCount < SE_VK_MAX_SWAP_CHAIN_IMAGES);
+        se_assert(swapChainImageCount < SeVkConfig::MAX_SWAP_CHAIN_IMAGES);
         DynamicArray<VkImage> swapChainImageHandles;
         dynamic_array::construct(swapChainImageHandles, frameAllocator, swapChainImageCount);
         dynamic_array::force_set_size(swapChainImageHandles, swapChainImageCount);
@@ -254,8 +254,7 @@ SeVkDevice* se_vk_device_create(void* nativeWindowHandle)
     const AllocatorBindings frameAllocator = allocators::frame();
 
     SeVkDevice* const device = (SeVkDevice*)persistentAllocator.alloc(persistentAllocator.allocator, sizeof(SeVkDevice), se_default_alignment, se_alloc_tag);
-    device->object = { SE_VK_TYPE_DEVICE, g_deviceIndex++ };
-    const size_t NUM_FRAMES = 3;
+    device->object = { SeVkObject::Type::DEVICE, 0, g_deviceIndex++ };
     //
     // Memory manager
     //
@@ -473,7 +472,6 @@ SeVkDevice* se_vk_device_create(void* nativeWindowHandle)
         const SeVkFrameManagerCreateInfo frameManagerCreateInfo =
         {
             .device = device,
-            .numFrames = NUM_FRAMES,
         };
         se_vk_frame_manager_construct(&device->frameManager, &frameManagerCreateInfo);
     }
@@ -483,11 +481,17 @@ SeVkDevice* se_vk_device_create(void* nativeWindowHandle)
     {
         const SeVkGraphInfo graphCreateInfo =
         {
-            .device     = device,
-            .numFrames  = NUM_FRAMES,
+            .device = device,
         };
         se_vk_graph_construct(&device->graph, &graphCreateInfo);
     }
+    //
+    // Graveyard
+    //
+    dynamic_array::construct(device->graveyard.programs, allocators::persistent());
+    dynamic_array::construct(device->graveyard.samplers, allocators::persistent());
+    dynamic_array::construct(device->graveyard.buffers, allocators::persistent());
+    dynamic_array::construct(device->graveyard.textures, allocators::persistent());
     return device;
 }
 
@@ -507,6 +511,13 @@ void se_vk_device_destroy(SeVkDevice* device)
     for (auto it : se_vk_memory_manager_get_pool<SeVkProgram>(&device->memoryManager))       se_vk_destroy(&iter::value(it));
     for (auto it : se_vk_memory_manager_get_pool<SeVkCommandBuffer>(&device->memoryManager)) se_vk_destroy(&iter::value(it));
     //
+    // Graveyard
+    //
+    dynamic_array::destroy(device->graveyard.programs);
+    dynamic_array::destroy(device->graveyard.samplers);
+    dynamic_array::destroy(device->graveyard.buffers);
+    dynamic_array::destroy(device->graveyard.textures);
+    //
     // Graph
     //
     se_vk_graph_destroy(&device->graph);
@@ -521,7 +532,7 @@ void se_vk_device_destroy(SeVkDevice* device)
     //
     // Gpu
     //
-    for (size_t it = 0; it < SE_VK_MAX_UNIQUE_COMMAND_QUEUES; it++)
+    for (size_t it = 0; it < SeVkConfig::MAX_UNIQUE_COMMAND_QUEUES; it++)
     {
         if (device->gpu.commandQueues[it].commandPoolHandle == VK_NULL_HANDLE) break;
         vkDestroyCommandPool(device->gpu.logicalHandle, device->gpu.commandQueues[it].commandPoolHandle, callbacks);
@@ -562,19 +573,64 @@ inline void se_vk_device_end_frame(SeVkDevice* device)
     se_vk_graph_end_frame(&device->graph);
 }
 
-inline SeVkFlags se_vk_device_get_supported_sampling_types(SeVkDevice* device)
+template<typename Ref>
+void se_vk_device_submit_to_graveyard(SeVkDevice* device, Ref ref)
 {
-    VkSampleCountFlags vkSampleFlags;
+    const size_t frameNumber = device->frameManager.frameNumber;
+    if      constexpr (std::is_same_v<Ref, SeProgramRef>) dynamic_array::push(device->graveyard.programs, { ref, frameNumber });
+    else if constexpr (std::is_same_v<Ref, SeSamplerRef>) dynamic_array::push(device->graveyard.samplers, { ref, frameNumber });
+    else if constexpr (std::is_same_v<Ref, SeBufferRef>)  dynamic_array::push(device->graveyard.buffers,  { ref, frameNumber });
+    else if constexpr (std::is_same_v<Ref, SeTextureRef>) dynamic_array::push(device->graveyard.textures, { ref, frameNumber });
+    else static_assert(!"what");
+    se_vk_unref(ref)->object.flags |= SeVkObject::Flags::IN_GRAVEYARD;
+}
+
+template<typename Ref>
+void se_vk_device_update_graveyard_collection(SeVkDevice* device, DynamicArray<SeVkGraveyard::Entry<Ref>>& collection)
+{
+    using VulkanResourceT = SeVkRefToResource<Ref>::Res;
+    ObjectPool<VulkanResourceT>& objectPool = se_vk_memory_manager_get_pool<VulkanResourceT>(&device->memoryManager);
+    const SeVkFrameManager* const frameManager = &device->frameManager;
+    const VkDevice logicalHandle = device->gpu.logicalHandle;
+    for (auto it : collection)
+    {
+        const auto& value = iter::value(it);
+        const SeVkFrame* const frame = ((frameManager->frameNumber - value.frameIndex) < SeVkConfig::NUM_FRAMES_IN_FLIGHT)
+            ? se_vk_frame_manager_get_frame(frameManager, value.frameIndex)
+            : nullptr;
+        const VkFence fence = (*dynamic_array::last(frame->commandBuffers))->fence;
+        const bool isFinished = !frame || vkGetFenceStatus(logicalHandle, fence) == VK_SUCCESS;
+        if (isFinished)
+        {
+            auto* const object = se_vk_unref(value.ref);
+            se_assert(object->object.flags & SeVkObject::Flags::IN_GRAVEYARD);
+            se_vk_destroy(object);
+            object_pool::release(objectPool, object);
+            iter::remove(it);
+            debug::message("Destroyed texture");
+        }
+    }
+}
+
+void se_vk_device_update_graveyard(SeVkDevice* device)
+{
+    se_vk_device_update_graveyard_collection(device, device->graveyard.programs);
+    se_vk_device_update_graveyard_collection(device, device->graveyard.samplers);
+    se_vk_device_update_graveyard_collection(device, device->graveyard.buffers);
+    se_vk_device_update_graveyard_collection(device, device->graveyard.textures);
+}
+
+inline VkSampleCountFlags se_vk_device_get_supported_sampling_types(SeVkDevice* device)
+{
     if (device->gpu.flags & SE_VK_GPU_HAS_STENCIL)
-        vkSampleFlags = device->gpu.deviceProperties_10.limits.sampledImageColorSampleCounts &
-                        device->gpu.deviceProperties_10.limits.sampledImageIntegerSampleCounts &
-                        device->gpu.deviceProperties_10.limits.sampledImageDepthSampleCounts &
-                        device->gpu.deviceProperties_10.limits.sampledImageStencilSampleCounts;
+        return  device->gpu.deviceProperties_10.limits.sampledImageColorSampleCounts &
+                device->gpu.deviceProperties_10.limits.sampledImageIntegerSampleCounts &
+                device->gpu.deviceProperties_10.limits.sampledImageDepthSampleCounts &
+                device->gpu.deviceProperties_10.limits.sampledImageStencilSampleCounts;
     else
-        vkSampleFlags = device->gpu.deviceProperties_10.limits.sampledImageColorSampleCounts &
-                        device->gpu.deviceProperties_10.limits.sampledImageIntegerSampleCounts &
-                        device->gpu.deviceProperties_10.limits.sampledImageDepthSampleCounts;
-    return (SeVkFlags)vkSampleFlags;
+        return  device->gpu.deviceProperties_10.limits.sampledImageColorSampleCounts &
+                device->gpu.deviceProperties_10.limits.sampledImageIntegerSampleCounts &
+                device->gpu.deviceProperties_10.limits.sampledImageDepthSampleCounts;
 }
 
 inline VkSampleCountFlags se_vk_device_get_supported_framebuffer_multisample_types(SeVkDevice* device)
@@ -606,10 +662,10 @@ void se_vk_device_fill_sharing_mode(SeVkDevice* device, SeVkCommandQueueFlags fl
         se_vk_gpu_get_command_queue(&device->gpu, SE_VK_CMD_QUEUE_TRANSFER)->queueFamilyIndex,
         se_vk_gpu_get_command_queue(&device->gpu, SE_VK_CMD_QUEUE_COMPUTE)->queueFamilyIndex,
     };
-    se_assert_msg(se_array_size(queueIndices) == SE_VK_MAX_UNIQUE_COMMAND_QUEUES, "Don't forget to support new queues here");
-    uint32_t uniqueQueues[SE_VK_MAX_UNIQUE_COMMAND_QUEUES];
+    se_assert_msg(se_array_size(queueIndices) == SeVkConfig::MAX_UNIQUE_COMMAND_QUEUES, "Don't forget to support new queues here");
+    uint32_t uniqueQueues[SeVkConfig::MAX_UNIQUE_COMMAND_QUEUES];
     uint32_t numUniqueQueues = 0;
-    for (uint32_t it = 0; it < SE_VK_MAX_UNIQUE_COMMAND_QUEUES; it++)
+    for (uint32_t it = 0; it < SeVkConfig::MAX_UNIQUE_COMMAND_QUEUES; it++)
     {
         if (!(flags & it)) continue;
         bool isFound = false;

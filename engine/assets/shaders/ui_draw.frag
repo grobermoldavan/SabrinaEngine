@@ -13,11 +13,12 @@ struct Coloring
     int mode;
 };
 
-layout(        set = 0, binding = 0) readonly buffer MvpMatrix { mat4 mvpMatrix; };
+layout(        set = 0, binding = 0) readonly buffer MvpMatrix  { mat4 mvpMatrix; };
+layout(std140, set = 0, binding = 1) readonly buffer Vertices   { Vertex vertices[]; };
+layout(std140, set = 0, binding = 2) readonly buffer Colorings  { Coloring colorings[]; };
 
 layout(        set = 1, binding = 0) uniform sampler2D renderAtlas;
-layout(std140, set = 1, binding = 1) readonly buffer Colorings { Coloring colorings[]; };
-layout(std140, set = 1, binding = 2) readonly buffer Vertices { Vertex vertices[]; };
+layout(        set = 1, binding = 1) uniform DrawData { uint firstVertexIndex; };
 
 layout (location = 0) in vec2 inUv;
 layout (location = 1) flat in uint inColoringIndex;

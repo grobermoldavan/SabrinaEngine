@@ -5,3 +5,6 @@
 - ecs (?)
 - texture multisampling
 - texture mipmapping
+
+
+- add packed data types for rendering. Pack two floats into a single uint32_t value etc

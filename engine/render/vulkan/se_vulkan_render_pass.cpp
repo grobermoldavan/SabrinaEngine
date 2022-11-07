@@ -48,7 +48,7 @@ void se_vk_render_pass_construct(SeVkRenderPass* pass, SeVkRenderPassInfo* info)
     const VkDevice logicalHandle = se_vk_device_get_logical_handle(info->device);
     *pass =
     {
-        .object                 = { SE_VK_TYPE_PASS, g_renderPassIndex++ },
+        .object                 = { SeVkObject::Type::PASS, 0, g_renderPassIndex++ },
         .info                   = *info,
         .handle                 = VK_NULL_HANDLE,
         .attachmentLayoutInfos  = { },

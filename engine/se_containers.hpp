@@ -188,6 +188,18 @@ namespace dynamic_array
     {
         return array.memory;
     }
+
+    template<typename T>
+    inline const T* last(const DynamicArray<T>& array)
+    {
+        return array.size ? &array.memory[array.size - 1] : nullptr;
+    }
+
+    template<typename T>
+    inline T* last(DynamicArray<T>& array)
+    {
+        return array.size ? &array.memory[array.size - 1] : nullptr;
+    }
 }
 
 template <typename T, typename Array>
@@ -220,7 +232,7 @@ DynamicArrayIterator<T, DynamicArray<T>> begin(DynamicArray<T>& arr)
 template<typename T>
 DynamicArrayIterator<T, DynamicArray<T>> end(DynamicArray<T>& arr)
 {
-    return { &arr, arr.size };
+    return { &arr, SIZE_MAX };
 }
 
 template<typename T>
@@ -232,18 +244,21 @@ DynamicArrayIterator<const T, const DynamicArray<T>> begin(const DynamicArray<T>
 template<typename T>
 DynamicArrayIterator<const T, const DynamicArray<T>> end(const DynamicArray<T>& arr)
 {
-    return { &arr, arr.size };
+    return { &arr, SIZE_MAX };
 }
 
 template<typename T, typename Array>
 bool DynamicArrayIterator<T, Array>::operator != (const DynamicArrayIterator<T, Array>& other) const
 {
-    return (arr != other.arr) || (index != other.index);
+    const size_t actualIndex1 = index == SIZE_MAX ? arr->size : index;
+    const size_t actualIndex2 = other.index == SIZE_MAX ? other.arr->size : other.index;
+    return (arr != other.arr) || (actualIndex1 != actualIndex2);
 }
 
 template<typename T, typename Array>
 DynamicArrayIteratorValue<T, Array> DynamicArrayIterator<T, Array>::operator * ()
 {
+    se_assert_msg(index != SIZE_MAX, "\"end\" iterator can't be dereferenced");
     return { arr->memory[index], this };
 }
 
@@ -490,6 +505,22 @@ namespace object_pool
         se_assert(object_pool::is_taken(pool, index));
         const ObjectPoolEntry<T>* entry = expandable_virtual_memory::raw(pool.objectMemory) + index;
         return &entry->value;
+    }
+
+    template<typename T>
+    T* access(ObjectPool<T>& pool, size_t index, uint32_t generation)
+    {
+        se_assert(object_pool::is_taken(pool, index));
+        ObjectPoolEntry<T>* entry = expandable_virtual_memory::raw(pool.objectMemory) + index;
+        return entry->generation == generation ? &entry->value : nullptr;
+    }
+
+    template<typename T>
+    const T* access(const ObjectPool<T>& pool, size_t index, uint32_t generation)
+    {
+        se_assert(object_pool::is_taken(pool, index));
+        const ObjectPoolEntry<T>* entry = expandable_virtual_memory::raw(pool.objectMemory) + index;
+        return entry->generation == generation ? &entry->value : nullptr;
     }
 
     template<typename T>

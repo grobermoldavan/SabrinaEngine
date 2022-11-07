@@ -2,6 +2,8 @@
 #include "se_vulkan_memory_buffer.hpp"
 #include "se_vulkan_device.hpp"
 
+#define se_vk_memory_buffer_is_multi_copy(bufferPtr) (true == (bufferPtr)->memory[SeVkConfig::NUM_FRAMES_IN_FLIGHT - 1])
+
 size_t g_memoryBufferIndex = 0;
 
 void se_vk_memory_buffer_construct(SeVkMemoryBuffer* buffer, SeVkMemoryBufferInfo* info)
@@ -15,7 +17,7 @@ void se_vk_memory_buffer_construct(SeVkMemoryBuffer* buffer, SeVkMemoryBufferInf
     //
     *buffer =
     {
-        .object = { SE_VK_TYPE_MEMORY_BUFFER, g_memoryBufferIndex++ },
+        .object = { SeVkObject::Type::MEMORY_BUFFER, 0, g_memoryBufferIndex++ },
         .device = device,
         .handle = VK_NULL_HANDLE,
         .memory = { },
@@ -23,7 +25,7 @@ void se_vk_memory_buffer_construct(SeVkMemoryBuffer* buffer, SeVkMemoryBufferInf
     //
     // Create buffer handle
     //
-    uint32_t queueFamilyIndices[SE_VK_MAX_UNIQUE_COMMAND_QUEUES];
+    uint32_t queueFamilyIndices[SeVkConfig::MAX_UNIQUE_COMMAND_QUEUES];
     VkBufferCreateInfo bufferCreateInfo
     {
         .sType                  = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,

@@ -3,9 +3,6 @@
 
 #include "se_vulkan_base.hpp"
 
-#define SE_VK_COMMAND_BUFFER_EXECUTE_AFTER_MAX 64
-#define SE_VK_COMMAND_BUFFER_WAIT_SEMAPHORES_MAX 64
-
 using SeVkCommandBufferUsageFlags = SeVkFlags;
 enum SeVkCommandBufferUsage : SeVkCommandBufferUsageFlags
 {
@@ -33,8 +30,8 @@ struct SeVkCommandBufferInfo
 
 struct SeVkCommandBufferSubmitInfo
 {
-    SeVkCommandBuffer* executeAfter[SE_VK_COMMAND_BUFFER_EXECUTE_AFTER_MAX];
-    VkSemaphore waitSemaphores[SE_VK_COMMAND_BUFFER_WAIT_SEMAPHORES_MAX];
+    SeVkCommandBuffer* executeAfter[SeVkConfig::COMMAND_BUFFER_EXECUTE_AFTER_MAX];
+    VkSemaphore waitSemaphores[SeVkConfig::COMMAND_BUFFER_WAIT_SEMAPHORES_MAX];
 };
 
 void se_vk_command_buffer_construct(SeVkCommandBuffer* buffer, SeVkCommandBufferInfo* info);

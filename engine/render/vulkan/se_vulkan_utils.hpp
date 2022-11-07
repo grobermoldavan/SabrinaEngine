@@ -91,5 +91,6 @@ VkPipelineColorBlendStateCreateInfo     se_vk_utils_color_blending_create_info(V
 VkPipelineDynamicStateCreateInfo        se_vk_utils_dynamic_state_default_create_info();
 VkAccessFlags                           se_vk_utils_image_layout_to_access_flags(VkImageLayout layout);
 VkPipelineStageFlags                    se_vk_utils_image_layout_to_pipeline_stage_flags(VkImageLayout layout);
+VkAttachmentLoadOp                      se_vk_utils_to_vk_load_op(SeRenderTargetLoadOp loadOp);
 
 #endif

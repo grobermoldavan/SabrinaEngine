@@ -17,6 +17,7 @@ struct SeVkMemory
     VkDeviceSize    offset;
     VkDeviceSize    size;
     void*           mappedMemory;
+    operator bool () const { return utils::compare(*this, SeVkMemory{}); }
 };
 
 struct SeVkGpuMemoryChunk

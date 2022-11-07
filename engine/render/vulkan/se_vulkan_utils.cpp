@@ -430,9 +430,9 @@ SeTextureFormat se_vk_utils_to_texture_format(VkFormat vkFormat)
 {
     switch (vkFormat)
     {
-        case VK_FORMAT_R8_UNORM: return SE_TEXTURE_FORMAT_R_8;
-        case VK_FORMAT_R8G8B8A8_SRGB: return SE_TEXTURE_FORMAT_RGBA_8;
-        case VK_FORMAT_R32G32B32A32_SFLOAT: return SE_TEXTURE_FORMAT_RGBA_32F;
+        case VK_FORMAT_R8_UNORM: return SeTextureFormat::R_8;
+        case VK_FORMAT_R8G8B8A8_SRGB: return SeTextureFormat::RGBA_8;
+        case VK_FORMAT_R32G32B32A32_SFLOAT: return SeTextureFormat::RGBA_32F;
     }
     se_assert(!"Unsupported VkFormat");
     return (SeTextureFormat)0;
@@ -442,9 +442,9 @@ VkFormat se_vk_utils_to_vk_format(SeTextureFormat format)
 {
     switch (format)
     {
-        case SE_TEXTURE_FORMAT_R_8: return VK_FORMAT_R8_UNORM;
-        case SE_TEXTURE_FORMAT_RGBA_8: return VK_FORMAT_R8G8B8A8_SRGB;
-        case SE_TEXTURE_FORMAT_RGBA_32F: return VK_FORMAT_R32G32B32A32_SFLOAT;
+        case SeTextureFormat::R_8: return VK_FORMAT_R8_UNORM;
+        case SeTextureFormat::RGBA_8: return VK_FORMAT_R8G8B8A8_SRGB;
+        case SeTextureFormat::RGBA_32F: return VK_FORMAT_R32G32B32A32_SFLOAT;
     }
     se_assert(!"Unsupported TextureFormat");
     return (VkFormat)0;
@@ -454,9 +454,9 @@ VkPolygonMode se_vk_utils_to_vk_polygon_mode(SePipelinePolygonMode mode)
 {
     switch (mode)
     {
-        case SE_PIPELINE_POLYGON_FILL_MODE_FILL: return VK_POLYGON_MODE_FILL;
-        case SE_PIPELINE_POLYGON_FILL_MODE_LINE: return VK_POLYGON_MODE_LINE;
-        case SE_PIPELINE_POLYGON_FILL_MODE_POINT: return VK_POLYGON_MODE_POINT;
+        case SePipelinePolygonMode::FILL: return VK_POLYGON_MODE_FILL;
+        case SePipelinePolygonMode::LINE: return VK_POLYGON_MODE_LINE;
+        case SePipelinePolygonMode::POINT: return VK_POLYGON_MODE_POINT;
     }
     se_assert(!"Unsupported SePipelinePolygonMode");
     return (VkPolygonMode)0;
@@ -466,10 +466,10 @@ VkCullModeFlags se_vk_utils_to_vk_cull_mode(SePipelineCullMode mode)
 {
     switch (mode)
     {
-        case SE_PIPELINE_CULL_MODE_NONE: return VK_CULL_MODE_NONE;
-        case SE_PIPELINE_CULL_MODE_FRONT: return VK_CULL_MODE_FRONT_BIT;
-        case SE_PIPELINE_CULL_MODE_BACK: return VK_CULL_MODE_BACK_BIT;
-        case SE_PIPELINE_CULL_MODE_FRONT_BACK: return VK_CULL_MODE_FRONT_AND_BACK;
+        case SePipelineCullMode::NONE: return VK_CULL_MODE_NONE;
+        case SePipelineCullMode::FRONT: return VK_CULL_MODE_FRONT_BIT;
+        case SePipelineCullMode::BACK: return VK_CULL_MODE_BACK_BIT;
+        case SePipelineCullMode::FRONT_BACK: return VK_CULL_MODE_FRONT_AND_BACK;
     }
     se_assert(!"Unsupported PipelineCullMode");
     return (VkCullModeFlags)0;
@@ -479,8 +479,8 @@ VkFrontFace se_vk_utils_to_vk_front_face(SePipelineFrontFace frontFace)
 {
     switch (frontFace)
     {
-        case SE_PIPELINE_FRONT_FACE_CLOCKWISE: return VK_FRONT_FACE_CLOCKWISE;
-        case SE_PIPELINE_FRONT_FACE_COUNTER_CLOCKWISE: return VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        case SePipelineFrontFace::CLOCKWISE: return VK_FRONT_FACE_CLOCKWISE;
+        case SePipelineFrontFace::COUNTER_CLOCKWISE: return VK_FRONT_FACE_COUNTER_CLOCKWISE;
     }
     se_assert(!"Unsupported SePipelineFrontFace");
     return (VkFrontFace)0;
@@ -490,10 +490,10 @@ VkSampleCountFlagBits se_vk_utils_to_vk_sample_count(SeSamplingType sampling)
 {
     switch (sampling)
     {
-        case SE_SAMPLING_1: return (VkSampleCountFlagBits)VK_SAMPLE_COUNT_1_BIT;
-        case SE_SAMPLING_2: return (VkSampleCountFlagBits)VK_SAMPLE_COUNT_2_BIT;
-        case SE_SAMPLING_4: return (VkSampleCountFlagBits)VK_SAMPLE_COUNT_4_BIT;
-        case SE_SAMPLING_8: return (VkSampleCountFlagBits)VK_SAMPLE_COUNT_8_BIT;
+        case SeSamplingType::_1: return (VkSampleCountFlagBits)VK_SAMPLE_COUNT_1_BIT;
+        case SeSamplingType::_2: return (VkSampleCountFlagBits)VK_SAMPLE_COUNT_2_BIT;
+        case SeSamplingType::_4: return (VkSampleCountFlagBits)VK_SAMPLE_COUNT_4_BIT;
+        case SeSamplingType::_8: return (VkSampleCountFlagBits)VK_SAMPLE_COUNT_8_BIT;
     }
     se_assert(!"Unsupported SeSamplingType");
     return (VkSampleCountFlagBits)0;
@@ -517,14 +517,14 @@ VkStencilOp se_vk_utils_to_vk_stencil_op(SeStencilOp op)
 {
     switch (op)
     {
-        case SE_STENCIL_OP_KEEP:                return VK_STENCIL_OP_KEEP;
-        case SE_STENCIL_OP_ZERO:                return VK_STENCIL_OP_ZERO;
-        case SE_STENCIL_OP_REPLACE:             return VK_STENCIL_OP_REPLACE;
-        case SE_STENCIL_OP_INCREMENT_AND_CLAMP: return VK_STENCIL_OP_INCREMENT_AND_CLAMP;
-        case SE_STENCIL_OP_DECREMENT_AND_CLAMP: return VK_STENCIL_OP_DECREMENT_AND_CLAMP;
-        case SE_STENCIL_OP_INVERT:              return VK_STENCIL_OP_INVERT;
-        case SE_STENCIL_OP_INCREMENT_AND_WRAP:  return VK_STENCIL_OP_INCREMENT_AND_WRAP;
-        case SE_STENCIL_OP_DECREMENT_AND_WRAP:  return VK_STENCIL_OP_DECREMENT_AND_WRAP;
+        case SeStencilOp::KEEP:                 return VK_STENCIL_OP_KEEP;
+        case SeStencilOp::ZERO:                 return VK_STENCIL_OP_ZERO;
+        case SeStencilOp::REPLACE:              return VK_STENCIL_OP_REPLACE;
+        case SeStencilOp::INCREMENT_AND_CLAMP:  return VK_STENCIL_OP_INCREMENT_AND_CLAMP;
+        case SeStencilOp::DECREMENT_AND_CLAMP:  return VK_STENCIL_OP_DECREMENT_AND_CLAMP;
+        case SeStencilOp::INVERT:               return VK_STENCIL_OP_INVERT;
+        case SeStencilOp::INCREMENT_AND_WRAP:   return VK_STENCIL_OP_INCREMENT_AND_WRAP;
+        case SeStencilOp::DECREMENT_AND_WRAP:   return VK_STENCIL_OP_DECREMENT_AND_WRAP;
     }
     se_assert(!"Unsupported SeStencilOp");
     return (VkStencilOp)0;
@@ -534,14 +534,14 @@ VkCompareOp se_vk_utils_to_vk_compare_op(SeCompareOp op)
 {
     switch (op)
     {
-        case SE_COMPARE_OP_NEVER:               return VK_COMPARE_OP_NEVER;
-        case SE_COMPARE_OP_LESS:                return VK_COMPARE_OP_LESS;
-        case SE_COMPARE_OP_EQUAL:               return VK_COMPARE_OP_EQUAL;
-        case SE_COMPARE_OP_LESS_OR_EQUAL:       return VK_COMPARE_OP_LESS_OR_EQUAL;
-        case SE_COMPARE_OP_GREATER:             return VK_COMPARE_OP_GREATER;
-        case SE_COMPARE_OP_NOT_EQUAL:           return VK_COMPARE_OP_NOT_EQUAL;
-        case SE_COMPARE_OP_GREATER_OR_EQUAL:    return VK_COMPARE_OP_GREATER_OR_EQUAL;
-        case SE_COMPARE_OP_ALWAYS:              return VK_COMPARE_OP_ALWAYS;
+        case SeCompareOp::NEVER:            return VK_COMPARE_OP_NEVER;
+        case SeCompareOp::LESS:             return VK_COMPARE_OP_LESS;
+        case SeCompareOp::EQUAL:            return VK_COMPARE_OP_EQUAL;
+        case SeCompareOp::LESS_OR_EQUAL:    return VK_COMPARE_OP_LESS_OR_EQUAL;
+        case SeCompareOp::GREATER:          return VK_COMPARE_OP_GREATER;
+        case SeCompareOp::NOT_EQUAL:        return VK_COMPARE_OP_NOT_EQUAL;
+        case SeCompareOp::GREATER_OR_EQUAL: return VK_COMPARE_OP_GREATER_OR_EQUAL;
+        case SeCompareOp::ALWAYS:           return VK_COMPARE_OP_ALWAYS;
     }
     se_assert(!"Unsupported CompareOp");
     return (VkCompareOp)0;
@@ -683,7 +683,7 @@ VkAccessFlags se_vk_utils_image_layout_to_access_flags(VkImageLayout layout)
 {
     switch (layout)
     {
-        case VK_IMAGE_LAYOUT_UNDEFINED:                         return (VkAccessFlags)0;
+        case VK_IMAGE_LAYOUT_UNDEFINED:                         return VkAccessFlags(0);
         case VK_IMAGE_LAYOUT_GENERAL:                           return VK_ACCESS_MEMORY_WRITE_BIT | VK_ACCESS_MEMORY_READ_BIT;
         case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:          return VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
         case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:  return VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
@@ -692,10 +692,14 @@ VkAccessFlags se_vk_utils_image_layout_to_access_flags(VkImageLayout layout)
         case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:              return VK_ACCESS_TRANSFER_READ_BIT;
         case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:              return VK_ACCESS_TRANSFER_WRITE_BIT;
         case VK_IMAGE_LAYOUT_PREINITIALIZED:                    return VK_ACCESS_MEMORY_WRITE_BIT;
-        case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:                   return VK_ACCESS_MEMORY_WRITE_BIT | VK_ACCESS_MEMORY_READ_BIT;
+        // @NOTE :  https://themaister.net/blog/2019/08/14/yet-another-blog-explaining-vulkan-synchronization/
+        //          Having dstStageMask = BOTTOM_OF_PIPE and access mask being 0 is perfectly fine.
+        //          We don’t care about making this memory visible to any stage beyond this point.
+        //          We will use semaphores to synchronize with the presentation engine anyways.
+        case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:                   return VkAccessFlags(0);
         default: se_assert(!"Unsupported VkImageLayout");
     }
-    return (VkAccessFlags)0;
+    return VkAccessFlags(0);
 }
 
 VkPipelineStageFlags se_vk_utils_image_layout_to_pipeline_stage_flags(VkImageLayout layout)
@@ -708,8 +712,13 @@ VkPipelineStageFlags se_vk_utils_image_layout_to_pipeline_stage_flags(VkImageLay
         case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:          return VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
         case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:  return VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
         case VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL:          return VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-        case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:                   return VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT; // is this correct ?
+        case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:                   return VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
         default: se_assert(!"Unsupported VkImageLayout to VkPipelineStageFlags conversion");
     }
-    return (VkPipelineStageFlags)0;
+    return VkPipelineStageFlags(0);
+}
+
+VkAttachmentLoadOp se_vk_utils_to_vk_load_op(SeRenderTargetLoadOp loadOp)
+{
+    return VkAttachmentLoadOp(int(loadOp) - 1);
 }

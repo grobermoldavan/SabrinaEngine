@@ -131,28 +131,38 @@ namespace assets
     template<typename AssetType>
     SeAssetHandle add(const typename AssetType::Info& info)
     {
-        // Free space for minimized asset
-        const uint32_t requiredCpu = AssetType::count_cpu_usage_min(info);
-        const uint32_t requiredGpu = AssetType::count_gpu_usage_min(info);
-        impl::ensure_capacity(requiredCpu, requiredGpu);
-
-        // Add entry
         const auto [index, entry] = impl::add_entry();
-        *entry =
+
+        if constexpr (!std::is_same_v<typename AssetType::Intermediate, void>)
         {
-            requiredCpu,
-            requiredGpu,
-            AssetType::count_cpu_usage_max(info),
-            AssetType::count_gpu_usage_max(info),
-            AssetType::load(info),
-            AssetType::minimize,
-            AssetType::maximize,
-            AssetType::unload,
-            nullptr,
-            nullptr,
-        };
-        g_assetManager.currentCpuUsage += requiredCpu;
-        g_assetManager.currentGpuUsage += requiredGpu;
+            typename AssetType::Intermediate intermediateData = {};
+
+            // Free space for minimized asset
+            const uint32_t requiredCpu = AssetType::count_cpu_usage_min(info, intermediateData);
+            const uint32_t requiredGpu = AssetType::count_gpu_usage_min(info, intermediateData);
+            impl::ensure_capacity(requiredCpu, requiredGpu);
+
+            
+            *entry =
+            {
+                requiredCpu,
+                requiredGpu,
+                AssetType::count_cpu_usage_max(info, intermediateData),
+                AssetType::count_gpu_usage_max(info, intermediateData),
+                AssetType::load(info, intermediateData),
+                AssetType::minimize,
+                AssetType::maximize,
+                AssetType::unload,
+                nullptr,
+                nullptr,
+            };
+            g_assetManager.currentCpuUsage += requiredCpu;
+            g_assetManager.currentGpuUsage += requiredGpu;
+        }
+        else
+        {
+            static_assert(!"todo");
+        }
 
         return impl::encode(AssetType::CATEGORY, index);
     }
@@ -226,7 +236,7 @@ namespace assets
     {
         const auto [category, index] = impl::decode(handle);
 
-        SeAssetEntry& entry = collection.entries[index];
+        SeAssetEntry& entry = g_assetManager.entries[index];
         entry.unload(entry.data);
         impl::remove_entry(index);
         entry = { };
@@ -247,7 +257,7 @@ namespace assets
             const bool isLoaded = g_assetManager.ledger[ledgerEntryIndex] & ledgerEntryBit;
             if (isLoaded)
             {
-                SeAssetEntry& entry = collection.entries[entryIt];
+                SeAssetEntry& entry = g_assetManager.entries[entryIt];
                 entry.unload(entry.data);
             }
         }

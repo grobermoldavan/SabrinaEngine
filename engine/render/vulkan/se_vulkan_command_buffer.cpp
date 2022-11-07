@@ -19,7 +19,7 @@ void se_vk_command_buffer_construct(SeVkCommandBuffer* buffer, SeVkCommandBuffer
     se_assert(queueFlags);
     *buffer =
     {
-        .object         = { SE_VK_TYPE_COMMAND_BUFFER, g_commandBufferIndex++ },
+        .object         = { SeVkObject::Type::COMMAND_BUFFER, 0, g_commandBufferIndex++ },
         .device         = info->device,
         .pool           = se_vk_device_get_command_pool(info->device, queueFlags),
         .queue          = se_vk_device_get_command_queue(info->device, queueFlags),
@@ -78,16 +78,16 @@ void se_vk_command_buffer_submit(SeVkCommandBuffer* buffer, SeVkCommandBufferSub
 {
     se_vk_check(vkEndCommandBuffer(buffer->handle));
     uint32_t waitSemaphoreCount = 0;
-    VkSemaphore waitSemaphores[SE_VK_COMMAND_BUFFER_EXECUTE_AFTER_MAX + SE_VK_COMMAND_BUFFER_WAIT_SEMAPHORES_MAX];
-    VkPipelineStageFlags waitStages[SE_VK_COMMAND_BUFFER_EXECUTE_AFTER_MAX + SE_VK_COMMAND_BUFFER_WAIT_SEMAPHORES_MAX];
-    for (size_t it = 0; it < SE_VK_COMMAND_BUFFER_EXECUTE_AFTER_MAX; it++)
+    VkSemaphore waitSemaphores[SeVkConfig::COMMAND_BUFFER_EXECUTE_AFTER_MAX + SeVkConfig::COMMAND_BUFFER_WAIT_SEMAPHORES_MAX];
+    VkPipelineStageFlags waitStages[SeVkConfig::COMMAND_BUFFER_EXECUTE_AFTER_MAX + SeVkConfig::COMMAND_BUFFER_WAIT_SEMAPHORES_MAX];
+    for (size_t it = 0; it < SeVkConfig::COMMAND_BUFFER_EXECUTE_AFTER_MAX; it++)
     {
         if (!info->executeAfter[it]) break;
         waitSemaphores[waitSemaphoreCount] = info->executeAfter[it]->semaphore;
         waitStages[waitSemaphoreCount] = { VK_PIPELINE_STAGE_ALL_COMMANDS_BIT }; // TODO : optimize this
         waitSemaphoreCount += 1;
     }
-    for (size_t it = 0; it < SE_VK_COMMAND_BUFFER_WAIT_SEMAPHORES_MAX; it++)
+    for (size_t it = 0; it < SeVkConfig::COMMAND_BUFFER_WAIT_SEMAPHORES_MAX; it++)
     {
         if (!info->waitSemaphores[it]) break;
         waitSemaphores[waitSemaphoreCount] = info->waitSemaphores[it];

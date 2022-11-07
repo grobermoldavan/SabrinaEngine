@@ -5,13 +5,11 @@
 #include "se_vulkan_render_pass.hpp"
 #include "se_vulkan_texture.hpp"
 
-#define SE_VK_FRAMEBUFFER_MAX_TEXTURES 8
-
 struct SeVkFramebufferInfo
 {
     SeVkDevice*                         device;
     ObjectPoolEntryRef<SeVkRenderPass>  pass;
-    ObjectPoolEntryRef<SeVkTexture>     textures[SE_VK_FRAMEBUFFER_MAX_TEXTURES];
+    ObjectPoolEntryRef<SeVkTexture>     textures[SeVkConfig::FRAMEBUFFER_MAX_TEXTURES];
     uint32_t                            numTextures;
 };
 
@@ -20,7 +18,7 @@ struct SeVkFramebuffer
     SeVkObject                          object;
     SeVkDevice*                         device;
     ObjectPoolEntryRef<SeVkRenderPass>  pass;
-    ObjectPoolEntryRef<SeVkTexture>     textures[SE_VK_FRAMEBUFFER_MAX_TEXTURES];
+    ObjectPoolEntryRef<SeVkTexture>     textures[SeVkConfig::FRAMEBUFFER_MAX_TEXTURES];
     uint32_t                            numTextures;
     VkFramebuffer                       handle;
     VkExtent2D                          extent;

@@ -10,10 +10,10 @@ VkSamplerAddressMode se_vk_sampler_address_mode(SeSamplerAddressMode mode)
 {
     switch (mode)
     {
-        case SE_SAMPLER_ADDRESS_MODE_REPEAT:            return (VkSamplerAddressMode)VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        case SE_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT:   return (VkSamplerAddressMode)VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
-        case SE_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE:     return (VkSamplerAddressMode)VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        case SE_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER:   return (VkSamplerAddressMode)VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+        case SeSamplerAddressMode::REPEAT:            return (VkSamplerAddressMode)VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        case SeSamplerAddressMode::MIRRORED_REPEAT:   return (VkSamplerAddressMode)VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+        case SeSamplerAddressMode::CLAMP_TO_EDGE:     return (VkSamplerAddressMode)VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        case SeSamplerAddressMode::CLAMP_TO_BORDER:   return (VkSamplerAddressMode)VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
         default: se_assert(false);
     }
     return (VkSamplerAddressMode)0;
@@ -26,7 +26,7 @@ void se_vk_sampler_construct(SeVkSampler* sampler, SeVkSamplerInfo* info)
     const VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
     *sampler =
     {
-        .object = { SE_VK_TYPE_SAMPLER, g_samplerIndex++ },
+        .object = { SeVkObject::Type::SAMPLER, 0, g_samplerIndex++ },
         .device = device,
         .handle = VK_NULL_HANDLE,
     };

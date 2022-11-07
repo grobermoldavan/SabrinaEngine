@@ -29,36 +29,38 @@
 #include "engine/libs/ssr/simple_spirv_reflection.h"
 #include "engine/libs/volk/volk.h"
 
-enum SeVkType
-{
-    SE_VK_TYPE_UNITIALIZED,
-    SE_VK_TYPE_DEVICE,
-    SE_VK_TYPE_PROGRAM,
-    SE_VK_TYPE_TEXTURE,
-    SE_VK_TYPE_PASS,
-    SE_VK_TYPE_FRAMEBUFFER,
-    SE_VK_TYPE_GRAPHICS_PIPELINE,
-    SE_VK_TYPE_COMPUTE_PIPELINE,
-    SE_VK_TYPE_RESOURCE_SET,
-    SE_VK_TYPE_MEMORY_BUFFER,
-    SE_VK_TYPE_SAMPLER,
-    SE_VK_TYPE_COMMAND_BUFFER,
-};
-
-#define se_vk_ref(type, flags, index)   ((((uint64_t)(type)) << 48) | (((uint64_t)(flags)) << 32) | ((uint64_t)(index)))
-#define se_vk_ref_type(ref)             ((SeVkType)((ref) >> 48))
-#define se_vk_ref_flags(ref)            ((uint16_t)(((ref) >> 32) & 0xFF))
-#define se_vk_ref_index(ref)            ((uint32_t)((ref) & 0xFFFFFFFF))
-
-struct SeVkObject
-{
-    SeVkType type;
-    size_t uniqueIndex;
-};
-
 using SeVkFlags = uint32_t;
 using SeVkGeneralBitmask = uint32_t;
 #define SE_VK_GENERAL_BITMASK_WIDTH (sizeof(SeVkGeneralBitmask) * 8)
+
+struct SeVkObject
+{
+    enum struct Type : uint32_t
+    {
+        UNITIALIZED,
+        DEVICE,
+        PROGRAM,
+        TEXTURE,
+        PASS,
+        FRAMEBUFFER,
+        GRAPHICS_PIPELINE,
+        COMPUTE_PIPELINE,
+        RESOURCE_SET,
+        MEMORY_BUFFER,
+        SAMPLER,
+        COMMAND_BUFFER,
+    };
+    struct Flags
+    {
+        enum : SeVkFlags
+        {
+            IN_GRAVEYARD = 0x00000001,
+        };
+    };
+    Type        type;
+    SeVkFlags   flags;
+    uint64_t    uniqueIndex;
+};
 
 struct SeVkDevice;
 struct SeVkCommandBuffer;
@@ -70,8 +72,7 @@ struct SeVkRenderPass;
 struct SeVkSampler;
 struct SeVkTexture;
 
-#define se_vk_check(cmd) do { VkResult __result = cmd; se_assert(__result == VK_SUCCESS); } while(0)
-#define se_vk_expect_handle(renderObjPtr, expectedHandleType, msg) se_assert(se_vk_render_object_handle_type(renderObjPtr) == expectedHandleType && msg" - incorrect render object type (expected "#expectedHandleType")")
+#define se_vk_check(cmd) do { VkResult __result = cmd; se_assert_msg(__result == VK_SUCCESS, "Vulkan check failed. Error code is : {}", int(__result)); } while(0)
 
 template<typename T>
 void se_vk_destroy(T* resource)
@@ -93,5 +94,30 @@ template<> int64_t  se_vk_safe_cast(size_t from) { se_assert(from <= INT64_MAX);
 template<> int32_t  se_vk_safe_cast(size_t from) { se_assert(from <= INT32_MAX);  return (int32_t)from; }
 template<> int16_t  se_vk_safe_cast(size_t from) { se_assert(from <= INT16_MAX);  return (int16_t)from; }
 template<> int8_t   se_vk_safe_cast(size_t from) { se_assert(from <= INT8_MAX);   return (int8_t)from; }
+
+
+template<typename T> struct SeVkRefToResource{ };
+template<> struct SeVkRefToResource<SeProgramRef> { using Res = SeVkProgram; };
+template<> struct SeVkRefToResource<SeSamplerRef> { using Res = SeVkSampler; };
+template<> struct SeVkRefToResource<SeBufferRef> { using Res = SeVkMemoryBuffer; };
+template<> struct SeVkRefToResource<SeTextureRef> { using Res = SeVkTexture; };
+
+// Defined in se_vulkan.cpp
+template<typename Ref> typename SeVkRefToResource<Ref>::Res* se_vk_unref(Ref ref);
+template<typename Ref> ObjectPoolEntryRef<typename SeVkRefToResource<Ref>::Res> se_vk_to_pool_ref(Ref ref);
+
+struct SeVkConfig
+{
+    static constexpr const size_t NUM_FRAMES_IN_FLIGHT = 2;
+    static constexpr const size_t COMMAND_BUFFERS_ARRAY_INITIAL_CAPACITY = 128;
+    static constexpr const size_t SCRATCH_BUFFERS_ARRAY_INITIAL_CAPACITY = 128;
+    static constexpr const size_t COMMAND_BUFFER_EXECUTE_AFTER_MAX = 64;
+    static constexpr const size_t COMMAND_BUFFER_WAIT_SEMAPHORES_MAX = 64;
+    static constexpr const size_t MAX_UNIQUE_COMMAND_QUEUES = 4;
+    static constexpr const size_t MAX_SWAP_CHAIN_IMAGES = 16;
+    static constexpr const size_t FRAMEBUFFER_MAX_TEXTURES = 8;
+    static constexpr const size_t GRAPH_MAX_POOLS_IN_ARRAY = 64;
+    static constexpr const size_t RENDER_PIPELINE_MAX_DESCRIPTOR_SETS = 8;
+};
 
 #endif

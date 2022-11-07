@@ -5,8 +5,6 @@
 #include "se_vulkan_program.hpp"
 #include "se_vulkan_render_pass.hpp"
 
-#define SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS 8
-
 struct SeVkDescriptorSetBindingInfo
 {
     VkDescriptorType descriptorType;
@@ -29,7 +27,7 @@ struct SeVkPipeline
     VkPipelineBindPoint     bindPoint;
     VkPipeline              handle;
     VkPipelineLayout        layout;
-    SeVkDescriptorSetLayout descriptorSetLayouts[SE_VK_RENDER_PIPELINE_MAX_DESCRIPTOR_SETS];
+    SeVkDescriptorSetLayout descriptorSetLayouts[SeVkConfig::RENDER_PIPELINE_MAX_DESCRIPTOR_SETS];
     size_t                  numDescriptorSetLayouts;
     union
     {
