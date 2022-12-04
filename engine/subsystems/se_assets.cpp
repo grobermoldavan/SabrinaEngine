@@ -135,14 +135,12 @@ namespace assets
 
         if constexpr (!std::is_same_v<typename AssetType::Intermediate, void>)
         {
-            typename AssetType::Intermediate intermediateData = {};
+            typename AssetType::Intermediate intermediateData = AssetType::get_intermediate_data(info);
 
-            // Free space for minimized asset
             const uint32_t requiredCpu = AssetType::count_cpu_usage_min(info, intermediateData);
             const uint32_t requiredGpu = AssetType::count_gpu_usage_min(info, intermediateData);
             impl::ensure_capacity(requiredCpu, requiredGpu);
 
-            
             *entry =
             {
                 requiredCpu,
@@ -263,3 +261,5 @@ namespace assets
         }
     }
 }
+
+#include "assets/se_mesh_asset.cpp"

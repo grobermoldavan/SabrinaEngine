@@ -602,8 +602,7 @@ void se_vk_device_update_graveyard_collection(SeVkDevice* device, DynamicArray<S
         const bool isFinished = !frame || vkGetFenceStatus(logicalHandle, fence) == VK_SUCCESS;
         if (isFinished)
         {
-            auto* const object = se_vk_unref(value.ref);
-            se_assert(object->object.flags & SeVkObject::Flags::IN_GRAVEYARD);
+            auto* const object = se_vk_unref_graveyard(value.ref);
             se_vk_destroy(object);
             object_pool::release(objectPool, object);
             iter::remove(it);

@@ -268,8 +268,7 @@ void init()
 
 void terminate()
 {
-    data_provider::destroy(g_fontDataEnglish);
-    data_provider::destroy(g_fontDataRussian);
+    
 }
 
 void update(const SeUpdateInfo& info)

@@ -23,6 +23,17 @@ typename SeVkRefToResource<Ref>::Res* se_vk_unref(Ref ref)
     auto& pool = se_vk_memory_manager_get_pool<typename SeVkRefToResource<Ref>::Res>(&g_vulkanDevice->memoryManager);
     auto* const result = object_pool::access(pool, ref.index, ref.generation);
     se_assert_msg(result, "Ref is either invalid or expired");
+    se_assert_msg((result->object.flags & SeVkObject::Flags::IN_GRAVEYARD) == 0, "Trying to unref already deleted objct");
+    return result;
+}
+
+template<typename Ref>
+typename SeVkRefToResource<Ref>::Res* se_vk_unref_graveyard(Ref ref)
+{
+    auto& pool = se_vk_memory_manager_get_pool<typename SeVkRefToResource<Ref>::Res>(&g_vulkanDevice->memoryManager);
+    auto* const result = object_pool::access(pool, ref.index, ref.generation);
+    se_assert_msg(result, "Ref is either invalid or expired");
+    se_assert_msg(result->object.flags & SeVkObject::Flags::IN_GRAVEYARD, "Trying to unref not deleted object");
     return result;
 }
 

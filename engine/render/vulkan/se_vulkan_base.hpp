@@ -95,7 +95,6 @@ template<> int32_t  se_vk_safe_cast(size_t from) { se_assert(from <= INT32_MAX);
 template<> int16_t  se_vk_safe_cast(size_t from) { se_assert(from <= INT16_MAX);  return (int16_t)from; }
 template<> int8_t   se_vk_safe_cast(size_t from) { se_assert(from <= INT8_MAX);   return (int8_t)from; }
 
-
 template<typename T> struct SeVkRefToResource{ };
 template<> struct SeVkRefToResource<SeProgramRef> { using Res = SeVkProgram; };
 template<> struct SeVkRefToResource<SeSamplerRef> { using Res = SeVkSampler; };
@@ -104,6 +103,7 @@ template<> struct SeVkRefToResource<SeTextureRef> { using Res = SeVkTexture; };
 
 // Defined in se_vulkan.cpp
 template<typename Ref> typename SeVkRefToResource<Ref>::Res* se_vk_unref(Ref ref);
+template<typename Ref> typename SeVkRefToResource<Ref>::Res* se_vk_unref_graveyard(Ref ref);
 template<typename Ref> ObjectPoolEntryRef<typename SeVkRefToResource<Ref>::Res> se_vk_to_pool_ref(Ref ref);
 
 struct SeVkConfig

@@ -5,16 +5,8 @@
 #include "engine/se_data_providers.hpp"
 #include "engine/se_math.hpp"
 
-struct SeAssetCategory
-{
-    using Type = uint8_t;
-    enum : Type
-    {
-        MESH,
-        SOUND,
-        __COUNT,
-    };
-};
+#include "assets/se_asset_category.hpp"
+#include "assets/se_mesh_asset.hpp"
 
 using SeAssetHandle = uint64_t;
 

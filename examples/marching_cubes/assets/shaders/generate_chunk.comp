@@ -36,7 +36,7 @@ struct Vertex
     vec4 normal;
 };
 
-layout (set = 1, binding = 1) buffer ChunkGeometry
+layout (set = 1, binding = 1) readonly buffer ChunkGeometry
 {
     Vertex geometry[];
     // One cube is 5 triangles - 5 * 3 vertices.

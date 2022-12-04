@@ -25,9 +25,11 @@ namespace debug
 #ifdef SE_DEBUG
     #define se_assert(cond) ((!!(cond)) || (debug::assert_impl(cond, #cond, __FILE__, __LINE__), 0))
     #define se_assert_msg(cond, fmt, ...) ((!!(cond)) || (debug::assert_impl(cond, #cond, __FILE__, __LINE__, fmt, __VA_ARGS__), 0))
+    #define se_message(fmt, ...) debug::message(fmt, __VA_ARGS__)
 #else
     #define se_assert(cond) ((void)(cond))
     #define se_assert_msg(cond, fmt, ...) ((void)(cond))
+    #define se_message(fmt, ...)
 #endif
 
 #endif

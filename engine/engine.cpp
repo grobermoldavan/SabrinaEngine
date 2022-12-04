@@ -36,8 +36,8 @@ namespace engine
         string::engine::init();
         debug::engine::init();
         win::engine::init(settings);
-        assets::engine::init(settings);
         render::engine::init();
+        assets::engine::init(settings);
         ui::engine::init();
         if (init) init();
 
@@ -63,8 +63,8 @@ namespace engine
 
         if (terminate) terminate();
         ui::engine::terminate();
-        render::engine::terminate();
         assets::engine::terminate();
+        render::engine::terminate();
         win::engine::terminate();
         debug::engine::terminate();
         string::engine::terminate();

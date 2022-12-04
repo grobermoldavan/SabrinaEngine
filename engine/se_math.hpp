@@ -14,7 +14,7 @@
 #include <math.h>
 
 #define SE_PI 3.14159265358979323846f
-#define SE_EPSILON 0.0000001
+#define SE_EPSILON 0.0000001f
 #define SE_MAX_FLOAT 3.402823466e+38F
 
 #define se_to_radians(degrees) ((degrees) * SE_PI / 180.0f)
@@ -86,6 +86,7 @@ struct SeFloat4
     };
 };
 
+// https://www.cprogramming.com/tutorial/3d/quaternions.html
 struct SeQuaternion
 {
     union
@@ -232,13 +233,13 @@ namespace quaternion
     inline SeQuaternion from_axis_angle(const SeAxisAngle& axisAngle)
     {
         const float halfAngle = se_to_radians(axisAngle.angle) * 0.5f;
-        const float halfAnglesin = sinf(halfAngle);
+        const float halfAngleSin = sinf(halfAngle);
         return
         {
             .w = cosf(halfAngle),
-            .x = axisAngle.axis.x * halfAnglesin,
-            .y = axisAngle.axis.y * halfAnglesin,
-            .z = axisAngle.axis.z * halfAnglesin
+            .x = axisAngle.axis.x * halfAngleSin,
+            .y = axisAngle.axis.y * halfAngleSin,
+            .z = axisAngle.axis.z * halfAngleSin
         };
     }
 
@@ -278,8 +279,9 @@ namespace quaternion
 
     SeFloat3 to_euler_angles(const SeQuaternion& quat)
     {
+        // https://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToEuler/index.htm
         const float test = quat.x * quat.y + quat.z * quat.w;
-        if (se_is_equal_float(test, 0.5f) || test > 0.5f)
+        if (test > (0.5f - SE_EPSILON))
         {
             // singularity at north pole
             const float heading = 2.0f * atan2f(quat.x, quat.w);
@@ -292,7 +294,7 @@ namespace quaternion
                 se_to_degrees(attitude)
             };
         }
-        if (test < -0.499)
+        if (test < (SE_EPSILON - 0.5f))
         {
             // singularity at south pole
             const float heading = -2.0f * atan2f(quat.x, quat.w);

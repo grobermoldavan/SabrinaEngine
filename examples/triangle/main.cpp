@@ -32,8 +32,7 @@ void init()
 
 void terminate()
 {
-    data_provider::destroy(vertexProgramData);
-    data_provider::destroy(fragmentProgramData);
+    
 }
 
 void update(const SeUpdateInfo& info)

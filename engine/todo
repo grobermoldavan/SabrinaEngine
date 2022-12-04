@@ -7,4 +7,8 @@
 - texture mipmapping
 
 
+- data proveders leak memory when they have FROM_FILE type - file path is not cleared and string is always stays allocated.
+  this can be solved by storing some sort of unique file index instead of full path.
 - add packed data types for rendering. Pack two floats into a single uint32_t value etc
+- add cursor snapping
+- add cursor hide/show functions

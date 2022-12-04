@@ -142,29 +142,6 @@ namespace data_provider
             }
         }
     }
-
-    void destroy(DataProvider& provider)
-    {
-        switch (provider.type)
-        {
-            case DataProvider::UNINITIALIZED:
-            {
-                
-            } break;
-            case DataProvider::FROM_MEMORY:
-            {
-                
-            } break;
-            case DataProvider::FROM_FILE:
-            {
-                string::destroy(provider.file.path);
-            } break;
-            default:
-            {
-
-            }
-        }
-    }
 }
 
 #endif

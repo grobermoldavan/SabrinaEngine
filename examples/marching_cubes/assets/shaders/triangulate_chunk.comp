@@ -29,7 +29,7 @@ layout (std140, set = 0, binding = 0) uniform FrameData
 //  0,0,0
 //
 
-layout (set = 1, binding = 0) buffer ChunkGrid
+layout (set = 1, binding = 0) readonly buffer ChunkGrid
 {
     float gridValues[];
 };

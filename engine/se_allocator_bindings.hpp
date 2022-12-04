@@ -19,4 +19,24 @@ struct AllocatorBindings
     void  (*dealloc)(void* allocator, void* ptr, size_t size);
 };
 
+namespace allocator_bindings
+{
+    template<typename T>
+    T* alloc(const AllocatorBindings& bindings, const char* allocTag)
+    {
+        return (T*)bindings.alloc(bindings.allocator, sizeof(T), se_default_alignment, allocTag);
+    }
+
+    template<typename T>
+    void dealloc(const AllocatorBindings& bindings, T* value)
+    {
+        bindings.dealloc(bindings.allocator, value, sizeof(T));
+    }
+
+    void* alloc(const AllocatorBindings& bindings, size_t size, const char* allocTag)
+    {
+        return bindings.alloc(bindings.allocator, size, se_default_alignment, allocTag);
+    }
+}
+
 #endif

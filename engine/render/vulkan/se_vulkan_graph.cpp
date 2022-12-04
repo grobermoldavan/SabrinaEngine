@@ -796,6 +796,11 @@ SePassDependencies se_vk_graph_begin_graphics_pass(SeVkGraph* graph, const SeGra
         .commands           = dynamic_array::create<SeVkGraphCommand>(allocators::frame(), 64),
     };
     const SeVkTexture* const depthStencilTexture = info.depthStencilTarget ? se_vk_unref(info.depthStencilTarget.texture) : nullptr;
+    se_assert_msg
+    (
+        (info.depthState.isTestEnabled | info.depthState.isWriteEnabled) == (depthStencilTexture != nullptr),
+        "Pipeline must have depth stensil target if depth test or depth write are enabled. If both options are disabled depth texture must be null"
+    );
     const VkAttachmentLoadOp depthStencilLoadOp = info.depthStencilTarget ? se_vk_utils_to_vk_load_op(info.depthStencilTarget.loadOp) : (VkAttachmentLoadOp)0;
     const uint32_t numColorAttachments = [info]() -> uint32_t
     {
