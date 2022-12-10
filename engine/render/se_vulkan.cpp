@@ -158,7 +158,7 @@ namespace render
         SeVkTextureInfo vkInfo
         {
             .device     = g_vulkanDevice,
-            .format     = info.format == SeTextureFormat::DEPTH_STENCIL ? se_vk_device_get_depth_stencil_format(g_vulkanDevice) : se_vk_utils_to_vk_format(info.format),
+            .format     = info.format == SeTextureFormat::DEPTH_STENCIL ? se_vk_device_get_depth_stencil_format(g_vulkanDevice) : se_vk_utils_to_vk_texture_format(info.format),
             .extent     = { info.width, info.height, 1 },
             .usage      = usage,
             .sampling   = VK_SAMPLE_COUNT_1_BIT, // @TODO : support multisampling

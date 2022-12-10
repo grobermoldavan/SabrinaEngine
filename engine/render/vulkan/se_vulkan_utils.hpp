@@ -71,8 +71,8 @@ VkCommandBuffer                         se_vk_utils_create_command_buffer(VkDevi
 VkShaderModule                          se_vk_utils_create_shader_module(VkDevice device, const uint32_t* bytecode, size_t bytecodeSIze, const VkAllocationCallbacks* allocationCb);
 void                                    se_vk_utils_destroy_shader_module(VkDevice device, VkShaderModule module, const VkAllocationCallbacks* allocationCb);
 bool                                    se_vk_utils_get_memory_type_index(VkPhysicalDeviceMemoryProperties* props, uint32_t typeBits, VkMemoryPropertyFlags properties, uint32_t* result);
-SeTextureFormat                         se_vk_utils_to_texture_format(VkFormat vkFormat);
-VkFormat                                se_vk_utils_to_vk_format(SeTextureFormat format);
+SeTextureFormat                         se_vk_utils_to_se_texture_format(VkFormat vkFormat);
+VkFormat                                se_vk_utils_to_vk_texture_format(SeTextureFormat format);
 VkPolygonMode                           se_vk_utils_to_vk_polygon_mode(SePipelinePolygonMode mode);
 VkCullModeFlags                         se_vk_utils_to_vk_cull_mode(SePipelineCullMode mode);
 VkFrontFace                             se_vk_utils_to_vk_front_face(SePipelineFrontFace frontFace);

@@ -214,11 +214,11 @@ void se_vk_texture_construct(SeVkTexture* texture, SeVkTextureInfo* info)
             }
             else
             {
-                se_assert_msg(false, "Unsupported file format for loading");
+                se_assert_msg(false, "Unsupported texture file format");
             }
             se_assert(loadedImagePtr);
             loadedTextureData = loadedImagePtr;
-            loadedTextureDataSize = dimX * dimY * channels * formatInfo.componentsSize / 8;
+            loadedTextureDataSize = dimX * dimY * formatInfo.numComponents * formatInfo.componentsSize / 8;
             textureExtent = { (uint32_t)dimX, (uint32_t)dimY, 1 };
         }
         else

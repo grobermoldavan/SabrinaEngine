@@ -22,9 +22,10 @@ enum struct SeRenderTargetLoadOp : uint32_t
 enum struct SeTextureFormat : uint32_t
 {
     DEPTH_STENCIL,
-    R_8,
-    RGBA_8,
-    RGBA_32F,
+    R_8_UNORM,
+    R_8_SRGB,
+    RGBA_8_UNORM,
+    RGBA_8_SRGB,
 };
 
 enum struct SePipelinePolygonMode : uint32_t

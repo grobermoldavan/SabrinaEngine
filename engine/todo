@@ -12,3 +12,4 @@
 - add packed data types for rendering. Pack two floats into a single uint32_t value etc
 - add cursor snapping
 - add cursor hide/show functions
+- add option for enabling/disabling automatic gamma-correction in swap chain texture. add this to engine settings. this will be useful if we want to do gamma correction ourselves

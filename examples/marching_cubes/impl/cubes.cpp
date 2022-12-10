@@ -51,12 +51,12 @@ void init()
 
     g_grassTexture = render::texture
     ({
-        .format = SeTextureFormat::RGBA_8,
+        .format = SeTextureFormat::RGBA_8_SRGB,
         .data   = data_provider::from_file("assets/application/textures/grass.png"),
     });
     g_rockTexture = render::texture
     ({
-        .format = SeTextureFormat::RGBA_8,
+        .format = SeTextureFormat::RGBA_8_SRGB,
         .data   = data_provider::from_file("assets/application/textures/rocks.png"),
     });
     g_depthTexture = render::texture

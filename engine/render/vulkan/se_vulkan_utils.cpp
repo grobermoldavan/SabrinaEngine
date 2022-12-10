@@ -135,7 +135,7 @@ VkSurfaceFormatKHR se_vk_utils_choose_swap_chain_surface_format(const DynamicArr
     for (auto it : available)
     {
         const VkSurfaceFormatKHR& value = iter::value(it);
-        if (value.format == /*VK_FORMAT_B8G8R8A8_SRGB*/ VK_FORMAT_R8G8B8A8_SRGB && value.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+        if (value.format == VK_FORMAT_B8G8R8A8_SRGB && value.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
         {
             return value;
         }
@@ -426,25 +426,27 @@ bool se_vk_utils_get_memory_type_index(VkPhysicalDeviceMemoryProperties* props, 
     return false;
 }
 
-SeTextureFormat se_vk_utils_to_texture_format(VkFormat vkFormat)
+SeTextureFormat se_vk_utils_to_se_texture_format(VkFormat vkFormat)
 {
     switch (vkFormat)
     {
-        case VK_FORMAT_R8_UNORM: return SeTextureFormat::R_8;
-        case VK_FORMAT_R8G8B8A8_SRGB: return SeTextureFormat::RGBA_8;
-        case VK_FORMAT_R32G32B32A32_SFLOAT: return SeTextureFormat::RGBA_32F;
+        case VK_FORMAT_R8_UNORM: return SeTextureFormat::R_8_UNORM;
+        case VK_FORMAT_R8_SRGB: return SeTextureFormat::R_8_SRGB;
+        case VK_FORMAT_R8G8B8A8_UNORM: return SeTextureFormat::RGBA_8_UNORM;
+        case VK_FORMAT_R8G8B8A8_SRGB: return SeTextureFormat::RGBA_8_SRGB;
     }
     se_assert(!"Unsupported VkFormat");
     return (SeTextureFormat)0;
 }
 
-VkFormat se_vk_utils_to_vk_format(SeTextureFormat format)
+VkFormat se_vk_utils_to_vk_texture_format(SeTextureFormat format)
 {
     switch (format)
     {
-        case SeTextureFormat::R_8: return VK_FORMAT_R8_UNORM;
-        case SeTextureFormat::RGBA_8: return VK_FORMAT_R8G8B8A8_SRGB;
-        case SeTextureFormat::RGBA_32F: return VK_FORMAT_R32G32B32A32_SFLOAT;
+        case SeTextureFormat::R_8_UNORM: return VK_FORMAT_R8_UNORM;
+        case SeTextureFormat::R_8_SRGB: return VK_FORMAT_R8_SRGB;
+        case SeTextureFormat::RGBA_8_UNORM: return VK_FORMAT_R8G8B8A8_UNORM;
+        case SeTextureFormat::RGBA_8_SRGB: return VK_FORMAT_R8G8B8A8_SRGB;
     }
     se_assert(!"Unsupported TextureFormat");
     return (VkFormat)0;

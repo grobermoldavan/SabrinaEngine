@@ -973,7 +973,7 @@ namespace font_group
         }
         groupInfo.texture = render::texture
         ({
-            .format     = SeTextureFormat::R_8,
+            .format     = SeTextureFormat::R_8_UNORM,
             .width      = uint32_t(groupInfo.atlas.width),
             .height     = uint32_t(groupInfo.atlas.height),
             .data       = data_provider::from_memory(groupInfo.atlas.bitmap, groupInfo.atlas.width * groupInfo.atlas.height * sizeof(uint8_t)),

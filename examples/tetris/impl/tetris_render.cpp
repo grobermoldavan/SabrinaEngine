@@ -130,7 +130,7 @@ void tetris_render_init()
 
     g_colorTexture = render::texture
     ({
-        .format = SeTextureFormat::RGBA_8,
+        .format = SeTextureFormat::RGBA_8_SRGB,
         .width  = win::get_width(),
         .height = win::get_height(),
     });
