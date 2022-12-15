@@ -26,8 +26,8 @@ DataProvider fragmentProgramData;
 
 void init()
 {
-    vertexProgramData = data_provider::from_file("assets/default/shaders/flat_color.vert.spv");
-    fragmentProgramData = data_provider::from_file("assets/default/shaders/flat_color.frag.spv");
+    vertexProgramData = data_provider::from_file("flat_color.vert.spv");
+    fragmentProgramData = data_provider::from_file("flat_color.frag.spv");
 }
 
 void terminate()

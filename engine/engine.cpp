@@ -35,6 +35,7 @@ namespace engine
         allocators::engine::init();
         string::engine::init();
         debug::engine::init();
+        fs::engine::init();
         win::engine::init(settings);
         render::engine::init();
         assets::engine::init(settings);
@@ -44,12 +45,12 @@ namespace engine
         g_shouldRun = true;
         
         size_t frame = 0;
-        const double counterFrequency = (double)se_get_perf_frequency();
+        const double counterFrequency = double(se_get_perf_frequency());
         uint64_t prevCounter = se_get_perf_counter();
         while (g_shouldRun)
         {
             const uint64_t newCounter = se_get_perf_counter();
-            const float dt = (float)((double)(newCounter - prevCounter) / counterFrequency);
+            const float dt = float(double(newCounter - prevCounter) / counterFrequency);
             
             allocators::engine::update();
             debug::engine::update();
@@ -66,6 +67,7 @@ namespace engine
         assets::engine::terminate();
         render::engine::terminate();
         win::engine::terminate();
+        fs::engine::terminate();
         debug::engine::terminate();
         string::engine::terminate();
         allocators::engine::terminate();
@@ -87,6 +89,7 @@ namespace engine
 #include "engine/subsystems/se_application_allocators.cpp"
 #include "engine/subsystems/se_string.cpp"
 #include "engine/subsystems/se_debug.cpp"
+#include "engine/subsystems/se_file_system.cpp"
 #include "engine/subsystems/se_window.cpp"
 #include "engine/subsystems/se_assets.cpp"
 #include "engine/subsystems/se_ui.cpp"

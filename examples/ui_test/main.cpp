@@ -169,7 +169,7 @@ void update_text_example(float dt)
         const SeColorUnpacked resultColor = se_lerp(colorFrom, colorTo, lerpValue);
 
         ui::set_param(SeUiParam::FONT_COLOR, { .color = col::pack(resultColor) });
-        ui::text({ string::cstr(string::create_fmt(SeStringLifetime::Temporary, "{} : {}", get_local(LocalizedString::LINE_OF_TEXT), clampedTime)) });
+        ui::text({ string::cstr(string::create_fmt(SeStringLifetime::TEMPORARY, "{} : {}", get_local(LocalizedString::LINE_OF_TEXT), clampedTime)) });
 
         positionY += fontHeight + ADDITIONAL_STEP;
         fontHeight *= FONT_HEIGHT_STEP;
@@ -262,8 +262,8 @@ void update_button_example()
 
 void init()
 {
-    g_fontDataEnglish = data_provider::from_file("assets/default/fonts/shahd serif.ttf");
-    g_fontDataRussian = data_provider::from_file("assets/default/fonts/a_antiquetrady regular.ttf");
+    g_fontDataEnglish = data_provider::from_file("shahd serif.ttf");
+    g_fontDataRussian = data_provider::from_file("a_antiquetrady regular.ttf");
 }
 
 void terminate()

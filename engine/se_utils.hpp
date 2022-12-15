@@ -6,6 +6,14 @@
 template<typename First, typename Second> struct SeIsComparable { static constexpr bool value = std::is_same_v<First, Second>; };
 template<typename First, typename Second> concept se_comparable_to = SeIsComparable<First, Second>::value;
 
+template<size_t NUM_FLAGS>
+struct SeBitMask
+{
+    using Entry = uint64_t;
+    static constexpr size_t ARRAY_SIZE = ((NUM_FLAGS - 1) / (sizeof(Entry) * 8)) + 1;
+    Entry mask[ARRAY_SIZE];
+};
+
 namespace utils
 {
     inline bool compare_raw(const void* first, const void* second, size_t size)
@@ -54,6 +62,36 @@ namespace utils
     Flags flagify(T flag)
     {
         return _flagify(Flags(0), flag);
+    }
+
+    template<size_t NUM_FLAGS>
+    inline void bm_set(SeBitMask<NUM_FLAGS>& mask, size_t flag)
+    {
+        using Entry = SeBitMask<NUM_FLAGS>::Entry;
+        constexpr size_t ENTRY_SIZE_BITS = (sizeof(Entry) * 8);
+        const size_t entryIndex = flag / ENTRY_SIZE_BITS;
+        const size_t inEntryIndex = flag % ENTRY_SIZE_BITS;
+        mask.mask[entryIndex] |= Entry(1) << inEntryIndex;
+    }
+
+    template<size_t NUM_FLAGS>
+    inline void bm_unset(SeBitMask<NUM_FLAGS>& mask, size_t flag)
+    {
+        using Entry = SeBitMask<NUM_FLAGS>::Entry;
+        constexpr size_t ENTRY_SIZE_BITS = (sizeof(Entry) * 8);
+        const size_t entryIndex = flag / ENTRY_SIZE_BITS;
+        const size_t inEntryIndex = flag % ENTRY_SIZE_BITS;
+        mask.mask[entryIndex] &= ~(Entry(1) << inEntryIndex);
+    }
+
+    template<size_t NUM_FLAGS>
+    inline bool bm_get(const SeBitMask<NUM_FLAGS>& mask, size_t flag)
+    {
+        using Entry = SeBitMask<NUM_FLAGS>::Entry;
+        constexpr size_t ENTRY_SIZE_BITS = (sizeof(Entry) * 8);
+        const size_t entryIndex = flag / ENTRY_SIZE_BITS;
+        const size_t inEntryIndex = flag % ENTRY_SIZE_BITS;
+        return mask.mask[entryIndex] & (Entry(1) << inEntryIndex);
     }
 }
 

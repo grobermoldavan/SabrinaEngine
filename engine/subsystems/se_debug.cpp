@@ -22,9 +22,12 @@ inline void se_debug_platform_terminate()
 
 inline void se_debug_platform_output(const char* str)
 {
-    static const char* nextLine = "\n";
-    static const DWORD nextLineLen = (DWORD)strlen(nextLine);
-    WriteFile(g_outputHandle, str, (DWORD)strlen(str), NULL, NULL);
+    // @NOTE : for some unknown reason, console output with "nextLine = "\n"" (no space before \n)
+    //         was bugged - sometimes next output could be written in the same line
+    //         I don't know why that happened, but adding dummy space character seems to have helped
+    static const char* nextLine = " \n";
+    static const DWORD nextLineLen = DWORD(strlen(nextLine));
+    WriteFile(g_outputHandle, str, DWORD(strlen(str)), NULL, NULL);
     WriteFile(g_outputHandle, nextLine, nextLineLen, NULL, NULL);
 }
 
@@ -80,6 +83,7 @@ void se_debug_submit(SeString msg)
             se_debug_wait_for_flush();
         }
     }
+    se_debug_try_flush();
 }
 
 void se_debug_abort()
@@ -100,7 +104,7 @@ namespace debug
     template<typename ... Args>
     void message(const char* fmt, const Args& ... args)
     {
-        SeStringBuilder builder = string_builder::begin(nullptr, SeStringLifetime::Temporary);
+        SeStringBuilder builder = string_builder::begin(nullptr, SeStringLifetime::TEMPORARY);
         string_builder::append_fmt(builder, fmt, args...);
         SeString formattedString = string_builder::end(builder);
         se_debug_submit(formattedString);
@@ -109,7 +113,7 @@ namespace debug
     template<typename ... Args>
     void error(const char* fmt, const Args& ... args)
     {
-        SeStringBuilder builder = string_builder::begin(nullptr, SeStringLifetime::Temporary);
+        SeStringBuilder builder = string_builder::begin(nullptr, SeStringLifetime::TEMPORARY);
         string_builder::append_fmt(builder, fmt, args...);
         SeString formattedString = string_builder::end(builder);
         se_debug_submit(formattedString);

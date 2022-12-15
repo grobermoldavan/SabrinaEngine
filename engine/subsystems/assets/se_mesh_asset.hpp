@@ -41,6 +41,13 @@ struct SeMeshGeometry
     
     uint32_t        numVertices;
     uint32_t        numIndices;
+
+    size_t          textureSetIndex;
+};
+
+struct SeMeshTextureSet
+{
+    SeTextureRef colorTexture;
 };
 
 struct SeMeshAssetValue
@@ -48,12 +55,17 @@ struct SeMeshAssetValue
     // @TODO : increase max number of nodes and geometries
     static constexpr size_t MAX_GEOMETRIES = 64;
     static constexpr size_t MAX_NODES = 64;
+    static constexpr size_t MAX_TEXTURE_SETS = 64;
 
-    SeMeshGeometry  geometries[MAX_GEOMETRIES];
-    SeMeshNode      nodes[MAX_NODES];
-    size_t          numGeometries;
-    size_t          numNodes;
-    SeMeshNodeMask  rootNodes;
+    SeMeshGeometry      geometries[MAX_GEOMETRIES];
+    SeMeshNode          nodes[MAX_NODES];
+    SeMeshTextureSet    textureSets[MAX_TEXTURE_SETS];
+
+    size_t              numGeometries;
+    size_t              numNodes;
+    size_t              numTextureSets;
+
+    SeMeshNodeMask      rootNodes;
 };
 
 struct SeMeshAssetIntermediateData

@@ -3,7 +3,7 @@
 
 #include "se_hash.hpp"
 #include "se_utils.hpp"
-#include "subsystems/se_platform.hpp"
+#include "subsystems/se_file_system.hpp"
 #include "subsystems/se_application_allocators.hpp"
 #include "subsystems/se_string.hpp"
 
@@ -24,7 +24,7 @@ struct DataProvider
         } memory;
         struct
         {
-            SeString path;
+            SeFileHandle handle;
         } file;
     };
 };
@@ -44,7 +44,7 @@ namespace utils
         switch (first.type)
         {
             case DataProvider::FROM_MEMORY: return compare(first.memory, second.memory);
-            case DataProvider::FROM_FILE:   return compare(first.file.path, second.file.path);
+            case DataProvider::FROM_FILE:   return compare(first.file.handle, second.file.handle);
             default:                        return true;
         }
     }
@@ -65,7 +65,7 @@ namespace hash_value
                 } break;
                 case DataProvider::FROM_FILE:
                 {
-                    hash_value::builder::absorb(builder, value.file.path);
+                    hash_value::builder::absorb(builder, value.file.handle);
                 } break;
                 default: { }
             }
@@ -113,7 +113,16 @@ namespace data_provider
         return
         {
             .type = DataProvider::FROM_FILE,
-            .file = { platform::get_full_path(path, SeStringLifetime::Persistent) },
+            .file = { fs::file_find_recursive(path) },
+        };
+    }
+
+    DataProvider from_file(SeFileHandle file)
+    {
+        return
+        {
+            .type = DataProvider::FROM_FILE,
+            .file = { file },
         };
     }
 
@@ -131,10 +140,8 @@ namespace data_provider
             } break;
             case DataProvider::FROM_FILE:
             {
-                SeFile file = platform::file_load(string::cstr(provider.file.path), SE_FILE_READ);
-                SeFileContent content = platform::file_read(&file, allocators::frame());
-                platform::file_unload(&file);
-                return { content.memory, content.size };
+                const SeFileContent content = fs::file_load(provider.file.handle, allocators::frame());
+                return { content.data, content.dataSize };
             } break;
             default:
             {

@@ -10,17 +10,34 @@ SeAssetHandle g_meshHandle;
 SeProgramRef g_drawVs;
 SeProgramRef g_drawFs;
 SeTextureRef g_depthTexture;
+SeSamplerRef g_sampler;
 
 void init()
 {
-    g_meshHandle = assets::add<SeMeshAsset>({ data_provider::from_file("assets/default/models/duck/duck.gltf") });
-    g_drawVs = render::program({ data_provider::from_file("assets/default/shaders/mesh_unlit.vert.spv") });
-    g_drawFs = render::program({ data_provider::from_file("assets/default/shaders/mesh_unlit.frag.spv") });
+    g_meshHandle = assets::add<SeMeshAsset>({ data_provider::from_file("duck.gltf") });
+    g_drawVs = render::program({ data_provider::from_file("mesh_unlit.vert.spv") });
+    g_drawFs = render::program({ data_provider::from_file("mesh_unlit.frag.spv") });
     g_depthTexture = render::texture
     ({
         .format = SeTextureFormat::DEPTH_STENCIL,
         .width  = win::get_width(),
         .height = win::get_height(),
+    });
+    g_sampler = render::sampler
+    ({
+        .magFilter          = SeSamplerFilter::LINEAR,
+        .minFilter          = SeSamplerFilter::LINEAR,
+        .addressModeU       = SeSamplerAddressMode::REPEAT,
+        .addressModeV       = SeSamplerAddressMode::REPEAT,
+        .addressModeW       = SeSamplerAddressMode::REPEAT,
+        .mipmapMode         = SeSamplerMipmapMode::LINEAR,
+        .mipLodBias         = 0.0f,
+        .minLod             = 0.0f,
+        .maxLod             = 0.0f,
+        .anisotropyEnable   = false,
+        .maxAnisotropy      = 0.0f,
+        .compareEnabled     = false,
+        .compareOp          = SeCompareOp::ALWAYS,
     });
 
     debug_camera_construct(&g_camera, { 0, 0, -10 });
@@ -95,6 +112,8 @@ void update(const SeUpdateInfo& info)
 
             const SeFloat4x4 mvp = float4x4::transposed(float4x4::mul(vp, trf));
             const SeBufferRef instances = render::scratch_memory_buffer({ data_provider::from_memory(mvp) });
+
+            const SeTextureRef colorTexture = mesh->textureSets[geometry->textureSetIndex].colorTexture;
             render::bind
             ({
                 .set = 0,
@@ -104,6 +123,7 @@ void update(const SeUpdateInfo& info)
                     { .binding = 1, .type = SeBinding::BUFFER, .buffer = geometry->uvBuffer },
                     { .binding = 2, .type = SeBinding::BUFFER, .buffer = geometry->indicesBuffer },
                     { .binding = 3, .type = SeBinding::BUFFER, .buffer = instances },
+                    { .binding = 4, .type = SeBinding::TEXTURE, .texture = { colorTexture, g_sampler } },
                 }
             });
             render::draw({ geometry->numIndices, 1 });

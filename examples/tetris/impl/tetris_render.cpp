@@ -123,10 +123,10 @@ DataProvider    g_fontDataEnglish;
 
 void tetris_render_init()
 {
-    g_drawVs    = render::program({ data_provider::from_file("assets/application/shaders/tetris_draw.vert.spv") });
-    g_drawFs    = render::program({ data_provider::from_file("assets/application/shaders/tetris_draw.frag.spv") });
-    g_presentVs = render::program({ data_provider::from_file("assets/default/shaders/present.vert.spv") });
-    g_presentFs = render::program({ data_provider::from_file("assets/default/shaders/present.frag.spv") });
+    g_drawVs    = render::program({ data_provider::from_file("tetris_draw.vert.spv") });
+    g_drawFs    = render::program({ data_provider::from_file("tetris_draw.frag.spv") });
+    g_presentVs = render::program({ data_provider::from_file("present.vert.spv") });
+    g_presentFs = render::program({ data_provider::from_file("present.frag.spv") });
 
     g_colorTexture = render::texture
     ({
@@ -163,7 +163,7 @@ void tetris_render_init()
     g_cubeVerticesBuffer    = render::memory_buffer({ data_provider::from_memory(g_cubeVertices) });
     g_cubeIndicesBuffer     = render::memory_buffer({ data_provider::from_memory(g_cubeIndices) });
 
-    g_fontDataEnglish = data_provider::from_file("assets/default/fonts/shahd serif.ttf");
+    g_fontDataEnglish = data_provider::from_file("shahd serif.ttf");
 }
 
 void tetris_render_terminate()
@@ -271,7 +271,7 @@ void tetris_render_update(float dt)
             ui::set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = win::get_height<float>() - 40.0f });
             ui::text({ "Epic tetris game" });
             ui::set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = win::get_height<float>() - 80.0f });
-            ui::text({ string::cstr(string::create_fmt(SeStringLifetime::Temporary, "Points : {}", g_state.points)) });
+            ui::text({ string::cstr(string::create_fmt(SeStringLifetime::TEMPORARY, "Points : {}", g_state.points)) });
             uiDependency = ui::end(drawDependency);
         }
         //

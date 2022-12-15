@@ -541,17 +541,17 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
             {
                 case SE_VK_GRAPH_COMMAND_TYPE_DRAW:
                 {
-                    SeCommandDrawInfo* draw = &command.info.draw;
+                    const SeCommandDrawInfo* const draw = &command.info.draw;
                     vkCmdDraw(commandBuffer->handle, draw->numVertices, draw->numInstances, 0, 0);
                 } break;
                 case SE_VK_GRAPH_COMMAND_TYPE_DISPATCH:
                 {
-                    SeCommandDispatchInfo* dispatch = &command.info.dispatch;
+                    const SeCommandDispatchInfo* const dispatch = &command.info.dispatch;
                     vkCmdDispatch(commandBuffer->handle, dispatch->groupCountX, dispatch->groupCountY, dispatch->groupCountZ);
                 } break;
                 case SE_VK_GRAPH_COMMAND_TYPE_BIND:
                 {
-                    SeCommandBindInfo* bindCommandInfo = &command.info.bind;
+                    const SeCommandBindInfo* const bindCommandInfo = &command.info.bind;
                     const uint32_t numBindings = se_vk_graph_get_num_bindings(*bindCommandInfo);
                     se_assert(numBindings);
                     se_assert(pipeline->numDescriptorSetLayouts > bindCommandInfo->set);

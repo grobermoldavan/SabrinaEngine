@@ -36,7 +36,10 @@ void se_string_deallocate_buffer(const AllocatorBindings& allocator, const char*
 
 SeString se_string_create(bool isTmp, size_t length, const char* source)
 {
-    if (!isTmp) { debug::message("Allocating new string of length {}, text \"{}\"", length, source); }
+    if (!isTmp)
+    {
+        debug::message("Allocating new string. Length : {}, text : \"{}\"", length, source);
+    }
 
     const AllocatorBindings allocator = isTmp ? allocators::frame() : allocators::persistent();
     char* const memory = source
@@ -164,6 +167,7 @@ SeString se_string_builder_end(SeStringBuilder& builder)
     }
     else
     {
+        debug::message("Allocating new string from builder. Capacity : {}, text : \"{}\"", builder.capacity, builder.memory);
         SePersistentAllocation* const allocation = object_pool::take(g_presistentStringPool);
         *allocation =
         {
@@ -183,12 +187,12 @@ namespace string
 
     SeString create(const SeString& source, SeStringLifetime lifetime)
     {
-        return se_string_create_from_source(lifetime == SeStringLifetime::Temporary, string::cstr(source));
+        return se_string_create_from_source(lifetime == SeStringLifetime::TEMPORARY, string::cstr(source));
     }
 
     SeString create(const char* source, SeStringLifetime lifetime)
     {
-        return se_string_create_from_source(lifetime == SeStringLifetime::Temporary, source);
+        return se_string_create_from_source(lifetime == SeStringLifetime::TEMPORARY, source);
     }
 
     template<typename ... Args>
@@ -240,6 +244,12 @@ namespace string
         return string::create(value, lifetime);
     }
 
+    template<>
+    SeString cast<SeString>(const SeString& value, SeStringLifetime lifetime)
+    {
+        return string::create(value, lifetime);
+    }
+
     void engine::init()
     {
         object_pool::construct(g_presistentStringPool);
@@ -259,25 +269,25 @@ namespace string_builder
         template<size_t it, typename Arg>
         void fill_args(char** argsStr, const Arg& arg)
         {
-            argsStr[it] = string::cstr(string::cast(arg, SeStringLifetime::Temporary));
+            argsStr[it] = string::cstr(string::cast(arg, SeStringLifetime::TEMPORARY));
         }
 
         template<size_t it, typename Arg, typename ... Other>
         void fill_args(char** argsStr, const Arg& arg, const Other& ... other)
         {
-            argsStr[it] = string::cstr(string::cast(arg, SeStringLifetime::Temporary));
+            argsStr[it] = string::cstr(string::cast(arg, SeStringLifetime::TEMPORARY));
             fill_args<it + 1, Other...>(argsStr, other...);
         }
     }
 
     SeStringBuilder begin(const char* source, SeStringLifetime lifetime)
     {
-        return se_string_builder_begin_from_source(lifetime == SeStringLifetime::Temporary, source);
+        return se_string_builder_begin_from_source(lifetime == SeStringLifetime::TEMPORARY, source);
     }
 
     SeStringBuilder begin(size_t capacity, const char* source, SeStringLifetime lifetime)
     {
-        return se_string_builder_begin(lifetime == SeStringLifetime::Temporary, capacity, source);
+        return se_string_builder_begin(lifetime == SeStringLifetime::TEMPORARY, capacity, source);
     }
 
     void append(SeStringBuilder& builder, const char* source)
@@ -308,6 +318,20 @@ namespace string_builder
             char* argsStr[sizeof...(args)];
             impl::fill_args<0, Args...>(argsStr, args...);
             se_string_builder_append_fmt(builder, fmt, (const char**)argsStr, sizeof...(args));
+        }
+    }
+
+    template<typename ... Args>
+    void append_with_separator(SeStringBuilder& builder, const char* separator, const Args& ... args)
+    {
+        constexpr size_t NUM_ARGS = sizeof...(args);
+        static_assert(NUM_ARGS > 0);
+        char* argsStr[NUM_ARGS];
+        impl::fill_args<0, Args...>(argsStr, args...);
+        for (size_t it = 0; it < NUM_ARGS; it++)
+        {
+            se_string_builder_append(builder, argsStr[it]);
+            if (it < (NUM_ARGS - 1)) se_string_builder_append(builder, separator);
         }
     }
 

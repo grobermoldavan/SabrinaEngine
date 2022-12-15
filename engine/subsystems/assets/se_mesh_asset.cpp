@@ -68,7 +68,7 @@ void se_mesh_cgltf_free(void* userData, void* ptr)
 constexpr size_t SE_MAX_CGLTF_FILES = 256;
 struct
 {
-    SeFile file;
+    SeFileHandle file;
     SeFileContent content;
 } g_cgltfFiles[SE_MAX_CGLTF_FILES];
 size_t g_numCgltfFiles = 0;
@@ -78,11 +78,13 @@ cgltf_result se_mesh_cgltf_read(const cgltf_memory_options* memory_options, cons
     se_assert(g_numCgltfFiles < SE_MAX_CGLTF_FILES);
     auto* const fileEntry = &g_cgltfFiles[g_numCgltfFiles++];
 
-    fileEntry->file = platform::file_load(path, SE_FILE_READ);
-    fileEntry->content = platform::file_read(&fileEntry->file, allocators::frame());
+    fileEntry->file = fs::file_find_recursive(path);
+    se_assert(fileEntry->file);
 
-    *size = fileEntry->content.size;
-    *data = fileEntry->content.memory;
+    fileEntry->content = fs::file_load(fileEntry->file, allocators::frame());
+
+    *size = fileEntry->content.dataSize;
+    *data = fileEntry->content.data;
 
     return cgltf_result_success;
 }
@@ -92,10 +94,9 @@ void se_mesh_cgltf_release(const cgltf_memory_options* memory_options, const cgl
     se_assert(g_numCgltfFiles);
     for (size_t it = 0; it < g_numCgltfFiles; it++)
     {
-        if (g_cgltfFiles[it].content.memory == data)
+        if (g_cgltfFiles[it].content.data == data)
         {
-            platform::file_free_content(&g_cgltfFiles[it].content);
-            platform::file_unload(&g_cgltfFiles[it].file);
+            fs::file_free(g_cgltfFiles[it].content);
             g_cgltfFiles[it] = g_cgltfFiles[g_numCgltfFiles - 1];
             g_numCgltfFiles -= 1;
             break;
@@ -390,13 +391,41 @@ void* SeMeshAsset::load(const Info& info, const Intermediate& intermediateData)
     // Load buffers
     //
     se_assert(info.data.type == DataProvider::FROM_FILE);
-    const char* const filePath = string::cstr(info.data.file.path);
+    const char* const filePath = fs::full_path(info.data.file.handle);
+    const SeFolderHandle fileFolder = fs::file_get_folder(info.data.file.handle);
     const cgltf_result bufferLoadResult = cgltf_load_buffers(&SE_CGLTF_OPTIONS, intermediateData.gltfData, filePath);
     se_assert_msg(bufferLoadResult == cgltf_result_success, "Unable to load cgltf buffers. Error is {}", SE_CGLTF_RESULT_TO_STR[bufferLoadResult]);
 
     const cgltf_data* const gltf = intermediateData.gltfData;
     SeMeshAsset::Value* const meshAsset = allocator_bindings::alloc<SeMeshAsset::Value>(allocators::persistent(), se_alloc_tag);
     *meshAsset = {};
+    
+    //
+    // Load every texture set
+    //
+    for (size_t matIt = 0; matIt < gltf->materials_count; matIt++)
+    {
+        SeMeshTextureSet textureSet = {};
+
+        const cgltf_material& material = gltf->materials[matIt];
+        if (material.has_pbr_metallic_roughness)
+        {
+            const cgltf_pbr_metallic_roughness& mr = material.pbr_metallic_roughness;
+            const cgltf_texture* const colorTexture = mr.base_color_texture.texture;
+            if (colorTexture)
+            {
+                const char* const textureFileName = colorTexture->image->uri;
+                const SeFileHandle textureFile = fs::file_find(textureFileName, fileFolder);
+                textureSet.colorTexture = render::texture
+                ({
+                    .format = SeTextureFormat::RGBA_8_SRGB,
+                    .data = data_provider::from_file(textureFile),
+                });
+            }
+        }
+
+        meshAsset->textureSets[meshAsset->numTextureSets++] = textureSet;
+    }
 
     //
     // Load every mesh
@@ -416,6 +445,13 @@ void* SeMeshAsset::load(const Info& info, const Intermediate& intermediateData)
                 continue;
             }
             SeMeshGeometry seGeometry = {};
+            //
+            // Assign texture set
+            //
+            se_assert(primitive.material);
+            se_assert(primitive.material >= gltf->materials);
+            se_assert(size_t(primitive.material - gltf->materials) < meshAsset->numTextureSets);
+            seGeometry.textureSetIndex = size_t(primitive.material - gltf->materials);
             //
             // Load all components
             //
@@ -509,12 +545,18 @@ void SeMeshAsset::unload(void* data)
 
     for (size_t it = 0; it < mesh->numGeometries; it++)
     {
-        SeMeshGeometry* const geometry = &mesh->geometries[it];
-        if (geometry->indicesBuffer) render::destroy(geometry->indicesBuffer);
-        if (geometry->positionBuffer) render::destroy(geometry->positionBuffer);
-        if (geometry->normalBuffer) render::destroy(geometry->normalBuffer);
-        if (geometry->tangentBuffer) render::destroy(geometry->tangentBuffer);
-        if (geometry->uvBuffer) render::destroy(geometry->uvBuffer);
+        const SeMeshGeometry& geometry = mesh->geometries[it];
+        if (geometry.indicesBuffer) render::destroy(geometry.indicesBuffer);
+        if (geometry.positionBuffer) render::destroy(geometry.positionBuffer);
+        if (geometry.normalBuffer) render::destroy(geometry.normalBuffer);
+        if (geometry.tangentBuffer) render::destroy(geometry.tangentBuffer);
+        if (geometry.uvBuffer) render::destroy(geometry.uvBuffer);
+    }
+
+    for (size_t it = 0; it < mesh->numTextureSets; it++)
+    {
+        const SeMeshTextureSet& set = mesh->textureSets[it];
+        if (set.colorTexture) render::destroy(set.colorTexture);
     }
 
     allocator_bindings::dealloc(allocators::persistent(), mesh);

@@ -1,5 +1,5 @@
-#ifndef _SE_PLATFORM_H_
-#define _SE_PLATFORM_H_
+#ifndef _SE_PLATFORM_HPP_
+#define _SE_PLATFORM_HPP_
 
 #include "engine/subsystems/se_string.hpp"
 #include "engine/se_common_includes.hpp"
@@ -14,43 +14,6 @@ enum SeMemoryOrder
     SE_ACQUIRE_RELEASE,
     SE_SEQUENTIALLY_CONSISTENT,
 };
-
-enum SeFileLoadMode : uint32_t
-{
-    SE_FILE_READ,
-    SE_FILE_WRITE,
-};
-
-enum SeFileFlags : uint32_t
-{
-    SE_FILE_IS_LOADED = 0x00000001,
-    SE_FILE_STD_HANDLE = 0x00000002,
-};
-
-using SeFileHandle = uint64_t;
-
-struct SeFile
-{
-    SeString        fullPath;
-    SeFileHandle    handle;
-    uint32_t        loadMode;
-    uint32_t        flags;
-};
-
-struct SeFileContent
-{
-    AllocatorBindings   allocator;
-    void*               memory;
-    size_t              size;
-};
-
-struct SePlatformSubsystemInterface
-{
-    static constexpr const char* NAME = "SePlatformSubsystemInterface";
-
-    
-};
-
 
 namespace platform
 {
@@ -69,19 +32,7 @@ namespace platform
     uint32_t        atomic_32_bit_add       (uint32_t* val, uint32_t other);
     uint32_t        atomic_32_bit_load      (const uint32_t* val, SeMemoryOrder memoryOrder);
     uint32_t        atomic_32_bit_store     (uint32_t* val, uint32_t newValue, SeMemoryOrder memoryOrder);
-    bool            atomic_32_bit_cas       (uint32_t* atomic, uint32_t* expected, uint32_t newValue, SeMemoryOrder memoryOrder);   
-    SeFile          file_load               (const char* path, SeFileLoadMode loadMode);
-    void            file_unload             (SeFile* file);
-    bool            file_is_valid           (const SeFile* file);
-    SeFileContent   file_read               (const SeFile* file, AllocatorBindings allocator);
-    void            file_free_content       (SeFileContent* content);
-    void            file_write              (const SeFile* file, const void* data, size_t size);
-    SeString        get_full_path           (const char* path, SeStringLifetime lifetime);
-
-    namespace engine
-    {
-        
-    };
+    bool            atomic_32_bit_cas       (uint32_t* atomic, uint32_t* expected, uint32_t newValue, SeMemoryOrder memoryOrder);
 }
 
 #endif

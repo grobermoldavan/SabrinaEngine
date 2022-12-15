@@ -7,8 +7,8 @@
 
 enum struct SeStringLifetime
 {
-    Temporary,
-    Persistent,
+    TEMPORARY,
+    PERSISTENT,
 };
 
 struct SeString
@@ -31,16 +31,17 @@ template <typename T> concept se_cstring = std::is_convertible_v<T, const char*>
 namespace string
 {
     char*                                   cstr(SeString str);
-    SeString                                create(const SeString& source, SeStringLifetime lifetime = SeStringLifetime::Temporary);
-    SeString                                create(const char* source, SeStringLifetime lifetime = SeStringLifetime::Temporary);
+    SeString                                create(const SeString& source, SeStringLifetime lifetime = SeStringLifetime::TEMPORARY);
+    SeString                                create(const char* source, SeStringLifetime lifetime = SeStringLifetime::TEMPORARY);
     template<typename ... Args> SeString    create_fmt(SeStringLifetime lifetime, const char* fmt, const Args& ... args);
     void                                    destroy(const SeString& str);
 
-    template<typename T>                SeString cast(const T& value, SeStringLifetime lifetime = SeStringLifetime::Temporary);
-    template<std::unsigned_integral T>  SeString cast(const T& value, SeStringLifetime lifetime = SeStringLifetime::Temporary);
-    template<std::signed_integral T>    SeString cast(const T& value, SeStringLifetime lifetime = SeStringLifetime::Temporary);
-    template<std::floating_point T>     SeString cast(const T& value, SeStringLifetime lifetime = SeStringLifetime::Temporary);
-    template<se_cstring T>              SeString cast(const T& value, SeStringLifetime lifetime = SeStringLifetime::Temporary);
+    template<typename T>                SeString cast(const T& value, SeStringLifetime lifetime = SeStringLifetime::TEMPORARY);
+    template<std::unsigned_integral T>  SeString cast(const T& value, SeStringLifetime lifetime = SeStringLifetime::TEMPORARY);
+    template<std::signed_integral T>    SeString cast(const T& value, SeStringLifetime lifetime = SeStringLifetime::TEMPORARY);
+    template<std::floating_point T>     SeString cast(const T& value, SeStringLifetime lifetime = SeStringLifetime::TEMPORARY);
+    template<se_cstring T>              SeString cast(const T& value, SeStringLifetime lifetime = SeStringLifetime::TEMPORARY);
+    template<>                          SeString cast<SeString>(const SeString& value, SeStringLifetime lifetime);
 
     namespace engine
     {
@@ -51,12 +52,13 @@ namespace string
 
 namespace string_builder
 {
-    SeStringBuilder                     begin(const char* source = nullptr, SeStringLifetime lifetime = SeStringLifetime::Temporary);
-    SeStringBuilder                     begin(size_t capacity, const char* source = nullptr, SeStringLifetime lifetime = SeStringLifetime::Temporary);
+    SeStringBuilder                     begin(const char* source = nullptr, SeStringLifetime lifetime = SeStringLifetime::TEMPORARY);
+    SeStringBuilder                     begin(size_t capacity, const char* source = nullptr, SeStringLifetime lifetime = SeStringLifetime::TEMPORARY);
     void                                append(SeStringBuilder& builder, const char* source);
     void                                append(SeStringBuilder& builder, char symbol);
     void                                append(SeStringBuilder& builder, const SeString& source);
     template<typename ... Args> void    append_fmt(SeStringBuilder& builder, const char* fmt, const Args& ... args);
+    template<typename ... Args> void    append_with_separator(SeStringBuilder& builder, const char* separator, const Args& ... args);
     SeString                            end(SeStringBuilder& builder);
 }
 
@@ -65,20 +67,20 @@ template<se_cstring T> struct SeIsComparable<T, SeString> { static constexpr boo
 
 namespace utils
 {
-    template<> bool                     compare<SeString, SeString>(const SeString& first, const SeString& second);
-    template<se_cstring T> bool    compare(const SeString& first, const T& second);
-    template<se_cstring T> bool    compare(const T& first, const SeString& second);
+    template<> bool             compare<SeString, SeString>(const SeString& first, const SeString& second);
+    template<se_cstring T> bool compare(const SeString& first, const T& second);
+    template<se_cstring T> bool compare(const T& first, const SeString& second);
 }
 
 namespace hash_value
 {
     namespace builder
     {
-        template<> void                     absorb<SeString>(HashValueBuilder& builder, const SeString& value);
-        template<se_cstring T> void    absorb(HashValueBuilder& builder, const T& value);
+        template<> void             absorb<SeString>(HashValueBuilder& builder, const SeString& value);
+        template<se_cstring T> void absorb(HashValueBuilder& builder, const T& value);
     }
-    template<> HashValue                    generate<SeString>(const SeString& value);
-    template<se_cstring T> HashValue   generate(const T& value);
+    template<> HashValue                generate<SeString>(const SeString& value);
+    template<se_cstring T> HashValue    generate(const T& value);
 }
 
 #endif

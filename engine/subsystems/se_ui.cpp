@@ -1200,7 +1200,7 @@ namespace ui
             const bool isFirstAccess = data == nullptr;
             if (!data)
             {
-                data = hash_table::set(g_uiCtx.uidToObjectData, string::create(cstrUid, SeStringLifetime::Persistent), { });
+                data = hash_table::set(g_uiCtx.uidToObjectData, string::create(cstrUid, SeStringLifetime::PERSISTENT), { });
             }
             se_assert(data);
             return { hash_table::key(g_uiCtx.uidToObjectData, data), data, isFirstAccess };
@@ -1803,8 +1803,8 @@ namespace ui
     void engine::init()
     {
         g_uiCtx = { };
-        g_uiCtx.drawUiVs = render::program({ data_provider::from_file("assets/default/shaders/ui_draw.vert.spv") });
-        g_uiCtx.drawUiFs = render::program({ data_provider::from_file("assets/default/shaders/ui_draw.frag.spv") });
+        g_uiCtx.drawUiVs = render::program({ data_provider::from_file("ui_draw.vert.spv") });
+        g_uiCtx.drawUiFs = render::program({ data_provider::from_file("ui_draw.frag.spv") });
         g_uiCtx.sampler = render::sampler
         ({
             .magFilter          = SeSamplerFilter::LINEAR,

@@ -14,6 +14,7 @@
 #include "engine/subsystems/se_application_allocators.hpp"
 #include "engine/subsystems/se_string.hpp"
 #include "engine/subsystems/se_debug.hpp"
+#include "engine/subsystems/se_file_system.hpp"
 #include "engine/subsystems/se_window.hpp"
 #include "engine/subsystems/se_assets.hpp"
 #include "engine/subsystems/se_ui.hpp"

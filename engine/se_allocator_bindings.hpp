@@ -37,6 +37,11 @@ namespace allocator_bindings
     {
         return bindings.alloc(bindings.allocator, size, se_default_alignment, allocTag);
     }
+
+    void dealloc(const AllocatorBindings& bindings, void* value, size_t size)
+    {
+        bindings.dealloc(bindings.allocator, value, size);
+    }
 }
 
 #endif

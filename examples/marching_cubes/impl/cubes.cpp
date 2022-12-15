@@ -43,21 +43,21 @@ DebugCamera     g_camera;
 
 void init()
 {
-    g_clearChunkCs          = render::program({ data_provider::from_file("assets/application/shaders/clear_chunk.comp.spv") });
-    g_generateChunkCs       = render::program({ data_provider::from_file("assets/application/shaders/generate_chunk.comp.spv") });
-    g_triangulateChunkCs    = render::program({ data_provider::from_file("assets/application/shaders/triangulate_chunk.comp.spv") });
-    g_renderChunkVs         = render::program({ data_provider::from_file("assets/application/shaders/render_chunk.vert.spv") });
-    g_renderChunkFs         = render::program({ data_provider::from_file("assets/application/shaders/render_chunk.frag.spv") });
+    g_clearChunkCs          = render::program({ data_provider::from_file("clear_chunk.comp.spv") });
+    g_generateChunkCs       = render::program({ data_provider::from_file("generate_chunk.comp.spv") });
+    g_triangulateChunkCs    = render::program({ data_provider::from_file("triangulate_chunk.comp.spv") });
+    g_renderChunkVs         = render::program({ data_provider::from_file("render_chunk.vert.spv") });
+    g_renderChunkFs         = render::program({ data_provider::from_file("render_chunk.frag.spv") });
 
     g_grassTexture = render::texture
     ({
         .format = SeTextureFormat::RGBA_8_SRGB,
-        .data   = data_provider::from_file("assets/application/textures/grass.png"),
+        .data   = data_provider::from_file("grass.png"),
     });
     g_rockTexture = render::texture
     ({
         .format = SeTextureFormat::RGBA_8_SRGB,
-        .data   = data_provider::from_file("assets/application/textures/rocks.png"),
+        .data   = data_provider::from_file("rocks.png"),
     });
     g_depthTexture = render::texture
     ({
@@ -110,16 +110,23 @@ SePassDependencies execute_compute(SeBufferRef frameDataBuffer, SeProgramRef pro
         .numSpecializationConstants = 3,
     };
     const SePassDependencies resultDeps = render::begin_compute_pass({ .dependencies = deps, .program = computeProgramInfo });
-    render::bind({ .set = 0, .bindings = { { .binding = 0, .buffer = frameDataBuffer } } });
+    render::bind
+    ({
+        .set = 0,
+        .bindings =
+        {
+            { .binding = 0, .type = SeBinding::BUFFER, .buffer = { frameDataBuffer } }
+        } 
+    });
     render::bind
     ({
         .set = 1,
         .bindings =
         {
-            { .binding = 0, .buffer = g_gridValuesBuffer },
-            { .binding = 1, .buffer = g_geometryBuffer },
-            { .binding = 2, .buffer = g_edgeTableBuffer },
-            { .binding = 3, .buffer = g_triangleTableBuffer }
+            { .binding = 0, .type = SeBinding::BUFFER, .buffer = { g_gridValuesBuffer } },
+            { .binding = 1, .type = SeBinding::BUFFER, .buffer = { g_geometryBuffer } },
+            { .binding = 2, .type = SeBinding::BUFFER, .buffer = { g_edgeTableBuffer } },
+            { .binding = 3, .type = SeBinding::BUFFER, .buffer = { g_triangleTableBuffer } }
         }
     });
     const SeComputeWorkgroupSize workgroupSize = render::workgroup_size(program);
@@ -196,19 +203,31 @@ void update(const SeUpdateInfo& updateInfo)
             .depthStencilTarget     = { g_depthTexture, SeRenderTargetLoadOp::CLEAR },
         });
         {
-            render::bind({ .set = 0, .bindings =
-            {
-                { .binding = 0, .type = SeBinding::TEXTURE, .buffer = { frameDataBuffer } }
-            } });
-            render::bind({ .set = 1, .bindings =
-            {
-                { .binding = 0, .type = SeBinding::TEXTURE, .buffer = { g_geometryBuffer } }
-            } });
-            render::bind({ .set = 2, .bindings =
-            {
-                { .binding = 0, .type = SeBinding::TEXTURE, .texture = { g_grassTexture, g_sampler } },
-                { .binding = 1, .type = SeBinding::TEXTURE, .texture = { g_rockTexture, g_sampler } }
-            } });
+            render::bind
+            ({
+                .set = 0,
+                .bindings =
+                {
+                    { .binding = 0, .type = SeBinding::BUFFER, .buffer = { frameDataBuffer } }
+                }
+            });
+            render::bind
+            ({
+                .set = 1,
+                .bindings =
+                {
+                    { .binding = 0, .type = SeBinding::BUFFER, .buffer = { g_geometryBuffer } }
+                }
+            });
+            render::bind
+            ({
+                .set = 2,
+                .bindings =
+                {
+                    { .binding = 0, .type = SeBinding::TEXTURE, .texture = { g_grassTexture, g_sampler } },
+                    { .binding = 1, .type = SeBinding::TEXTURE, .texture = { g_rockTexture, g_sampler } }
+                }
+            });
             render::draw({ .numVertices = NUM_VERTS, .numInstances = 1 });
         }
         render::end_pass();
