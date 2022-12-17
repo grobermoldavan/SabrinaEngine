@@ -26,7 +26,7 @@ struct SeVkMemoryObjectPools
 
 constexpr size_t MEMORY_BLOCK_SIZE_BYTES     = 64ull;
 constexpr size_t DEFAULT_CHUNK_SIZE_BYTES    = 32ull * 1024ull * 1024ull;
-constexpr size_t STAGING_BUFFER_SIZE         = se_megabytes(8);
+constexpr size_t STAGING_BUFFER_SIZE         = se_megabytes(16);
 
 void* se_vk_memory_manager_alloc(void* pUserData, size_t size, size_t alignment, VkSystemAllocationScope allocationScope)
 {

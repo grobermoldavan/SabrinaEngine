@@ -14,7 +14,7 @@ SeSamplerRef g_sampler;
 
 void init()
 {
-    g_meshHandle = assets::add<SeMeshAsset>({ data_provider::from_file("duck.gltf") });
+    g_meshHandle = assets::add<SeMeshAsset>({ data_provider::from_file("AntiqueCamera.gltf") });
     g_drawVs = render::program({ data_provider::from_file("mesh_unlit.vert.spv") });
     g_drawFs = render::program({ data_provider::from_file("mesh_unlit.frag.spv") });
     g_depthTexture = render::texture
@@ -48,35 +48,6 @@ void terminate()
     
 }
 
-using MeshCallback = void(*)(const SeMeshAsset::Value* mesh, const SeFloat4x4& trf, const SeMeshGeometry* geometry);
-
-void process_mesh_node_recursive(const SeMeshAsset::Value* mesh, const SeMeshNode* node, const SeFloat4x4& parentTrf, MeshCallback cb)
-{
-    const SeFloat4x4 nodeTrf = float4x4::mul(node->localTrf, parentTrf);
-    for (size_t it = 0; it < SeMeshAssetValue::MAX_GEOMETRIES; it++)
-    {
-        const bool isValidIndex = node->geometryMask & (1ull << it);
-        if (!isValidIndex) continue;
-        cb(mesh, nodeTrf, &mesh->geometries[it]);
-    }
-    for (size_t it = 0; it < SeMeshAssetValue::MAX_NODES; it++)
-    {
-        const bool isChild = node->childNodesMask & (1ull << it);
-        if (!isChild) continue;
-        process_mesh_node_recursive(mesh, &mesh->nodes[it], nodeTrf, cb);
-    }
-}
-
-void process_mesh(const SeMeshAsset::Value* mesh, const SeFloat4x4& trf, MeshCallback cb)
-{
-    for (size_t it = 0; it < SeMeshAssetValue::MAX_NODES; it++)
-    {
-        const bool isRoot = mesh->rootNodes & (1ull << it);
-        if (!isRoot) continue;
-        process_mesh_node_recursive(mesh, &mesh->nodes[it], trf, cb);
-    }
-}
-
 void update(const SeUpdateInfo& info)
 {
     if (win::is_close_button_pressed()) engine::stop();
@@ -101,33 +72,38 @@ void update(const SeUpdateInfo& info)
             .depthStencilTarget     = { g_depthTexture, SeRenderTargetLoadOp::CLEAR },
         });
 
+        const float aspect = win::get_width<float>() / win::get_height<float>();
+        const SeFloat4x4 projection = render::perspective(60, aspect, 0.1f, 100.0f);
+        const SeFloat4x4 viewProjection = projection * float4x4::inverted(g_camera.trf);
+
         const SeMeshAsset::Value* const mesh = assets::access<SeMeshAsset>(g_meshHandle);
-        const SeFloat4x4 meshTrf = SE_F4X4_IDENTITY;
-        process_mesh(mesh, meshTrf, [](const SeMeshAsset::Value* mesh, const SeFloat4x4& trf, const SeMeshGeometry* geometry)
+        const auto instances = dynamic_array::create<SeMeshInstanceData>(allocators::frame(),
         {
-            const SeFloat4x4 view = g_camera.trf;
-            const float aspect = win::get_width<float>() / win::get_height<float>();
-            const SeFloat4x4 perspective = render::perspective(60, aspect, 0.1f, 100.0f);
-            const SeFloat4x4 vp = perspective * float4x4::inverted(view);
+            { SE_F4X4_IDENTITY },
+            { float4x4::from_position({ 4, 0, 0 }) },
+            { float4x4::from_position({ -4, 0, 0 }) },
+        });
+        for (auto it : SeMeshIterator{ mesh, instances, viewProjection })
+        {
+            const DynamicArray<SeFloat4x4>& transforms = it.transformsWs;
+            const DataProvider data = data_provider::from_memory(dynamic_array::raw(transforms), dynamic_array::raw_size(transforms));
+            const SeBufferRef instancesBuffer = render::scratch_memory_buffer({ data });
 
-            const SeFloat4x4 mvp = float4x4::transposed(float4x4::mul(vp, trf));
-            const SeBufferRef instances = render::scratch_memory_buffer({ data_provider::from_memory(mvp) });
-
-            const SeTextureRef colorTexture = mesh->textureSets[geometry->textureSetIndex].colorTexture;
+            const SeTextureRef colorTexture = mesh->textureSets[it.geometry->textureSetIndex].colorTexture;
             render::bind
             ({
                 .set = 0,
                 .bindings =
                 {
-                    { .binding = 0, .type = SeBinding::BUFFER, .buffer = geometry->positionBuffer },
-                    { .binding = 1, .type = SeBinding::BUFFER, .buffer = geometry->uvBuffer },
-                    { .binding = 2, .type = SeBinding::BUFFER, .buffer = geometry->indicesBuffer },
-                    { .binding = 3, .type = SeBinding::BUFFER, .buffer = instances },
+                    { .binding = 0, .type = SeBinding::BUFFER, .buffer = it.geometry->positionBuffer },
+                    { .binding = 1, .type = SeBinding::BUFFER, .buffer = it.geometry->uvBuffer },
+                    { .binding = 2, .type = SeBinding::BUFFER, .buffer = it.geometry->indicesBuffer },
+                    { .binding = 3, .type = SeBinding::BUFFER, .buffer = instancesBuffer },
                     { .binding = 4, .type = SeBinding::TEXTURE, .texture = { colorTexture, g_sampler } },
                 }
             });
-            render::draw({ geometry->numIndices, 1 });
-        });
+            render::draw({ it.geometry->numIndices, dynamic_array::size<uint32_t>(transforms) });
+        }
 
         render::end_pass();
 

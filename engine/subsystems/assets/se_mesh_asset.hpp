@@ -12,12 +12,17 @@
 #include "engine/se_common_includes.hpp"
 #include "engine/se_data_providers.hpp"
 #include "engine/se_math.hpp"
+#include "engine/se_utils.hpp"
 #include "engine/render/se_render.hpp"
 
 #include "se_asset_category.hpp"
 
-using SeMeshNodeMask = uint64_t;
-using SeMeshGeometryMask = uint64_t;
+constexpr const size_t SE_MESH_MAX_NODES = 128;
+constexpr const size_t SE_MESH_MAX_GEOMETRIES = 128;
+constexpr const size_t SE_MESH_MAX_TEXTURE_SETS = 64;
+
+using SeMeshNodeMask = SeBitMask<SE_MESH_MAX_NODES>;
+using SeMeshGeometryMask = SeBitMask<SE_MESH_MAX_GEOMETRIES>;
 
 struct SeMeshAssetInfo
 {
@@ -27,12 +32,17 @@ struct SeMeshAssetInfo
 struct SeMeshNode
 {
     SeFloat4x4          localTrf;
+    SeFloat4x4          modelTrf;
+
     SeMeshGeometryMask  geometryMask;
     SeMeshNodeMask      childNodesMask;
 };
 
 struct SeMeshGeometry
 {
+    // @NOTE : All nodes that reference this geometry. Used in mesh iterator
+    SeMeshNodeMask  nodes;
+
     SeBufferRef     indicesBuffer;
     SeBufferRef     positionBuffer;
     SeBufferRef     normalBuffer;
@@ -52,14 +62,9 @@ struct SeMeshTextureSet
 
 struct SeMeshAssetValue
 {
-    // @TODO : increase max number of nodes and geometries
-    static constexpr size_t MAX_GEOMETRIES = 64;
-    static constexpr size_t MAX_NODES = 64;
-    static constexpr size_t MAX_TEXTURE_SETS = 64;
-
-    SeMeshGeometry      geometries[MAX_GEOMETRIES];
-    SeMeshNode          nodes[MAX_NODES];
-    SeMeshTextureSet    textureSets[MAX_TEXTURE_SETS];
+    SeMeshNode          nodes[SE_MESH_MAX_NODES];
+    SeMeshGeometry      geometries[SE_MESH_MAX_GEOMETRIES];
+    SeMeshTextureSet    textureSets[SE_MESH_MAX_TEXTURE_SETS];
 
     size_t              numGeometries;
     size_t              numNodes;
@@ -94,5 +99,40 @@ struct SeMeshAsset
     static void     maximize(void* data);
     static void     minimize(void* data);
 };
+
+struct SeMeshInstanceData
+{
+    SeFloat4x4 transformWs;
+};
+
+struct SeMeshIterator
+{
+    const SeMeshAssetValue* mesh;
+    const DynamicArray<SeMeshInstanceData> instances;
+    const SeFloat4x4 viewProjectionMatrix;
+};
+
+struct SeMeshIteratorValue
+{
+    const SeMeshGeometry* geometry;
+    const DynamicArray<SeFloat4x4> transformsWs;
+};
+
+struct SeMeshIteratorInstance
+{
+    const SeMeshAssetValue*                 mesh;
+    const DynamicArray<SeMeshInstanceData>  instances;
+    const SeFloat4x4                        viewProjectionMatrix;
+
+    size_t                                  index;
+    DynamicArray<SeFloat4x4>                transforms;
+
+    bool                    operator != (const SeMeshIteratorInstance& other) const;
+    SeMeshIteratorValue     operator *  ();
+    SeMeshIteratorInstance& operator ++ ();
+};
+
+SeMeshIteratorInstance begin(const SeMeshIterator& iterator);
+SeMeshIteratorInstance end(const SeMeshIterator& iterator);
 
 #endif

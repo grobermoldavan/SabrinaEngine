@@ -44,9 +44,11 @@ size_t g_numCgltfAllocations = 0;
 void* se_mesh_cgltf_alloc(void* userData, cgltf_size size)
 {
     const AllocatorBindings allocator = allocators::persistent();
-    void* const ptr = allocator.alloc(allocator.allocator, size, se_default_alignment, se_alloc_tag);
+    // @NOTE : this is a hack - cgltf library expects _some allocation_ even if requested allocation size is zero
+    const size_t allocationSize = size ? size : 4;
+    void* const ptr = allocator.alloc(allocator.allocator, allocationSize, se_default_alignment, se_alloc_tag);
     se_assert(g_numCgltfAllocations < SE_MAX_CGLTF_ALLOCATIONS);
-    g_cgltfAllocations[g_numCgltfAllocations++] = { ptr, size };
+    g_cgltfAllocations[g_numCgltfAllocations++] = { ptr, allocationSize };
     return ptr;
 }
 
@@ -166,11 +168,13 @@ SeMeshNodeMask se_mesh_process_gltf_node
     const cgltf_data* data,
     const cgltf_node* node,
     const size_t* meshIndexToGeometryArrayIndex,
-    const SeFloat4x4& accumulatedTransform
+    const SeFloat4x4& accumulatedLocalTransform,
+    const SeFloat4x4& accumulatedModelTransform
 )
 {
     const SeFloat4x4 nodeTrfLs = se_mesh_gltf_get_node_local_transform(node);
-    const SeFloat4x4 nodeTrfAccumulated = float4x4::mul(nodeTrfLs, accumulatedTransform);
+    const SeFloat4x4 nodeTrfLocalAccumulated = float4x4::mul(nodeTrfLs, accumulatedLocalTransform);
+    const SeFloat4x4 nodeTrfModelAccumulated = float4x4::mul(nodeTrfLs, accumulatedModelTransform);
 
     SeMeshNode* seNode = nullptr;
     if (const cgltf_mesh* const cgltfMesh = node->mesh)
@@ -189,13 +193,14 @@ SeMeshNodeMask se_mesh_process_gltf_node
         }
         else
         {
-            se_assert(meshAsset->numNodes < SeMeshAssetValue::MAX_NODES);
+            se_assert(meshAsset->numNodes < SE_MESH_MAX_NODES);
             seNode = &meshAsset->nodes[meshAsset->numNodes++];
             *seNode =
             {
-                .localTrf = nodeTrfAccumulated,
-                .geometryMask = 0,
-                .childNodesMask = 0,
+                .localTrf = nodeTrfLocalAccumulated,
+                .modelTrf = nodeTrfModelAccumulated,
+                .geometryMask = { },
+                .childNodesMask = { },
             };
 
             size_t localGeometryIndex = 0;
@@ -211,16 +216,22 @@ SeMeshNodeMask se_mesh_process_gltf_node
                 const size_t globalGeometryIndex = firstGeometryIndex + localGeometryIndex;
                 se_assert(localGeometryIndex < numMeshGeometries);
                 se_assert(globalGeometryIndex < meshAsset->numGeometries);
-                se_assert(globalGeometryIndex < SeMeshAssetValue::MAX_GEOMETRIES);
+                se_assert(globalGeometryIndex < SE_MESH_MAX_GEOMETRIES);
 
-                seNode->geometryMask |= SeMeshGeometryMask(1ull << globalGeometryIndex);
+                utils::bm_set(seNode->geometryMask, globalGeometryIndex);
                 localGeometryIndex += 1;
+
+                se_assert(meshAsset->numNodes > 0);
+                SeMeshGeometry& geometry = meshAsset->geometries[globalGeometryIndex];
+                utils::bm_set(geometry.nodes, meshAsset->numNodes - 1);
             }
             se_assert(localGeometryIndex == numMeshGeometries);
         }
     }
 
-    SeMeshNodeMask resultMask = seNode ? SeMeshNodeMask(1ull << (meshAsset->numNodes - 1)) : 0;
+    SeMeshNodeMask resultMask = {};
+    if (seNode) utils::bm_set(resultMask, meshAsset->numNodes - 1);
+
     for (size_t it = 0; it < node->children_count; it++)
     {
         const SeMeshNodeMask childMask = se_mesh_process_gltf_node
@@ -229,12 +240,13 @@ SeMeshNodeMask se_mesh_process_gltf_node
             data,
             node->children[it],
             meshIndexToGeometryArrayIndex,
-            seNode ? SE_F4X4_IDENTITY : nodeTrfAccumulated
+            seNode ? SE_F4X4_IDENTITY : nodeTrfLocalAccumulated,
+            nodeTrfModelAccumulated
         );
         if (seNode)
-            seNode->childNodesMask |= childMask;
+            utils::bm_set(seNode->childNodesMask, childMask);
         else
-            resultMask |= childMask;
+            utils::bm_set(resultMask, childMask);
     }
 
     return resultMask;
@@ -355,7 +367,7 @@ SeMeshAsset::Intermediate SeMeshAsset::get_intermediate_data(const Info& info)
 
     cgltf_data* gltfData = nullptr;
     const cgltf_result result = cgltf_parse(&SE_CGLTF_OPTIONS, data, size, &gltfData);
-    se_assert(result == cgltf_result_success);
+    se_assert_msg(result == cgltf_result_success, "Failed to parse gltf file. Result is : {}", SE_CGLTF_RESULT_TO_STR[result]);
 
     return
     {
@@ -424,13 +436,14 @@ void* SeMeshAsset::load(const Info& info, const Intermediate& intermediateData)
             }
         }
 
+        se_assert(meshAsset->numTextureSets < SE_MESH_MAX_TEXTURE_SETS);
         meshAsset->textureSets[meshAsset->numTextureSets++] = textureSet;
     }
 
     //
     // Load every mesh
     //
-    size_t meshIndexToGeometryArrayIndex[SeMeshAssetValue::MAX_GEOMETRIES];
+    size_t meshIndexToGeometryArrayIndex[SE_MESH_MAX_GEOMETRIES];
     for (size_t meshIt = 0; meshIt < gltf->meshes_count; meshIt++)
     {
         const cgltf_mesh& cgltfMesh = gltf->meshes[meshIt];
@@ -501,7 +514,7 @@ void* SeMeshAsset::load(const Info& info, const Intermediate& intermediateData)
             se_assert(seGeometry.numIndices);
             se_assert(seGeometry.numVertices);
 
-            se_assert(meshAsset->numGeometries < SeMeshAssetValue::MAX_GEOMETRIES);
+            se_assert(meshAsset->numGeometries < SE_MESH_MAX_GEOMETRIES);
             meshAsset->geometries[meshAsset->numGeometries++] = seGeometry;
         }
     }
@@ -525,14 +538,16 @@ void* SeMeshAsset::load(const Info& info, const Intermediate& intermediateData)
                  0, 0, 1, 0,
                  0, 0, 0, 1,
             };
-            meshAsset->rootNodes |= se_mesh_process_gltf_node
+            const SeBitMask nodes = se_mesh_process_gltf_node
             (
                 meshAsset,
                 gltf,
                 node,
                 meshIndexToGeometryArrayIndex,
+                GLTF_TO_SE_CONVERSION,
                 GLTF_TO_SE_CONVERSION
             );
+            utils::bm_set(meshAsset->rootNodes, nodes);
         }
     }
 
@@ -572,4 +587,68 @@ void SeMeshAsset::minimize(void* data)
 {
     // SeMeshAsset::Value* const value = (SeMeshAsset::Value*)data;
     // nothing for now
+}
+
+bool SeMeshIteratorInstance::operator != (const SeMeshIteratorInstance& other) const
+{
+    return !(mesh == other.mesh && index == other.index);
+}
+
+SeMeshIteratorValue SeMeshIteratorInstance::operator *  ()
+{
+    dynamic_array::reset(transforms);
+
+    se_assert(index < mesh->numGeometries);
+    const SeMeshGeometry& geometry = mesh->geometries[index];
+
+    for (size_t nodeIt = 0; nodeIt < SE_MESH_MAX_NODES; nodeIt++)
+    {
+        if (!utils::bm_get(geometry.nodes, nodeIt)) continue;
+
+        se_assert(nodeIt < mesh->numNodes);
+        const SeMeshNode& node = mesh->nodes[nodeIt];
+
+        for (auto instanceIt : instances)
+        {
+            const SeMeshInstanceData& instance = iter::value(instanceIt);
+            const SeFloat4x4& trf = instance.transformWs;
+            const SeFloat4x4 transformWs = float4x4::mul(trf, node.modelTrf);
+            const SeFloat4x4 mvp = float4x4::mul(viewProjectionMatrix, transformWs);
+            dynamic_array::push(transforms, float4x4::transposed(mvp));
+        }
+    }
+
+    return { &geometry, transforms };
+}
+
+SeMeshIteratorInstance& SeMeshIteratorInstance::operator ++ ()
+{
+    index += 1;
+    return *this;
+}
+
+SeMeshIteratorInstance begin(const SeMeshIterator& iterator)
+{
+    se_assert(iterator.mesh);
+    return
+    {
+        .mesh = iterator.mesh,
+        .instances = iterator.instances,
+        .viewProjectionMatrix = iterator.viewProjectionMatrix,
+        .index = 0,
+        .transforms = dynamic_array::create<SeFloat4x4>(allocators::frame(), dynamic_array::size(iterator.instances) * 4),
+    };
+}
+
+SeMeshIteratorInstance end(const SeMeshIterator& iterator)
+{
+    se_assert(iterator.mesh);
+    return
+    {
+        .mesh = iterator.mesh,
+        .instances = iterator.instances,
+        .viewProjectionMatrix = iterator.viewProjectionMatrix,
+        .index = iterator.mesh->numGeometries,
+        .transforms = {},
+    };
 }

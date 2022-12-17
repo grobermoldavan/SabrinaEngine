@@ -75,6 +75,16 @@ namespace utils
     }
 
     template<size_t NUM_FLAGS>
+    inline void bm_set(SeBitMask<NUM_FLAGS>& target, const SeBitMask<NUM_FLAGS>& source)
+    {
+        using Entry = SeBitMask<NUM_FLAGS>::Entry;
+        for (size_t it = 0; it < SeBitMask<NUM_FLAGS>::ARRAY_SIZE; it++)
+        {
+            target.mask[it] |= source.mask[it];
+        }
+    }
+
+    template<size_t NUM_FLAGS>
     inline void bm_unset(SeBitMask<NUM_FLAGS>& mask, size_t flag)
     {
         using Entry = SeBitMask<NUM_FLAGS>::Entry;

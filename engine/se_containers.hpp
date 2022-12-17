@@ -60,6 +60,21 @@ namespace dynamic_array
     }
 
     template<typename T>
+    DynamicArray<T> create(AllocatorBindings allocator, std::initializer_list<T> source)
+    {
+        const size_t size = source.size();
+        T* const memory = (T*)allocator.alloc(allocator.allocator, sizeof(T) * size, se_default_alignment, se_alloc_tag);
+        memcpy(memory, source.begin(), sizeof(T) * size);
+        return
+        {
+            .allocator  = allocator,
+            .memory     = memory,
+            .size       = size,
+            .capacity   = size,
+        };
+    }
+
+    template<typename T>
     DynamicArray<T> create_zeroed(AllocatorBindings allocator, size_t capacity = 4)
     {
         DynamicArray<T> result
@@ -98,13 +113,13 @@ namespace dynamic_array
     template<typename Size = size_t, typename T>
     inline Size size(const DynamicArray<T>& array)
     {
-        return (Size)array.size;
+        return Size(array.size);
     }
 
     template<typename Size = size_t, typename T>
     inline Size raw_size(const DynamicArray<T>& array)
     {
-        return (Size)(array.size * sizeof(T));
+        return Size(array.size * sizeof(T));
     }
 
     template<typename T>
