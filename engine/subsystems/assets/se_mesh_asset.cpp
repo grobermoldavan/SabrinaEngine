@@ -193,6 +193,8 @@ SeMeshNodeMask se_mesh_process_gltf_node
         }
         else
         {
+            const char* const nodeNameCstr = node->name ? node->name : SE_MESH_UNNAMED_NODE;
+
             se_assert(meshAsset->numNodes < SE_MESH_MAX_NODES);
             seNode = &meshAsset->nodes[meshAsset->numNodes++];
             *seNode =
@@ -201,6 +203,7 @@ SeMeshNodeMask se_mesh_process_gltf_node
                 .modelTrf = nodeTrfModelAccumulated,
                 .geometryMask = { },
                 .childNodesMask = { },
+                .name = string::create(nodeNameCstr, SeStringLifetime::PERSISTENT)
             };
 
             size_t localGeometryIndex = 0;
@@ -572,6 +575,12 @@ void SeMeshAsset::unload(void* data)
     {
         const SeMeshTextureSet& set = mesh->textureSets[it];
         if (set.colorTexture) render::destroy(set.colorTexture);
+    }
+
+    for (size_t it = 0; it < mesh->numNodes; it++)
+    {
+        const SeMeshNode& node = mesh->nodes[it];
+        string::destroy(node.name);
     }
 
     allocator_bindings::dealloc(allocators::persistent(), mesh);

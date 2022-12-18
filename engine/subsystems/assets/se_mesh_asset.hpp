@@ -14,12 +14,14 @@
 #include "engine/se_math.hpp"
 #include "engine/se_utils.hpp"
 #include "engine/render/se_render.hpp"
+#include "engine/subsystems/se_string.hpp"
 
 #include "se_asset_category.hpp"
 
 constexpr const size_t SE_MESH_MAX_NODES = 128;
 constexpr const size_t SE_MESH_MAX_GEOMETRIES = 128;
-constexpr const size_t SE_MESH_MAX_TEXTURE_SETS = 64;
+constexpr const size_t SE_MESH_MAX_TEXTURE_SETS = 32;
+constexpr const char* SE_MESH_UNNAMED_NODE = "NO_NAME";
 
 using SeMeshNodeMask = SeBitMask<SE_MESH_MAX_NODES>;
 using SeMeshGeometryMask = SeBitMask<SE_MESH_MAX_GEOMETRIES>;
@@ -36,6 +38,8 @@ struct SeMeshNode
 
     SeMeshGeometryMask  geometryMask;
     SeMeshNodeMask      childNodesMask;
+
+    SeString            name;
 };
 
 struct SeMeshGeometry

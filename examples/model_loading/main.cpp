@@ -5,7 +5,8 @@
 
 DebugCamera g_camera;
 
-SeAssetHandle g_meshHandle;
+SeAssetHandle g_duckMesh;
+SeAssetHandle g_cameraMesh;
 
 SeProgramRef g_drawVs;
 SeProgramRef g_drawFs;
@@ -14,7 +15,8 @@ SeSamplerRef g_sampler;
 
 void init()
 {
-    g_meshHandle = assets::add<SeMeshAsset>({ data_provider::from_file("AntiqueCamera.gltf") });
+    g_duckMesh = assets::add<SeMeshAsset>({ data_provider::from_file("duck.gltf") });
+    g_cameraMesh = assets::add<SeMeshAsset>({ data_provider::from_file("AntiqueCamera.gltf") });
     g_drawVs = render::program({ data_provider::from_file("mesh_unlit.vert.spv") });
     g_drawFs = render::program({ data_provider::from_file("mesh_unlit.frag.spv") });
     g_depthTexture = render::texture
@@ -48,6 +50,26 @@ void terminate()
     
 }
 
+void draw(const SeMeshAssetValue* mesh, const SeMeshGeometry* geometry, const DynamicArray<SeFloat4x4>& transforms)
+{
+    const DataProvider data = data_provider::from_memory(dynamic_array::raw(transforms), dynamic_array::raw_size(transforms));
+    const SeBufferRef instancesBuffer = render::scratch_memory_buffer({ data });
+    const SeTextureRef colorTexture = mesh->textureSets[geometry->textureSetIndex].colorTexture;
+    render::bind
+    ({
+        .set = 0,
+        .bindings =
+        {
+            { .binding = 0, .type = SeBinding::BUFFER, .buffer = geometry->positionBuffer },
+            { .binding = 1, .type = SeBinding::BUFFER, .buffer = geometry->uvBuffer },
+            { .binding = 2, .type = SeBinding::BUFFER, .buffer = geometry->indicesBuffer },
+            { .binding = 3, .type = SeBinding::BUFFER, .buffer = instancesBuffer },
+            { .binding = 4, .type = SeBinding::TEXTURE, .texture = { colorTexture, g_sampler } },
+        }
+    });
+    render::draw({ geometry->numIndices, dynamic_array::size<uint32_t>(transforms) });
+}
+
 void update(const SeUpdateInfo& info)
 {
     if (win::is_close_button_pressed()) engine::stop();
@@ -76,33 +98,28 @@ void update(const SeUpdateInfo& info)
         const SeFloat4x4 projection = render::perspective(60, aspect, 0.1f, 100.0f);
         const SeFloat4x4 viewProjection = projection * float4x4::inverted(g_camera.trf);
 
-        const SeMeshAsset::Value* const mesh = assets::access<SeMeshAsset>(g_meshHandle);
-        const auto instances = dynamic_array::create<SeMeshInstanceData>(allocators::frame(),
+        const SeMeshAsset::Value* const cameraMesh = assets::access<SeMeshAsset>(g_cameraMesh);
+        const auto cameraInstances = dynamic_array::create<SeMeshInstanceData>(allocators::frame(),
         {
             { SE_F4X4_IDENTITY },
             { float4x4::from_position({ 4, 0, 0 }) },
             { float4x4::from_position({ -4, 0, 0 }) },
         });
-        for (auto it : SeMeshIterator{ mesh, instances, viewProjection })
+        for (auto it : SeMeshIterator{ cameraMesh, cameraInstances, viewProjection })
         {
-            const DynamicArray<SeFloat4x4>& transforms = it.transformsWs;
-            const DataProvider data = data_provider::from_memory(dynamic_array::raw(transforms), dynamic_array::raw_size(transforms));
-            const SeBufferRef instancesBuffer = render::scratch_memory_buffer({ data });
+            draw(cameraMesh, it.geometry, it.transformsWs);
+        }
 
-            const SeTextureRef colorTexture = mesh->textureSets[it.geometry->textureSetIndex].colorTexture;
-            render::bind
-            ({
-                .set = 0,
-                .bindings =
-                {
-                    { .binding = 0, .type = SeBinding::BUFFER, .buffer = it.geometry->positionBuffer },
-                    { .binding = 1, .type = SeBinding::BUFFER, .buffer = it.geometry->uvBuffer },
-                    { .binding = 2, .type = SeBinding::BUFFER, .buffer = it.geometry->indicesBuffer },
-                    { .binding = 3, .type = SeBinding::BUFFER, .buffer = instancesBuffer },
-                    { .binding = 4, .type = SeBinding::TEXTURE, .texture = { colorTexture, g_sampler } },
-                }
-            });
-            render::draw({ it.geometry->numIndices, dynamic_array::size<uint32_t>(transforms) });
+        const SeMeshAsset::Value* const duckMesh = assets::access<SeMeshAsset>(g_duckMesh);
+        const auto duckInstances = dynamic_array::create<SeMeshInstanceData>(allocators::frame(),
+        {
+            { float4x4::from_position({ 0, 0, -2 }) },
+            { float4x4::from_position({ 4, 0, -2 }) },
+            { float4x4::from_position({ -4, 0, -2 }) },
+        });
+        for (auto it : SeMeshIterator{ duckMesh, duckInstances, viewProjection })
+        {
+            draw(duckMesh, it.geometry, it.transformsWs);
         }
 
         render::end_pass();
