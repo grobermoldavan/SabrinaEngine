@@ -3,38 +3,32 @@
 call :get_csi
 
 set bat_file_dir=%cd%
-set build_folder_examples=%bat_file_dir%\examples_win32_debug\
+set build_folder=%bat_file_dir%\project_win32_debug\
+set project_folder=%bat_file_dir%\project\
 
 call :message "[MESSAGE] Bat file dir: %bat_file_dir%"
-call :message "[MESSAGE] Build dir: %build_folder_examples%"
-rmdir /s /q %build_folder_examples%
-md %build_folder_examples%
+call :message "[MESSAGE] Build dir: %build_folder%"
+rmdir /s /q %build_folder%
+md %build_folder%
 
 call :message "[MESSAGE] Call some msvc specific stuff"
 call vcvars64
 
-cd %bat_file_dir%\examples
+cd %project_folder%
 
-call :message "[MESSAGE] Build example exes"
-for /r %%f in (*.cpp) do if %%~nf == main call :build_exe %build_folder_examples% %%f %bat_file_dir%
+call :message "[MESSAGE] Build project exe"
+call :build_exe %build_folder% main.cpp %bat_file_dir%
 
 call :message "[MESSAGE] Copy default assets"
-md %build_folder_examples%\assets\default
-xcopy %bat_file_dir%\engine\assets %build_folder_examples%\assets\default /s /e /y
+md %build_folder%\assets\default
+xcopy %bat_file_dir%\engine\assets %build_folder%\assets\default /s /e /y
 
-call :message "[MESSAGE] Copy example assets"
-md %build_folder_examples%\assets\application
-for /r %%f in (*.cpp) do (
-    call :message %%f
-    if %%~nf == main (
-        if exist %%~pfassets (
-            xcopy %%~pfassets %build_folder_examples%\assets\application /s /e
-        )
-    )
-)
+call :message "[MESSAGE] Copy project assets"
+md %build_folder%\assets\application
+xcopy %project_folder%\assets %build_folder%\assets\application /s /e
 
 call :message "[MESSAGE] Build shaders"
-cd %build_folder_examples%\assets
+cd %build_folder%\assets
 for /r %%f in (\*.vert) do glslangValidator %%f -o %%f.spv -V -S vert
 for /r %%f in (\*.frag) do glslangValidator %%f -o %%f.spv -V -S frag
 for /r %%f in (\*.comp) do glslangValidator %%f -o %%f.spv -V -S comp

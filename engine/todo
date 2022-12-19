@@ -7,6 +7,7 @@
 - texture mipmapping
 
 
+- finish mesh asset implementation (minimizing and maximizing)
 - add support for big texture copies in se_vk_texture_construct. Currently we're bound to the size of the staging buffer. We can handle this by copying big images piece by piece in multiple iterations
 - add packed data types for rendering. Pack two floats into a single uint32_t value etc
 - add cursor snapping

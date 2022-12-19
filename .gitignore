@@ -1,5 +1,7 @@
-win32_debug/*
-win32_release/*
+project_win32_debug/*
+project_win32_release/*
+examples_win32_debug/*
+examples_win32_release/*
 .vscode/*
 CSI.*
 *.spv.dis

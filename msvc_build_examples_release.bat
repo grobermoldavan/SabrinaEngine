@@ -3,7 +3,7 @@
 call :get_csi
 
 set bat_file_dir=%cd%
-set build_folder_examples=%bat_file_dir%\win32_release\
+set build_folder_examples=%bat_file_dir%\examples_win32_release\
 
 call :message "[MESSAGE] Bat file dir: %bat_file_dir%"
 call :message "[MESSAGE] Build dir: %build_folder_examples%"
