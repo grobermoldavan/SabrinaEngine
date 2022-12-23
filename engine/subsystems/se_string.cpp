@@ -180,42 +180,47 @@ SeString se_string_builder_end(SeStringBuilder& builder)
 
 namespace string
 {
-    char* cstr(SeString str)
+    inline const char* cstr(const SeString& str)
     {
         return str.memory;
     }
 
-    SeString create(const SeString& source, SeStringLifetime lifetime)
+    inline size_t length(const SeString& str)
+    {
+        return str.length;
+    }
+
+    inline SeString create(const SeString& source, SeStringLifetime lifetime)
     {
         return se_string_create_from_source(lifetime == SeStringLifetime::TEMPORARY, string::cstr(source));
     }
 
-    SeString create(const char* source, SeStringLifetime lifetime)
+    inline SeString create(const char* source, SeStringLifetime lifetime)
     {
         return se_string_create_from_source(lifetime == SeStringLifetime::TEMPORARY, source);
     }
 
     template<typename ... Args>
-    SeString create_fmt(SeStringLifetime lifetime, const char* fmt, const Args& ... args)
+    inline SeString create_fmt(SeStringLifetime lifetime, const char* fmt, const Args& ... args)
     {
         SeStringBuilder builder = string_builder::begin(nullptr, lifetime);
         string_builder::append_fmt(builder, fmt, args...);
         return string_builder::end(builder);
     }
 
-    void destroy(const SeString& str)
+    inline void destroy(const SeString& str)
     {
         se_string_destroy(str);
     }
 
     template<typename T>
-    SeString cast(const T& value, SeStringLifetime lifetime)
+    inline SeString cast(const T& value, SeStringLifetime lifetime)
     {
         return string::create("!!! string::cast operation is not specified !!!");
     }
 
     template<std::unsigned_integral T>
-    SeString cast(const T& value, SeStringLifetime lifetime)
+    inline SeString cast(const T& value, SeStringLifetime lifetime)
     {
         char buffer[32];
         snprintf(buffer, sizeof(buffer), "%llu", uint64_t(value));
@@ -223,7 +228,7 @@ namespace string
     }
 
     template<std::signed_integral T>
-    SeString cast(const T& value, SeStringLifetime lifetime)
+    inline SeString cast(const T& value, SeStringLifetime lifetime)
     {
         char buffer[32];
         snprintf(buffer, sizeof(buffer), "%lld", int64_t(value));
@@ -231,7 +236,7 @@ namespace string
     }
 
     template<std::floating_point T>
-    SeString cast(const T& value, SeStringLifetime lifetime)
+    inline SeString cast(const T& value, SeStringLifetime lifetime)
     {
         char buffer[64];
         snprintf(buffer, sizeof(buffer), "%f", value);
@@ -239,13 +244,13 @@ namespace string
     }
 
     template<se_cstring T>
-    SeString cast(const T& value, SeStringLifetime lifetime)
+    inline SeString cast(const T& value, SeStringLifetime lifetime)
     {
         return string::create(value, lifetime);
     }
 
     template<>
-    SeString cast<SeString>(const SeString& value, SeStringLifetime lifetime)
+    inline SeString cast<SeString>(const SeString& value, SeStringLifetime lifetime)
     {
         return string::create(value, lifetime);
     }
@@ -267,13 +272,13 @@ namespace string_builder
     namespace impl
     {
         template<size_t it, typename Arg>
-        void fill_args(char** argsStr, const Arg& arg)
+        void fill_args(const char** argsStr, const Arg& arg)
         {
             argsStr[it] = string::cstr(string::cast(arg, SeStringLifetime::TEMPORARY));
         }
 
         template<size_t it, typename Arg, typename ... Other>
-        void fill_args(char** argsStr, const Arg& arg, const Other& ... other)
+        void fill_args(const char** argsStr, const Arg& arg, const Other& ... other)
         {
             argsStr[it] = string::cstr(string::cast(arg, SeStringLifetime::TEMPORARY));
             fill_args<it + 1, Other...>(argsStr, other...);
@@ -315,7 +320,7 @@ namespace string_builder
         }
         else
         {
-            char* argsStr[sizeof...(args)];
+            const char* argsStr[sizeof...(args)];
             impl::fill_args<0, Args...>(argsStr, args...);
             se_string_builder_append_fmt(builder, fmt, (const char**)argsStr, sizeof...(args));
         }
@@ -326,7 +331,7 @@ namespace string_builder
     {
         constexpr size_t NUM_ARGS = sizeof...(args);
         static_assert(NUM_ARGS > 0);
-        char* argsStr[NUM_ARGS];
+        const char* argsStr[NUM_ARGS];
         impl::fill_args<0, Args...>(argsStr, args...);
         for (size_t it = 0; it < NUM_ARGS; it++)
         {

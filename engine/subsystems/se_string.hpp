@@ -30,7 +30,8 @@ template <typename T> concept se_cstring = std::is_convertible_v<T, const char*>
 
 namespace string
 {
-    char*                                   cstr(SeString str);
+    const char*                             cstr(const SeString& str);
+    size_t                                  length(const SeString& str);
     SeString                                create(const SeString& source, SeStringLifetime lifetime = SeStringLifetime::TEMPORARY);
     SeString                                create(const char* source, SeStringLifetime lifetime = SeStringLifetime::TEMPORARY);
     template<typename ... Args> SeString    create_fmt(SeStringLifetime lifetime, const char* fmt, const Args& ... args);

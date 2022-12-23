@@ -7,7 +7,8 @@
 #define WIN32_LEAN_AND_MEAN 
 #include <Windows.h>
 
-constexpr const char* SE_FS_SEPARATOR = "\\";
+#define SE_FS_SEPARATOR "\\"
+#define SE_FS_SEPARATOR_CHAR '\\'
 
 constexpr const size_t SE_FS_MAX_FILES = 4095;
 constexpr const size_t SE_FS_MAX_FOLDERS = 1023;
@@ -19,6 +20,7 @@ struct SeFileSystemFile
 {
     SeString fullPath;
     SeFolderHandle folder;
+    const char* extension; // pointer to a fillPath string
 };
 
 struct SeFileSystemFolder
@@ -113,7 +115,7 @@ namespace fs
                 utils::bm_set(parentFolder.foldersNonRecursive, folderIndex);
             }
 
-            const SeString searchPath = string::create_fmt(SeStringLifetime::TEMPORARY, "{}\\*", fullPath);
+            const SeString searchPath = string::create_fmt(SeStringLifetime::TEMPORARY, "{}" SE_FS_SEPARATOR "*", fullPath);
             WIN32_FIND_DATAA findResult;
             const HANDLE searchHandle = FindFirstFileA(string::cstr(searchPath), &findResult);
 
@@ -125,16 +127,36 @@ namespace fs
                     {
                         continue;
                     }
-                    process_folder_recursive(folderHandle, string::create_fmt(SeStringLifetime::PERSISTENT, "{}\\{}", fullPath, findResult.cFileName));
+                    process_folder_recursive(folderHandle, string::create_fmt(SeStringLifetime::PERSISTENT, "{}" SE_FS_SEPARATOR "{}", fullPath, findResult.cFileName));
                 }
                 else
                 {
                     se_assert(g_fileSystem.numFiles < SE_FS_MAX_FILES);
                     const size_t fileIndex = g_fileSystem.numFiles + 1;
+                    const SeString fileFullPath = string::create_fmt(SeStringLifetime::PERSISTENT, "{}" SE_FS_SEPARATOR "{}", fullPath, findResult.cFileName);
+                    const char* fileFullPathCstr = string::cstr(fileFullPath);
+                    const size_t fileFullPathLength = string::length(fileFullPath);
+                    const char* extensionCstr = nullptr;
+                    for (size_t it = fileFullPathLength; it > 0; it--)
+                    {
+                        const char c = fileFullPathCstr[it - 1];
+                        if (c == '.')
+                        {
+                            extensionCstr = fileFullPathCstr + it;
+                            break;
+                        }
+                        else if (c == SE_FS_SEPARATOR_CHAR)
+                        {
+                            extensionCstr = fileFullPathCstr + fileFullPathLength;
+                            break;
+                        }
+                    }
+
                     g_fileSystem.files[fileIndex] =
                     {
-                        .fullPath = string::create_fmt(SeStringLifetime::PERSISTENT, "{}\\{}", fullPath, findResult.cFileName),
+                        .fullPath = fileFullPath,
                         .folder = folderHandle,
+                        .extension = extensionCstr,
                     };
                     g_fileSystem.numFiles += 1;
                     utils::bm_set(folder.filesNonRecursive, fileIndex);
@@ -205,6 +227,12 @@ namespace fs
         const SeFileSystemFile& file = impl::from_handle(handle);
         se_assert_msg(file.folder, "Each file must have folder. Something went terribly wrong!");
         return file.folder;
+    }
+    
+    inline const char* file_extension(SeFileHandle handle)
+    {
+        const SeFileSystemFile& file = impl::from_handle(handle);
+        return file.extension;
     }
 
     SeFileContent file_load(SeFileHandle handle, const AllocatorBindings& bindings)

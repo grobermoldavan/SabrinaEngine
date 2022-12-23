@@ -40,6 +40,7 @@ namespace fs
     SeFolderHandle  folder_find_recursive(const char* folderName, SeFolderHandle handle = SE_ROOT_FOLDER);
 
     SeFolderHandle  file_get_folder(SeFileHandle handle);
+    const char*     file_extension(SeFileHandle handle);
 
     SeFileContent   file_load(SeFileHandle handle, const AllocatorBindings& bindings);
     void            file_free(SeFileContent& content);
