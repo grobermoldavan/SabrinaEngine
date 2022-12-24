@@ -93,8 +93,8 @@ struct SeUiButtonInfo
 
 namespace ui
 {
-    bool                begin_ui        (const SeUiBeginInfo& info);
-    SePassDependencies  end_ui          (SePassDependencies dependencies);
+    bool                begin           (const SeUiBeginInfo& info);
+    SePassDependencies  end             (SePassDependencies dependencies);
     void                set_font_group  (const SeUiFontGroupInfo& info);
     void                set_param       (SeUiParam::Type type, const SeUiParam& param);
     void                text            (const SeUiTextInfo& info);
