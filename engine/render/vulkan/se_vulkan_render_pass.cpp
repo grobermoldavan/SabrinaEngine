@@ -43,7 +43,7 @@ VkAttachmentReference* se_vk_render_pass_find_attachment_reference(VkAttachmentR
 
 void se_vk_render_pass_construct(SeVkRenderPass* pass, SeVkRenderPassInfo* info)
 {
-    SeVkMemoryManager* const memoryManager = &info->device->memoryManager;
+    const SeVkMemoryManager* const memoryManager = &info->device->memoryManager;
     const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
     const VkDevice logicalHandle = se_vk_device_get_logical_handle(info->device);
     *pass =
@@ -83,14 +83,14 @@ void se_vk_render_pass_construct(SeVkRenderPass* pass, SeVkRenderPassInfo* info)
     }
     for (size_t it = 0; it < pass->info.numColorAttachments; it++)
     {
-        SeVkRenderPassAttachment* attachment = &pass->info.colorAttachments[it];
+        const SeVkRenderPassAttachment& attachment = pass->info.colorAttachments[it];
         attachmentDescriptions[it] =
         {
             .flags          = 0,
-            .format         = attachment->format,
-            .samples        = attachment->sampling,
-            .loadOp         = attachment->loadOp,
-            .storeOp        = attachment->storeOp,
+            .format         = attachment.format,
+            .samples        = attachment.sampling,
+            .loadOp         = attachment.loadOp,
+            .storeOp        = attachment.storeOp,
             .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
             .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
             .initialLayout  = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -428,8 +428,8 @@ void se_vk_render_pass_construct(SeVkRenderPass* pass, SeVkRenderPassInfo* info)
             .finalLayout    = attachmentDescriptions[it].finalLayout,
         };
         pass->clearValues[it] = it == pass->info.numColorAttachments
-            ? pass->info.colorAttachments[it].clearValue
-            : pass->info.depthStencilAttachment.clearValue;
+            ? pass->info.depthStencilAttachment.clearValue
+            : pass->info.colorAttachments[it].clearValue;
     }
 }
 

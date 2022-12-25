@@ -6,7 +6,7 @@
 - texture multisampling
 - texture mipmapping
 
-
+- debug output should cache messages that were submitted before debug init
 - add precedural mesh asset
 - finish mesh asset implementation (minimizing and maximizing)
 - add support for big texture copies in se_vk_texture_construct. Currently we're bound to the size of the staging buffer. We can handle this by copying big images piece by piece in multiple iterations

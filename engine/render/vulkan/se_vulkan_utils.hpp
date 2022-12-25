@@ -41,6 +41,20 @@ struct SeVkViewportScissor
     VkRect2D scissor;
 };
 
+struct SeVkFormatInfo
+{
+    enum struct Type : uint8_t
+    {
+        FLOAT,
+        UINT,
+        INT,
+    };
+    uint8_t numComponents;
+    uint8_t componentsSizeBits;
+    Type componentType;
+    Type sampledType;
+};
+
 const char**                            se_vk_utils_get_required_validation_layers(size_t* outNum);
 const char**                            se_vk_utils_get_required_instance_extensions(size_t* outNum);
 const char**                            se_vk_utils_get_required_device_extensions(size_t* outNum);
@@ -92,5 +106,6 @@ VkPipelineDynamicStateCreateInfo        se_vk_utils_dynamic_state_default_create
 VkAccessFlags                           se_vk_utils_image_layout_to_access_flags(VkImageLayout layout);
 VkPipelineStageFlags                    se_vk_utils_image_layout_to_pipeline_stage_flags(VkImageLayout layout);
 VkAttachmentLoadOp                      se_vk_utils_to_vk_load_op(SeRenderTargetLoadOp loadOp);
+SeVkFormatInfo                          se_vk_utils_get_format_info(VkFormat format);
 
 #endif

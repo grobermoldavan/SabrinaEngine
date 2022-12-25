@@ -724,3 +724,118 @@ VkAttachmentLoadOp se_vk_utils_to_vk_load_op(SeRenderTargetLoadOp loadOp)
 {
     return VkAttachmentLoadOp(int(loadOp) - 1);
 }
+
+// https://registry.khronos.org/vulkan/specs/1.1/html/vkspec.html#_identification_of_formats
+// https://stackoverflow.com/questions/59628956/what-is-the-difference-between-normalized-scaled-and-integer-vkformats
+SeVkFormatInfo se_vk_utils_get_format_info(VkFormat format)
+{
+    switch (format)
+    {
+        case VK_FORMAT_R8_SNORM:                    return { 1, 8, SeVkFormatInfo::Type::INT,    SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R8_UNORM:                    return { 1, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R8_USCALED:                  return { 1, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R8_SSCALED:                  return { 1, 8, SeVkFormatInfo::Type::INT,    SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R8_UINT:                     return { 1, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::UINT };
+        case VK_FORMAT_R8_SINT:                     return { 1, 8, SeVkFormatInfo::Type::INT,    SeVkFormatInfo::Type::INT };
+        case VK_FORMAT_R8_SRGB:                     return { 1, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R8G8_UNORM:                  return { 2, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R8G8_SNORM:                  return { 2, 8, SeVkFormatInfo::Type::INT,    SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R8G8_USCALED:                return { 2, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R8G8_SSCALED:                return { 2, 8, SeVkFormatInfo::Type::INT,    SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R8G8_UINT:                   return { 2, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::UINT };
+        case VK_FORMAT_R8G8_SINT:                   return { 2, 8, SeVkFormatInfo::Type::INT,    SeVkFormatInfo::Type::INT };
+        case VK_FORMAT_R8G8_SRGB:                   return { 2, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R8G8B8_UNORM:                return { 3, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R8G8B8_SNORM:                return { 3, 8, SeVkFormatInfo::Type::INT,    SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R8G8B8_USCALED:              return { 3, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R8G8B8_SSCALED:              return { 3, 8, SeVkFormatInfo::Type::INT,    SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R8G8B8_UINT:                 return { 3, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::UINT };
+        case VK_FORMAT_R8G8B8_SINT:                 return { 3, 8, SeVkFormatInfo::Type::INT,    SeVkFormatInfo::Type::INT };
+        case VK_FORMAT_R8G8B8_SRGB:                 return { 3, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_B8G8R8_UNORM:                return { 3, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_B8G8R8_SNORM:                return { 3, 8, SeVkFormatInfo::Type::INT,    SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_B8G8R8_USCALED:              return { 3, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_B8G8R8_SSCALED:              return { 3, 8, SeVkFormatInfo::Type::INT,    SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_B8G8R8_UINT:                 return { 3, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::UINT };
+        case VK_FORMAT_B8G8R8_SINT:                 return { 3, 8, SeVkFormatInfo::Type::INT,    SeVkFormatInfo::Type::INT };
+        case VK_FORMAT_B8G8R8_SRGB:                 return { 3, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R8G8B8A8_UNORM:              return { 4, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R8G8B8A8_SNORM:              return { 4, 8, SeVkFormatInfo::Type::INT,    SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R8G8B8A8_USCALED:            return { 4, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R8G8B8A8_SSCALED:            return { 4, 8, SeVkFormatInfo::Type::INT,    SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R8G8B8A8_UINT:               return { 4, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::UINT };
+        case VK_FORMAT_R8G8B8A8_SINT:               return { 4, 8, SeVkFormatInfo::Type::INT,    SeVkFormatInfo::Type::INT };
+        case VK_FORMAT_R8G8B8A8_SRGB:               return { 4, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_B8G8R8A8_UNORM:              return { 4, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_B8G8R8A8_SNORM:              return { 4, 8, SeVkFormatInfo::Type::INT,    SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_B8G8R8A8_USCALED:            return { 4, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_B8G8R8A8_SSCALED:            return { 4, 8, SeVkFormatInfo::Type::INT,    SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_B8G8R8A8_UINT:               return { 4, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::UINT };
+        case VK_FORMAT_B8G8R8A8_SINT:               return { 4, 8, SeVkFormatInfo::Type::INT,    SeVkFormatInfo::Type::INT };
+        case VK_FORMAT_B8G8R8A8_SRGB:               return { 4, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_A8B8G8R8_UNORM_PACK32:       return { 4, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_A8B8G8R8_SNORM_PACK32:       return { 4, 8, SeVkFormatInfo::Type::INT,    SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_A8B8G8R8_USCALED_PACK32:     return { 4, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_A8B8G8R8_SSCALED_PACK32:     return { 4, 8, SeVkFormatInfo::Type::INT,    SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_A8B8G8R8_UINT_PACK32:        return { 4, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::UINT };
+        case VK_FORMAT_A8B8G8R8_SINT_PACK32:        return { 4, 8, SeVkFormatInfo::Type::INT,    SeVkFormatInfo::Type::INT };
+        case VK_FORMAT_A8B8G8R8_SRGB_PACK32:        return { 4, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R16_UNORM:                   return { 1, 16, SeVkFormatInfo::Type::UINT,  SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R16_SNORM:                   return { 1, 16, SeVkFormatInfo::Type::INT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R16_USCALED:                 return { 1, 16, SeVkFormatInfo::Type::UINT,  SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R16_SSCALED:                 return { 1, 16, SeVkFormatInfo::Type::INT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R16_UINT:                    return { 1, 16, SeVkFormatInfo::Type::UINT,  SeVkFormatInfo::Type::UINT };
+        case VK_FORMAT_R16_SINT:                    return { 1, 16, SeVkFormatInfo::Type::INT,   SeVkFormatInfo::Type::INT };
+        case VK_FORMAT_R16_SFLOAT:                  return { 1, 16, SeVkFormatInfo::Type::FLOAT, SeVkFormatInfo::Type::FLOAT  };
+        case VK_FORMAT_R16G16_UNORM:                return { 2, 16, SeVkFormatInfo::Type::UINT,  SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R16G16_SNORM:                return { 2, 16, SeVkFormatInfo::Type::INT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R16G16_USCALED:              return { 2, 16, SeVkFormatInfo::Type::UINT,  SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R16G16_SSCALED:              return { 2, 16, SeVkFormatInfo::Type::INT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R16G16_UINT:                 return { 2, 16, SeVkFormatInfo::Type::UINT,  SeVkFormatInfo::Type::UINT };
+        case VK_FORMAT_R16G16_SINT:                 return { 2, 16, SeVkFormatInfo::Type::INT,   SeVkFormatInfo::Type::INT };
+        case VK_FORMAT_R16G16_SFLOAT:               return { 2, 16, SeVkFormatInfo::Type::FLOAT, SeVkFormatInfo::Type::FLOAT  };
+        case VK_FORMAT_R16G16B16_UNORM:             return { 3, 16, SeVkFormatInfo::Type::UINT,  SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R16G16B16_SNORM:             return { 3, 16, SeVkFormatInfo::Type::INT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R16G16B16_USCALED:           return { 3, 16, SeVkFormatInfo::Type::UINT,  SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R16G16B16_SSCALED:           return { 3, 16, SeVkFormatInfo::Type::INT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R16G16B16_UINT:              return { 3, 16, SeVkFormatInfo::Type::UINT,  SeVkFormatInfo::Type::UINT };
+        case VK_FORMAT_R16G16B16_SINT:              return { 3, 16, SeVkFormatInfo::Type::INT,   SeVkFormatInfo::Type::INT };
+        case VK_FORMAT_R16G16B16_SFLOAT:            return { 3, 16, SeVkFormatInfo::Type::FLOAT, SeVkFormatInfo::Type::FLOAT  };
+        case VK_FORMAT_R16G16B16A16_UNORM:          return { 4, 16, SeVkFormatInfo::Type::UINT,  SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R16G16B16A16_SNORM:          return { 4, 16, SeVkFormatInfo::Type::INT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R16G16B16A16_USCALED:        return { 4, 16, SeVkFormatInfo::Type::UINT,  SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R16G16B16A16_SSCALED:        return { 4, 16, SeVkFormatInfo::Type::INT,   SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_R16G16B16A16_UINT:           return { 4, 16, SeVkFormatInfo::Type::UINT,  SeVkFormatInfo::Type::UINT };
+        case VK_FORMAT_R16G16B16A16_SINT:           return { 4, 16, SeVkFormatInfo::Type::INT,   SeVkFormatInfo::Type::INT };
+        case VK_FORMAT_R16G16B16A16_SFLOAT:         return { 4, 16, SeVkFormatInfo::Type::FLOAT, SeVkFormatInfo::Type::FLOAT  };
+        case VK_FORMAT_R32_UINT:                    return { 1, 32, SeVkFormatInfo::Type::UINT,  SeVkFormatInfo::Type::UINT };
+        case VK_FORMAT_R32_SINT:                    return { 1, 32, SeVkFormatInfo::Type::INT,   SeVkFormatInfo::Type::INT };
+        case VK_FORMAT_R32_SFLOAT:                  return { 1, 32, SeVkFormatInfo::Type::FLOAT, SeVkFormatInfo::Type::FLOAT  };
+        case VK_FORMAT_R32G32_UINT:                 return { 2, 32, SeVkFormatInfo::Type::UINT,  SeVkFormatInfo::Type::UINT };
+        case VK_FORMAT_R32G32_SINT:                 return { 2, 32, SeVkFormatInfo::Type::INT,   SeVkFormatInfo::Type::INT };
+        case VK_FORMAT_R32G32_SFLOAT:               return { 2, 32, SeVkFormatInfo::Type::FLOAT, SeVkFormatInfo::Type::FLOAT  };
+        case VK_FORMAT_R32G32B32_UINT:              return { 3, 32, SeVkFormatInfo::Type::UINT,  SeVkFormatInfo::Type::UINT };
+        case VK_FORMAT_R32G32B32_SINT:              return { 3, 32, SeVkFormatInfo::Type::INT,   SeVkFormatInfo::Type::INT };
+        case VK_FORMAT_R32G32B32_SFLOAT:            return { 3, 32, SeVkFormatInfo::Type::FLOAT, SeVkFormatInfo::Type::FLOAT  };
+        case VK_FORMAT_R32G32B32A32_UINT:           return { 4, 32, SeVkFormatInfo::Type::UINT,  SeVkFormatInfo::Type::UINT };
+        case VK_FORMAT_R32G32B32A32_SINT:           return { 4, 32, SeVkFormatInfo::Type::INT,   SeVkFormatInfo::Type::INT };
+        case VK_FORMAT_R32G32B32A32_SFLOAT:         return { 4, 32, SeVkFormatInfo::Type::FLOAT, SeVkFormatInfo::Type::FLOAT  };
+        case VK_FORMAT_R64_UINT:                    return { 1, 64, SeVkFormatInfo::Type::UINT,  SeVkFormatInfo::Type::UINT };
+        case VK_FORMAT_R64_SINT:                    return { 1, 64, SeVkFormatInfo::Type::INT,   SeVkFormatInfo::Type::INT };
+        case VK_FORMAT_R64_SFLOAT:                  return { 1, 64, SeVkFormatInfo::Type::FLOAT, SeVkFormatInfo::Type::FLOAT  };
+        case VK_FORMAT_R64G64_UINT:                 return { 2, 64, SeVkFormatInfo::Type::UINT,  SeVkFormatInfo::Type::UINT };
+        case VK_FORMAT_R64G64_SINT:                 return { 2, 64, SeVkFormatInfo::Type::INT,   SeVkFormatInfo::Type::INT };
+        case VK_FORMAT_R64G64_SFLOAT:               return { 2, 64, SeVkFormatInfo::Type::FLOAT, SeVkFormatInfo::Type::FLOAT  };
+        case VK_FORMAT_R64G64B64_UINT:              return { 3, 64, SeVkFormatInfo::Type::UINT,  SeVkFormatInfo::Type::UINT };
+        case VK_FORMAT_R64G64B64_SINT:              return { 3, 64, SeVkFormatInfo::Type::INT,   SeVkFormatInfo::Type::INT };
+        case VK_FORMAT_R64G64B64_SFLOAT:            return { 3, 64, SeVkFormatInfo::Type::FLOAT, SeVkFormatInfo::Type::FLOAT  };
+        case VK_FORMAT_R64G64B64A64_UINT:           return { 4, 64, SeVkFormatInfo::Type::UINT,  SeVkFormatInfo::Type::UINT };
+        case VK_FORMAT_R64G64B64A64_SINT:           return { 4, 64, SeVkFormatInfo::Type::INT,   SeVkFormatInfo::Type::INT };
+        case VK_FORMAT_R64G64B64A64_SFLOAT:         return { 4, 64, SeVkFormatInfo::Type::FLOAT, SeVkFormatInfo::Type::FLOAT  };
+        case VK_FORMAT_D16_UNORM:                   return { 1, 16, SeVkFormatInfo::Type::UINT,  SeVkFormatInfo::Type::FLOAT };
+        case VK_FORMAT_D32_SFLOAT:                  return { 1, 32, SeVkFormatInfo::Type::FLOAT, SeVkFormatInfo::Type::FLOAT  };
+        case VK_FORMAT_S8_UINT:                     return { 1, 8, SeVkFormatInfo::Type::UINT,   SeVkFormatInfo::Type::UINT };
+        default:                                    { se_assert(false); }
+    }
+    return { };
+}

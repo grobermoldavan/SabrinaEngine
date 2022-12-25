@@ -25,6 +25,7 @@
 #define se_min(a, b) ((a) < (b) ? (a) : (b))
 #define se_max(a, b) ((a) > (b) ? (a) : (b))
 #define se_lerp(a, b, t) ((a) + (t) * ((b) - (a)))
+#define se_pow powf
 
 struct SeFloat2
 {

@@ -843,30 +843,24 @@ SePassDependencies se_vk_graph_begin_graphics_pass(SeVkGraph* graph, const SeGra
     for (uint32_t it = 0; it < numColorAttachments; it++)
     {
         renderPassInfo.subpasses[0].colorRefs |= 1 << it;
-        const SeTextureRef rt = info.renderTargets[it].texture;
-        if (rt.isSwapChain)
+        const SePassRenderTarget& target = info.renderTargets[it];
+        const VkFormat format = target.texture.isSwapChain ? se_vk_device_get_swap_chain_format(graph->device) : se_vk_unref(target.texture)->format;
+        const bool isDefaultClearValue = utils::compare(target.clearColor, SeColorUnpacked{});
+        // @TODO : support clear values for INT and UINT textures
+        //         https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkClearColorValue.html
+        se_assert_msg(isDefaultClearValue || (se_vk_utils_get_format_info(format).sampledType == SeVkFormatInfo::Type::FLOAT), "Clear values are only supported for floating point textures");
+        se_assert_msg(target.clearColor.r >= 0.0f && target.clearColor.r <= 1.0f, "Clear values must be in range [0.0, 1.0]");
+        se_assert_msg(target.clearColor.g >= 0.0f && target.clearColor.g <= 1.0f, "Clear values must be in range [0.0, 1.0]");
+        se_assert_msg(target.clearColor.b >= 0.0f && target.clearColor.b <= 1.0f, "Clear values must be in range [0.0, 1.0]");
+        se_assert_msg(target.clearColor.a >= 0.0f && target.clearColor.a <= 1.0f, "Clear values must be in range [0.0, 1.0]");
+        renderPassInfo.colorAttachments[it] =
         {
-            renderPassInfo.colorAttachments[it] =
-            {
-                .format     = se_vk_device_get_swap_chain_format(graph->device),
-                .loadOp     = se_vk_utils_to_vk_load_op(info.renderTargets[it].loadOp),
-                .storeOp    = VK_ATTACHMENT_STORE_OP_STORE,
-                .sampling   = VK_SAMPLE_COUNT_1_BIT,
-                .clearValue = { .color = { } },
-            };
-        }
-        else
-        {
-            const SeVkTexture* texture = se_vk_unref(rt);
-            renderPassInfo.colorAttachments[it] =
-            {
-                .format     = texture->format,
-                .loadOp     = se_vk_utils_to_vk_load_op(info.renderTargets[it].loadOp),
-                .storeOp    = VK_ATTACHMENT_STORE_OP_STORE,
-                .sampling   = VK_SAMPLE_COUNT_1_BIT, // @TODO : support multisampling (and resolve and stuff)
-                .clearValue = { .color = { } },
-            };
-        }
+            .format     = format,
+            .loadOp     = se_vk_utils_to_vk_load_op(target.loadOp),
+            .storeOp    = VK_ATTACHMENT_STORE_OP_STORE,
+            .sampling   = VK_SAMPLE_COUNT_1_BIT, // @TODO : support multisampling (and resolve and stuff)
+            .clearValue = { .color = { .float32 = { target.clearColor.r, target.clearColor.g, target.clearColor.b, target.clearColor.a } } },
+        };
     }
     pass.renderPassInfo = renderPassInfo;
     dynamic_array::push(graph->passes, pass);

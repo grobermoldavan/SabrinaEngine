@@ -276,7 +276,7 @@ void update(const SeUpdateInfo& info)
     if (win::is_close_button_pressed()) engine::stop();
     if (render::begin_frame())
     {
-        if (ui::begin({ render::swap_chain_texture(), SeRenderTargetLoadOp::CLEAR }))
+        if (ui::begin({ render::swap_chain_texture(), SeRenderTargetLoadOp::CLEAR, { 0.5f, 0.5f, 0.1f, 1.0f } }))
         {
             ui::set_font_group({ g_fontDataEnglish, g_fontDataRussian });
             switch (g_menuState)

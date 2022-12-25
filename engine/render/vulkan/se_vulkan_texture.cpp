@@ -66,119 +66,6 @@ void se_vk_texture_stbi_free(void* ptr)
 
 size_t g_textureIndex = 0;
 
-struct { int numComponents; int componentsSize; bool isFloat; } se_vk_texture_get_format_info(VkFormat format)
-{
-    switch (format)
-    {
-        case VK_FORMAT_R8_SNORM:                    return { 1, 8, false };
-        case VK_FORMAT_R8_UNORM:                    return { 1, 8, false };
-        case VK_FORMAT_R8_USCALED:                  return { 1, 8, false };
-        case VK_FORMAT_R8_SSCALED:                  return { 1, 8, false };
-        case VK_FORMAT_R8_UINT:                     return { 1, 8, false };
-        case VK_FORMAT_R8_SINT:                     return { 1, 8, false };
-        case VK_FORMAT_R8_SRGB:                     return { 1, 8, false };
-        case VK_FORMAT_R8G8_UNORM:                  return { 2, 8, false };
-        case VK_FORMAT_R8G8_SNORM:                  return { 2, 8, false };
-        case VK_FORMAT_R8G8_USCALED:                return { 2, 8, false };
-        case VK_FORMAT_R8G8_SSCALED:                return { 2, 8, false };
-        case VK_FORMAT_R8G8_UINT:                   return { 2, 8, false };
-        case VK_FORMAT_R8G8_SINT:                   return { 2, 8, false };
-        case VK_FORMAT_R8G8_SRGB:                   return { 2, 8, false };
-        case VK_FORMAT_R8G8B8_UNORM:                return { 3, 8, false };
-        case VK_FORMAT_R8G8B8_SNORM:                return { 3, 8, false };
-        case VK_FORMAT_R8G8B8_USCALED:              return { 3, 8, false };
-        case VK_FORMAT_R8G8B8_SSCALED:              return { 3, 8, false };
-        case VK_FORMAT_R8G8B8_UINT:                 return { 3, 8, false };
-        case VK_FORMAT_R8G8B8_SINT:                 return { 3, 8, false };
-        case VK_FORMAT_R8G8B8_SRGB:                 return { 3, 8, false };
-        case VK_FORMAT_B8G8R8_UNORM:                return { 3, 8, false };
-        case VK_FORMAT_B8G8R8_SNORM:                return { 3, 8, false };
-        case VK_FORMAT_B8G8R8_USCALED:              return { 3, 8, false };
-        case VK_FORMAT_B8G8R8_SSCALED:              return { 3, 8, false };
-        case VK_FORMAT_B8G8R8_UINT:                 return { 3, 8, false };
-        case VK_FORMAT_B8G8R8_SINT:                 return { 3, 8, false };
-        case VK_FORMAT_B8G8R8_SRGB:                 return { 3, 8, false };
-        case VK_FORMAT_R8G8B8A8_UNORM:              return { 4, 8, false };
-        case VK_FORMAT_R8G8B8A8_SNORM:              return { 4, 8, false };
-        case VK_FORMAT_R8G8B8A8_USCALED:            return { 4, 8, false };
-        case VK_FORMAT_R8G8B8A8_SSCALED:            return { 4, 8, false };
-        case VK_FORMAT_R8G8B8A8_UINT:               return { 4, 8, false };
-        case VK_FORMAT_R8G8B8A8_SINT:               return { 4, 8, false };
-        case VK_FORMAT_R8G8B8A8_SRGB:               return { 4, 8, false };
-        case VK_FORMAT_B8G8R8A8_UNORM:              return { 4, 8, false };
-        case VK_FORMAT_B8G8R8A8_SNORM:              return { 4, 8, false };
-        case VK_FORMAT_B8G8R8A8_USCALED:            return { 4, 8, false };
-        case VK_FORMAT_B8G8R8A8_SSCALED:            return { 4, 8, false };
-        case VK_FORMAT_B8G8R8A8_UINT:               return { 4, 8, false };
-        case VK_FORMAT_B8G8R8A8_SINT:               return { 4, 8, false };
-        case VK_FORMAT_B8G8R8A8_SRGB:               return { 4, 8, false };
-        case VK_FORMAT_A8B8G8R8_UNORM_PACK32:       return { 4, 8, false };
-        case VK_FORMAT_A8B8G8R8_SNORM_PACK32:       return { 4, 8, false };
-        case VK_FORMAT_A8B8G8R8_USCALED_PACK32:     return { 4, 8, false };
-        case VK_FORMAT_A8B8G8R8_SSCALED_PACK32:     return { 4, 8, false };
-        case VK_FORMAT_A8B8G8R8_UINT_PACK32:        return { 4, 8, false };
-        case VK_FORMAT_A8B8G8R8_SINT_PACK32:        return { 4, 8, false };
-        case VK_FORMAT_A8B8G8R8_SRGB_PACK32:        return { 4, 8, false };
-        case VK_FORMAT_R16_UNORM:                   return { 1, 16, false };
-        case VK_FORMAT_R16_SNORM:                   return { 1, 16, false };
-        case VK_FORMAT_R16_USCALED:                 return { 1, 16, false };
-        case VK_FORMAT_R16_SSCALED:                 return { 1, 16, false };
-        case VK_FORMAT_R16_UINT:                    return { 1, 16, false };
-        case VK_FORMAT_R16_SINT:                    return { 1, 16, false };
-        case VK_FORMAT_R16_SFLOAT:                  return { 1, 16, true  };
-        case VK_FORMAT_R16G16_UNORM:                return { 2, 16, false };
-        case VK_FORMAT_R16G16_SNORM:                return { 2, 16, false };
-        case VK_FORMAT_R16G16_USCALED:              return { 2, 16, false };
-        case VK_FORMAT_R16G16_SSCALED:              return { 2, 16, false };
-        case VK_FORMAT_R16G16_UINT:                 return { 2, 16, false };
-        case VK_FORMAT_R16G16_SINT:                 return { 2, 16, false };
-        case VK_FORMAT_R16G16_SFLOAT:               return { 2, 16, true  };
-        case VK_FORMAT_R16G16B16_UNORM:             return { 3, 16, false };
-        case VK_FORMAT_R16G16B16_SNORM:             return { 3, 16, false };
-        case VK_FORMAT_R16G16B16_USCALED:           return { 3, 16, false };
-        case VK_FORMAT_R16G16B16_SSCALED:           return { 3, 16, false };
-        case VK_FORMAT_R16G16B16_UINT:              return { 3, 16, false };
-        case VK_FORMAT_R16G16B16_SINT:              return { 3, 16, false };
-        case VK_FORMAT_R16G16B16_SFLOAT:            return { 3, 16, true  };
-        case VK_FORMAT_R16G16B16A16_UNORM:          return { 4, 16, false };
-        case VK_FORMAT_R16G16B16A16_SNORM:          return { 4, 16, false };
-        case VK_FORMAT_R16G16B16A16_USCALED:        return { 4, 16, false };
-        case VK_FORMAT_R16G16B16A16_SSCALED:        return { 4, 16, false };
-        case VK_FORMAT_R16G16B16A16_UINT:           return { 4, 16, false };
-        case VK_FORMAT_R16G16B16A16_SINT:           return { 4, 16, false };
-        case VK_FORMAT_R16G16B16A16_SFLOAT:         return { 4, 16, true  };
-        case VK_FORMAT_R32_UINT:                    return { 1, 32, false };
-        case VK_FORMAT_R32_SINT:                    return { 1, 32, false };
-        case VK_FORMAT_R32_SFLOAT:                  return { 1, 32, true  };
-        case VK_FORMAT_R32G32_UINT:                 return { 2, 32, false };
-        case VK_FORMAT_R32G32_SINT:                 return { 2, 32, false };
-        case VK_FORMAT_R32G32_SFLOAT:               return { 2, 32, true  };
-        case VK_FORMAT_R32G32B32_UINT:              return { 3, 32, false };
-        case VK_FORMAT_R32G32B32_SINT:              return { 3, 32, false };
-        case VK_FORMAT_R32G32B32_SFLOAT:            return { 3, 32, true  };
-        case VK_FORMAT_R32G32B32A32_UINT:           return { 4, 32, false };
-        case VK_FORMAT_R32G32B32A32_SINT:           return { 4, 32, false };
-        case VK_FORMAT_R32G32B32A32_SFLOAT:         return { 4, 32, true  };
-        case VK_FORMAT_R64_UINT:                    return { 1, 64, false };
-        case VK_FORMAT_R64_SINT:                    return { 1, 64, false };
-        case VK_FORMAT_R64_SFLOAT:                  return { 1, 64, true  };
-        case VK_FORMAT_R64G64_UINT:                 return { 2, 64, false };
-        case VK_FORMAT_R64G64_SINT:                 return { 2, 64, false };
-        case VK_FORMAT_R64G64_SFLOAT:               return { 2, 64, true  };
-        case VK_FORMAT_R64G64B64_UINT:              return { 3, 64, false };
-        case VK_FORMAT_R64G64B64_SINT:              return { 3, 64, false };
-        case VK_FORMAT_R64G64B64_SFLOAT:            return { 3, 64, true  };
-        case VK_FORMAT_R64G64B64A64_UINT:           return { 4, 64, false };
-        case VK_FORMAT_R64G64B64A64_SINT:           return { 4, 64, false };
-        case VK_FORMAT_R64G64B64A64_SFLOAT:         return { 4, 64, true  };
-        case VK_FORMAT_D16_UNORM:                   return { 1, 16, false };
-        case VK_FORMAT_D32_SFLOAT:                  return { 1, 32, true  };
-        case VK_FORMAT_S8_UINT:                     return { 1, 8, false };
-        default:                                    { se_assert(false); }
-    }
-    return { };
-}
-
 void se_vk_texture_construct(SeVkTexture* texture, SeVkTextureInfo* info)
 {
     SeVkMemoryManager* const memoryManager = &info->device->memoryManager;
@@ -195,22 +82,22 @@ void se_vk_texture_construct(SeVkTexture* texture, SeVkTextureInfo* info)
         auto [sourcePtr, sourceSize] = data_provider::get(info->data);
         if (info->data.type == DataProvider::FROM_FILE)
         {
-            const auto formatInfo = se_vk_texture_get_format_info(info->format);
+            const SeVkFormatInfo formatInfo = se_vk_utils_get_format_info(info->format);
             int dimX = 0;
             int dimY = 0;
             int channels = 0;
             void* loadedImagePtr = nullptr;
-            if (formatInfo.componentsSize == 8 && !formatInfo.isFloat)
+            if (formatInfo.componentsSizeBits == 8 && formatInfo.componentType == SeVkFormatInfo::Type::UINT)
             {
-                loadedImagePtr = stbi_load_from_memory((const stbi_uc*)sourcePtr, (int)sourceSize, &dimX, &dimY, &channels, formatInfo.numComponents);
+                loadedImagePtr = stbi_load_from_memory((const stbi_uc*)sourcePtr, (int)sourceSize, &dimX, &dimY, &channels, int(formatInfo.numComponents));
             }
-            else if (formatInfo.componentsSize == 16 && !formatInfo.isFloat)
+            else if (formatInfo.componentsSizeBits == 16 && formatInfo.componentType == SeVkFormatInfo::Type::UINT)
             {
-                loadedImagePtr = stbi_load_16_from_memory((const stbi_uc*)sourcePtr, (int)sourceSize, &dimX, &dimY, &channels, formatInfo.numComponents);
+                loadedImagePtr = stbi_load_16_from_memory((const stbi_uc*)sourcePtr, (int)sourceSize, &dimX, &dimY, &channels, int(formatInfo.numComponents));
             }
-            else if (formatInfo.componentsSize == 32 && formatInfo.isFloat)
+            else if (formatInfo.componentsSizeBits == 32 && formatInfo.componentType == SeVkFormatInfo::Type::FLOAT)
             {
-                loadedImagePtr = stbi_loadf_from_memory((const stbi_uc*)sourcePtr, (int)sourceSize, &dimX, &dimY, &channels, formatInfo.numComponents);
+                loadedImagePtr = stbi_loadf_from_memory((const stbi_uc*)sourcePtr, (int)sourceSize, &dimX, &dimY, &channels, int(formatInfo.numComponents));
             }
             else
             {
@@ -218,7 +105,7 @@ void se_vk_texture_construct(SeVkTexture* texture, SeVkTextureInfo* info)
             }
             se_assert(loadedImagePtr);
             loadedTextureData = loadedImagePtr;
-            loadedTextureDataSize = dimX * dimY * formatInfo.numComponents * formatInfo.componentsSize / 8;
+            loadedTextureDataSize = dimX * dimY * formatInfo.numComponents * formatInfo.componentsSizeBits / 8;
             textureExtent = { (uint32_t)dimX, (uint32_t)dimY, 1 };
         }
         else
