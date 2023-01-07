@@ -4,4 +4,6 @@ examples_win32_debug/*
 examples_win32_release/*
 .vscode/*
 CSI.*
+*.exe
+builds/*
 *.spv.dis
