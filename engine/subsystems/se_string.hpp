@@ -26,11 +26,10 @@ struct SeStringBuilder
     bool    isTmp;
 };
 
-template <typename T> concept se_cstring = std::is_convertible_v<T, const char*>;
-
 namespace string
 {
     const char*                             cstr(const SeString& str);
+    char*                                   cstr(SeString& str);
     size_t                                  length(const SeString& str);
     SeString                                create(const SeString& source, SeStringLifetime lifetime = SeStringLifetime::TEMPORARY);
     SeString                                create(const char* source, SeStringLifetime lifetime = SeStringLifetime::TEMPORARY);
@@ -65,12 +64,14 @@ namespace string_builder
 
 template<se_cstring T> struct SeIsComparable<SeString, T> { static constexpr bool value = true; };
 template<se_cstring T> struct SeIsComparable<T, SeString> { static constexpr bool value = true; };
+template<se_cstring First, se_cstring Second> struct SeIsComparable<First, Second> { static constexpr bool value = true; };
 
 namespace utils
 {
-    template<> bool             compare<SeString, SeString>(const SeString& first, const SeString& second);
-    template<se_cstring T> bool compare(const SeString& first, const T& second);
-    template<se_cstring T> bool compare(const T& first, const SeString& second);
+    template<> bool                                     compare<SeString, SeString>(const SeString& first, const SeString& second);
+    template<se_cstring T> bool                         compare(const SeString& first, const T& second);
+    template<se_cstring T> bool                         compare(const T& first, const SeString& second);
+    template<se_cstring First, se_cstring Second> bool  compare(const First& first, const Second& second);
 }
 
 namespace hash_value

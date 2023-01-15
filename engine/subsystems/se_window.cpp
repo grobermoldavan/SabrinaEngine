@@ -90,14 +90,14 @@ namespace win
         return isPressed && !wasPressed;
     }
 
-    void engine::init(const SeSettings* settings)
+    void engine::init(const SeSettings& settings)
     {
         const HMODULE moduleHandle = GetModuleHandle(nullptr);
 
         WNDCLASSA wc = { };
         wc.lpfnWndProc      = win32_window_proc;
         wc.hInstance        = moduleHandle;
-        wc.lpszClassName    = settings->applicationName;
+        wc.lpszClassName    = settings.applicationName;
         wc.hCursor          = LoadCursor(nullptr, IDC_ARROW);
 
         const bool isClassRegistered = RegisterClassA(&wc);
@@ -114,16 +114,16 @@ namespace win
             WS_MAXIMIZEBOX  |           // Add maximize button
             WS_SIZEBOX      ;           // Add ability to resize window by dragging it's frame
         const DWORD fullscreenStyle = WS_POPUP;
-        const DWORD activeStyle = settings->isFullscreenWindow ? fullscreenStyle : (settings->isResizableWindow ? windowedStyleResize : windowedStyleNoResize);
+        const DWORD activeStyle = settings.isFullscreenWindow ? fullscreenStyle : (settings.isResizableWindow ? windowedStyleResize : windowedStyleNoResize);
 
         // @TODO : safe cast from uint32_t to int
-        const int targetWidth = (int)settings->windowWidth;
-        const int targetHeight = (int)settings->windowHeight;
+        const int targetWidth = int(settings.windowWidth);
+        const int targetHeight = int(settings.windowHeight);
 
         g_window.handle = CreateWindowExA(
             0,                          // Optional window styles.
-            settings->applicationName,  // Window class
-            settings->applicationName,  // Window text
+            settings.applicationName,   // Window class
+            settings.applicationName,   // Window text
             activeStyle,                // Window styles
             CW_USEDEFAULT,              // Position X
             CW_USEDEFAULT,              // Position Y
@@ -136,7 +136,7 @@ namespace win
         );
         se_assert(g_window.handle);
 
-        if (!settings->isFullscreenWindow)
+        if (!settings.isFullscreenWindow)
         {
             // Set correct size for a client rect
             // Retrieve currecnt client rect size and calculate difference with target size
@@ -162,7 +162,7 @@ namespace win
         }
 
         SetWindowLongPtr(g_window.handle, GWLP_USERDATA, (LONG_PTR)&g_window);
-        ShowWindow(g_window.handle, settings->isFullscreenWindow ? SW_MAXIMIZE : SW_SHOW);
+        ShowWindow(g_window.handle, settings.isFullscreenWindow ? SW_MAXIMIZE : SW_SHOW);
         UpdateWindow(g_window.handle);
         engine::update();
     }

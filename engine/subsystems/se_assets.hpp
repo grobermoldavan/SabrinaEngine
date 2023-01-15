@@ -18,7 +18,7 @@ namespace assets
 
     namespace engine
     {
-        void init(const SeSettings* settings);
+        void init(const SeSettings& settings);
         void terminate();
     }
 }

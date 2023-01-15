@@ -75,7 +75,7 @@ namespace win
 
     namespace engine
     {
-        void init(const SeSettings* settings);
+        void init(const SeSettings& settings);
         void update();
         void terminate();
     }

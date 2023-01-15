@@ -10,13 +10,6 @@
 
 struct SeSettings;
 
-#ifdef _WIN32
-#   define SE_DLL_EXPORT extern "C" __declspec(dllexport)
-#   define SE_PATH_SEP "\\"
-#else
-#   error Unsupported platform
-#endif
-
 #define se_array_size(arr) (sizeof(arr) / sizeof(arr[0]))
 
 #define se_concat(first, second) first##second

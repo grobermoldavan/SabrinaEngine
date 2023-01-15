@@ -28,6 +28,7 @@ struct SeSettings
     uint32_t    windowHeight;
     size_t      maxAssetsCpuUsage;
     size_t      maxAssetsGpuUsage;
+    bool        createUserDataFolder;
 };
 
 struct SeUpdateInfo
@@ -42,7 +43,7 @@ using SeTerminatePfn = void (*)();
 
 namespace engine
 {
-    void run(const SeSettings* settings, SeInitPfn init, SeUpdatePfn update, SeTerminatePfn terminate);
+    void run(const SeSettings& settings, SeInitPfn init, SeUpdatePfn update, SeTerminatePfn terminate);
     void stop();
 }
 

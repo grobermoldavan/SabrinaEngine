@@ -14,6 +14,8 @@ struct SeBitMask
     Entry mask[ARRAY_SIZE];
 };
 
+template <typename T> concept se_cstring = std::is_convertible_v<T, const char*>;
+
 namespace utils
 {
     inline bool compare_raw(const void* first, const void* second, size_t size)
@@ -102,6 +104,18 @@ namespace utils
         const size_t entryIndex = flag / ENTRY_SIZE_BITS;
         const size_t inEntryIndex = flag % ENTRY_SIZE_BITS;
         return mask.mask[entryIndex] & (Entry(1) << inEntryIndex);
+    }
+
+    template<se_cstring Str>
+    inline bool contains(const Str& str, char symbol)
+    {
+        const char* ptr = (const char*)str;
+        while (*ptr)
+        {
+            if (*ptr == symbol) return true;
+            ptr += 1;
+        }
+        return false;
     }
 }
 

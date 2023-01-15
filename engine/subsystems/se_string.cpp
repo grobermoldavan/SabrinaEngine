@@ -185,6 +185,11 @@ namespace string
         return str.memory;
     }
 
+    inline char* cstr(SeString& str)
+    {
+        return str.memory;
+    }
+
     inline size_t length(const SeString& str)
     {
         return str.length;
@@ -366,6 +371,17 @@ namespace utils
     {
         const char* const cstr = (const char*)first;
         return strlen(cstr) == second.length && compare_raw(cstr, second.memory, second.length);
+    }
+
+    template<se_cstring First, se_cstring Second>
+    bool compare(const First& first, const Second& second)
+    {
+        const char* const firstCstr = (const char*)first;
+        const char* const secondCstr = (const char*)second;
+        const size_t firstLength = strlen(firstCstr);
+        const size_t secondLength = strlen(secondCstr);
+        const bool isCorrectLength = firstLength == secondLength;
+        return isCorrectLength && compare_raw(firstCstr, secondCstr, firstLength);
     }
 }
 

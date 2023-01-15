@@ -240,10 +240,10 @@ namespace assets
         entry = { };
     }
 
-    void engine::init(const SeSettings* settings)
+    void engine::init(const SeSettings& settings)
     {
-        g_assetManager.maxCpuUsage = settings->maxAssetsCpuUsage;
-        g_assetManager.maxGpuUsage = settings->maxAssetsGpuUsage;
+        g_assetManager.maxCpuUsage = settings.maxAssetsCpuUsage;
+        g_assetManager.maxGpuUsage = settings.maxAssetsGpuUsage;
     }
 
     void engine::terminate()

@@ -351,10 +351,10 @@ namespace render
         se_vk_device_submit_to_graveyard(g_vulkanDevice, ref);
     }
 
-    void engine::init()
+    void engine::init(const SeSettings& settings)
     {
         se_vk_check(volkInitialize());
-        g_vulkanDevice = se_vk_device_create(win::get_native_handle());
+        g_vulkanDevice = se_vk_device_create(settings, win::get_native_handle());
     }
 
     void engine::terminate()

@@ -351,7 +351,7 @@ namespace render
 
     namespace engine
     {
-        void init();
+        void init(const SeSettings& settings);
         void terminate();
         void update();
     }

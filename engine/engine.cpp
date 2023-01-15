@@ -3,8 +3,6 @@
 
 #ifdef _WIN32
 
-#define SE_PATH_SEP "\\"
-
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
@@ -30,14 +28,14 @@ bool g_shouldRun = false;
 
 namespace engine
 {
-    void run(const SeSettings* settings, SeInitPfn init, SeUpdatePfn update, SeTerminatePfn terminate)
+    void run(const SeSettings& settings, SeInitPfn init, SeUpdatePfn update, SeTerminatePfn terminate)
     {
         allocators::engine::init();
         string::engine::init();
         debug::engine::init();
-        fs::engine::init();
+        fs::engine::init(settings);
         win::engine::init(settings);
-        render::engine::init();
+        render::engine::init(settings);
         assets::engine::init(settings);
         ui::engine::init();
         if (init) init();

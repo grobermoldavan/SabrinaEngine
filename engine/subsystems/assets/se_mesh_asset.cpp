@@ -83,7 +83,7 @@ cgltf_result se_mesh_cgltf_read(const cgltf_memory_options* memory_options, cons
     fileEntry->file = fs::file_find_recursive(path);
     se_assert(fileEntry->file);
 
-    fileEntry->content = fs::file_load(fileEntry->file, allocators::frame());
+    fileEntry->content = fs::file_read(fileEntry->file, allocators::frame());
 
     *size = fileEntry->content.dataSize;
     *data = fileEntry->content.data;

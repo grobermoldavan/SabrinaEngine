@@ -132,14 +132,15 @@ int main(int argc, char* argv[])
 {
     const SeSettings settings
     {
-        .applicationName    = "Sabrina engine - model loading example",
-        .isFullscreenWindow = false,
-        .isResizableWindow  = true,
-        .windowWidth        = 640,
-        .windowHeight       = 480,
-        .maxAssetsCpuUsage  = se_megabytes(512),
-        .maxAssetsGpuUsage  = se_megabytes(512),
+        .applicationName        = "Sabrina engine - model loading example",
+        .isFullscreenWindow     = false,
+        .isResizableWindow      = true,
+        .windowWidth            = 640,
+        .windowHeight           = 480,
+        .maxAssetsCpuUsage      = se_megabytes(512),
+        .maxAssetsGpuUsage      = se_megabytes(512),
+        .createUserDataFolder   = false,
     };
-    engine::run(&settings, init, update, terminate);
+    engine::run(settings, init, update, terminate);
     return 0;
 }

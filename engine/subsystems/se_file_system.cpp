@@ -6,9 +6,20 @@
 
 #define WIN32_LEAN_AND_MEAN 
 #include <Windows.h>
+#include <ShlObj_core.h>
+#include <Shlwapi.h>
+#include <PathCch.h>
 
 #define SE_FS_SEPARATOR "\\"
 #define SE_FS_SEPARATOR_CHAR '\\'
+
+#define se_fs_is_separator_c(c) (((c) == '\\') || ((c) == '/'))
+
+#ifdef SE_DEBUG
+#   define se_fs_validate_path(path) ::fs::impl::validate_path(path)
+#else
+#   define se_fs_validate_path(path)
+#endif
 
 constexpr const size_t SE_FS_MAX_FILES = 4095;
 constexpr const size_t SE_FS_MAX_FOLDERS = 1023;
@@ -91,31 +102,33 @@ namespace fs
             set_file_child_recursive(parentFolder.parentFolder, childFileIndex);
         }
 
-        void process_folder_recursive(SeFolderHandle parentHandle, SeString fullPath)
+        const char* file_name_get_extension(const SeString& filePath)
         {
-            se_assert(g_fileSystem.numFolders < SE_FS_MAX_FOLDERS);
-            const size_t folderIndex = g_fileSystem.numFolders + 1;
-            const SeFolderHandle folderHandle { SeFolderHandle::NumericType(folderIndex) };
-            g_fileSystem.folders[folderIndex] =
+            const char* filePathCstr = string::cstr(filePath);
+            const size_t filePathLength = string::length(filePath);
+            const char* extensionCstr = nullptr;
+            for (size_t it = filePathLength; it > 0; it--)
             {
-                .fullPath               = fullPath,
-                .parentFolder           = parentHandle,
-                .filesRecursive         = { },
-                .filesNonRecursive      = { },
-                .foldersRecursive       = { },
-                .foldersNonRecursive    = { },
-            };
-            SeFileSystemFolder& folder = g_fileSystem.folders[folderIndex];
-            g_fileSystem.numFolders += 1;
-
-            set_folder_child_recursive(parentHandle, folderIndex);
-            if (parentHandle)
-            {
-                SeFileSystemFolder& parentFolder = from_handle(parentHandle);
-                utils::bm_set(parentFolder.foldersNonRecursive, folderIndex);
+                const char c = filePathCstr[it - 1];
+                if (c == '.')
+                {
+                    extensionCstr = filePathCstr + it;
+                    break;
+                }
+                else if (c == SE_FS_SEPARATOR_CHAR)
+                {
+                    extensionCstr = filePathCstr + filePathLength;
+                    break;
+                }
             }
+            return extensionCstr;
+        }
 
-            const SeString searchPath = string::create_fmt(SeStringLifetime::TEMPORARY, "{}" SE_FS_SEPARATOR "*", fullPath);
+        void process_folder_recursive(SeFolderHandle folderHandle)
+        {
+            SeFileSystemFolder& folder = from_handle(folderHandle);
+
+            const SeString searchPath = string::create_fmt(SeStringLifetime::TEMPORARY, "{}" SE_FS_SEPARATOR "*", folder.fullPath);
             WIN32_FIND_DATAA findResult;
             const HANDLE searchHandle = FindFirstFileA(string::cstr(searchPath), &findResult);
 
@@ -127,40 +140,38 @@ namespace fs
                     {
                         continue;
                     }
-                    process_folder_recursive(folderHandle, string::create_fmt(SeStringLifetime::PERSISTENT, "{}" SE_FS_SEPARATOR "{}", fullPath, findResult.cFileName));
+
+                    se_assert(g_fileSystem.numFolders < SE_FS_MAX_FOLDERS);
+                    const size_t newFolderIndex = ++g_fileSystem.numFolders;
+                    const SeString newFolderFullPath = string::create_fmt(SeStringLifetime::PERSISTENT, "{}" SE_FS_SEPARATOR "{}", folder.fullPath, findResult.cFileName);
+                    g_fileSystem.folders[newFolderIndex] =
+                    {
+                        .fullPath               = newFolderFullPath,
+                        .parentFolder           = folderHandle,
+                        .filesRecursive         = { },
+                        .filesNonRecursive      = { },
+                        .foldersRecursive       = { },
+                        .foldersNonRecursive    = { },
+                    };
+                    set_folder_child_recursive(folderHandle, newFolderIndex);
+                    utils::bm_set(folder.foldersNonRecursive, newFolderIndex);
+
+                    const SeFolderHandle newFolderHandle { SeFolderHandle::NumericType(newFolderIndex) };
+                    process_folder_recursive(newFolderHandle);
                 }
                 else
                 {
                     se_assert(g_fileSystem.numFiles < SE_FS_MAX_FILES);
-                    const size_t fileIndex = g_fileSystem.numFiles + 1;
-                    const SeString fileFullPath = string::create_fmt(SeStringLifetime::PERSISTENT, "{}" SE_FS_SEPARATOR "{}", fullPath, findResult.cFileName);
-                    const char* fileFullPathCstr = string::cstr(fileFullPath);
-                    const size_t fileFullPathLength = string::length(fileFullPath);
-                    const char* extensionCstr = nullptr;
-                    for (size_t it = fileFullPathLength; it > 0; it--)
-                    {
-                        const char c = fileFullPathCstr[it - 1];
-                        if (c == '.')
-                        {
-                            extensionCstr = fileFullPathCstr + it;
-                            break;
-                        }
-                        else if (c == SE_FS_SEPARATOR_CHAR)
-                        {
-                            extensionCstr = fileFullPathCstr + fileFullPathLength;
-                            break;
-                        }
-                    }
-
+                    const size_t fileIndex = ++g_fileSystem.numFiles;
+                    const SeString fileFullPath = string::create_fmt(SeStringLifetime::PERSISTENT, "{}" SE_FS_SEPARATOR "{}", folder.fullPath, findResult.cFileName);
                     g_fileSystem.files[fileIndex] =
                     {
-                        .fullPath = fileFullPath,
-                        .folder = folderHandle,
-                        .extension = extensionCstr,
+                        .fullPath   = fileFullPath,
+                        .folder     = folderHandle,
+                        .extension  = file_name_get_extension(fileFullPath),
                     };
-                    g_fileSystem.numFiles += 1;
                     utils::bm_set(folder.filesNonRecursive, fileIndex);
-                    set_file_child_recursive(parentHandle, fileIndex);
+                    set_file_child_recursive(folderHandle, fileIndex);
                 }
             }
         }
@@ -196,30 +207,93 @@ namespace fs
             }
             return { 0 };
         }
+
+        template<typename Arg>
+        void process_path_elements(const char** elements, size_t it, const Arg& arg)
+        {
+            const SeString argStr = string::cast(arg, SeStringLifetime::TEMPORARY);
+            const char* const argCstr = string::cstr(argStr);
+            const size_t argLength = string::length(argStr);
+
+            se_assert_msg(argLength > 0, "All fs::path arguments must be a non-empty strings");
+            se_assert_msg(!utils::compare(argCstr, "."), "fs::path argument can't be a \".\" symbol");
+            se_assert_msg(!utils::compare(argCstr, ".."), "fs::path argument can't be a \"..\" symbol");
+            se_assert_msg(argCstr[0] != SE_FS_SEPARATOR_CHAR, "fs::path argument can't start with \"" SE_FS_SEPARATOR "\" symbol");
+            se_assert_msg(argCstr[0] != '/', "fs::path argument can't start with \"/\" symbol");
+
+            elements[it] = argCstr;
+        }
+
+        template<typename Arg, typename ... Args>
+        void process_path_elements(const char** elements, size_t it, const Arg& arg, const Args& ... args)
+        {
+            process_path_elements(elements, it, arg);
+            process_path_elements(elements, it + 1, args...);
+        }
+
+        void validate_path(const char* path)
+        {
+            se_assert_msg(path, "Path is null");
+
+            const size_t pathLength = strlen(path);
+            se_assert_msg(pathLength, "Path length is zero");
+            se_assert_msg(pathLength < MAX_PATH, "Path length is too big, windows supports only paths with length below {} characters", MAX_PATH);
+
+            bool isLastSymbolSeparator = false;
+            for (size_t it = 0; it < pathLength; it++)
+            {
+                const char c = path[it];
+                if (se_fs_is_separator_c(c))
+                {
+                    se_assert_msg(!isLastSymbolSeparator, "Paths are not allowed to have multiple separators in the row. Path is : {}", path);
+                    isLastSymbolSeparator = true;
+                }
+                else
+                {
+                    isLastSymbolSeparator = false;
+                }
+            }
+        }
+
+        inline bool is_child_of(SeFolderHandle parentHandle, SeFolderHandle childHandle)
+        {
+            const SeFileSystemFolder& parentFolder = from_handle(parentHandle);
+            return utils::bm_get(parentFolder.foldersNonRecursive, childHandle.value);
+        }
+
+        inline bool is_child_of(SeFolderHandle parentHandle, SeFileHandle childHandle)
+        {
+            const SeFileSystemFolder& parentFolder = from_handle(parentHandle);
+            return utils::bm_get(parentFolder.filesNonRecursive, childHandle.value);
+        }
     }
 
-    inline SeFileHandle file_find(const char* fileName, SeFolderHandle handle)
+    inline SeFileHandle file_find(const char* filePath, SeFolderHandle handle)
     {
+        se_fs_validate_path(filePath);
         const SeFileSystemFolder& folder = impl::from_handle(handle);
-        return impl::perform_file_search(folder.filesNonRecursive, fileName);
+        return impl::perform_file_search(folder.filesNonRecursive, filePath);
     }
     
-    inline SeFolderHandle folder_find(const char* folderName, SeFolderHandle handle)
+    inline SeFolderHandle folder_find(const char* folderPath, SeFolderHandle handle)
     {
+        se_fs_validate_path(folderPath);
         const SeFileSystemFolder& folder = impl::from_handle(handle);
-        return impl::perform_folder_search(folder.foldersNonRecursive, folderName);
+        return impl::perform_folder_search(folder.foldersNonRecursive, folderPath);
     }
 
-    inline SeFileHandle file_find_recursive(const char* fileName, SeFolderHandle handle)
+    inline SeFileHandle file_find_recursive(const char* filePath, SeFolderHandle handle)
     {
+        se_fs_validate_path(filePath);
         const SeFileSystemFolder& folder = impl::from_handle(handle);
-        return impl::perform_file_search(folder.filesRecursive, fileName);
+        return impl::perform_file_search(folder.filesRecursive, filePath);
     }
 
-    inline SeFolderHandle folder_find_recursive(const char* folderName, SeFolderHandle handle)
+    inline SeFolderHandle folder_find_recursive(const char* folderPath, SeFolderHandle handle)
     {
+        se_fs_validate_path(folderPath);
         const SeFileSystemFolder& folder = impl::from_handle(handle);
-        return impl::perform_folder_search(folder.foldersRecursive, folderName);
+        return impl::perform_folder_search(folder.foldersRecursive, folderPath);
     }
 
     inline SeFolderHandle file_get_folder(SeFileHandle handle)
@@ -235,7 +309,7 @@ namespace fs
         return file.extension;
     }
 
-    SeFileContent file_load(SeFileHandle handle, const AllocatorBindings& bindings)
+    SeFileContent file_read(SeFileHandle handle, const AllocatorBindings& bindings)
     {
         const SeFileSystemFile& file = impl::from_handle(handle);
 
@@ -245,10 +319,11 @@ namespace fs
             GENERIC_READ,
             FILE_SHARE_READ,
             nullptr,
-            OPEN_EXISTING,
+            OPEN_ALWAYS,
             FILE_ATTRIBUTE_NORMAL /*| FILE_FLAG_WRITE_THROUGH // ? */,
             nullptr
         );
+        se_assert_msg(winHandle != INVALID_HANDLE_VALUE, "Can't read file. Error code is {}", GetLastError());
 
         uint64_t fileSize = 0;
         {
@@ -290,6 +365,72 @@ namespace fs
         content = {};
     }
 
+    SeFileHandle file_create(const char* filePath, SeFolderHandle folderHandle)
+    {
+        se_assert_msg(filePath, "fs::file_create failed : filePath is null");
+        se_assert_msg(strlen(filePath) > 0, "fs::file_create failed : filePath is an empty string");
+        se_assert_msg(!utils::contains(filePath, SE_FS_SEPARATOR_CHAR), "fs::file_create doesn't accept paths with separators. Incorrect path is : {}", filePath);
+        se_assert_msg(!utils::contains(filePath, '/'), "fs::file_create doesn't accept paths with separators. Incorrect path is : {}", filePath);
+        se_assert_msg(PathIsRelativeA(filePath), "fs::file_create accepts only relative paths. Incorrect path is : {}", filePath);
+        se_assert_msg(impl::is_child_of(SE_USER_DATA_FOLDER, folderHandle), "fs::file_create can create files only in SE_USER_DATA_FOLDER or it's subfolders");
+
+        if (const SeFileHandle foundHandle = file_find(filePath, folderHandle))
+        {
+            return foundHandle;
+        }
+
+        SeFileSystemFolder& folder = impl::from_handle(folderHandle);
+        const SeString fileFullPath = string::create_fmt(SeStringLifetime::PERSISTENT, "{}" SE_FS_SEPARATOR "{}", folder.fullPath, filePath);
+        const size_t fileIndex = ++g_fileSystem.numFiles;
+        g_fileSystem.files[fileIndex] =
+        {
+            .fullPath   = fileFullPath,
+            .folder     = folderHandle,
+            .extension  = impl::file_name_get_extension(fileFullPath),
+        };
+
+        utils::bm_set(folder.filesNonRecursive, fileIndex);
+        impl::set_file_child_recursive(folderHandle, fileIndex);
+
+        return { SeFileHandle::NumericType(fileIndex) };
+    }
+
+    SeFolderHandle folder_create(const char* folderPath, SeFolderHandle parentFolderHandle)
+    {
+        se_assert_msg(folderPath, "fs::folder_create failed : folderPath is null");
+        se_assert_msg(strlen(folderPath) > 0, "fs::folder_create failed : folderPath is an empty string");
+        se_assert_msg(!utils::contains(folderPath, SE_FS_SEPARATOR_CHAR), "fs::folder_create doesn't accept paths with separators. Incorrect path is : {}", folderPath);
+        se_assert_msg(!utils::contains(folderPath, '/'), "fs::folder_create doesn't accept paths with separators. Incorrect path is : {}", folderPath);
+        se_assert_msg(PathIsRelativeA(folderPath), "fs::folder_create accepts only relative paths. Incorrect path is : {}", folderPath);
+        se_assert_msg(impl::is_child_of(SE_USER_DATA_FOLDER, parentFolderHandle), "fs::folder_create can create files only in SE_USER_DATA_FOLDER or it's subfolders");
+
+        if (const SeFolderHandle foundHandle = folder_find_recursive(folderPath, parentFolderHandle))
+        {
+            return foundHandle;
+        }
+
+        SeFileSystemFolder& parentFolder = impl::from_handle(parentFolderHandle);
+        const SeString folderFullPath = string::create_fmt(SeStringLifetime::PERSISTENT, "{}" SE_FS_SEPARATOR "{}", parentFolder.fullPath, folderPath);
+        const size_t folderIndex = ++g_fileSystem.numFolders;
+        g_fileSystem.folders[folderIndex] =
+        {
+            .fullPath               = folderFullPath,
+            .parentFolder           = parentFolderHandle,
+            .filesRecursive         = { },
+            .filesNonRecursive      = { },
+            .foldersRecursive       = { },
+            .foldersNonRecursive    = { },
+        };
+
+        utils::bm_set(parentFolder.foldersNonRecursive, folderIndex);
+        impl::set_folder_child_recursive(parentFolderHandle, folderIndex);
+
+        const int cdResult = SHCreateDirectoryExA(NULL, string::cstr(folderFullPath), NULL);
+        se_assert_msg(cdResult != ERROR_BAD_PATHNAME && cdResult != ERROR_FILENAME_EXCED_RANGE && cdResult != ERROR_CANCELLED, "Failed to crete folder with path : {}", folderFullPath);
+
+        return { SeFolderHandle::NumericType(folderIndex) };
+    }
+    
     const char* full_path(SeFileHandle handle)
     {
         const SeFileSystemFile& file = impl::from_handle(handle);
@@ -303,31 +444,148 @@ namespace fs
     }
 
     template<typename ... Args>
-    SeString path(const Args& ... args)
+    inline const char* path(const Args& ... args)
     {
+        constexpr const size_t NUM_ARGS = sizeof...(args);
+        static_assert(NUM_ARGS > 0, "Can't have empty path");
+
+        const char* pathElements[NUM_ARGS];
+        impl::process_path_elements(pathElements, 0, args...);
+
         SeStringBuilder builder = string_builder::begin(nullptr, SeStringLifetime::TEMPORARY);
-        string_builder::append_with_separator(builder, SE_FS_SEPARATOR, args...);
-        return string_builder::end(builder);
+        for (size_t it = 0; it < NUM_ARGS; it++)
+        {
+            if (it != 0) string_builder::append(builder, SE_FS_SEPARATOR);
+            string_builder::append(builder, pathElements[it]);
+        }
+
+        const SeString pathStr = string_builder::end(builder);
+        const char* const pathCstr = string::cstr(pathStr);
+        se_fs_validate_path(pathCstr);
+
+        return pathCstr;
     }
     
-    void engine::init()
+    void engine::init(const SeSettings& settings)
     {
-        constexpr const DWORD FULL_PATH_NAME_BUFFER_SIZE = 2048;
-        static char rootNameBuffer[FULL_PATH_NAME_BUFFER_SIZE];
-        
-        const DWORD gcdResult = GetCurrentDirectoryA(FULL_PATH_NAME_BUFFER_SIZE, rootNameBuffer);
-        se_assert_msg(gcdResult > 0, "Can't get root directory path - internal error. Error code : {}", GetLastError());
-        se_assert_msg(gcdResult < FULL_PATH_NAME_BUFFER_SIZE, "Can't get root directory path - buffer is too small. Required size (with terminating character) is {}", gcdResult);
+        se_assert(g_fileSystem.numFolders == 0);
+        g_fileSystem.numFolders = 2; // first and second folders are reserved for SE_APPLICATION_FOLDER and SE_USER_DATA_FOLDER
 
-        impl::process_folder_recursive({ 0 }, string::create(rootNameBuffer, SeStringLifetime::PERSISTENT) );
+        static char applicationFolderBuffer[MAX_PATH];
+
+        const DWORD gmfnResult = GetModuleFileNameA(NULL, applicationFolderBuffer, MAX_PATH);
+        se_assert_msg(gmfnResult > 0, "Can't get root directory path - internal error. Error code : {}", GetLastError());
+        se_assert_msg(gmfnResult < MAX_PATH, "Can't get root directory path - buffer is too small. Required size (with terminating character) is {}", gmfnResult);
+
+        const BOOL prfsResult = PathRemoveFileSpecA(applicationFolderBuffer);
+        se_assert_msg(prfsResult, "Can't get root directory path - PathRemoveFileSpecA failed with code {}", prfsResult);
+
+        const SeString applicationFolderFullPath = string::create(applicationFolderBuffer, SeStringLifetime::PERSISTENT);
+        SeFileSystemFolder& applicationFolder = impl::from_handle(SE_APPLICATION_FOLDER);
+        applicationFolder =
+        {
+            .fullPath               = applicationFolderFullPath,
+            .parentFolder           = { 0 },
+            .filesRecursive         = { },
+            .filesNonRecursive      = { },
+            .foldersRecursive       = { },
+            .foldersNonRecursive    = { },
+        };
+        impl::process_folder_recursive(SE_APPLICATION_FOLDER);
+
+        if (settings.createUserDataFolder)
+        {
+            static char userDataFolderBuffer[MAX_PATH];
+            const HRESULT gfpResult = SHGetFolderPathA(NULL, CSIDL_LOCAL_APPDATA, NULL, SHGFP_TYPE_CURRENT, userDataFolderBuffer);
+            se_assert_msg(SUCCEEDED(gfpResult), "Can't get user data folder path. Error code : {}", gfpResult);
+
+            const SeString userDataFolderFullPath = string::create_fmt(SeStringLifetime::PERSISTENT, "{}" SE_FS_SEPARATOR "{}", userDataFolderBuffer, settings.applicationName);
+
+            const int cdResult = SHCreateDirectoryExA(NULL, string::cstr(userDataFolderFullPath), NULL);
+            se_assert_msg(cdResult != ERROR_BAD_PATHNAME && cdResult != ERROR_FILENAME_EXCED_RANGE && cdResult != ERROR_CANCELLED, "Can't create user data folder");
+
+            SeFileSystemFolder& userDataFolder = impl::from_handle(SE_USER_DATA_FOLDER);
+            userDataFolder =
+            {
+                .fullPath               = userDataFolderFullPath,
+                .parentFolder           = { 0 },
+                .filesRecursive         = { },
+                .filesNonRecursive      = { },
+                .foldersRecursive       = { },
+                .foldersNonRecursive    = { },
+            };
+            impl::process_folder_recursive(SE_USER_DATA_FOLDER);
+        }
     }
 
     void engine::terminate()
     {
-
+        
     }
 
-} // namespace file_system
+} // namespace fs
+
+bool SeFolderIteratorInstance::operator != (const SeFolderIteratorInstance& other) const
+{
+    return index != other.index;
+}
+
+SeFolderHandle SeFolderIteratorInstance::operator * () const
+{
+    return { SeFolderHandle::NumericType(index) };
+}
+
+SeFolderIteratorInstance& SeFolderIteratorInstance::operator ++ ()
+{
+    const SeFileSystemFolder& folder = fs::impl::from_handle(folderHandle);
+    const SeFolderMask& bitMask = isRecursive ? folder.foldersRecursive : folder.foldersNonRecursive;
+    for (index += 1; index < (SE_FS_MAX_FOLDERS + 1); index++)
+    {
+        if (utils::bm_get(bitMask, index)) break;
+    }
+    return *this;
+}
+
+bool SeFileIteratorInstance::operator != (const SeFileIteratorInstance& other) const
+{
+    return index != other.index;
+}
+
+SeFileHandle SeFileIteratorInstance::operator * () const
+{
+    return { SeFileHandle::NumericType(index) };
+}
+
+SeFileIteratorInstance& SeFileIteratorInstance::operator ++ ()
+{
+    const SeFileSystemFolder& folder = fs::impl::from_handle(folderHandle);
+    const SeFileMask& bitMask = isRecursive ? folder.filesRecursive : folder.filesNonRecursive;
+    for (index += 1; index < (SE_FS_MAX_FILES + 1); index++)
+    {
+        if (utils::bm_get(bitMask, index)) break;
+    }
+    return *this;
+}
+
+inline SeFolderIteratorInstance begin(SeFolderIterator settings)
+{
+    return ++(SeFolderIteratorInstance{ settings.folderHandle, 0, settings.isRecursive });
+}
+
+inline SeFolderIteratorInstance end(SeFolderIterator settings)
+{
+    return { settings.folderHandle, SE_FS_MAX_FOLDERS + 1, settings.isRecursive };
+}
+
+inline SeFileIteratorInstance begin(SeFileIterator settings)
+{
+    return ++(SeFileIteratorInstance{ settings.folderHandle, 0, settings.isRecursive });
+}
+
+inline SeFileIteratorInstance end(SeFileIterator settings)
+{
+    return { settings.folderHandle, SE_FS_MAX_FILES + 1, settings.isRecursive };
+}
 
 #else // ifdef _WIN32
 #   error Unsupported platform

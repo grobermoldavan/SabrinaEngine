@@ -248,7 +248,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL se_vk_debug_callback(
     return VK_FALSE;
 }
 
-SeVkDevice* se_vk_device_create(void* nativeWindowHandle)
+SeVkDevice* se_vk_device_create(const SeSettings& settings, void* nativeWindowHandle)
 {
     const AllocatorBindings persistentAllocator = allocators::persistent();
     const AllocatorBindings frameAllocator = allocators::frame();
@@ -314,7 +314,7 @@ SeVkDevice* se_vk_device_create(void* nativeWindowHandle)
         {
             .sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO,
             .pNext              = nullptr,
-            .pApplicationName   = "Sabrina Engine App",
+            .pApplicationName   = settings.applicationName,
             .applicationVersion = VK_MAKE_VERSION(0, 1, 0),
             .pEngineName        = "Sabrina Engine",
             .engineVersion      = VK_MAKE_VERSION(0, 1, 0),

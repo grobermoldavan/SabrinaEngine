@@ -140,7 +140,7 @@ namespace data_provider
             } break;
             case DataProvider::FROM_FILE:
             {
-                const SeFileContent content = fs::file_load(provider.file.handle, allocators::frame());
+                const SeFileContent content = fs::file_read(provider.file.handle, allocators::frame());
                 return { content.data, content.dataSize };
             } break;
             default:

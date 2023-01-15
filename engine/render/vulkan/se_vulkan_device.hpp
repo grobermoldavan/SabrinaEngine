@@ -108,7 +108,7 @@ struct SeVkDevice
     SeVkGraveyard                   graveyard;
 };
 
-SeVkDevice*                         se_vk_device_create(void* nativeWindowHandle);
+SeVkDevice*                         se_vk_device_create(const SeSettings& settings, void* nativeWindowHandle);
 void                                se_vk_device_destroy(SeVkDevice* device);
 void                                se_vk_device_begin_frame(SeVkDevice* device, VkExtent2D extent);
 void                                se_vk_device_end_frame(SeVkDevice* device);

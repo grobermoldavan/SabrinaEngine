@@ -29,12 +29,13 @@ int main(int argc, char* argv[])
 {
     const SeSettings settings
     {
-        .applicationName    = "Sabrina engine - tetris example",
-        .isFullscreenWindow = false,
-        .isResizableWindow  = true,
-        .windowWidth        = 640,
-        .windowHeight       = 480,
+        .applicationName        = "Sabrina engine - tetris example",
+        .isFullscreenWindow     = false,
+        .isResizableWindow      = true,
+        .windowWidth            = 640,
+        .windowHeight           = 480,
+        .createUserDataFolder   = false,
     };
-    engine::run(&settings, init, update, terminate);
+    engine::run(settings, init, update, terminate);
     return 0;
 }

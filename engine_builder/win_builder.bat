@@ -13,6 +13,7 @@ set buildDirPath=%~3
 set engineDirPath=%~4
 set compiler=%~5
 set optimization=%~6
+set buildMode=%~7
 
 call :message "[engine builder] current dir         : %currentDir%"
 call :message "[engine builder] project name        : %projectName%"
@@ -41,9 +42,11 @@ if "%optimization%"=="debug" (
 )
 
 @REM ==================== Prepare build directory
-if exist %buildDirPath% (
-    call :message "[engine builder] clearing build directory"
-    rmdir /s %buildDirPath%
+if not "%buildMode%"=="exe_only" (
+    if exist %buildDirPath% (
+        call :message "[engine builder] clearing build directory"
+        rmdir /s %buildDirPath%
+    )
 )
 mkdir %buildDirPath%
 
@@ -58,6 +61,10 @@ if "%compiler%"=="gcc" (
     ) else if "%optimization%"=="release" (
         call :build_exe_msvc_release "%sourceDirPath%\main.cpp" "%buildDirPath%" "%engineDirPath%" "%projectName%"
     )
+)
+
+if "%buildMode%"=="exe_only" (
+    EXIT /B 0
 )
 
 @REM ==================== Copy default and application assets
@@ -92,15 +99,15 @@ EXIT /B 0
 @REM BUILD EXE MSVC DEBUG
 @REM =====================================================================================
 :build_exe_msvc_debug
-    set build_exe_source_file_path=%~1
-    set build_exe_target_folder=%~2\
-    set build_exe_engine_include_path=%~3
-    set build_exe_file_name=%~4
+    set buildExeSourceFilePath=%~1
+    set buildExeTargetFolder=%~2\
+    set buildExeEngineIncludePath=%~3
+    set buildExeProjectName=%~4
 
-    call :message "[msvc debug exe] target folder       : %build_exe_target_folder%"
-    call :message "[msvc debug exe] source file path    : %build_exe_source_file_path%"
-    call :message "[msvc debug exe] executable name     : %build_exe_file_name%"
-    call :message "[msvc debug exe] engine include path : %build_exe_engine_include_path%"
+    call :message "[msvc debug exe] target folder       : %buildExeTargetFolder%"
+    call :message "[msvc debug exe] source file path    : %buildExeSourceFilePath%"
+    call :message "[msvc debug exe] executable name     : %buildExeProjectName%"
+    call :message "[msvc debug exe] engine include path : %buildExeEngineIncludePath%"
 
     where cl
     if %ERRORLEVEL% NEQ 0 (
@@ -110,31 +117,31 @@ EXIT /B 0
         call :message "[msvc debug exe] vcvars64 is already called"
     )
     
-    call cl /Fd"%%build_exe_target_folder%%%build_exe_file_name%.pdb" /Fe"%%build_exe_target_folder%%%build_exe_file_name%.exe" /Fo"%%build_exe_target_folder%%%build_exe_file_name%.obj" ^
+    call cl /Fd"%%buildExeTargetFolder%%%buildExeProjectName%.pdb" /Fe"%%buildExeTargetFolder%%%buildExeProjectName%.exe" /Fo"%%buildExeTargetFolder%%%buildExeProjectName%.obj" ^
     -Z7 -Od -EHsc -MT ^
-    %build_exe_source_file_path% ^
-    /I "%VK_SDK_PATH%\Include" /I %build_exe_engine_include_path% /DSE_DEBUG /DSE_VULKAN ^
+    %buildExeSourceFilePath% ^
+    /I "%VK_SDK_PATH%\Include" /I %buildExeEngineIncludePath% /DSE_DEBUG /DSE_VULKAN^
     /std:c++20 /W4 /wd4201 /wd4324 /wd4100 /wd4505 /utf-8 /validate-charset /GR-^
-    kernel32.lib user32.lib ^
-    /link /DEBUG:FULL /OUT:"%%build_exe_target_folder%%%build_exe_file_name%.exe"
+    kernel32.lib user32.lib Shell32.lib Shlwapi.lib Pathcch.lib ^
+    /link /DEBUG:FULL /OUT:"%%buildExeTargetFolder%%%buildExeProjectName%.exe"
 
-    del %build_exe_target_folder%\*.ilk
-    del %build_exe_target_folder%\*.obj
+    del %buildExeTargetFolder%\*.ilk
+    del %buildExeTargetFolder%\*.obj
 Goto :Eof
 
 @REM =====================================================================================
 @REM BUILD EXE MSVC RELEASE
 @REM =====================================================================================
 :build_exe_msvc_release
-    set build_exe_source_file_path=%~1
-    set build_exe_target_folder=%~2\
-    set build_exe_engine_include_path=%~3
-    set build_exe_file_name=%~4
+    set buildExeSourceFilePath=%~1
+    set buildExeTargetFolder=%~2\
+    set buildExeEngineIncludePath=%~3
+    set buildExeProjectName=%~4
 
-    call :message "[msvc release exe] target folder       : %build_exe_target_folder%"
-    call :message "[msvc release exe] source file path    : %build_exe_source_file_path%"
-    call :message "[msvc release exe] executable name     : %build_exe_file_name%"
-    call :message "[msvc release exe] engine include path : %build_exe_engine_include_path%"
+    call :message "[msvc release exe] target folder       : %buildExeTargetFolder%"
+    call :message "[msvc release exe] source file path    : %buildExeSourceFilePath%"
+    call :message "[msvc release exe] executable name     : %buildExeProjectName%"
+    call :message "[msvc release exe] engine include path : %buildExeEngineIncludePath%"
 
     where cl
     if %ERRORLEVEL% NEQ 0 (
@@ -144,17 +151,17 @@ Goto :Eof
         call :message "[msvc release exe] vcvars64 is already called"
     )
 
-    call cl /Fd"%%build_exe_target_folder%%%build_exe_file_name%.pdb" /Fe"%%build_exe_target_folder%%%build_exe_file_name%.exe" /Fo"%%build_exe_target_folder%%%build_exe_file_name%.obj" ^
+    call cl /Fd"%%buildExeTargetFolder%%%buildExeProjectName%.pdb" /Fe"%%buildExeTargetFolder%%%buildExeProjectName%.exe" /Fo"%%buildExeTargetFolder%%%buildExeProjectName%.obj" ^
     -O2 -EHsc -MT ^
-    %build_exe_source_file_path% ^
-    /I "." /I "%VK_SDK_PATH%\Include" /I %build_exe_engine_include_path% /DSE_VULKAN ^
+    %buildExeSourceFilePath% ^
+    /I "." /I "%VK_SDK_PATH%\Include" /I %buildExeEngineIncludePath% /DSE_VULKAN^
     /std:c++20 /W4 /wd4201 /wd4324 /wd4100 /wd4505 /utf-8 /validate-charset /GR-^
-    kernel32.lib user32.lib ^
-    /link /DEBUG:NONE /OUT:"%%build_exe_target_folder%%%build_exe_file_name%.exe"
+    kernel32.lib user32.lib Shell32.lib Shlwapi.lib Pathcch.lib ^
+    /link /DEBUG:NONE /OUT:"%%buildExeTargetFolder%%%buildExeProjectName%.exe"
 
     
-    del %build_exe_target_folder%\*.ilk
-    del %build_exe_target_folder%\*.obj
+    del %buildExeTargetFolder%\*.ilk
+    del %buildExeTargetFolder%\*.obj
 Goto :Eof
 
 @REM :get_csi, :message and :error are taken from https://stackoverflow.com/questions/57736435/batch-file-to-change-color-of-text-depending-on-output-string-from-log-file
