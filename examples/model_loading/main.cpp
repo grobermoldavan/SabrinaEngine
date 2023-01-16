@@ -78,6 +78,19 @@ void update(const SeUpdateInfo& info)
 
     if (render::begin_frame())
     {
+        const SeTextureSize swapChainSize = render::texture_size(render::swap_chain_texture());
+        const SeTextureSize depthSize = render::texture_size(g_depthTexture);
+        if (!utils::compare(depthSize, swapChainSize))
+        {
+            render::destroy(g_depthTexture);
+            g_depthTexture = render::texture
+            ({
+                .format = SeTextureFormat::DEPTH_STENCIL,
+                .width  = uint32_t(swapChainSize.width),
+                .height = uint32_t(swapChainSize.height),
+            });
+        }
+        
         render::begin_graphics_pass
         ({
             .dependencies           = 0,

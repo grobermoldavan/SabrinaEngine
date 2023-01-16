@@ -176,9 +176,11 @@ void se_vk_graph_end_frame(SeVkGraph* graph)
     {
         const SeVkFrame* const prevImageFrame = &frameManager->frames[frameManager->imageToFrame[swapChainTextureIndex]];
         const SeVkCommandBuffer* const* const lastBuffer = dynamic_array::last(prevImageFrame->commandBuffers);
-        se_assert(lastBuffer);
-        const VkFence fence = (*lastBuffer)->fence;
-        vkWaitForFences(logicalHandle, 1, &fence, VK_TRUE, UINT64_MAX);
+        if (lastBuffer)
+        {
+            const VkFence fence = (*lastBuffer)->fence;
+            vkWaitForFences(logicalHandle, 1, &fence, VK_TRUE, UINT64_MAX);
+        }
     }
     frameManager->imageToFrame[swapChainTextureIndex] = frameIndex;
 

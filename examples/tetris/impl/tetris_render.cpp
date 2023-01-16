@@ -213,6 +213,27 @@ void tetris_render_update(float dt)
     //
     if (render::begin_frame())
     {
+        const SeTextureSize swapChainSize = render::texture_size(render::swap_chain_texture());
+        const SeTextureSize depthSize = render::texture_size(g_depthTexture);
+        if (!utils::compare(depthSize, swapChainSize))
+        {
+            render::destroy(g_depthTexture);
+            g_depthTexture = render::texture
+            ({
+                .format = SeTextureFormat::DEPTH_STENCIL,
+                .width  = uint32_t(swapChainSize.width),
+                .height = uint32_t(swapChainSize.height),
+            });
+
+            render::destroy(g_colorTexture);
+            g_colorTexture = render::texture
+            ({
+                .format = SeTextureFormat::RGBA_8_SRGB,
+                .width  = uint32_t(swapChainSize.width),
+                .height = uint32_t(swapChainSize.height),
+            });
+        }
+
         //
         // Offscreen pass
         //
