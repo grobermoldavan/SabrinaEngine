@@ -11,6 +11,7 @@
 #include <PathCch.h>
 
 #define SE_FS_SEPARATOR "\\"
+#define SE_FS_SEPARATOR_W L"\\"
 #define SE_FS_SEPARATOR_CHAR '\\'
 
 #define se_fs_is_separator_c(c) (((c) == '\\') || ((c) == '/'))
@@ -21,6 +22,12 @@
 #   define se_fs_validate_path(path)
 #endif
 
+struct SeUtf16String
+{
+    WCHAR* buffer;
+    size_t length;
+};
+
 constexpr const size_t SE_FS_MAX_FILES = 4095;
 constexpr const size_t SE_FS_MAX_FOLDERS = 1023;
 
@@ -29,14 +36,18 @@ using SeFolderMask = SeBitMask<SE_FS_MAX_FOLDERS + 1>;
 
 struct SeFileSystemFile
 {
-    SeString fullPath;
-    SeFolderHandle folder;
-    const char* extension; // pointer to a fillPath string
+    SeString        fullPath;
+    SeUtf16String   fullPathW;
+
+    SeFolderHandle  folder;
+    const char*     extension; // pointer to a fillPath string
 };
 
 struct SeFileSystemFolder
 {
     SeString        fullPath;
+    SeUtf16String   fullPathW;
+
     SeFolderHandle  parentFolder;
     SeFileMask      filesRecursive;
     SeFileMask      filesNonRecursive;
@@ -56,6 +67,93 @@ struct SeFileSystem
 
 namespace fs
 {
+    namespace utf16_string
+    {
+        namespace impl
+        {
+            template<typename Arg>
+            void process(const WCHAR** elements, size_t index, const Arg& arg)
+            {
+                elements[index] = (const WCHAR*)arg;
+            }
+
+            template<typename Arg, typename ... Args>
+            void process(const WCHAR** elements, size_t index, const Arg& arg, const Args& ... args)
+            {
+                elements[index] = (const WCHAR*)arg;
+                process(elements, index + 1, args...);
+            }
+        }
+
+        template<typename ... Args>
+        SeUtf16String create(const AllocatorBindings& allocator, const Args& ... args)
+        {
+            const WCHAR* argsCstr[sizeof...(args)];
+            impl::process(argsCstr, 0, args...);
+
+            size_t argsLength[sizeof...(args)];
+            size_t length = 0;
+            for (size_t it = 0; it < sizeof...(args); it++)
+            {
+                const size_t argLength = wcslen(argsCstr[it]);
+                length += argLength;
+                argsLength[it] = argLength;
+            }
+
+            WCHAR* const buffer = (WCHAR*)allocator_bindings::alloc(allocator, sizeof(WCHAR) * (length + 1), se_alloc_tag);
+            size_t pivot = 0;
+            for (size_t it = 0; it < sizeof...(args); it++)
+            {
+                memcpy(buffer + pivot, argsCstr[it], sizeof(WCHAR) * argsLength[it]);
+                pivot += argsLength[it];
+            }
+            buffer[length] = 0;
+            return { buffer, length };
+        }
+
+        inline const WCHAR* cstr(const SeUtf16String& str)
+        {
+            return str.buffer;
+        }
+
+        SeString to_utf8(const SeUtf16String& str)
+        {
+            const int length = WideCharToMultiByte(CP_UTF8, 0, str.buffer, int(str.length), NULL, 0, NULL, NULL);
+            se_assert_msg(length, "Unable to convert string from utf16 to utf8. Error code is : {}", GetLastError());
+
+            // string::create allocates string with null-terminated character, so we don't need to set it manually
+            SeString result = string::create(length, SeStringLifetime::PERSISTENT);
+            char* resultCstr = string::cstr(result);
+            const int converisonResult = WideCharToMultiByte(CP_UTF8, 0, str.buffer, int(str.length), resultCstr, length, NULL, NULL);
+            se_assert_msg(converisonResult, "Unable to convert string from utf16 to utf8. Error code is : {}", GetLastError());
+            se_assert_msg(converisonResult == length, "Length of utf8 string chaged between WideCharToMultiByte calls. Something went terribly wrong!");
+            
+            return result;
+        }
+
+        SeUtf16String from_utf8_tmp(const char* source)
+        {
+            const int sourceLength = int(strlen(source));
+            const int length = MultiByteToWideChar(CP_UTF8, 0, source, sourceLength, NULL, 0);
+            se_assert_msg(length, "Unable to convert string from utf8 to utf16. Error code is : {}", GetLastError());
+
+            WCHAR* const buffer = (WCHAR*)allocator_bindings::alloc(allocators::frame(), sizeof(WCHAR) * (length + 1), se_alloc_tag);
+            const int converisonResult = MultiByteToWideChar(CP_UTF8, 0, source, sourceLength, buffer, length);
+            se_assert_msg(converisonResult, "Unable to convert string from utf8 to utf16. Error code is : {}", GetLastError());
+            se_assert_msg(converisonResult == length, "Length of utf16 string chaged between MultiByteToWideChar calls. Something went terribly wrong!");
+
+            buffer[length] = 0;
+            return { buffer, size_t(length) };
+        }
+
+        void destroy(SeUtf16String& str)
+        {
+            allocator_bindings::dealloc(allocators::persistent(), str.buffer, sizeof(WCHAR) * (str.length + 1));
+            str.buffer = nullptr;
+            str.length = 0;
+        }
+    }
+
     namespace impl
     {
         inline SeFileSystemFolder& from_handle(SeFolderHandle handle)
@@ -128,25 +226,28 @@ namespace fs
         {
             SeFileSystemFolder& folder = from_handle(folderHandle);
 
-            const SeString searchPath = string::create_fmt(SeStringLifetime::TEMPORARY, "{}" SE_FS_SEPARATOR "*", folder.fullPath);
-            WIN32_FIND_DATAA findResult;
-            const HANDLE searchHandle = FindFirstFileA(string::cstr(searchPath), &findResult);
+            string::cast(nullptr);
 
-            while (FindNextFileA(searchHandle, &findResult))
+            const SeUtf16String searchPathW = utf16_string::create(allocators::frame(), utf16_string::cstr(folder.fullPathW), SE_FS_SEPARATOR_W, L"*");
+            WIN32_FIND_DATAW findResult;
+            const HANDLE searchHandle = FindFirstFileW(utf16_string::cstr(searchPathW), &findResult);
+
+            while (FindNextFileW(searchHandle, &findResult))
             {
                 if (findResult.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
                 {
-                    if (strcmp(".", findResult.cFileName) == 0 || strcmp("..", findResult.cFileName) == 0)
+                    if (StrCmpW(L".", findResult.cFileName) == 0 || StrCmpW(L"..", findResult.cFileName) == 0)
                     {
                         continue;
                     }
 
                     se_assert(g_fileSystem.numFolders < SE_FS_MAX_FOLDERS);
                     const size_t newFolderIndex = ++g_fileSystem.numFolders;
-                    const SeString newFolderFullPath = string::create_fmt(SeStringLifetime::PERSISTENT, "{}" SE_FS_SEPARATOR "{}", folder.fullPath, findResult.cFileName);
+                    const SeUtf16String newFolderFullPathW = utf16_string::create(allocators::persistent(), utf16_string::cstr(folder.fullPathW), SE_FS_SEPARATOR_W, findResult.cFileName);
                     g_fileSystem.folders[newFolderIndex] =
                     {
-                        .fullPath               = newFolderFullPath,
+                        .fullPath               = utf16_string::to_utf8(newFolderFullPathW),
+                        .fullPathW              = newFolderFullPathW,
                         .parentFolder           = folderHandle,
                         .filesRecursive         = { },
                         .filesNonRecursive      = { },
@@ -163,10 +264,12 @@ namespace fs
                 {
                     se_assert(g_fileSystem.numFiles < SE_FS_MAX_FILES);
                     const size_t fileIndex = ++g_fileSystem.numFiles;
-                    const SeString fileFullPath = string::create_fmt(SeStringLifetime::PERSISTENT, "{}" SE_FS_SEPARATOR "{}", folder.fullPath, findResult.cFileName);
+                    const SeUtf16String fileFullPathW = utf16_string::create(allocators::persistent(), utf16_string::cstr(folder.fullPathW), SE_FS_SEPARATOR_W, findResult.cFileName);
+                    const SeString fileFullPath = utf16_string::to_utf8(fileFullPathW);
                     g_fileSystem.files[fileIndex] =
                     {
                         .fullPath   = fileFullPath,
+                        .fullPathW  = fileFullPathW,
                         .folder     = folderHandle,
                         .extension  = file_name_get_extension(fileFullPath),
                     };
@@ -371,8 +474,10 @@ namespace fs
         se_assert_msg(strlen(filePath) > 0, "fs::file_create failed : filePath is an empty string");
         se_assert_msg(!utils::contains(filePath, SE_FS_SEPARATOR_CHAR), "fs::file_create doesn't accept paths with separators. Incorrect path is : {}", filePath);
         se_assert_msg(!utils::contains(filePath, '/'), "fs::file_create doesn't accept paths with separators. Incorrect path is : {}", filePath);
-        se_assert_msg(PathIsRelativeA(filePath), "fs::file_create accepts only relative paths. Incorrect path is : {}", filePath);
         se_assert_msg(impl::is_child_of(SE_USER_DATA_FOLDER, folderHandle), "fs::file_create can create files only in SE_USER_DATA_FOLDER or it's subfolders");
+
+        const SeUtf16String filePathW = utf16_string::from_utf8_tmp(filePath);
+        se_assert_msg(PathIsRelativeW(utf16_string::cstr(filePathW)), "fs::file_create accepts only relative paths. Incorrect path is : {}", filePath);
 
         if (const SeFileHandle foundHandle = file_find(filePath, folderHandle))
         {
@@ -380,11 +485,13 @@ namespace fs
         }
 
         SeFileSystemFolder& folder = impl::from_handle(folderHandle);
-        const SeString fileFullPath = string::create_fmt(SeStringLifetime::PERSISTENT, "{}" SE_FS_SEPARATOR "{}", folder.fullPath, filePath);
+        const SeUtf16String fileFullPathW = utf16_string::create(allocators::persistent(), utf16_string::cstr(folder.fullPathW), SE_FS_SEPARATOR_W, utf16_string::cstr(filePathW));
+        const SeString fileFullPath = utf16_string::to_utf8(fileFullPathW);
         const size_t fileIndex = ++g_fileSystem.numFiles;
         g_fileSystem.files[fileIndex] =
         {
             .fullPath   = fileFullPath,
+            .fullPathW  = fileFullPathW,
             .folder     = folderHandle,
             .extension  = impl::file_name_get_extension(fileFullPath),
         };
@@ -401,8 +508,10 @@ namespace fs
         se_assert_msg(strlen(folderPath) > 0, "fs::folder_create failed : folderPath is an empty string");
         se_assert_msg(!utils::contains(folderPath, SE_FS_SEPARATOR_CHAR), "fs::folder_create doesn't accept paths with separators. Incorrect path is : {}", folderPath);
         se_assert_msg(!utils::contains(folderPath, '/'), "fs::folder_create doesn't accept paths with separators. Incorrect path is : {}", folderPath);
-        se_assert_msg(PathIsRelativeA(folderPath), "fs::folder_create accepts only relative paths. Incorrect path is : {}", folderPath);
         se_assert_msg(impl::is_child_of(SE_USER_DATA_FOLDER, parentFolderHandle), "fs::folder_create can create files only in SE_USER_DATA_FOLDER or it's subfolders");
+
+        const SeUtf16String folderPathW = utf16_string::from_utf8_tmp(folderPath);
+        se_assert_msg(PathIsRelativeW(utf16_string::cstr(folderPathW)), "fs::folder_create accepts only relative paths. Incorrect path is : {}", folderPath);
 
         if (const SeFolderHandle foundHandle = folder_find_recursive(folderPath, parentFolderHandle))
         {
@@ -410,11 +519,12 @@ namespace fs
         }
 
         SeFileSystemFolder& parentFolder = impl::from_handle(parentFolderHandle);
-        const SeString folderFullPath = string::create_fmt(SeStringLifetime::PERSISTENT, "{}" SE_FS_SEPARATOR "{}", parentFolder.fullPath, folderPath);
+        const SeUtf16String folderFullPathW = utf16_string::create(allocators::persistent(), utf16_string::cstr(parentFolder.fullPathW), SE_FS_SEPARATOR_W, utf16_string::cstr(folderPathW));
         const size_t folderIndex = ++g_fileSystem.numFolders;
         g_fileSystem.folders[folderIndex] =
         {
-            .fullPath               = folderFullPath,
+            .fullPath               = utf16_string::to_utf8(folderFullPathW),
+            .fullPathW              = folderFullPathW,
             .parentFolder           = parentFolderHandle,
             .filesRecursive         = { },
             .filesNonRecursive      = { },
@@ -425,8 +535,8 @@ namespace fs
         utils::bm_set(parentFolder.foldersNonRecursive, folderIndex);
         impl::set_folder_child_recursive(parentFolderHandle, folderIndex);
 
-        const int cdResult = SHCreateDirectoryExA(NULL, string::cstr(folderFullPath), NULL);
-        se_assert_msg(cdResult != ERROR_BAD_PATHNAME && cdResult != ERROR_FILENAME_EXCED_RANGE && cdResult != ERROR_CANCELLED, "Failed to crete folder with path : {}", folderFullPath);
+        const int cdResult = SHCreateDirectoryExW(NULL, utf16_string::cstr(folderFullPathW), NULL);
+        se_assert_msg(cdResult != ERROR_BAD_PATHNAME && cdResult != ERROR_FILENAME_EXCED_RANGE && cdResult != ERROR_CANCELLED, "Failed to crete folder with path : {}", g_fileSystem.folders[folderIndex].fullPath);
 
         return { SeFolderHandle::NumericType(folderIndex) };
     }
@@ -471,20 +581,21 @@ namespace fs
         se_assert(g_fileSystem.numFolders == 0);
         g_fileSystem.numFolders = 2; // first and second folders are reserved for SE_APPLICATION_FOLDER and SE_USER_DATA_FOLDER
 
-        static char applicationFolderBuffer[MAX_PATH];
+        static WCHAR applicationFolderBuffer[MAX_PATH];
 
-        const DWORD gmfnResult = GetModuleFileNameA(NULL, applicationFolderBuffer, MAX_PATH);
+        const DWORD gmfnResult = GetModuleFileNameW(NULL, applicationFolderBuffer, MAX_PATH);
         se_assert_msg(gmfnResult > 0, "Can't get root directory path - internal error. Error code : {}", GetLastError());
         se_assert_msg(gmfnResult < MAX_PATH, "Can't get root directory path - buffer is too small. Required size (with terminating character) is {}", gmfnResult);
 
-        const BOOL prfsResult = PathRemoveFileSpecA(applicationFolderBuffer);
+        const BOOL prfsResult = PathRemoveFileSpecW(applicationFolderBuffer);
         se_assert_msg(prfsResult, "Can't get root directory path - PathRemoveFileSpecA failed with code {}", prfsResult);
 
-        const SeString applicationFolderFullPath = string::create(applicationFolderBuffer, SeStringLifetime::PERSISTENT);
+        const SeUtf16String applicationFolderFullPathW = utf16_string::create(allocators::persistent(), applicationFolderBuffer);
         SeFileSystemFolder& applicationFolder = impl::from_handle(SE_APPLICATION_FOLDER);
         applicationFolder =
         {
-            .fullPath               = applicationFolderFullPath,
+            .fullPath               = utf16_string::to_utf8(applicationFolderFullPathW),
+            .fullPathW              = applicationFolderFullPathW,
             .parentFolder           = { 0 },
             .filesRecursive         = { },
             .filesNonRecursive      = { },
@@ -495,19 +606,21 @@ namespace fs
 
         if (settings.createUserDataFolder)
         {
-            static char userDataFolderBuffer[MAX_PATH];
-            const HRESULT gfpResult = SHGetFolderPathA(NULL, CSIDL_LOCAL_APPDATA, NULL, SHGFP_TYPE_CURRENT, userDataFolderBuffer);
+            static WCHAR userDataFolderBuffer[MAX_PATH];
+            const HRESULT gfpResult = SHGetFolderPathW(NULL, CSIDL_LOCAL_APPDATA, NULL, SHGFP_TYPE_CURRENT, userDataFolderBuffer);
             se_assert_msg(SUCCEEDED(gfpResult), "Can't get user data folder path. Error code : {}", gfpResult);
 
-            const SeString userDataFolderFullPath = string::create_fmt(SeStringLifetime::PERSISTENT, "{}" SE_FS_SEPARATOR "{}", userDataFolderBuffer, settings.applicationName);
+            const SeUtf16String applicationNameW = utf16_string::from_utf8_tmp(settings.applicationName);
+            const SeUtf16String userDataFolderFullPathW = utf16_string::create(allocators::persistent(), userDataFolderBuffer, SE_FS_SEPARATOR_W, utf16_string::cstr(applicationNameW));
 
-            const int cdResult = SHCreateDirectoryExA(NULL, string::cstr(userDataFolderFullPath), NULL);
+            const int cdResult = SHCreateDirectoryExW(NULL, utf16_string::cstr(userDataFolderFullPathW), NULL);
             se_assert_msg(cdResult != ERROR_BAD_PATHNAME && cdResult != ERROR_FILENAME_EXCED_RANGE && cdResult != ERROR_CANCELLED, "Can't create user data folder");
 
             SeFileSystemFolder& userDataFolder = impl::from_handle(SE_USER_DATA_FOLDER);
             userDataFolder =
             {
-                .fullPath               = userDataFolderFullPath,
+                .fullPath               = utf16_string::to_utf8(userDataFolderFullPathW),
+                .fullPathW              = userDataFolderFullPathW,
                 .parentFolder           = { 0 },
                 .filesRecursive         = { },
                 .filesNonRecursive      = { },
@@ -520,7 +633,19 @@ namespace fs
 
     void engine::terminate()
     {
-        
+        for (size_t it = 0; it < g_fileSystem.numFiles; it++)
+        {
+            SeFileSystemFile& file = g_fileSystem.files[it];
+            string::destroy(file.fullPath);
+            utf16_string::destroy(file.fullPathW);
+        }
+
+        for (size_t it = 0; it < g_fileSystem.numFolders; it++)
+        {
+            SeFileSystemFolder& folder = g_fileSystem.folders[it];
+            string::destroy(folder.fullPath);
+            utf16_string::destroy(folder.fullPathW);
+        }
     }
 
 } // namespace fs

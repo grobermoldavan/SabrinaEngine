@@ -34,6 +34,7 @@ namespace string
     SeString                                create(const SeString& source, SeStringLifetime lifetime = SeStringLifetime::TEMPORARY);
     SeString                                create(const char* source, SeStringLifetime lifetime = SeStringLifetime::TEMPORARY);
     template<typename ... Args> SeString    create_fmt(SeStringLifetime lifetime, const char* fmt, const Args& ... args);
+    SeString                                create(size_t length, SeStringLifetime lifetime = SeStringLifetime::TEMPORARY);
     void                                    destroy(const SeString& str);
 
     template<typename T>                SeString cast(const T& value, SeStringLifetime lifetime = SeStringLifetime::TEMPORARY);
@@ -42,6 +43,7 @@ namespace string
     template<std::floating_point T>     SeString cast(const T& value, SeStringLifetime lifetime = SeStringLifetime::TEMPORARY);
     template<se_cstring T>              SeString cast(const T& value, SeStringLifetime lifetime = SeStringLifetime::TEMPORARY);
     template<>                          SeString cast<SeString>(const SeString& value, SeStringLifetime lifetime);
+    template<>                          SeString cast<nullptr_t>(const nullptr_t& value, SeStringLifetime lifetime);
 
     namespace engine
     {

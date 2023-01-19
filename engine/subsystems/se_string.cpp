@@ -213,6 +213,11 @@ namespace string
         return string_builder::end(builder);
     }
 
+    inline SeString create(size_t length, SeStringLifetime lifetime)
+    {
+        return se_string_create(lifetime == SeStringLifetime::TEMPORARY, length, nullptr);
+    }
+
     inline void destroy(const SeString& str)
     {
         se_string_destroy(str);
@@ -251,13 +256,19 @@ namespace string
     template<se_cstring T>
     inline SeString cast(const T& value, SeStringLifetime lifetime)
     {
-        return string::create(value, lifetime);
+        return value == nullptr ? string::cast(nullptr, lifetime) : string::create(value, lifetime);
     }
 
     template<>
     inline SeString cast<SeString>(const SeString& value, SeStringLifetime lifetime)
     {
         return string::create(value, lifetime);
+    }
+
+    template<>
+    inline SeString cast<nullptr_t>(const nullptr_t& value, SeStringLifetime lifetime)
+    {
+        return string::create("nullptr", lifetime);
     }
 
     void engine::init()
