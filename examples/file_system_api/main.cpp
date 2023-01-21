@@ -5,32 +5,12 @@
 DataProvider g_fontDataEnglish;
 DataProvider g_fontDataRussian;
 
-const size_t FOLDER_STACK_SIZE = 32;
-SeFolderHandle g_folderStack[FOLDER_STACK_SIZE];
-size_t g_folderStackTop = 0;
-
-void folder_stack_push(SeFolderHandle folder)
-{
-    g_folderStack[g_folderStackTop++] = folder;
-}
-
-void folder_stack_pop()
-{
-    if (!g_folderStackTop) return;
-    g_folderStackTop -= 1;
-}
-
-SeFolderHandle folder_stack_top()
-{
-    se_assert(g_folderStackTop);
-    return g_folderStack[g_folderStackTop - 1];
-}
+SeFolderHandle g_folder = {};
 
 void init()
 {
     g_fontDataEnglish = data_provider::from_file("shahd serif.ttf");
     g_fontDataRussian = data_provider::from_file("a_antiquetrady regular.ttf");
-    folder_stack_push(SE_APPLICATION_FOLDER);
 }
 
 void terminate()
@@ -71,10 +51,10 @@ void update(const SeUpdateInfo& info)
                     .mode       = SeUiButtonMode::CLICK,
                 }))
                 {
-                    folder_stack_pop();
+                    if (g_folder) g_folder = fs::parent_folder(g_folder);
                 }
 
-                if (g_folderStackTop == 0)
+                if (!g_folder)
                 {
                     if (ui::button
                     ({
@@ -85,7 +65,7 @@ void update(const SeUpdateInfo& info)
                         .mode       = SeUiButtonMode::CLICK,
                     }))
                     {
-                        folder_stack_push(SE_APPLICATION_FOLDER);
+                        g_folder = SE_APPLICATION_FOLDER;
                     }
                     if (fs::full_path(SE_USER_DATA_FOLDER))
                     {
@@ -98,19 +78,18 @@ void update(const SeUpdateInfo& info)
                             .mode       = SeUiButtonMode::CLICK,
                         }))
                         {
-                            folder_stack_push(SE_USER_DATA_FOLDER);
+                            g_folder = SE_USER_DATA_FOLDER;
                         }
                     }
                 }
                 else
                 {
-                    const SeFolderHandle currentFolder = folder_stack_top();
-                    ui::text({ .utf8text = fs::full_path(currentFolder) });
-                    for (SeFileHandle file : SeFileIterator{ currentFolder })
+                    ui::text({ .utf8text = fs::full_path(g_folder) });
+                    for (SeFileHandle file : SeFileIterator{ g_folder })
                     {
                         ui::text({ .utf8text = fs::full_path(file) });
                     }
-                    for (SeFolderHandle folder : SeFolderIterator{ currentFolder, true })
+                    for (SeFolderHandle folder : SeFolderIterator{ g_folder, true })
                     {
                         const char* fullPath = fs::full_path(folder);
                         if (ui::button
@@ -122,7 +101,7 @@ void update(const SeUpdateInfo& info)
                             .mode       = SeUiButtonMode::CLICK,
                         }))
                         {
-                            folder_stack_push(folder);
+                            g_folder = folder;
                         }
                         for (SeFileHandle file : SeFileIterator{ folder })
                         {

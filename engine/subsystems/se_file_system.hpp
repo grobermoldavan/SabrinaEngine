@@ -62,6 +62,9 @@ namespace fs
     SeFileHandle    file_create(const char* filePath, SeFolderHandle handle = SE_USER_DATA_FOLDER);
     SeFolderHandle  folder_create(const char* folderPath, SeFolderHandle handle = SE_USER_DATA_FOLDER);
 
+    SeFolderHandle  parent_folder(SeFolderHandle handle);
+    SeFolderHandle  parent_folder(SeFileHandle handle);
+
     const char*     full_path(SeFileHandle handle);
     const char*     full_path(SeFolderHandle handle);
 

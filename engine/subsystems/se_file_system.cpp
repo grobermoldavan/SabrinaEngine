@@ -540,6 +540,18 @@ namespace fs
 
         return { SeFolderHandle::NumericType(folderIndex) };
     }
+
+    inline SeFolderHandle parent_folder(SeFolderHandle handle)
+    {
+        const SeFileSystemFolder& folder = impl::from_handle(handle);
+        return folder.parentFolder;
+    }
+
+    inline SeFolderHandle parent_folder(SeFileHandle handle)
+    {
+        const SeFileSystemFile& file = impl::from_handle(handle);
+        return file.folder;
+    }
     
     const char* full_path(SeFileHandle handle)
     {
