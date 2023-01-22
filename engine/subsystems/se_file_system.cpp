@@ -36,11 +36,21 @@ using SeFolderMask = SeBitMask<SE_FS_MAX_FOLDERS + 1>;
 
 struct SeFileSystemFile
 {
+    enum struct IOState
+    {
+        NOT_OPEN,
+        OPEN_FOR_READ,
+        OPEN_FOR_WRITE,
+    };
+
     SeString        fullPath;
     SeUtf16String   fullPathW;
 
     SeFolderHandle  folder;
     const char*     extension; // pointer to a fillPath string
+
+    IOState         ioState;
+    HANDLE          writeHandle;
 };
 
 struct SeFileSystemFolder
@@ -268,10 +278,12 @@ namespace fs
                     const SeString fileFullPath = utf16_string::to_utf8(fileFullPathW);
                     g_fileSystem.files[fileIndex] =
                     {
-                        .fullPath   = fileFullPath,
-                        .fullPathW  = fileFullPathW,
-                        .folder     = folderHandle,
-                        .extension  = file_name_get_extension(fileFullPath),
+                        .fullPath       = fileFullPath,
+                        .fullPathW      = fileFullPathW,
+                        .folder         = folderHandle,
+                        .extension      = file_name_get_extension(fileFullPath),
+                        .ioState        = SeFileSystemFile::IOState::NOT_OPEN,
+                        .writeHandle    = INVALID_HANDLE_VALUE,
                     };
                     utils::bm_set(folder.filesNonRecursive, fileIndex);
                     set_file_child_recursive(folderHandle, fileIndex);
@@ -361,13 +373,13 @@ namespace fs
         inline bool is_child_of(SeFolderHandle parentHandle, SeFolderHandle childHandle)
         {
             const SeFileSystemFolder& parentFolder = from_handle(parentHandle);
-            return utils::bm_get(parentFolder.foldersNonRecursive, childHandle.value);
+            return utils::bm_get(parentFolder.foldersRecursive, childHandle.value) || (parentHandle.value == childHandle.value);
         }
 
         inline bool is_child_of(SeFolderHandle parentHandle, SeFileHandle childHandle)
         {
             const SeFileSystemFolder& parentFolder = from_handle(parentHandle);
-            return utils::bm_get(parentFolder.filesNonRecursive, childHandle.value);
+            return utils::bm_get(parentFolder.filesRecursive, childHandle.value);
         }
     }
 
@@ -415,18 +427,19 @@ namespace fs
     SeFileContent file_read(SeFileHandle handle, const AllocatorBindings& bindings)
     {
         const SeFileSystemFile& file = impl::from_handle(handle);
+        se_assert_msg(file.ioState != SeFileSystemFile::IOState::OPEN_FOR_WRITE, "Can't read file with path {}. It's already open for wrtie", file.fullPath);
 
-        const HANDLE winHandle = CreateFileA
+        const HANDLE winHandle = CreateFileW
         (
-            string::cstr(file.fullPath),
+            utf16_string::cstr(file.fullPathW),
             GENERIC_READ,
             FILE_SHARE_READ,
             nullptr,
             OPEN_ALWAYS,
-            FILE_ATTRIBUTE_NORMAL /*| FILE_FLAG_WRITE_THROUGH // ? */,
+            FILE_ATTRIBUTE_NORMAL,
             nullptr
         );
-        se_assert_msg(winHandle != INVALID_HANDLE_VALUE, "Can't read file. Error code is {}", GetLastError());
+        se_assert_msg(winHandle != INVALID_HANDLE_VALUE, "Can't read file with path {}. Error code is {}", file.fullPath, GetLastError());
 
         uint64_t fileSize = 0;
         {
@@ -461,13 +474,78 @@ namespace fs
         };
     }
 
-    void file_free(SeFileContent& content)
+    void file_content_free(SeFileContent& content)
     {
         if (!content.data) return;
         allocator_bindings::dealloc(content.bindings, content.data, content.dataSize + 1);
         content = {};
     }
 
+    void file_write_begin(SeFileHandle handle, SeFileWriteOpenMode openMode)
+    {
+        se_assert_msg(impl::is_child_of(SE_USER_DATA_FOLDER, handle), , "Can't write to file with path {}. File must be in user data fodler", file.fullPath);
+
+        SeFileSystemFile& file = impl::from_handle(handle);
+        se_assert_msg(file.ioState != SeFileSystemFile::IOState::OPEN_FOR_READ, "Can't write to file with path {}. It's already open for read", file.fullPath);
+        if (file.ioState == SeFileSystemFile::IOState::OPEN_FOR_WRITE)
+        {
+            return;
+        }
+
+        se_assert(file.writeHandle == INVALID_HANDLE_VALUE);
+        const HANDLE winHandle = CreateFileW
+        (
+            utf16_string::cstr(file.fullPathW),
+            FILE_APPEND_DATA,
+            0, // not a shared file
+            nullptr,
+            openMode == SeFileWriteOpenMode::CLEAR ? CREATE_ALWAYS : OPEN_ALWAYS,
+            FILE_ATTRIBUTE_NORMAL /*| FILE_FLAG_WRITE_THROUGH // ? */,
+            nullptr
+        );
+        se_assert_msg(winHandle != INVALID_HANDLE_VALUE, "Can't read file with path {}. Error code is {}", file.fullPath, GetLastError());
+
+        file.ioState = SeFileSystemFile::IOState::OPEN_FOR_WRITE;
+        file.writeHandle = winHandle;
+    }
+
+    void file_write(SeFileHandle handle, DataProvider data)
+    {
+        SeFileSystemFile& file = impl::from_handle(handle);
+        se_assert_msg(file.ioState == SeFileSystemFile::IOState::OPEN_FOR_WRITE, "Can't write to file with path {}. It's not open for write", file.fullPath);
+        se_assert_msg(file.writeHandle != INVALID_HANDLE_VALUE, "Can't write to file with path {}. File HANDLE is invalid", file.fullPath);
+
+        const auto [memory, size] = data_provider::get(data);
+        se_assert_msg(memory, "Can't write to file with path {}. Data is null", file.fullPath);
+
+        DWORD bytesWritten = 0;
+        const BOOL result = WriteFile
+        (
+            file.writeHandle,
+            memory,
+            DWORD(size),
+            &bytesWritten,
+            nullptr
+        );
+
+        se_assert_msg(result, "Write file failed. File path is {}. Error code is {}", file.fullPath, GetLastError());
+        se_assert_msg(bytesWritten == DWORD(size), "Write file failed - number of written bytes is not equal to requested number of bytes. File path is {}", file.fullPath);
+    }
+
+    void file_write_end(SeFileHandle handle)
+    {
+        SeFileSystemFile& file = impl::from_handle(handle);
+        if (file.ioState != SeFileSystemFile::IOState::OPEN_FOR_WRITE)
+        {
+            return;
+        }
+
+        se_assert_msg(file.writeHandle != INVALID_HANDLE_VALUE, "Can't stop writing to file with path {}. File HANDLE is invalid", file.fullPath);
+        CloseHandle(file.writeHandle);
+        file.writeHandle = INVALID_HANDLE_VALUE;
+        file.ioState = SeFileSystemFile::IOState::NOT_OPEN;
+    }
+    
     SeFileHandle file_create(const char* filePath, SeFolderHandle folderHandle)
     {
         se_assert_msg(filePath, "fs::file_create failed : filePath is null");
@@ -490,10 +568,12 @@ namespace fs
         const size_t fileIndex = ++g_fileSystem.numFiles;
         g_fileSystem.files[fileIndex] =
         {
-            .fullPath   = fileFullPath,
-            .fullPathW  = fileFullPathW,
-            .folder     = folderHandle,
-            .extension  = impl::file_name_get_extension(fileFullPath),
+            .fullPath       = fileFullPath,
+            .fullPathW      = fileFullPathW,
+            .folder         = folderHandle,
+            .extension      = impl::file_name_get_extension(fileFullPath),
+            .ioState        = SeFileSystemFile::IOState::NOT_OPEN,
+            .writeHandle    = INVALID_HANDLE_VALUE,
         };
 
         utils::bm_set(folder.filesNonRecursive, fileIndex);

@@ -98,7 +98,7 @@ void se_mesh_cgltf_release(const cgltf_memory_options* memory_options, const cgl
     {
         if (g_cgltfFiles[it].content.data == data)
         {
-            fs::file_free(g_cgltfFiles[it].content);
+            fs::file_content_free(g_cgltfFiles[it].content);
             g_cgltfFiles[it] = g_cgltfFiles[g_numCgltfFiles - 1];
             g_numCgltfFiles -= 1;
             break;

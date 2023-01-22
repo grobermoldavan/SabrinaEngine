@@ -15,6 +15,7 @@ struct SeBitMask
 };
 
 template <typename T> concept se_cstring = std::is_convertible_v<T, const char*>;
+template <typename T> concept se_not_cstring = !std::is_convertible_v<T, const char*>;
 
 namespace utils
 {

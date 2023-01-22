@@ -91,3 +91,5 @@ namespace engine
 #include "engine/subsystems/se_window.cpp"
 #include "engine/subsystems/se_assets.cpp"
 #include "engine/subsystems/se_ui.cpp"
+
+#include "engine/se_data_providers.cpp"
