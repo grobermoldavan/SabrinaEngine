@@ -45,10 +45,10 @@ struct SeFileSystemFile
 
     SeString        fullPath;
     SeUtf16String   fullPathW;
+    const char*     extension; // pointer to a fullPath string
+    const char*     name; // pointer to a fullPath string
 
     SeFolderHandle  folder;
-    const char*     extension; // pointer to a fillPath string
-
     IOState         ioState;
     HANDLE          writeHandle;
 };
@@ -57,6 +57,7 @@ struct SeFileSystemFolder
 {
     SeString        fullPath;
     SeUtf16String   fullPathW;
+    const char*     name; // pointer to a fullPath string
 
     SeFolderHandle  parentFolder;
     SeFileMask      filesRecursive;
@@ -210,7 +211,24 @@ namespace fs
             set_file_child_recursive(parentFolder.parentFolder, childFileIndex);
         }
 
-        const char* file_name_get_extension(const SeString& filePath)
+        const char* get_name_from_path(const SeString& filePath)
+        {
+            const char* filePathCstr = string::cstr(filePath);
+            const size_t filePathLength = string::length(filePath);
+            const char* result = nullptr;
+            for (size_t it = filePathLength; it > 0; it--)
+            {
+                const char c = filePathCstr[it - 1];
+                if (c == SE_FS_SEPARATOR_CHAR)
+                {
+                    result = filePathCstr + it;
+                    break;
+                }
+            }
+            return result;
+        }
+
+        const char* get_extension_from_path(const SeString& filePath)
         {
             const char* filePathCstr = string::cstr(filePath);
             const size_t filePathLength = string::length(filePath);
@@ -254,10 +272,12 @@ namespace fs
                     se_assert(g_fileSystem.numFolders < SE_FS_MAX_FOLDERS);
                     const size_t newFolderIndex = ++g_fileSystem.numFolders;
                     const SeUtf16String newFolderFullPathW = utf16_string::create(allocators::persistent(), utf16_string::cstr(folder.fullPathW), SE_FS_SEPARATOR_W, findResult.cFileName);
+                    const SeString newFolderFullPath = utf16_string::to_utf8(newFolderFullPathW);
                     g_fileSystem.folders[newFolderIndex] =
                     {
-                        .fullPath               = utf16_string::to_utf8(newFolderFullPathW),
+                        .fullPath               = newFolderFullPath,
                         .fullPathW              = newFolderFullPathW,
+                        .name                   = get_name_from_path(newFolderFullPath),
                         .parentFolder           = folderHandle,
                         .filesRecursive         = { },
                         .filesNonRecursive      = { },
@@ -280,8 +300,9 @@ namespace fs
                     {
                         .fullPath       = fileFullPath,
                         .fullPathW      = fileFullPathW,
+                        .extension      = get_extension_from_path(fileFullPath),
+                        .name           = get_name_from_path(fileFullPath),
                         .folder         = folderHandle,
-                        .extension      = file_name_get_extension(fileFullPath),
                         .ioState        = SeFileSystemFile::IOState::NOT_OPEN,
                         .writeHandle    = INVALID_HANDLE_VALUE,
                     };
@@ -418,12 +439,6 @@ namespace fs
         return file.folder;
     }
     
-    inline const char* file_extension(SeFileHandle handle)
-    {
-        const SeFileSystemFile& file = impl::from_handle(handle);
-        return file.extension;
-    }
-
     SeFileContent file_read(SeFileHandle handle, const AllocatorBindings& bindings)
     {
         const SeFileSystemFile& file = impl::from_handle(handle);
@@ -483,9 +498,8 @@ namespace fs
 
     void file_write_begin(SeFileHandle handle, SeFileWriteOpenMode openMode)
     {
-        se_assert_msg(impl::is_child_of(SE_USER_DATA_FOLDER, handle), , "Can't write to file with path {}. File must be in user data fodler", file.fullPath);
-
         SeFileSystemFile& file = impl::from_handle(handle);
+        se_assert_msg(impl::is_child_of(SE_USER_DATA_FOLDER, handle), "Can't write to file with path {}. File must be in user data fodler", file.fullPath);
         se_assert_msg(file.ioState != SeFileSystemFile::IOState::OPEN_FOR_READ, "Can't write to file with path {}. It's already open for read", file.fullPath);
         if (file.ioState == SeFileSystemFile::IOState::OPEN_FOR_WRITE)
         {
@@ -570,8 +584,8 @@ namespace fs
         {
             .fullPath       = fileFullPath,
             .fullPathW      = fileFullPathW,
+            .extension      = impl::get_extension_from_path(fileFullPath),
             .folder         = folderHandle,
-            .extension      = impl::file_name_get_extension(fileFullPath),
             .ioState        = SeFileSystemFile::IOState::NOT_OPEN,
             .writeHandle    = INVALID_HANDLE_VALUE,
         };
@@ -633,18 +647,36 @@ namespace fs
         return file.folder;
     }
     
-    const char* full_path(SeFileHandle handle)
+    inline const char* full_path(SeFileHandle handle)
     {
         const SeFileSystemFile& file = impl::from_handle(handle);
         return string::cstr(file.fullPath);
     }
 
-    const char* full_path(SeFolderHandle handle)
+    inline const char* full_path(SeFolderHandle handle)
     {
         const SeFileSystemFolder& folder = impl::from_handle(handle);
         return string::cstr(folder.fullPath);
     }
 
+    inline const char* extension(SeFileHandle handle)
+    {
+        const SeFileSystemFile& file = impl::from_handle(handle);
+        return file.extension;
+    }
+
+    inline const char* name(SeFileHandle handle)
+    {
+        const SeFileSystemFile& file = impl::from_handle(handle);
+        return file.name;
+    }
+
+    inline const char* name(SeFolderHandle handle)
+    {
+        const SeFileSystemFolder& folder = impl::from_handle(handle);
+        return folder.name;
+    }
+    
     template<typename ... Args>
     inline const char* path(const Args& ... args)
     {
@@ -683,11 +715,13 @@ namespace fs
         se_assert_msg(prfsResult, "Can't get root directory path - PathRemoveFileSpecA failed with code {}", prfsResult);
 
         const SeUtf16String applicationFolderFullPathW = utf16_string::create(allocators::persistent(), applicationFolderBuffer);
+        const SeString applicationFolderFullPath = utf16_string::to_utf8(applicationFolderFullPathW);
         SeFileSystemFolder& applicationFolder = impl::from_handle(SE_APPLICATION_FOLDER);
         applicationFolder =
         {
-            .fullPath               = utf16_string::to_utf8(applicationFolderFullPathW),
+            .fullPath               = applicationFolderFullPath,
             .fullPathW              = applicationFolderFullPathW,
+            .name                   = impl::get_name_from_path(applicationFolderFullPath),
             .parentFolder           = { 0 },
             .filesRecursive         = { },
             .filesNonRecursive      = { },
@@ -704,6 +738,7 @@ namespace fs
 
             const SeUtf16String applicationNameW = utf16_string::from_utf8_tmp(settings.applicationName);
             const SeUtf16String userDataFolderFullPathW = utf16_string::create(allocators::persistent(), userDataFolderBuffer, SE_FS_SEPARATOR_W, utf16_string::cstr(applicationNameW));
+            const SeString userDataFolderFullPath = utf16_string::to_utf8(userDataFolderFullPathW);
 
             const int cdResult = SHCreateDirectoryExW(NULL, utf16_string::cstr(userDataFolderFullPathW), NULL);
             se_assert_msg(cdResult != ERROR_BAD_PATHNAME && cdResult != ERROR_FILENAME_EXCED_RANGE && cdResult != ERROR_CANCELLED, "Can't create user data folder");
@@ -711,8 +746,9 @@ namespace fs
             SeFileSystemFolder& userDataFolder = impl::from_handle(SE_USER_DATA_FOLDER);
             userDataFolder =
             {
-                .fullPath               = utf16_string::to_utf8(userDataFolderFullPathW),
+                .fullPath               = userDataFolderFullPath,
                 .fullPathW              = userDataFolderFullPathW,
+                .name                   = impl::get_name_from_path(userDataFolderFullPath),
                 .parentFolder           = { 0 },
                 .filesRecursive         = { },
                 .filesNonRecursive      = { },

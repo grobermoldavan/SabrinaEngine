@@ -32,7 +32,6 @@ namespace fs
     SeFolderHandle  folder_find_recursive(const char* folderPath, SeFolderHandle handle = SE_APPLICATION_FOLDER);
 
     SeFolderHandle  file_get_folder(SeFileHandle handle);
-    const char*     file_extension(SeFileHandle handle);
 
     SeFileContent   file_read(SeFileHandle handle, const AllocatorBindings& bindings);
     void            file_content_free(SeFileContent& content);
@@ -49,6 +48,11 @@ namespace fs
 
     const char*     full_path(SeFileHandle handle);
     const char*     full_path(SeFolderHandle handle);
+
+    const char*     extension(SeFileHandle handle);
+
+    const char*     name(SeFileHandle handle);
+    const char*     name(SeFolderHandle handle);
 
     template<typename ... Args> const char* path(const Args& ... args);
 
