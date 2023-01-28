@@ -1123,10 +1123,8 @@ struct UiContext
     SeString                                        currentWindowUid;
     bool                                            isJustActivated;
 
-    float                                           workRegionBottomLeftX;
-    float                                           workRegionBottomLeftY;
-    float                                           workRegionTopRightX;
-    float                                           workRegionTopRightY;
+    bool                                            hasWorkRegion;
+    UiQuadCoords                                    workRegion;
 
     HashTable<SeString, UiObjectData>               uidToObjectData;
     HashTable<DataProvider, FontInfo>               fontInfos;
@@ -1141,7 +1139,7 @@ const UiParams DEFAULT_PARAMS =
 {
     /* FONT_COLOR                   */ { .color = col::pack({ 1.0f, 1.0f, 1.0f, 1.0f }) },
     /* FONT_HEIGHT                  */ { .dim = 30.0f },
-    /* FONT_LINE_STEP               */ { .dim = 35.0f },
+    /* FONT_LINE_GAP                */ { .dim = 5.0f },
     /* PRIMARY_COLOR                */ { .color = col::pack({ 0.73f, 0.11f, 0.14f, 1.0f }) },
     /* SECONDARY_COLOR              */ { .color = col::pack({ 0.09f, 0.01f, 0.01f, 0.7f }) },
     /* ACCENT_COLOR                 */ { .color = col::pack({ 0.88f, 0.73f, 0.73f, 1.0f }) },
@@ -1206,7 +1204,7 @@ namespace ui
             return { hash_table::key(g_uiCtx.uidToObjectData, data), data, isFirstAccess };
         }
 
-        uint32_t set_draw_cal(const UiRenderColorsUnpacked& colors)
+        uint32_t set_draw_call(const UiRenderColorsUnpacked& colors)
         {
             const size_t numDrawCalls = dynamic_array::size(g_uiCtx.frameDrawCalls);
             const UiDrawCall* const lastDrawCall = numDrawCalls ? &g_uiCtx.frameDrawCalls[numDrawCalls - 1] : nullptr;
@@ -1223,7 +1221,7 @@ namespace ui
             return dynamic_array::size<uint32_t>(g_uiCtx.frameColors) - 1;
         }
 
-        uint32_t set_draw_cal(SeTextureRef textureRef, const UiRenderColorsUnpacked& colors)
+        uint32_t set_draw_call(SeTextureRef textureRef, const UiRenderColorsUnpacked& colors)
         {
             //
             // Get draw call
@@ -1249,10 +1247,10 @@ namespace ui
 
         inline UiQuadCoords clamp_to_work_region(const UiQuadCoords& quad)
         {
-            const float wrx1 = g_uiCtx.workRegionBottomLeftX;
-            const float wry1 = g_uiCtx.workRegionBottomLeftY;
-            const float wrx2 = g_uiCtx.workRegionTopRightX;
-            const float wry2 = g_uiCtx.workRegionTopRightY;
+            const float wrx1 = g_uiCtx.workRegion.blX;
+            const float wry1 = g_uiCtx.workRegion.blY;
+            const float wrx2 = g_uiCtx.workRegion.trX;
+            const float wry2 = g_uiCtx.workRegion.trY;
             return
             {
                 se_clamp(quad.blX, wrx1, wrx2),
@@ -1284,22 +1282,24 @@ namespace ui
 
         inline UiQuadCoords get_corners(float width, float height)
         {
-            const bool isCenteredX = g_uiCtx.currentParams[SeUiParam::PIVOT_TYPE_X].pivot == SeUiPivotType::CENTER;
-            const bool isCenteredY = g_uiCtx.currentParams[SeUiParam::PIVOT_TYPE_Y].pivot == SeUiPivotType::CENTER;
-            const float dimX = g_uiCtx.currentParams[SeUiParam::PIVOT_POSITION_X].dim - (isCenteredX ? width / 2.0f : 0.0f);
-            const float dimY = g_uiCtx.currentParams[SeUiParam::PIVOT_POSITION_Y].dim - (isCenteredY ? height / 2.0f : 0.0f);
-            return { dimX, dimY, dimX + width, dimY + height };
-        }
-
-        inline UiQuadCoords get_corners_in_work_region(float width, float height)
-        {
-            return
+            if (g_uiCtx.hasWorkRegion)
             {
-                g_uiCtx.workRegionBottomLeftX,
-                g_uiCtx.workRegionTopRightY - height,
-                g_uiCtx.workRegionBottomLeftX + width,
-                g_uiCtx.workRegionTopRightY,
-            };
+                return
+                {
+                    g_uiCtx.workRegion.blX,
+                    g_uiCtx.workRegion.trY - height,
+                    g_uiCtx.workRegion.blX + width,
+                    g_uiCtx.workRegion.trY,
+                };
+            }
+            else
+            {
+                const bool isCenteredX = g_uiCtx.currentParams[SeUiParam::PIVOT_TYPE_X].pivot == SeUiPivotType::CENTER;
+                const bool isCenteredY = g_uiCtx.currentParams[SeUiParam::PIVOT_TYPE_Y].pivot == SeUiPivotType::CENTER;
+                const float dimX = g_uiCtx.currentParams[SeUiParam::PIVOT_POSITION_X].dim - (isCenteredX ? width / 2.0f : 0.0f);
+                const float dimY = g_uiCtx.currentParams[SeUiParam::PIVOT_POSITION_Y].dim - (isCenteredY ? height / 2.0f : 0.0f);
+                return { dimX, dimY, dimX + width, dimY + height };
+            }
         }
 
         inline bool is_under_cursor(const UiQuadCoords& quad)
@@ -1349,13 +1349,13 @@ namespace ui
 
         void draw_text_at_pos(const char* utf8text, float baselineX, float baselineY)
         {
-            if (/*this is an incorrect check : baselineY >= g_uiCtx.workRegionTopRightY || */ baselineX >= g_uiCtx.workRegionTopRightX)
+            if (g_uiCtx.hasWorkRegion && baselineX >= g_uiCtx.workRegion.trX)
             {
                 return;
             }
             const FontGroup* const fontGroup = g_uiCtx.currentFontGroup;
             const float fontHeight = g_uiCtx.currentParams[SeUiParam::FONT_HEIGHT].dim;
-            const uint32_t colorIndex = set_draw_cal(fontGroup->texture,
+            const uint32_t colorIndex = set_draw_call(fontGroup->texture,
             {
                 .tint = col::unpack(g_uiCtx.currentParams[SeUiParam::FONT_COLOR].color),
                 .mode = UiRenderColorsUnpacked::MODE_TEXT,
@@ -1393,6 +1393,21 @@ namespace ui
                 previousCodepoint = codepointSigned;
             }
         }
+
+        void reset_work_region()
+        {
+            g_uiCtx.hasWorkRegion   = false;
+            g_uiCtx.workRegion.blX  = 0.0f;
+            g_uiCtx.workRegion.blY  = 0.0f;
+            g_uiCtx.workRegion.trX  = win::get_width<float>();
+            g_uiCtx.workRegion.trY  = win::get_height<float>();
+        }
+
+        void set_work_region(const UiQuadCoords& quad)
+        {
+            g_uiCtx.hasWorkRegion = true;
+            g_uiCtx.workRegion = quad;
+        }
     }
 
     bool begin(const SeUiBeginInfo& info)
@@ -1418,14 +1433,12 @@ namespace ui
         g_uiCtx.isJustActivated =
             utils::compare(g_uiCtx.previousActiveObjectUid, SeString{ }) &&
             !utils::compare(g_uiCtx.currentActiveObjectUid, SeString{ });
-        g_uiCtx.previousHoveredObjectUid   = g_uiCtx.currentHoveredObjectUid;
-        g_uiCtx.previousActiveObjectUid    = g_uiCtx.currentActiveObjectUid;
-        g_uiCtx.currentHoveredObjectUid    = { };
-        g_uiCtx.currentWindowUid           = { };
-        g_uiCtx.workRegionBottomLeftX      = 0.0f;
-        g_uiCtx.workRegionBottomLeftY      = 0.0f;
-        g_uiCtx.workRegionTopRightX        = win::get_width<float>();
-        g_uiCtx.workRegionTopRightY        = win::get_height<float>();
+        g_uiCtx.previousHoveredObjectUid    = g_uiCtx.currentHoveredObjectUid;
+        g_uiCtx.previousActiveObjectUid     = g_uiCtx.currentActiveObjectUid;
+        g_uiCtx.currentHoveredObjectUid     = { };
+        g_uiCtx.currentWindowUid            = { };
+        impl::reset_work_region();
+        
         if (!g_uiCtx.isMouseDown)
         {
             g_uiCtx.currentActiveObjectUid = { };
@@ -1615,15 +1628,14 @@ namespace ui
 
     void text(const SeUiTextInfo& info)
     {
-        const UiObjectData* const activeWindow = hash_table::get(g_uiCtx.uidToObjectData, g_uiCtx.currentWindowUid);
         const float fontHeight = g_uiCtx.currentParams[SeUiParam::FONT_HEIGHT].dim;
-        if (activeWindow)
+        if (g_uiCtx.hasWorkRegion)
         {
-            const float lineStep = g_uiCtx.currentParams[SeUiParam::FONT_LINE_STEP].dim;
-            const float baselineX = g_uiCtx.workRegionBottomLeftX;
-            const float baselineY = g_uiCtx.workRegionTopRightY - fontHeight;
+            const float lineGap = g_uiCtx.currentParams[SeUiParam::FONT_LINE_GAP].dim;
+            const float baselineX = g_uiCtx.workRegion.blX;
+            const float baselineY = g_uiCtx.workRegion.trY - fontHeight;
             impl::draw_text_at_pos(info.utf8text, baselineX, baselineY);
-            g_uiCtx.workRegionTopRightY -= lineStep;
+            g_uiCtx.workRegion.trY -= fontHeight + lineGap;
         }
         else
         {
@@ -1638,18 +1650,16 @@ namespace ui
 
     bool begin_window(const SeUiWindowInfo& info)
     {
-        static constexpr float BORDER_PANEL_TOLERANCE = 5.0f;
+        se_assert_msg(!g_uiCtx.hasWorkRegion, "Can't begin new window - another window or region is currently active");
         //
         // Update object data
         //
         auto [uid, data, isFirst] = impl::object_data_get(info.uid);
-        UiQuadCoords quad = impl::get_corners(info.width, info.height);
-        const bool isResizeable = info.flags & (SeUiFlags::RESIZABLE_X | SeUiFlags::RESIZABLE_Y);
-        if (isResizeable && !isFirst)
-        {
-            quad = data->quad;
-        }
-        else
+        const bool getQuadFromData = (info.flags & (SeUiFlags::RESIZABLE_X | SeUiFlags::RESIZABLE_Y)) && !isFirst;
+        const UiQuadCoords quad = getQuadFromData
+            ? data->quad
+            : impl::get_corners(info.width, info.height);
+        if (!getQuadFromData)
         {
             data->quad = quad;
         }
@@ -1668,6 +1678,7 @@ namespace ui
             {
                 g_uiCtx.currentActiveObjectUid = uid;
                 const bool isTopPanelUnderCursor = ((quad.trY - topPanelThickness) <= g_uiCtx.mouseY);
+                static constexpr float BORDER_PANEL_TOLERANCE = 5.0f;
                 const bool isLeftBorderUnderCursor = !isTopPanelUnderCursor && ((quad.blX + borderThickness + BORDER_PANEL_TOLERANCE) >= g_uiCtx.mouseX);
                 const bool isRightBorderUnderCursor = !isTopPanelUnderCursor && ((quad.trX - borderThickness - BORDER_PANEL_TOLERANCE) <= g_uiCtx.mouseX);
                 const bool isBottomBorderUnderCursor = !isTopPanelUnderCursor && ((quad.blY + borderThickness + BORDER_PANEL_TOLERANCE) >= g_uiCtx.mouseY);
@@ -1684,7 +1695,7 @@ namespace ui
         //
         // Draw top panel and borders
         //
-        const uint32_t colorIndexBorders = impl::set_draw_cal
+        const uint32_t colorIndexBorders = impl::set_draw_call
         ({
             .tint = col::unpack(g_uiCtx.currentParams[SeUiParam::PRIMARY_COLOR].color),
             .mode = UiRenderColorsUnpacked::MODE_SIMPLE,
@@ -1696,7 +1707,7 @@ namespace ui
         //
         // Draw background
         //
-        const uint32_t colorIndexBackground = impl::set_draw_cal
+        const uint32_t colorIndexBackground = impl::set_draw_call
         ({
             .tint = col::unpack(g_uiCtx.currentParams[SeUiParam::SECONDARY_COLOR].color),
             .mode = UiRenderColorsUnpacked::MODE_SIMPLE,
@@ -1705,10 +1716,13 @@ namespace ui
 
         g_uiCtx.currentWindowUid = uid;
         const float windowPadding = g_uiCtx.currentParams[SeUiParam::WINDOW_INNER_PADDING].dim;
-        g_uiCtx.workRegionBottomLeftX = quad.blX + borderThickness + windowPadding;
-        g_uiCtx.workRegionBottomLeftY = quad.blY + borderThickness + windowPadding;
-        g_uiCtx.workRegionTopRightX = quad.trX - borderThickness - windowPadding;
-        g_uiCtx.workRegionTopRightY = quad.trY - topPanelThickness - windowPadding;
+        impl::set_work_region
+        ({
+            quad.blX + borderThickness + windowPadding,
+            quad.blY + borderThickness + windowPadding,
+            quad.trX - borderThickness - windowPadding,
+            quad.trY - topPanelThickness - windowPadding,
+        });
 
         return true;
     }
@@ -1716,10 +1730,31 @@ namespace ui
     void end_window()
     {
         g_uiCtx.currentWindowUid = { };
-        g_uiCtx.workRegionBottomLeftX = 0.0f;
-        g_uiCtx.workRegionBottomLeftY = 0.0f;
-        g_uiCtx.workRegionTopRightX = win::get_width<float>();
-        g_uiCtx.workRegionTopRightY = win::get_height<float>();
+        impl::reset_work_region();
+    }
+
+    bool begin_region(const SeUiRegionInfo& info)
+    {
+        se_assert_msg(!g_uiCtx.hasWorkRegion, "Can't begin new region - another window or region is currently active");
+
+        const UiQuadCoords quad = impl::get_corners(info.width, info.height);
+        if (info.useDebugColor)
+        {
+            const uint32_t debugColorIndex = impl::set_draw_call
+            ({
+                .tint = col::unpack(g_uiCtx.currentParams[SeUiParam::ACCENT_COLOR].color),
+                .mode = UiRenderColorsUnpacked::MODE_SIMPLE,
+            });
+            impl::push_quad(debugColorIndex, quad);
+        }
+        impl::set_work_region(quad);
+
+        return true;
+    }
+
+    void end_region()
+    {
+        impl::reset_work_region();
     }
 
     bool button(const SeUiButtonInfo& info)
@@ -1744,12 +1779,11 @@ namespace ui
             // With negative boundin_box_y1 value we need to draw text above of the pivot, so we negate this value to get a positive result
             textOffsetY = -bby1 + border;
         }
-        const UiObjectData* const activeWindow = hash_table::get(g_uiCtx.uidToObjectData, g_uiCtx.currentWindowUid);
-        const UiQuadCoords quad = activeWindow ? impl::get_corners_in_work_region(buttonWidth, buttonHeight) : impl::get_corners(buttonWidth, buttonHeight);
+        const UiQuadCoords quad = impl::get_corners(buttonWidth, buttonHeight);
         //
         // Update state
         //
-        const bool isUnderCursor = impl::is_under_cursor(impl::clamp_to_work_region(quad));
+        const bool isUnderCursor = impl::is_under_cursor(quad);
         if (isUnderCursor)
         {
             g_uiCtx.currentHoveredObjectUid = uid;
@@ -1779,7 +1813,7 @@ namespace ui
             buttonColor.g *= SCALE;
             buttonColor.b *= SCALE;
         }
-        const uint32_t colorIndexButton = impl::set_draw_cal({ buttonColor, UiRenderColorsUnpacked::MODE_SIMPLE });
+        const uint32_t colorIndexButton = impl::set_draw_call({ buttonColor, UiRenderColorsUnpacked::MODE_SIMPLE });
         impl::push_quad(colorIndexButton, quad);
         //
         // Draw text
@@ -1790,9 +1824,9 @@ namespace ui
             const float posY = quad.blY + textOffsetY;
             impl::draw_text_at_pos(info.utf8text, posX, posY);
         }
-        if (activeWindow)
+        if (g_uiCtx.hasWorkRegion)
         {
-            g_uiCtx.workRegionTopRightY -= buttonHeight;
+            g_uiCtx.workRegion.trY -= buttonHeight;
         }
         return
             (info.mode == SeUiButtonMode::HOLD && isPressed) ||

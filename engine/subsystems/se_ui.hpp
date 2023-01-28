@@ -29,7 +29,7 @@ struct SeUiParam
     {
         FONT_COLOR                  = 0,
         FONT_HEIGHT                 = 1,
-        FONT_LINE_STEP              = 2,
+        FONT_LINE_GAP               = 2,
         PRIMARY_COLOR               = 3,
         SECONDARY_COLOR             = 4,
         ACCENT_COLOR                = 5,
@@ -45,7 +45,7 @@ struct SeUiParam
     };
     union
     {
-        SeColorPacked     color;
+        SeColorPacked   color;
         float           dim;
         SeUiPivotType   pivot;
     };
@@ -75,6 +75,13 @@ struct SeUiWindowInfo
     SeUiFlags::Type flags;
 };
 
+struct SeUiRegionInfo
+{
+    float   width;
+    float   height;
+    bool    useDebugColor;
+};
+
 enum struct SeUiButtonMode
 {
     HOLD,
@@ -100,6 +107,8 @@ namespace ui
     void                text            (const SeUiTextInfo& info);
     bool                begin_window    (const SeUiWindowInfo& info);
     void                end_window      ();
+    bool                begin_region    (const SeUiRegionInfo& info);
+    void                end_region      ();
     bool                button          (const SeUiButtonInfo& info);
 
     namespace engine

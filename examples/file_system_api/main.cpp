@@ -32,7 +32,7 @@ void update(const SeUpdateInfo& info)
             ui::set_param(SeUiParam::PIVOT_POSITION_X, { .dim = 0.0f });
             ui::set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = 0.0f });
             ui::set_param(SeUiParam::FONT_HEIGHT, { .dim = 20.0f });
-            ui::set_param(SeUiParam::FONT_LINE_STEP, { .dim = 22.0f });
+            ui::set_param(SeUiParam::FONT_LINE_GAP, { .dim = 2.0f });
 
             if (ui::begin_window
             ({

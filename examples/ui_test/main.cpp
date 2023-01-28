@@ -182,7 +182,7 @@ void update_window_example()
     if (win::is_keyboard_button_just_pressed(SeKeyboard::ESCAPE)) g_menuState = MenuState::MAIN;
 
     ui::set_param(SeUiParam::FONT_HEIGHT, { .dim = 40.0f });
-    ui::set_param(SeUiParam::FONT_LINE_STEP, { .dim = 50.0f });
+    ui::set_param(SeUiParam::FONT_LINE_GAP, { .dim = 10.0f });
     ui::set_param(SeUiParam::PIVOT_POSITION_X, { .dim = 100.0f });
     ui::set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = 100.0f });
     if (ui::begin_window({
