@@ -17,10 +17,15 @@ struct SeUiFontGroupInfo
     DataProvider fonts[MAX_FONTS];
 };
 
-enum struct SeUiPivotType : uint32_t
+using SeUiEnumType = uint32_t;
+
+struct SeUiPivotType
 {
-    BOTTOM_LEFT,
-    CENTER,
+    enum : SeUiEnumType
+    {
+        BOTTOM_LEFT,
+        CENTER,
+    };
 };
 
 struct SeUiParam
@@ -47,7 +52,7 @@ struct SeUiParam
     {
         SeColorPacked   color;
         float           dim;
-        SeUiPivotType   pivot;
+        SeUiEnumType    enumeration;
     };
 };
 

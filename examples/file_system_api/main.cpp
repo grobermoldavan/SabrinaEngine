@@ -27,8 +27,8 @@ void update(const SeUpdateInfo& info)
         {
             ui::set_font_group({ g_fontDataEnglish, g_fontDataRussian });
 
-            ui::set_param(SeUiParam::PIVOT_TYPE_X, { .pivot = SeUiPivotType::BOTTOM_LEFT });
-            ui::set_param(SeUiParam::PIVOT_TYPE_Y, { .pivot = SeUiPivotType::BOTTOM_LEFT });
+            ui::set_param(SeUiParam::PIVOT_TYPE_X, { .enumeration = SeUiPivotType::BOTTOM_LEFT });
+            ui::set_param(SeUiParam::PIVOT_TYPE_Y, { .enumeration = SeUiPivotType::BOTTOM_LEFT });
             ui::set_param(SeUiParam::PIVOT_POSITION_X, { .dim = 0.0f });
             ui::set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = 0.0f });
             ui::set_param(SeUiParam::FONT_HEIGHT, { .dim = 20.0f });

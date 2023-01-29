@@ -287,7 +287,7 @@ void tetris_render_update(float dt)
         {
             ui::set_font_group({ g_fontDataEnglish });
             ui::set_param(SeUiParam::FONT_HEIGHT, { .dim = 30.0f });
-            ui::set_param(SeUiParam::PIVOT_TYPE_X, { .pivot = SeUiPivotType::CENTER });
+            ui::set_param(SeUiParam::PIVOT_TYPE_X, { .enumeration = SeUiPivotType::CENTER });
             ui::set_param(SeUiParam::PIVOT_POSITION_X, { .dim = win::get_width<float>() * 0.5f });
             ui::set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = win::get_height<float>() - 40.0f });
             ui::text({ "Epic tetris game" });

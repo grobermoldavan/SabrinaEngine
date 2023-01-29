@@ -7,10 +7,10 @@
 - texture mipmapping
 - ref-counted render and assets handles
 
+- add window layouts for ui
 - add input actions abstraction
 - add keyboard text input
 - add controller input support
-- add borderless regions to ui - they should function like fully transparent non-movable windows with zero-wide borders
 - add scroll functionality to ui windows
 - add strict button size setting for ui (text should be clipped if it is too big)
 - debug output should cache messages that were submitted before debug init

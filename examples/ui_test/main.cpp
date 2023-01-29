@@ -83,8 +83,8 @@ void draw_language_selection()
     ui::set_param(SeUiParam::FONT_HEIGHT, { .dim = 40 });
     ui::set_param(SeUiParam::FONT_COLOR, { .color = col::pack({ 1.0f, 1.0f, 1.0f, 1.0f }) });
     ui::set_param(SeUiParam::PRIMARY_COLOR, { .color = col::pack({ 0.2f, 0.2f, 0.2f, 1.0f }) });
-    ui::set_param(SeUiParam::PIVOT_TYPE_X, { .pivot = SeUiPivotType::BOTTOM_LEFT });
-    ui::set_param(SeUiParam::PIVOT_TYPE_Y, { .pivot = SeUiPivotType::BOTTOM_LEFT });
+    ui::set_param(SeUiParam::PIVOT_TYPE_X, { .enumeration = SeUiPivotType::BOTTOM_LEFT });
+    ui::set_param(SeUiParam::PIVOT_TYPE_Y, { .enumeration = SeUiPivotType::BOTTOM_LEFT });
     ui::set_param(SeUiParam::PIVOT_POSITION_X, { .dim = 10.0f });
     ui::set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = 10.0f });
     if (ui::button({ "lang_selection", get_local(LocalizedString::CURRENT_LANGUAGE), 0, 0, SeUiButtonMode::CLICK }))
@@ -100,8 +100,8 @@ void update_main_menu()
     constexpr float FONT_HEIGHT = 80.0f;
 
     ui::set_param(SeUiParam::FONT_HEIGHT, { .dim = FONT_HEIGHT });
-    ui::set_param(SeUiParam::PIVOT_TYPE_X, { .pivot = SeUiPivotType::CENTER });
-    ui::set_param(SeUiParam::PIVOT_TYPE_Y, { .pivot = SeUiPivotType::CENTER });
+    ui::set_param(SeUiParam::PIVOT_TYPE_X, { .enumeration = SeUiPivotType::CENTER });
+    ui::set_param(SeUiParam::PIVOT_TYPE_Y, { .enumeration = SeUiPivotType::CENTER });
     ui::set_param(SeUiParam::PIVOT_POSITION_X, { .dim = win::get_width<float>() / 2.0f });
 
     ui::set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = win::get_height<float>() / 2.0f + FONT_HEIGHT * 2.0f });
@@ -145,8 +145,8 @@ void update_text_example(float dt)
     constexpr size_t NUM_COLORS = se_array_size(COLORS);
     constexpr TimeMs MAX_COLOR_TIME_MS = NUM_COLORS * COLOR_INTERVAL_MS;
 
-    ui::set_param(SeUiParam::PIVOT_TYPE_X, { .pivot = SeUiPivotType::BOTTOM_LEFT });
-    ui::set_param(SeUiParam::PIVOT_TYPE_Y, { .pivot = SeUiPivotType::BOTTOM_LEFT });
+    ui::set_param(SeUiParam::PIVOT_TYPE_X, { .enumeration = SeUiPivotType::BOTTOM_LEFT });
+    ui::set_param(SeUiParam::PIVOT_TYPE_Y, { .enumeration = SeUiPivotType::BOTTOM_LEFT });
     ui::set_param(SeUiParam::PIVOT_POSITION_X, { .dim = 50.0f });
 
     float positionY = 40.0f;
@@ -206,8 +206,8 @@ void update_window_example()
     ui::set_param(SeUiParam::WINDOW_BORDER_THICKNESS, { .dim = 3.0f });
 
     // This window will be centered around pivot position
-    ui::set_param(SeUiParam::PIVOT_TYPE_X, { .pivot = SeUiPivotType::CENTER });
-    ui::set_param(SeUiParam::PIVOT_TYPE_Y, { .pivot = SeUiPivotType::CENTER });
+    ui::set_param(SeUiParam::PIVOT_TYPE_X, { .enumeration = SeUiPivotType::CENTER });
+    ui::set_param(SeUiParam::PIVOT_TYPE_Y, { .enumeration = SeUiPivotType::CENTER });
     ui::set_param(SeUiParam::PIVOT_POSITION_X, { .dim = 1000.0f });
     ui::set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = 400.0f });
 
@@ -234,8 +234,8 @@ void update_button_example()
     if (win::is_keyboard_button_just_pressed(SeKeyboard::ESCAPE)) g_menuState = MenuState::MAIN;
 
     ui::set_param(SeUiParam::FONT_HEIGHT, { .dim = 50.0f });
-    ui::set_param(SeUiParam::PIVOT_TYPE_X, { .pivot = SeUiPivotType::CENTER });
-    ui::set_param(SeUiParam::PIVOT_TYPE_Y, { .pivot = SeUiPivotType::CENTER });
+    ui::set_param(SeUiParam::PIVOT_TYPE_X, { .enumeration = SeUiPivotType::CENTER });
+    ui::set_param(SeUiParam::PIVOT_TYPE_Y, { .enumeration = SeUiPivotType::CENTER });
     ui::set_param(SeUiParam::PIVOT_POSITION_X, { .dim = win::get_width<float>() / 2.0f });
     ui::set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = win::get_height<float>() - 100.0f });
     ui::text({ get_local(LocalizedString::BUTTON_MODES) });

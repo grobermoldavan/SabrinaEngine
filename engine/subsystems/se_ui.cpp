@@ -1148,8 +1148,8 @@ const UiParams DEFAULT_PARAMS =
     /* WINDOW_INNER_PADDING         */ { .dim = 5.0f },
     /* PIVOT_POSITION_X             */ { .dim = 0.0f },
     /* PIVOT_POSITION_Y             */ { .dim = 0.0f },
-    /* PIVOT_TYPE_X                 */ { .pivot = SeUiPivotType::BOTTOM_LEFT },
-    /* PIVOT_TYPE_Y                 */ { .pivot = SeUiPivotType::BOTTOM_LEFT },
+    /* PIVOT_TYPE_X                 */ { .enumeration = SeUiPivotType::BOTTOM_LEFT },
+    /* PIVOT_TYPE_Y                 */ { .enumeration = SeUiPivotType::BOTTOM_LEFT },
     /* BUTTON_BORDER_SIZE           */ { .dim = 5.0f },
 };
 
@@ -1294,8 +1294,8 @@ namespace ui
             }
             else
             {
-                const bool isCenteredX = g_uiCtx.currentParams[SeUiParam::PIVOT_TYPE_X].pivot == SeUiPivotType::CENTER;
-                const bool isCenteredY = g_uiCtx.currentParams[SeUiParam::PIVOT_TYPE_Y].pivot == SeUiPivotType::CENTER;
+                const bool isCenteredX = g_uiCtx.currentParams[SeUiParam::PIVOT_TYPE_X].enumeration == SeUiPivotType::CENTER;
+                const bool isCenteredY = g_uiCtx.currentParams[SeUiParam::PIVOT_TYPE_Y].enumeration == SeUiPivotType::CENTER;
                 const float dimX = g_uiCtx.currentParams[SeUiParam::PIVOT_POSITION_X].dim - (isCenteredX ? width / 2.0f : 0.0f);
                 const float dimY = g_uiCtx.currentParams[SeUiParam::PIVOT_POSITION_Y].dim - (isCenteredY ? height / 2.0f : 0.0f);
                 return { dimX, dimY, dimX + width, dimY + height };
@@ -1326,8 +1326,7 @@ namespace ui
                 const FontGroup::CodepointInfo* const codepointInfo = codepoint_hash_table::get(fontGroup->codepointToInfo, codepoint);
                 se_assert(codepointInfo);
                 const FontInfo* const font = codepointInfo->font;
-                // This scale calculation is similar to stbtt_ScaleForPixelHeight but ignores descend parameter of the font
-                const float scale = fontHeight / float(font->ascentUnscaled);
+                const float scale = stbtt_ScaleForPixelHeight(&font->stbInfo, fontHeight);
                 const float advance = scale * float(codepointInfo->advanceWidthUnscaled);
                 const float bearing = scale * float(codepointInfo->leftSideBearingUnscaled);
                 const int codepointSigned = font_group::direct_cast_to_int(codepoint);
@@ -1370,8 +1369,7 @@ namespace ui
                 const FontGroup::CodepointInfo* const codepointInfo = codepoint_hash_table::get(fontGroup->codepointToInfo, codepoint);
                 se_assert(codepointInfo);
                 const FontInfo* const font = codepointInfo->font;
-                // This scale calculation is similar to stbtt_ScaleForPixelHeight but ignores descend parameter of the font
-                const float scale = fontHeight / float(font->ascentUnscaled);
+                const float scale = stbtt_ScaleForPixelHeight(&font->stbInfo, fontHeight);
                 const float bearing = scale * float(codepointInfo->leftSideBearingUnscaled);
                 const int codepointSigned = font_group::direct_cast_to_int(codepoint);
                 int x0;
@@ -1407,6 +1405,24 @@ namespace ui
         {
             g_uiCtx.hasWorkRegion = true;
             g_uiCtx.workRegion = quad;
+        }
+
+        float get_current_font_ascent()
+        {
+            const float fontHeight = g_uiCtx.currentParams[SeUiParam::FONT_HEIGHT].dim;
+            const FontGroup* const group = g_uiCtx.currentFontGroup;
+            // Same as stbtt_ScaleForPixelHeight
+            const float scale = fontHeight / float(group->ascentUnscaled - group->descentUnscaled);
+            return float(group->ascentUnscaled) * scale;
+        }
+
+        float get_current_font_descent()
+        {
+            const float fontHeight = g_uiCtx.currentParams[SeUiParam::FONT_HEIGHT].dim;
+            const FontGroup* const group = g_uiCtx.currentFontGroup;
+            // Same as stbtt_ScaleForPixelHeight
+            const float scale = fontHeight / float(group->ascentUnscaled - group->descentUnscaled);
+            return float(group->descentUnscaled) * scale;
         }
     }
 
@@ -1633,7 +1649,7 @@ namespace ui
         {
             const float lineGap = g_uiCtx.currentParams[SeUiParam::FONT_LINE_GAP].dim;
             const float baselineX = g_uiCtx.workRegion.blX;
-            const float baselineY = g_uiCtx.workRegion.trY - fontHeight;
+            const float baselineY = g_uiCtx.workRegion.trY - impl::get_current_font_ascent();
             impl::draw_text_at_pos(info.utf8text, baselineX, baselineY);
             g_uiCtx.workRegion.trY -= fontHeight + lineGap;
         }
@@ -1642,8 +1658,8 @@ namespace ui
             float baselineX = g_uiCtx.currentParams[SeUiParam::PIVOT_POSITION_X].dim;
             float baselineY = g_uiCtx.currentParams[SeUiParam::PIVOT_POSITION_Y].dim;
             const auto [x1, y1, x2, y2] = impl::get_text_bbox(info.utf8text);
-            if (g_uiCtx.currentParams[SeUiParam::PIVOT_TYPE_X].pivot == SeUiPivotType::CENTER) baselineX -= (x2 - x1) / 2.0f;
-            if (g_uiCtx.currentParams[SeUiParam::PIVOT_TYPE_Y].pivot == SeUiPivotType::CENTER) baselineY -= fontHeight / 2.0f;
+            if (g_uiCtx.currentParams[SeUiParam::PIVOT_TYPE_X].enumeration == SeUiPivotType::CENTER) baselineX -= (x2 - x1) / 2.0f;
+            if (g_uiCtx.currentParams[SeUiParam::PIVOT_TYPE_Y].enumeration == SeUiPivotType::CENTER) baselineY -= fontHeight / 2.0f;
             impl::draw_text_at_pos(info.utf8text, baselineX, baselineY);
         }
     }
@@ -1765,19 +1781,19 @@ namespace ui
         //
         float buttonWidth = info.width;
         float buttonHeight = info.height;
-        float textOffsetY = 0.0f;
+        float textBottomOffsetY = 0.0f;
         float textWidth = 0.0f;
         if (info.utf8text)
         {
+            const float fontHeight = g_uiCtx.currentParams[SeUiParam::FONT_HEIGHT].dim;
             const float border = g_uiCtx.currentParams[SeUiParam::BUTTON_BORDER_SIZE].dim;
             const auto [bbx1, bby1, bbx2, bby2] = impl::get_text_bbox(info.utf8text);
             textWidth = bbx2 - bbx1;
             const float textWidthWithBorder = textWidth + border * 2.0f;
-            const float textHeightWithBorder = bby2 - bby1 + border * 2.0f;
+            const float textHeightWithBorder = fontHeight + border * 2.0f;
             if (textWidthWithBorder > buttonWidth) buttonWidth = textWidthWithBorder;
             if (textHeightWithBorder > buttonHeight) buttonHeight = textHeightWithBorder;
-            // With negative boundin_box_y1 value we need to draw text above of the pivot, so we negate this value to get a positive result
-            textOffsetY = -bby1 + border;
+            textBottomOffsetY = -impl::get_current_font_descent() + border;
         }
         const UiQuadCoords quad = impl::get_corners(buttonWidth, buttonHeight);
         //
@@ -1821,7 +1837,7 @@ namespace ui
         if (info.utf8text)
         {
             const float posX = quad.blX + buttonWidth / 2.0f - textWidth / 2.0f;
-            const float posY = quad.blY + textOffsetY;
+            const float posY = quad.blY + textBottomOffsetY;
             impl::draw_text_at_pos(info.utf8text, posX, posY);
         }
         if (g_uiCtx.hasWorkRegion)
