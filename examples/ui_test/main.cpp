@@ -30,6 +30,8 @@ enum LocalizedString
     TEXT_INSIDE_WINDOW,
     EVERY_TEXT_COMMAND_STARTS_FROM_THE_NEW_LINE,
     WINDOW_CAN_BE_MOVED_AND_RESIZED,
+    WINDOW_CAN_BE_SCROLLED,
+    WINDOW_CAN_NOT_BE_SCROLLED,
     BUTTON_MODES,
     TOGGLE_BUTTON,
     YOU_VE_TOGGLED_THE_BUTTON,
@@ -50,6 +52,8 @@ LocalizationSet LOCALIZATION_SETS[Language::__LANGUAGE_COUNT] =
         /* TEXT_INSIDE_WINDOW */                            "Text inside window",
         /* EVERY_TEXT_COMMAND_STARTS_FROM_THE_NEW_LINE */   "Every \"text\" command starts from the new line",
         /* WINDOW_CAN_BE_MOVED_AND_RESIZED */               "This window can be moved and resized",
+        /* WINDOW_CAN_BE_SCROLLED */                        "This window can be scrolled",
+        /* WINDOW_CAN_NOT_BE_SCROLLED */                    "This window can't be scrolled",
         /* BUTTON_MODES */                                  "Buttons have three modes - TOGGLE, HOLD and CLICK",
         /* TOGGLE_BUTTON */                                 "Toggle button",
         /* YOU_VE_TOGGLED_THE_BUTTON */                     "You've toggled the button",
@@ -65,6 +69,8 @@ LocalizationSet LOCALIZATION_SETS[Language::__LANGUAGE_COUNT] =
         /* TEXT_INSIDE_WINDOW */                            "Текст внутри окна",
         /* EVERY_TEXT_COMMAND_STARTS_FROM_THE_NEW_LINE */   "Каждая комманда \"text\" начинается с новой строки",
         /* WINDOW_CAN_BE_MOVED_AND_RESIZED */               "Это окно можно двигать и менять ему размер",
+        /* WINDOW_CAN_BE_SCROLLED */                        "Это окно можно прокручивать",
+        /* WINDOW_CAN_NOT_BE_SCROLLED */                    "Это окно нельзя прокручивать",
         /* BUTTON_MODES */                                  "У кнопок есть три режима - TOGGLE, HOLD and CLICK",
         /* TOGGLE_BUTTON */                                 "TOGGLE кнопка",
         /* YOU_VE_TOGGLED_THE_BUTTON */                     "Вы переключили кнопку",
@@ -189,12 +195,13 @@ void update_window_example()
         .uid    = "first_window",
         .width  = 600.0f,
         .height = 600.0f,
-        .flags  = SeUiFlags::MOVABLE | SeUiFlags::RESIZABLE_X | SeUiFlags::RESIZABLE_Y,
+        .flags  = SeUiFlags::MOVABLE | SeUiFlags::RESIZABLE_X | SeUiFlags::RESIZABLE_Y | SeUiFlags::SCROLLABLE_X | SeUiFlags::SCROLLABLE_Y,
     }))
     {
         ui::text({ get_local(LocalizedString::TEXT_INSIDE_WINDOW) });
         ui::text({ get_local(LocalizedString::EVERY_TEXT_COMMAND_STARTS_FROM_THE_NEW_LINE) });
-        ui::text({ get_local(LocalizedString::WINDOW_CAN_BE_MOVED_AND_RESIZED) });
+        for (size_t it = 0; it < 15; it++)
+            ui::text({ get_local(LocalizedString::WINDOW_CAN_BE_SCROLLED) });
         ui::end_window();
     }
 
@@ -225,6 +232,7 @@ void update_window_example()
         {
             ui::text({ get_local(LocalizedString::YOU_RE_HOLDING_THE_BUTTON) });
         }
+        ui::text({ get_local(LocalizedString::WINDOW_CAN_NOT_BE_SCROLLED) });
         ui::end_window();
     }
 }

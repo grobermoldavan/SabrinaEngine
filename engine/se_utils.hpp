@@ -25,7 +25,7 @@ namespace utils
     }
 
     template<typename First, typename Second>
-    bool compare(const First& first, const Second& second)
+    inline bool compare(const First& first, const Second& second)
     {
         static_assert(std::is_same_v<First, Second>);
         return compare_raw(&first, &second, sizeof(First));
@@ -44,25 +44,25 @@ namespace utils
     }
 
     template<typename Flags, typename T>
-    Flags _flagify(Flags prev, T flag)
+    inline Flags _flagify(Flags prev, T flag)
     {
         return prev | (Flags(1) << Flags(flag));
     }
 
     template<typename Flags, typename T, typename ... Other>
-    Flags _flagify(Flags prev, T flag, Other ... other)
+    inline Flags _flagify(Flags prev, T flag, Other ... other)
     {
         return _flagify(prev | (Flags(1) << Flags(flag)), other...);
     }
 
     template<typename Flags, typename T, typename ... Other>
-    Flags flagify(T flag, Other ... other)
+    inline Flags flagify(T flag, Other ... other)
     {
         return _flagify(Flags(0), flag, other...);
     }
 
     template<typename Flags, typename T>
-    Flags flagify(T flag)
+    inline Flags flagify(T flag)
     {
         return _flagify(Flags(0), flag);
     }

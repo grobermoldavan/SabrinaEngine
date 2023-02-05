@@ -40,12 +40,13 @@ struct SeUiParam
         ACCENT_COLOR                = 5,
         WINDOW_TOP_PANEL_THICKNESS  = 6,
         WINDOW_BORDER_THICKNESS     = 7,
-        WINDOW_INNER_PADDING        = 8,
-        PIVOT_POSITION_X            = 9,
-        PIVOT_POSITION_Y            = 10,
-        PIVOT_TYPE_X                = 11,
-        PIVOT_TYPE_Y                = 12,
-        BUTTON_BORDER_SIZE          = 13,
+        WINDOW_SCROLL_THICKNESS     = 8,
+        WINDOW_INNER_PADDING        = 9,
+        PIVOT_POSITION_X            = 10,
+        PIVOT_POSITION_Y            = 11,
+        PIVOT_TYPE_X                = 12,
+        PIVOT_TYPE_Y                = 13,
+        BUTTON_BORDER_SIZE          = 14,
         _COUNT,
     };
     union
@@ -65,9 +66,11 @@ struct SeUiFlags
 {
     enum
     {
-        MOVABLE     = 0x00000001,
-        RESIZABLE_X = 0x00000002,
-        RESIZABLE_Y = 0x00000004,
+        MOVABLE         = 0x00000001,
+        RESIZABLE_X     = 0x00000002,
+        RESIZABLE_Y     = 0x00000004,
+        SCROLLABLE_X    = 0x00000008,
+        SCROLLABLE_Y    = 0x00000010,
     };
     using Type = uint32_t;
 };

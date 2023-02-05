@@ -11,6 +11,8 @@
     Cross product is right handed (https://en.wikipedia.org/wiki/Cross_product)
 */
 
+#include "se_utils.hpp"
+
 #include <math.h>
 
 #define SE_PI 3.14159265358979323846f
@@ -19,13 +21,34 @@
 
 #define se_to_radians(degrees) ((degrees) * SE_PI / 180.0f)
 #define se_to_degrees(radians) ((radians) * 180.0f / SE_PI)
-#define se_is_equal_float(value1, value2) (((value1) > (value2) ? (value1) - (value2) : (value2) - (value1)) < SE_EPSILON)
 
 #define se_clamp(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 #define se_min(a, b) ((a) < (b) ? (a) : (b))
 #define se_max(a, b) ((a) > (b) ? (a) : (b))
 #define se_lerp(a, b, t) ((a) + (t) * ((b) - (a)))
 #define se_pow powf
+
+namespace utils
+{
+    template<>
+    inline bool compare(const float& first, const float& second)
+    {
+        return (first > second ? first - second : second - first) < SE_EPSILON;
+    }
+}
+
+template<typename T>
+inline T se_saturate(T value)
+{
+    return se_clamp(value, 0, 1);
+}
+
+template<typename T>
+inline T se_safe_divide(T divident, T divisor, T fallback)
+{
+    if (utils::compare(divisor, T(0))) return fallback;
+    return divident / divisor;
+}
 
 struct SeFloat2
 {
@@ -325,7 +348,7 @@ namespace quaternion
     SeQuaternion from_rotation_mat(const SeFloat4x4& mat)
     {
         const float tr = mat._00 + mat._11 + mat._22;
-        if (!se_is_equal_float(tr, 0.0f) && tr > 0.0f)
+        if (!utils::compare(tr, 0.0f) && tr > 0.0f)
         {
             float S = sqrtf(tr + 1.0f) * 2.0f;
             return
@@ -408,9 +431,9 @@ namespace quaternion
             float3::len({ mat._10, mat._11, mat._12 }),
             float3::len({ mat._20, mat._21, mat._22 })
         };
-        inversedScale.y = se_is_equal_float(inversedScale.y, 0.0f) ? SE_MAX_FLOAT : 1.0f / inversedScale.y;
-        inversedScale.x = se_is_equal_float(inversedScale.x, 0.0f) ? SE_MAX_FLOAT : 1.0f / inversedScale.x;
-        inversedScale.z = se_is_equal_float(inversedScale.z, 0.0f) ? SE_MAX_FLOAT : 1.0f / inversedScale.z;
+        inversedScale.y = utils::compare(inversedScale.y, 0.0f) ? SE_MAX_FLOAT : 1.0f / inversedScale.y;
+        inversedScale.x = utils::compare(inversedScale.x, 0.0f) ? SE_MAX_FLOAT : 1.0f / inversedScale.x;
+        inversedScale.z = utils::compare(inversedScale.z, 0.0f) ? SE_MAX_FLOAT : 1.0f / inversedScale.z;
         const SeFloat4x4 rotationMatrix =
         {
             mat._00 * inversedScale.x, mat._01 * inversedScale.y, mat._02 * inversedScale.z, 0.0f,
@@ -577,7 +600,7 @@ namespace float4x4
         // https://stackoverflow.com/questions/1148309/inverting-a-4x4-matrix
         // https://github.com/willnode/N-Matrix-Programmer
         const float determinant = det(mat);
-        if (se_is_equal_float(determinant, 0.0f))
+        if (utils::compare(determinant, 0.0f))
         {
             // @TODO : add method which returns bool here
             // Can't invert
@@ -702,9 +725,9 @@ namespace float4x4
         const SeFloat3 scale = get_scale(trf);
         return
         {
-            se_is_equal_float(scale.x, 0.0f) ? SE_MAX_FLOAT : 1.0f / scale.x,
-            se_is_equal_float(scale.y, 0.0f) ? SE_MAX_FLOAT : 1.0f / scale.y,
-            se_is_equal_float(scale.z, 0.0f) ? SE_MAX_FLOAT : 1.0f / scale.z
+            utils::compare(scale.x, 0.0f) ? SE_MAX_FLOAT : 1.0f / scale.x,
+            utils::compare(scale.y, 0.0f) ? SE_MAX_FLOAT : 1.0f / scale.y,
+            utils::compare(scale.z, 0.0f) ? SE_MAX_FLOAT : 1.0f / scale.z
         };
     }
 

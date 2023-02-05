@@ -1054,11 +1054,13 @@ struct UiActionFlags
 {
     enum
     {
-        CAN_BE_MOVED            = 0x00000001,
-        CAN_BE_RESIZED_X_LEFT   = 0x00000002,
-        CAN_BE_RESIZED_X_RIGHT  = 0x00000004,
-        CAN_BE_RESIZED_Y_TOP    = 0x00000008,
-        CAN_BE_RESIZED_Y_BOTTOM = 0x00000010,
+        CAN_BE_MOVED                    = 0x00000001,
+        CAN_BE_RESIZED_X_LEFT           = 0x00000002,
+        CAN_BE_RESIZED_X_RIGHT          = 0x00000004,
+        CAN_BE_RESIZED_Y_TOP            = 0x00000008,
+        CAN_BE_RESIZED_Y_BOTTOM         = 0x00000010,
+        CAN_BE_SCROLLED_BY_MOUSE_MOVE_X = 0x00000020,
+        CAN_BE_SCROLLED_BY_MOUSE_MOVE_Y = 0x00000040,
     };
     using Type = uint32_t;
 };
@@ -1080,13 +1082,47 @@ struct UiQuadCoords
     float trY;
 };
 
+/*
+    This sturct contains all info required for implemention scroll functionality
+    normalizedScrollPosition - value in range of [0, 1], describes current scroll position
+    absoluteContentSize - range of data to be scrolled
+    absoluteScrollRange - position range of scroll, calculated as *absoluteContentSize - workRegionWidth/Height*
+    absoluteScrollPosition - scroll position in range [0, absoluteScrollRange]
+    absoluteScrollBarFrom - scroll bar minimum position in screen space, i.e. it will change if window moves
+    absoluteScrollBarTo - scroll bar maximum position in screen space, i.e. it will change if window moves
+    absoluteScrollBarPosition - scroll bar position in screen space in range [absoluteScrollBarFrom, absoluteScrollBarTo]
+*/
+struct UiObjectScrollInfo
+{
+    // Updated in ui::begin
+    float normalizedScrollPosition;
+
+    // Recalculated in ui::begin_window and subsequent calls
+    float absoluteContentSize;
+
+    // Recalculated in ui::begin_window
+    float absoluteScrollRange;
+    float absoluteScrollPosition;
+    float absoluteScrollBarFrom;
+    float absoluteScrollBarTo;
+    float absoluteScrollBarPosition;
+};
+
 struct UiObjectData
 {
+    // Windows data
     UiQuadCoords        quad;
+    UiQuadCoords        workRegion;
+
     float               minWidth;
     float               minHeight;
     SeUiFlags::Type     settingsFlags;
     UiActionFlags::Type actionFlags;
+
+    UiObjectScrollInfo  scrollInfoX;
+    UiObjectScrollInfo  scrollInfoY;
+
+    // Buttons data
     UiStateFlags::Type  stateFlags;
 };
 
@@ -1118,6 +1154,9 @@ struct UiContext
 
     SeString                                        previousHoveredObjectUid;
     SeString                                        currentHoveredObjectUid;
+    SeString                                        previousHoveredWindowUid;
+    SeString                                        currentHoveredWindowUid;
+
     SeString                                        previousActiveObjectUid;
     SeString                                        currentActiveObjectUid;
     SeString                                        currentWindowUid;
@@ -1145,6 +1184,7 @@ const UiParams DEFAULT_PARAMS =
     /* ACCENT_COLOR                 */ { .color = col::pack({ 0.88f, 0.73f, 0.73f, 1.0f }) },
     /* WINDOW_TOP_PANEL_THICKNESS   */ { .dim = 16.0f },
     /* WINDOW_BORDER_THICKNESS      */ { .dim = 2.0f },
+    /* WINDOW_SCROLL_THICKNESS      */ { .dim = 10.0f },
     /* WINDOW_INNER_PADDING         */ { .dim = 5.0f },
     /* PIVOT_POSITION_X             */ { .dim = 0.0f },
     /* PIVOT_POSITION_Y             */ { .dim = 0.0f },
@@ -1284,12 +1324,19 @@ namespace ui
         {
             if (g_uiCtx.hasWorkRegion)
             {
+                const UiObjectData* const window = hash_table::get(g_uiCtx.uidToObjectData, g_uiCtx.currentWindowUid);
+                const float blX = window
+                    ? g_uiCtx.workRegion.blX - window->scrollInfoX.absoluteScrollPosition
+                    : g_uiCtx.workRegion.blX;
+                const float tlY = window
+                    ? window->workRegion.trY - window->scrollInfoY.absoluteContentSize + window->scrollInfoY.absoluteScrollPosition
+                    : g_uiCtx.workRegion.trY;
                 return
                 {
-                    g_uiCtx.workRegion.blX,
-                    g_uiCtx.workRegion.trY - height,
-                    g_uiCtx.workRegion.blX + width,
-                    g_uiCtx.workRegion.trY,
+                    blX,
+                    tlY - height,
+                    blX + width,
+                    tlY,
                 };
             }
             else
@@ -1346,11 +1393,11 @@ namespace ui
             return { 0, -biggestDescent, positionX, biggestAscent };
         }
 
-        void draw_text_at_pos(const char* utf8text, float baselineX, float baselineY)
+        float draw_text_at_pos(const char* utf8text, float baselineX, float baselineY)
         {
             if (g_uiCtx.hasWorkRegion && baselineX >= g_uiCtx.workRegion.trX)
             {
-                return;
+                return 0.0f;
             }
             const FontGroup* const fontGroup = g_uiCtx.currentFontGroup;
             const float fontHeight = g_uiCtx.currentParams[SeUiParam::FONT_HEIGHT].dim;
@@ -1390,6 +1437,7 @@ namespace ui
                 positionX += scale * float(codepointInfo->advanceWidthUnscaled);
                 previousCodepoint = codepointSigned;
             }
+            return positionX - baselineX;
         }
 
         void reset_work_region()
@@ -1450,8 +1498,10 @@ namespace ui
             utils::compare(g_uiCtx.previousActiveObjectUid, SeString{ }) &&
             !utils::compare(g_uiCtx.currentActiveObjectUid, SeString{ });
         g_uiCtx.previousHoveredObjectUid    = g_uiCtx.currentHoveredObjectUid;
+        g_uiCtx.previousHoveredWindowUid    = g_uiCtx.currentHoveredWindowUid;
         g_uiCtx.previousActiveObjectUid     = g_uiCtx.currentActiveObjectUid;
         g_uiCtx.currentHoveredObjectUid     = { };
+        g_uiCtx.currentHoveredWindowUid     = { };
         g_uiCtx.currentWindowUid            = { };
         impl::reset_work_region();
         
@@ -1513,8 +1563,47 @@ namespace ui
                         : 0.0f;
                     activeObject->quad.blY = activeObject->quad.blY + actualDelta;
                 }
+                if ((activeObject->settingsFlags & SeUiFlags::SCROLLABLE_Y) && (activeObject->actionFlags & UiActionFlags::CAN_BE_SCROLLED_BY_MOUSE_MOVE_Y))
+                {
+                    const bool canMove = g_uiCtx.mouseY <= activeObject->quad.trY && g_uiCtx.mouseY >= activeObject->quad.blY;
+                    if (canMove)
+                    {
+                        const float barFrom = activeObject->scrollInfoY.absoluteScrollBarFrom; // top
+                        const float barTo = activeObject->scrollInfoY.absoluteScrollBarTo; // bottom
+                        const float barCurrent = activeObject->scrollInfoY.absoluteScrollBarPosition;
+                        const float barNew = se_clamp(barCurrent + g_uiCtx.mouseDeltaY, barTo, barFrom);
+                        activeObject->scrollInfoY.normalizedScrollPosition = se_saturate(se_safe_divide((barFrom - barNew), (barFrom - barTo), 0.0f));
+                    }
+                }
+                if ((activeObject->settingsFlags & SeUiFlags::SCROLLABLE_X) && (activeObject->actionFlags & UiActionFlags::CAN_BE_SCROLLED_BY_MOUSE_MOVE_X))
+                {
+                    const bool canMove = g_uiCtx.mouseX <= activeObject->quad.trX && g_uiCtx.mouseX >= activeObject->quad.blX;
+                    if (canMove)
+                    {
+                        const float barFrom = activeObject->scrollInfoX.absoluteScrollBarFrom; // left
+                        const float barTo = activeObject->scrollInfoX.absoluteScrollBarTo; // right
+                        const float barCurrent = activeObject->scrollInfoX.absoluteScrollBarPosition;
+                        const float barNew = se_clamp(barCurrent + g_uiCtx.mouseDeltaX, barFrom, barTo);
+                        activeObject->scrollInfoX.normalizedScrollPosition = se_saturate(se_safe_divide((barNew - barFrom), (barTo - barFrom), 0.0f));
+                    }
+                }
             }
         }
+
+        UiObjectData* const hoveredWindow = hash_table::get(g_uiCtx.uidToObjectData, g_uiCtx.previousHoveredWindowUid);
+        if (hoveredWindow)
+        {
+            const float mouseWheel = float(win::get_mouse_wheel());
+            if (mouseWheel)
+            {
+                constexpr const float SCROLL_SENSITIVITY = 4.0f;
+                const float scrollCurrent = hoveredWindow->scrollInfoY.absoluteScrollPosition;
+                const float scrollMax = hoveredWindow->scrollInfoY.absoluteScrollRange;
+                const float scrollNew = se_clamp(scrollCurrent - (mouseWheel * SCROLL_SENSITIVITY), 0.0f, scrollMax);
+                hoveredWindow->scrollInfoY.normalizedScrollPosition = se_saturate(se_safe_divide(scrollNew, scrollMax, 0.0f));
+            }
+        }
+
         return true;
     }
 
@@ -1647,11 +1736,34 @@ namespace ui
         const float fontHeight = g_uiCtx.currentParams[SeUiParam::FONT_HEIGHT].dim;
         if (g_uiCtx.hasWorkRegion)
         {
+            UiObjectData* const window = hash_table::get(g_uiCtx.uidToObjectData, g_uiCtx.currentWindowUid);
+
             const float lineGap = g_uiCtx.currentParams[SeUiParam::FONT_LINE_GAP].dim;
-            const float baselineX = g_uiCtx.workRegion.blX;
-            const float baselineY = g_uiCtx.workRegion.trY - impl::get_current_font_ascent();
-            impl::draw_text_at_pos(info.utf8text, baselineX, baselineY);
-            g_uiCtx.workRegion.trY -= fontHeight + lineGap;
+            const float baselineX = window
+                ? g_uiCtx.workRegion.blX - window->scrollInfoX.absoluteScrollPosition
+                : g_uiCtx.workRegion.blX;
+            const float baselineY = window
+                ? window->workRegion.trY - window->scrollInfoY.absoluteContentSize - impl::get_current_font_ascent() + window->scrollInfoY.absoluteScrollPosition
+                : g_uiCtx.workRegion.trY - impl::get_current_font_ascent();
+            const float lineLowestPoint = baselineY + impl::get_current_font_descent();
+
+            float textWidth = 0.0f;
+            if (lineLowestPoint < g_uiCtx.workRegion.trY)
+            {
+                textWidth = impl::draw_text_at_pos(info.utf8text, baselineX, baselineY);
+                g_uiCtx.workRegion.trY = lineLowestPoint;
+            }
+            else
+            {
+                const UiQuadCoords textBbox = impl::get_text_bbox(info.utf8text);
+                textWidth = textBbox.trX - textBbox.blX;
+            }
+            
+            if (window)
+            {
+                window->scrollInfoX.absoluteContentSize = se_max(window->scrollInfoX.absoluteContentSize, textWidth);
+                window->scrollInfoY.absoluteContentSize += fontHeight + lineGap;
+            }
         }
         else
         {
@@ -1667,8 +1779,9 @@ namespace ui
     bool begin_window(const SeUiWindowInfo& info)
     {
         se_assert_msg(!g_uiCtx.hasWorkRegion, "Can't begin new window - another window or region is currently active");
+
         //
-        // Update object data
+        // Get object data, update quad and settings
         //
         auto [uid, data, isFirst] = impl::object_data_get(info.uid);
         const bool getQuadFromData = (info.flags & (SeUiFlags::RESIZABLE_X | SeUiFlags::RESIZABLE_Y)) && !isFirst;
@@ -1680,34 +1793,116 @@ namespace ui
             data->quad = quad;
         }
         data->settingsFlags = info.flags;
+        
+        const bool hasScrollX = info.flags & SeUiFlags::SCROLLABLE_X;
+        const bool hasScrollY = info.flags & SeUiFlags::SCROLLABLE_Y;
         const float topPanelThickness = g_uiCtx.currentParams[SeUiParam::WINDOW_TOP_PANEL_THICKNESS].dim;
         const float borderThickness = g_uiCtx.currentParams[SeUiParam::WINDOW_BORDER_THICKNESS].dim;
-        data->minWidth = topPanelThickness * 3.0f;
-        data->minHeight = topPanelThickness + borderThickness * 2.0f;
+        const float scrollThickness = g_uiCtx.currentParams[SeUiParam::WINDOW_SCROLL_THICKNESS].dim;
+        const float padding = g_uiCtx.currentParams[SeUiParam::WINDOW_INNER_PADDING].dim;
+
+        data->workRegion =
+        {
+            quad.blX + borderThickness + padding,
+            quad.blY + borderThickness + padding + (hasScrollX ? scrollThickness : 0.0f),
+            quad.trX - borderThickness - padding - (hasScrollY ? scrollThickness : 0.0f),
+            quad.trY - topPanelThickness - padding,
+        };
+
+        const float windowWorkRegionWidth   = data->workRegion.trX - data->workRegion.blX;
+        const float windowWorkRegionHeight  = data->workRegion.trY - data->workRegion.blY;
+
         //
-        // Update action flags, active object uid and work region info
+        // Scroll stuff
+        //
+        constexpr const float MIN_SCROLL_BAR_SIZE = 5.0f;
+
+        const float absoluteScrollRangeX    = se_max(0.0f, data->scrollInfoX.absoluteContentSize - windowWorkRegionWidth);
+        const float absoluteScrollRangeY    = se_max(0.0f, data->scrollInfoY.absoluteContentSize - windowWorkRegionHeight);
+        const float absoluteScrollPositionX = absoluteScrollRangeX * data->scrollInfoX.normalizedScrollPosition;
+        const float absoluteScrollPositionY = absoluteScrollRangeY * data->scrollInfoY.normalizedScrollPosition;
+
+        const float scrollBarRangeLeftX     = quad.blX + borderThickness;
+        const float scrollBarRangeRightX    = quad.trX - borderThickness - scrollThickness;
+        const float scrollBarRangeBottomY   = quad.blY + borderThickness + scrollThickness;
+        const float scrollBarRangeTopY      = quad.trY - topPanelThickness;
+
+        const float maxScrollBarSizeX   = scrollBarRangeRightX - scrollBarRangeLeftX;
+        const float maxScrollBarSizeY   = scrollBarRangeTopY - scrollBarRangeBottomY;
+        const float scrollBarScaleX     = data->scrollInfoX.absoluteContentSize ? se_saturate(windowWorkRegionWidth / data->scrollInfoX.absoluteContentSize) : 1.0f;
+        const float scrollBarScaleY     = data->scrollInfoY.absoluteContentSize ? se_saturate(windowWorkRegionHeight / data->scrollInfoY.absoluteContentSize) : 1.0f;
+        const float scrollBarSizeX      = se_max(maxScrollBarSizeX * scrollBarScaleX, MIN_SCROLL_BAR_SIZE);
+        const float scrollBarSizeY      = se_max(maxScrollBarSizeY * scrollBarScaleY, MIN_SCROLL_BAR_SIZE);
+        const float scrollBarPositionX  = scrollBarRangeLeftX + ((maxScrollBarSizeX - scrollBarSizeX) * data->scrollInfoX.normalizedScrollPosition);
+        const float scrollBarPositionY  = scrollBarRangeTopY - ((maxScrollBarSizeY - scrollBarSizeY) * data->scrollInfoY.normalizedScrollPosition);
+
+        data->scrollInfoX.absoluteContentSize       = 0.0f;
+        data->scrollInfoX.absoluteScrollRange       = absoluteScrollRangeX;
+        data->scrollInfoX.absoluteScrollPosition    = absoluteScrollPositionX;
+        data->scrollInfoX.absoluteScrollBarFrom     = scrollBarRangeLeftX;
+        data->scrollInfoX.absoluteScrollBarTo       = scrollBarRangeRightX - scrollBarSizeX;
+        data->scrollInfoX.absoluteScrollBarPosition = scrollBarPositionX;
+
+        data->scrollInfoY.absoluteContentSize       = 0.0f;
+        data->scrollInfoY.absoluteScrollRange       = absoluteScrollRangeY;
+        data->scrollInfoY.absoluteScrollPosition    = absoluteScrollPositionY;
+        data->scrollInfoY.absoluteScrollBarFrom     = scrollBarRangeTopY;
+        data->scrollInfoY.absoluteScrollBarTo       = scrollBarRangeBottomY + scrollBarSizeY;
+        data->scrollInfoY.absoluteScrollBarPosition = scrollBarPositionY;
+
+        data->minWidth = borderThickness * 2.0f + padding * 2.0f + scrollThickness + MIN_SCROLL_BAR_SIZE;
+        data->minHeight = topPanelThickness + borderThickness + padding * 2.0f + scrollThickness + MIN_SCROLL_BAR_SIZE;
+
+        const UiQuadCoords scrollBarQuadX
+        {
+            scrollBarPositionX,
+            quad.blY + borderThickness,
+            scrollBarPositionX + scrollBarSizeX,
+            quad.blY + borderThickness + scrollThickness,
+        };
+
+        const UiQuadCoords scrollBarQuadY
+        {
+            quad.trX - borderThickness - scrollThickness,
+            scrollBarPositionY - scrollBarSizeY,
+            quad.trX - borderThickness,
+            scrollBarPositionY,
+        };
+
+        //
+        // Update other data stuff, active object uid and work region info
         //
         if (impl::is_under_cursor(quad))
         {
             g_uiCtx.currentHoveredObjectUid = uid;
+            g_uiCtx.currentHoveredWindowUid = uid;
             if (g_uiCtx.isMouseJustDown)
             {
+                static constexpr float BORDER_PANEL_TOLERANCE = 2.0f;
+
                 g_uiCtx.currentActiveObjectUid = uid;
+
                 const bool isTopPanelUnderCursor = ((quad.trY - topPanelThickness) <= g_uiCtx.mouseY);
-                static constexpr float BORDER_PANEL_TOLERANCE = 5.0f;
                 const bool isLeftBorderUnderCursor = !isTopPanelUnderCursor && ((quad.blX + borderThickness + BORDER_PANEL_TOLERANCE) >= g_uiCtx.mouseX);
                 const bool isRightBorderUnderCursor = !isTopPanelUnderCursor && ((quad.trX - borderThickness - BORDER_PANEL_TOLERANCE) <= g_uiCtx.mouseX);
                 const bool isBottomBorderUnderCursor = !isTopPanelUnderCursor && ((quad.blY + borderThickness + BORDER_PANEL_TOLERANCE) >= g_uiCtx.mouseY);
+                const bool isAnyBorderUnderCursor = isTopPanelUnderCursor | isLeftBorderUnderCursor | isRightBorderUnderCursor | isBottomBorderUnderCursor;
+                const bool isHorizontalScrollUnderCursor = !isAnyBorderUnderCursor && impl::is_under_cursor(scrollBarQuadX);
+                const bool isVerticalScrollUnderCursor = !isAnyBorderUnderCursor && impl::is_under_cursor(scrollBarQuadY);
+
                 if (isTopPanelUnderCursor) data->actionFlags |= UiActionFlags::CAN_BE_MOVED;
                 if (isLeftBorderUnderCursor) data->actionFlags |= UiActionFlags::CAN_BE_RESIZED_X_LEFT;
                 if (isRightBorderUnderCursor) data->actionFlags |= UiActionFlags::CAN_BE_RESIZED_X_RIGHT;
                 if (isBottomBorderUnderCursor) data->actionFlags |= UiActionFlags::CAN_BE_RESIZED_Y_BOTTOM;
+                if (isHorizontalScrollUnderCursor) data->actionFlags |= UiActionFlags::CAN_BE_SCROLLED_BY_MOUSE_MOVE_X;
+                if (isVerticalScrollUnderCursor) data->actionFlags |= UiActionFlags::CAN_BE_SCROLLED_BY_MOUSE_MOVE_Y;
             }
             else if (!g_uiCtx.isMouseDown)
             {
                 data->actionFlags = 0;
             }
         }
+
         //
         // Draw top panel and borders
         //
@@ -1720,6 +1915,7 @@ namespace ui
         impl::push_quad(colorIndexBorders, { quad.blX, quad.blY, quad.blX + borderThickness, quad.trY - topPanelThickness });
         impl::push_quad(colorIndexBorders, { quad.trX - borderThickness, quad.blY, quad.trX, quad.trY - topPanelThickness });
         impl::push_quad(colorIndexBorders, { quad.blX + borderThickness, quad.blY, quad.trX - borderThickness, quad.blY + borderThickness });
+
         //
         // Draw background
         //
@@ -1730,15 +1926,39 @@ namespace ui
         });
         impl::push_quad(colorIndexBackground, { quad.blX + borderThickness, quad.blY + borderThickness, quad.trX - borderThickness, quad.trY - topPanelThickness });
 
+        //
+        // Draw scroll bars
+        //
+        if (hasScrollY || hasScrollX)
+        {
+            // Draw scroll bars connection (bottom right square)
+            impl::push_quad(colorIndexBorders,
+            {
+                quad.trX - borderThickness - scrollThickness,
+                quad.blY + borderThickness,
+                quad.trX - borderThickness,
+                quad.blY + borderThickness + scrollThickness
+            });
+            const uint32_t colorIndexScrollBar = impl::set_draw_call
+            ({
+                .tint = col::unpack(g_uiCtx.currentParams[SeUiParam::ACCENT_COLOR].color),
+                .mode = UiRenderColorsUnpacked::MODE_SIMPLE,
+            });
+            if (hasScrollX)
+            {
+                impl::push_quad(colorIndexScrollBar, scrollBarQuadX);
+            }
+            if (hasScrollY)
+            {
+                impl::push_quad(colorIndexScrollBar, scrollBarQuadY);
+            }
+        }
+
+        //
+        // Set window ui and region
+        //
         g_uiCtx.currentWindowUid = uid;
-        const float windowPadding = g_uiCtx.currentParams[SeUiParam::WINDOW_INNER_PADDING].dim;
-        impl::set_work_region
-        ({
-            quad.blX + borderThickness + windowPadding,
-            quad.blY + borderThickness + windowPadding,
-            quad.trX - borderThickness - windowPadding,
-            quad.trY - topPanelThickness - windowPadding,
-        });
+        impl::set_work_region(data->workRegion);
 
         return true;
     }
@@ -1799,7 +2019,7 @@ namespace ui
         //
         // Update state
         //
-        const bool isUnderCursor = impl::is_under_cursor(quad);
+        const bool isUnderCursor = impl::is_under_cursor(quad) && (g_uiCtx.hasWorkRegion ? impl::is_under_cursor(g_uiCtx.workRegion) : true);
         if (isUnderCursor)
         {
             g_uiCtx.currentHoveredObjectUid = uid;
@@ -1840,10 +2060,20 @@ namespace ui
             const float posY = quad.blY + textBottomOffsetY;
             impl::draw_text_at_pos(info.utf8text, posX, posY);
         }
+        //
+        // Update data
+        //
         if (g_uiCtx.hasWorkRegion)
         {
-            g_uiCtx.workRegion.trY -= buttonHeight;
+            g_uiCtx.workRegion.trY = se_min(g_uiCtx.workRegion.trY, quad.blY);
         }
+        UiObjectData* const window = hash_table::get(g_uiCtx.uidToObjectData, g_uiCtx.currentWindowUid);
+        if (window)
+        {
+            window->scrollInfoX.absoluteContentSize = se_max(window->scrollInfoX.absoluteContentSize, buttonWidth);
+            window->scrollInfoY.absoluteContentSize += buttonHeight;
+        }
+
         return
             (info.mode == SeUiButtonMode::HOLD && isPressed) ||
             (info.mode == SeUiButtonMode::TOGGLE && isToggled) ||
