@@ -14,6 +14,7 @@ struct SeBitMask
     Entry mask[ARRAY_SIZE];
 };
 
+template <typename T> concept se_cstrw = std::is_convertible_v<T, const wchar_t*>;
 template <typename T> concept se_cstring = std::is_convertible_v<T, const char*>;
 template <typename T> concept se_not_cstring = !std::is_convertible_v<T, const char*>;
 
@@ -117,6 +118,22 @@ namespace utils
             ptr += 1;
         }
         return false;
+    }
+
+    template<typename T>
+    inline size_t cstr_len(const T* str)
+    {
+        if      constexpr (std::is_same_v<T, char>) return strlen(str);
+        else if constexpr (std::is_same_v<T, wchar_t>) return wcslen(str);
+        else    static_assert(!"Unsupported string type");
+    }
+
+    template<typename T, typename ... Args>
+    inline int cstr_sprintf(T* str, size_t strCapacity, const T* fmt, const Args& ... args)
+    {
+        if      constexpr (std::is_same_v<T, char>)     return snprintf(str, strCapacity, fmt, args...);
+        else if constexpr (std::is_same_v<T, wchar_t>)  return swprintf(str, strCapacity, fmt, args...);
+        else    static_assert(!"Unsupported string type");
     }
 }
 

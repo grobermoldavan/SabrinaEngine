@@ -87,4 +87,27 @@ namespace hash_value
     template<se_cstring T> HashValue    generate(const T& value);
 }
 
+// =========================================================================================
+//
+// This is a special stripped-down version of char string, but with wchar_t type
+//
+// =========================================================================================
+
+struct SeStringW
+{
+    wchar_t* buffer;
+    size_t length;
+};
+
+namespace stringw
+{
+    template<typename ... Args>
+    SeStringW create(const AllocatorBindings& allocator, const Args& ... args);
+
+    const wchar_t*  cstr(const SeStringW& str);
+    SeString        to_utf8(const SeStringW& str);
+    SeStringW       from_utf8(const AllocatorBindings& allocator, const char* source);
+    void            destroy(SeStringW& str);
+}
+
 #endif

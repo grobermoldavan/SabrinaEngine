@@ -92,15 +92,18 @@ namespace win
 
     void engine::init(const SeSettings& settings)
     {
+        se_assert_msg(settings.applicationName, "Application must have name");
+        const SeStringW applicationNameW = stringw::from_utf8(allocators::frame(), settings.applicationName);
+
         const HMODULE moduleHandle = GetModuleHandle(nullptr);
 
-        WNDCLASSA wc = { };
+        WNDCLASSW wc = { };
         wc.lpfnWndProc      = win32_window_proc;
         wc.hInstance        = moduleHandle;
-        wc.lpszClassName    = settings.applicationName;
+        wc.lpszClassName    = stringw::cstr(applicationNameW);
         wc.hCursor          = LoadCursor(nullptr, IDC_ARROW);
 
-        const bool isClassRegistered = RegisterClassA(&wc);
+        const bool isClassRegistered = RegisterClassW(&wc);
         se_assert(isClassRegistered);
 
         const DWORD windowedStyleNoResize =
@@ -120,19 +123,19 @@ namespace win
         const int targetWidth = int(settings.windowWidth);
         const int targetHeight = int(settings.windowHeight);
 
-        g_window.handle = CreateWindowExA(
-            0,                          // Optional window styles.
-            settings.applicationName,   // Window class
-            settings.applicationName,   // Window text
-            activeStyle,                // Window styles
-            CW_USEDEFAULT,              // Position X
-            CW_USEDEFAULT,              // Position Y
-            targetWidth,                // Size X
-            targetHeight,               // Size Y
-            nullptr,                    // Parent window
-            nullptr,                    // Menu
-            moduleHandle,               // Instance handle
-            nullptr                     // Additional application data
+        g_window.handle = CreateWindowExW(
+            0,                                  // Optional window styles.
+            stringw::cstr(applicationNameW),    // Window class
+            stringw::cstr(applicationNameW),    // Window text
+            activeStyle,                        // Window styles
+            CW_USEDEFAULT,                      // Position X
+            CW_USEDEFAULT,                      // Position Y
+            targetWidth,                        // Size X
+            targetHeight,                       // Size Y
+            nullptr,                            // Parent window
+            nullptr,                            // Menu
+            moduleHandle,                       // Instance handle
+            nullptr                             // Additional application data
         );
         se_assert(g_window.handle);
 
@@ -212,7 +215,7 @@ namespace win
                 return 0;
             }
         }
-        return DefWindowProc(hwnd, uMsg, wParam, lParam);
+        return DefWindowProcW(hwnd, uMsg, wParam, lParam);
     }
 
     bool win32_window_process_mouse_input(SeWindow* window, UINT message, WPARAM wParam, LPARAM lParam)

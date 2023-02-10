@@ -3,7 +3,9 @@
 
 #include <inttypes.h>
 #include <stdbool.h>
+#include <wchar.h>
 #include <string.h>
+#include <stdio.h>
 #include <type_traits>
 #include <concepts>
 #include <initializer_list>

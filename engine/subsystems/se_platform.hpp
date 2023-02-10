@@ -33,6 +33,12 @@ namespace platform
     uint32_t        atomic_32_bit_load      (const uint32_t* val, SeMemoryOrder memoryOrder);
     uint32_t        atomic_32_bit_store     (uint32_t* val, uint32_t newValue, SeMemoryOrder memoryOrder);
     bool            atomic_32_bit_cas       (uint32_t* atomic, uint32_t* expected, uint32_t newValue, SeMemoryOrder memoryOrder);
+
+
+    size_t          wchar_to_utf8_required_length   (const wchar_t* source, size_t sourceLength);
+    void            wchar_to_utf8                   (const wchar_t* source, size_t sourceLength, char* target, size_t targetLength);
+    size_t          utf8_to_wchar_required_length   (const char* source, size_t sourceLength);
+    void            utf8_to_wchar                   (const char* source, size_t sourceLength, wchar_t* target, size_t targetLength);
 }
 
 #endif

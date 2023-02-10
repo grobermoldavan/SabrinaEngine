@@ -427,3 +427,86 @@ namespace hash_value
         return hash_value::generate_raw({ (void*)cstr, strlen(cstr) });
     }
 }
+
+namespace stringw
+{
+    namespace impl
+    {
+        template<se_cstrw Arg>
+        void process(const wchar_t** elements, size_t index, const Arg& arg)
+        {
+            elements[index] = (const wchar_t*)arg;
+        }
+
+        template<se_cstrw Arg, typename ... Args>
+        void process(const wchar_t** elements, size_t index, const Arg& arg, const Args& ... args)
+        {
+            elements[index] = (const wchar_t*)arg;
+            process(elements, index + 1, args...);
+        }
+    }
+
+    template<typename ... Args>
+    SeStringW create(const AllocatorBindings& allocator, const Args& ... args)
+    {
+        const wchar_t* argsCstr[sizeof...(args)];
+        impl::process(argsCstr, 0, args...);
+
+        size_t argsLength[sizeof...(args)];
+        size_t length = 0;
+        for (size_t it = 0; it < sizeof...(args); it++)
+        {
+            const size_t argLength = utils::cstr_len(argsCstr[it]);
+            length += argLength;
+            argsLength[it] = argLength;
+        }
+
+        wchar_t* const buffer = (wchar_t*)allocator_bindings::alloc(allocator, sizeof(wchar_t) * (length + 1), se_alloc_tag);
+        size_t pivot = 0;
+        for (size_t it = 0; it < sizeof...(args); it++)
+        {
+            memcpy(buffer + pivot, argsCstr[it], sizeof(wchar_t) * argsLength[it]);
+            pivot += argsLength[it];
+        }
+        buffer[length] = 0;
+        return { buffer, length };
+    }
+
+    inline const wchar_t* cstr(const SeStringW& str)
+    {
+        return str.buffer;
+    }
+
+    SeString to_utf8(const SeStringW& str)
+    {
+        const wchar_t* const source = str.buffer;
+        const size_t sourceLength = str.length;
+        const size_t targetLength = platform::wchar_to_utf8_required_length(source, sourceLength);
+        
+        // string::create allocates string with additional null-terminated character, so we don't need to set it manually
+        SeString result = string::create(targetLength, SeStringLifetime::PERSISTENT);
+        char* const target = string::cstr(result);
+        platform::wchar_to_utf8(source, sourceLength, target, targetLength);
+        
+        return result;
+    }
+
+    SeStringW from_utf8(const AllocatorBindings& allocator, const char* source)
+    {
+        const size_t sourceLength = utils::cstr_len(source);
+        const size_t targetLength = platform::utf8_to_wchar_required_length(source, sourceLength);
+
+        wchar_t* const target = (wchar_t*)allocator_bindings::alloc(allocator, sizeof(wchar_t) * (targetLength + 1), se_alloc_tag);
+        platform::utf8_to_wchar(source, sourceLength, target, targetLength);
+
+        target[targetLength] = 0;
+        return { target, size_t(targetLength) };
+    }
+
+    void destroy(SeStringW& str)
+    {
+        allocator_bindings::dealloc(allocators::persistent(), str.buffer, sizeof(wchar_t) * (str.length + 1));
+        str.buffer = nullptr;
+        str.length = 0;
+    }
+}

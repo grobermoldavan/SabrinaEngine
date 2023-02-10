@@ -135,6 +135,30 @@ namespace platform
         *expected = casResult;
         return val == *expected;
     }
+
+    size_t wchar_to_utf8_required_length(const wchar_t* source, size_t sourceLength)
+    {
+        const int requiredLength = WideCharToMultiByte(CP_UTF8, 0, source, int(sourceLength), NULL, 0, NULL, NULL);
+        return size_t(requiredLength);
+    }
+
+    void wchar_to_utf8(const wchar_t* source, size_t sourceLength, char* target, size_t targetLength)
+    {
+        const int converisonResult = WideCharToMultiByte(CP_UTF8, 0, source, int(sourceLength), target, int(targetLength), NULL, NULL);
+        se_assert_msg(converisonResult, "Unable to convert string from utf16 to utf8. Error code is : {}", GetLastError());
+    }
+
+    size_t utf8_to_wchar_required_length(const char* source, size_t sourceLength)
+    {
+        const int requiredLength = MultiByteToWideChar(CP_UTF8, 0, source, int(sourceLength), NULL, 0);
+        return size_t(requiredLength);
+    }
+
+    void utf8_to_wchar(const char* source, size_t sourceLength, wchar_t* target, size_t targetLength)
+    {
+        const int converisonResult = MultiByteToWideChar(CP_UTF8, 0, source, int(sourceLength), target, int(targetLength));
+        se_assert_msg(converisonResult, "Unable to convert string from utf8 to utf16. Error code is : {}", GetLastError());
+    }
 } // namespace platform
 
 #else // ifdef _WIN32
