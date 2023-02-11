@@ -1287,7 +1287,7 @@ namespace ui
             float biggestAscent = 0;
             float biggestDescent = 0;
             int previousCodepoint = 0;
-            for (SeUtf32Char codepoint : SeUtf8CodepointIterator{ utf8text })
+            for (SeUtf32Char codepoint : SeUtf32Iterator{ utf8text })
             {
                 const FontGroup::CodepointInfo* const codepointInfo = codepoint_hash_table::get(fontGroup->codepointToInfo, codepoint);
                 se_assert(codepointInfo);
@@ -1330,7 +1330,7 @@ namespace ui
             //
             float positionX = baselineX;
             int previousCodepoint = 0;
-            for (SeUtf32Char codepoint : SeUtf8CodepointIterator{ utf8text })
+            for (SeUtf32Char codepoint : SeUtf32Iterator{ utf8text })
             {
                 const FontGroup::CodepointInfo* const codepointInfo = codepoint_hash_table::get(fontGroup->codepointToInfo, codepoint);
                 se_assert(codepointInfo);

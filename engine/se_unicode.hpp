@@ -90,41 +90,41 @@ namespace unicode
 
 // =======================================================================
 //
-// Iterator for utf-8 codepoints
+// Iterator for utf-32 codepoints
 //
 // =======================================================================
 
-struct SeUtf8CodepointIterator
+struct SeUtf32Iterator
 {
-    const char* data;
+    const char* utf8string;
 };
 
-struct SeUtf8CodepointIteratorInstance
+struct SeUtf32IteratorInstance
 {
     const uint8_t* data;
     size_t index;
 
-    bool                                operator != (const SeUtf8CodepointIteratorInstance& other) const;
-    SeUtf32Char                         operator *  ();
-    SeUtf8CodepointIteratorInstance&    operator ++ ();
+    bool                        operator != (const SeUtf32IteratorInstance& other) const;
+    SeUtf32Char                 operator *  ();
+    SeUtf32IteratorInstance&    operator ++ ();
 };
 
-SeUtf8CodepointIteratorInstance begin(SeUtf8CodepointIterator data)
+SeUtf32IteratorInstance begin(SeUtf32Iterator data)
 {
-    return { (const uint8_t*)data.data, 0 };
+    return { (const uint8_t*)data.utf8string, 0 };
 }
 
-SeUtf8CodepointIteratorInstance end(SeUtf8CodepointIterator data)
+SeUtf32IteratorInstance end(SeUtf32Iterator data)
 {
-    return { (const uint8_t*)data.data, strlen(data.data) };
+    return { (const uint8_t*)data.utf8string, strlen(data.utf8string) };
 }
 
-bool SeUtf8CodepointIteratorInstance::operator != (const SeUtf8CodepointIteratorInstance& other) const
+bool SeUtf32IteratorInstance::operator != (const SeUtf32IteratorInstance& other) const
 {
     return index != other.index;
 }
 
-SeUtf32Char SeUtf8CodepointIteratorInstance::operator * ()
+SeUtf32Char SeUtf32IteratorInstance::operator * ()
 {
     const uint8_t* const utf8Sequence = data + index;
     SeUtf32Char result;
@@ -156,7 +156,7 @@ SeUtf32Char SeUtf8CodepointIteratorInstance::operator * ()
     return result;
 }
 
-SeUtf8CodepointIteratorInstance& SeUtf8CodepointIteratorInstance::operator ++ ()
+SeUtf32IteratorInstance& SeUtf32IteratorInstance::operator ++ ()
 {
     // This is based on https://github.com/skeeto/branchless-utf8/blob/master/utf8.h
     static const char lengths[] =
@@ -175,37 +175,37 @@ SeUtf8CodepointIteratorInstance& SeUtf8CodepointIteratorInstance::operator ++ ()
 //
 // =======================================================================
 
-struct SeUtf8CharacterIterator
+struct SeUtf8Iterator
 {
-    const char* data;
+    const char* utf8string;
 };
 
-struct SeUtf8CharacterIteratorInstance
+struct SeUtf8teratorInstance
 {
     const char* data;
     size_t index;
 
-    bool                                operator != (const SeUtf8CharacterIteratorInstance& other) const;
-    SeUtf8Char                          operator *  ();
-    SeUtf8CharacterIteratorInstance&    operator ++ ();
+    bool                    operator != (const SeUtf8teratorInstance& other) const;
+    SeUtf8Char              operator *  ();
+    SeUtf8teratorInstance&  operator ++ ();
 };
 
-SeUtf8CharacterIteratorInstance begin(SeUtf8CharacterIterator data)
+SeUtf8teratorInstance begin(SeUtf8CharacterIterator data)
 {
-    return { data.data, 0 };
+    return { data.utf8string, 0 };
 }
 
-SeUtf8CharacterIteratorInstance end(SeUtf8CharacterIterator data)
+SeUtf8teratorInstance end(SeUtf8CharacterIterator data)
 {
-    return { data.data, strlen(data.data) };
+    return { data.utf8string, strlen(data.utf8string) };
 }
 
-bool SeUtf8CharacterIteratorInstance::operator != (const SeUtf8CharacterIteratorInstance& other) const
+bool SeUtf8teratorInstance::operator != (const SeUtf8teratorInstance& other) const
 {
     return index != other.index;
 }
 
-SeUtf8Char SeUtf8CharacterIteratorInstance::operator * ()
+SeUtf8Char SeUtf8teratorInstance::operator * ()
 {
     const char* const utf8Sequence = data + index;
     if ((utf8Sequence[0] & 0x80) == 0)
@@ -226,7 +226,7 @@ SeUtf8Char SeUtf8CharacterIteratorInstance::operator * ()
     }
 }
 
-SeUtf8CharacterIteratorInstance& SeUtf8CharacterIteratorInstance::operator ++ ()
+SeUtf8teratorInstance& SeUtf8teratorInstance::operator ++ ()
 {
     // This is based on https://github.com/skeeto/branchless-utf8/blob/master/utf8.h
     static const char lengths[] =
