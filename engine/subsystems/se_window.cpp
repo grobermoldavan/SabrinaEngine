@@ -22,10 +22,11 @@ struct SeWindowSubsystemInput
 
 struct SeWindow
 {
-    SeWindowSubsystemInput  input;
-    HWND                    handle;
-    uint32_t                width;
-    uint32_t                height;
+    SeWindowSubsystemInput          input;
+    HWND                            handle;
+    uint32_t                        width;
+    uint32_t                        height;
+    DynamicArray<SeCharacterInput>  characterInput;
 } g_window;
 
 namespace win
@@ -88,6 +89,11 @@ namespace win
         const bool isPressed = g_window.input.mouseButtonsCurrent & (1ull << keyFlag);
         const bool wasPressed = g_window.input.mouseButtonsPrevious & (1ull << keyFlag);
         return isPressed && !wasPressed;
+    }
+
+    const DynamicArray<SeCharacterInput> get_character_input()
+    {
+        return g_window.characterInput;
     }
 
     void engine::init(const SeSettings& settings)
@@ -164,14 +170,18 @@ namespace win
             g_window.height = (uint32_t)(clientRect.bottom - clientRect.top);
         }
 
+        dynamic_array::construct(g_window.characterInput, allocators::persistent(), 64);
+
         SetWindowLongPtr(g_window.handle, GWLP_USERDATA, (LONG_PTR)&g_window);
         ShowWindow(g_window.handle, settings.isFullscreenWindow ? SW_MAXIMIZE : SW_SHOW);
         UpdateWindow(g_window.handle);
+
         engine::update();
     }
 
     void engine::update()
     {
+        dynamic_array::reset(g_window.characterInput);
         memcpy(g_window.input.keyboardButtonsPrevious, g_window.input.keyboardButtonsCurrent, sizeof(g_window.input.keyboardButtonsPrevious));
         g_window.input.mouseButtonsPrevious = g_window.input.mouseButtonsCurrent;
         const uint32_t prevWidth = g_window.width;
@@ -187,6 +197,7 @@ namespace win
 
     void engine::terminate()
     {
+        dynamic_array::destroy(g_window.characterInput);
         DestroyWindow(g_window.handle);
         engine::update();
     }
@@ -210,8 +221,18 @@ namespace win
                 g_window.input.isCloseButtonPressed = true;
                 return 0;
             case WM_SIZE:
-                g_window.width = (uint32_t)(LOWORD(lParam));
-                g_window.height = (uint32_t)(HIWORD(lParam));
+                g_window.width = uint32_t(LOWORD(lParam));
+                g_window.height = uint32_t(HIWORD(lParam));
+                return 0;
+            case WM_CHAR:
+                const wchar_t w = wchar_t(wParam);
+                SeUtf8Char character{};
+                platform::wchar_to_utf8(&w, 1, character.data, 4);
+                // Special characters are processed in win32_window_process_keyboard_input
+                if (!unicode::is_special_character(character))
+                {
+                    dynamic_array::push(g_window.characterInput, { .type = SeCharacterInput::CHARACTER, .character = character  });
+                }
                 return 0;
             }
         }
@@ -322,7 +343,7 @@ namespace win
             k(SeKeyboard::ENTER),       // 0x0D - enter
             k(SeKeyboard::NONE),        // 0x0E - undefined
             k(SeKeyboard::NONE),        // 0x0F - undefined
-            k(SeKeyboard::SHIFT),       // 0x10    - shift
+            k(SeKeyboard::SHIFT),       // 0x10 - shift
             k(SeKeyboard::CTRL),        // 0x11 - ctrl
             k(SeKeyboard::ALT),         // 0x12 - alt
             k(SeKeyboard::NONE),        // 0x13 - pause
@@ -352,7 +373,7 @@ namespace win
             k(SeKeyboard::NONE),        // 0x2B - execute
             k(SeKeyboard::NONE),        // 0x2C - print screen
             k(SeKeyboard::NONE),        // 0x2D - ins
-            k(SeKeyboard::NONE),        // 0x2E - del
+            k(SeKeyboard::DEL),         // 0x2E - del
             k(SeKeyboard::NONE),        // 0x2F - help
             k(SeKeyboard::NUM_0),       // 0x30 - 0
             k(SeKeyboard::NUM_1),       // 0x31 - 1
@@ -569,6 +590,24 @@ namespace win
                 const uint64_t flag = VK_CODE_TO_KEYBOARD_FLAGS[wParam];
                 const uint64_t id = flag / 64ULL;
                 g_window.input.keyboardButtonsCurrent[id] |= BIT(flag - id * 64);
+
+                if (flag == SeKeyboard::BACKSPACE)
+                {
+                    dynamic_array::push(g_window.characterInput, { .type = SeCharacterInput::SPECIAL, .special = SeKeyboard::BACKSPACE });
+                }
+                else if (flag == SeKeyboard::DEL)
+                {
+                    dynamic_array::push(g_window.characterInput, { .type = SeCharacterInput::SPECIAL, .special = SeKeyboard::DEL });
+                }
+                else if (flag == SeKeyboard::ENTER)
+                {
+                    dynamic_array::push(g_window.characterInput, { .type = SeCharacterInput::SPECIAL, .special = SeKeyboard::ENTER });
+                }
+                else if (flag == SeKeyboard::TAB)
+                {
+                    dynamic_array::push(g_window.characterInput, { .type = SeCharacterInput::SPECIAL, .special = SeKeyboard::TAB });
+                }
+
                 break;
             }
             case WM_KEYUP:

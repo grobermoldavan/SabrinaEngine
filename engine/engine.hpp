@@ -8,6 +8,7 @@
 #include "engine/se_utils.hpp"
 #include "engine/se_containers.hpp"
 #include "engine/se_data_providers.hpp"
+#include "engine/se_unicode.hpp"
 
 #include "engine/render/se_render.hpp"
 #include "engine/subsystems/se_platform.hpp"

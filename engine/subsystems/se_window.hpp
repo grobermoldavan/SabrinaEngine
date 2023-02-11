@@ -2,6 +2,7 @@
 #define _SE_WINDOW_SUBSYSTEM_H_
 
 #include "engine/se_common_includes.hpp"
+#include "engine/se_containers.hpp"
 
 struct SeMouse
 {
@@ -24,7 +25,7 @@ struct SeKeyboard
         F, G, H, J, K, L, Z, X, C, V, B, N, M,
         L_BRACKET, R_BRACKET, SEMICOLON, APOSTROPHE, BACKSLASH, COMMA, PERIOD, SLASH,
         TILDA, NUM_1, NUM_2, NUM_3, NUM_4, NUM_5, NUM_6, NUM_7, NUM_8, NUM_9, NUM_0, MINUS, EQUALS,
-        TAB, CAPS_LOCK, ENTER, BACKSPACE, SPACE,
+        TAB, CAPS_LOCK, ENTER, BACKSPACE, SPACE, DEL,
         L_SHIFT, R_SHIFT, SHIFT,
         L_CTRL, R_CTRL, CTRL,
         L_ALT, R_ALT, ALT,
@@ -39,7 +40,7 @@ const char* SE_KEYBOARD_INPUT_TO_STRING[] =
     "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "A", "S", "D", "F", "G", "H", "J", "K", "L", "Z", "X", "C", "V", "B", "N", "M",
     "L_BRACKET", "R_BRACKET", "SEMICOLON", "APOSTROPHE", "BACKSLASH", "COMMA", "PERIOD", "SLASH",
     "TILDA", "NUM_1", "NUM_2", "NUM_3", "NUM_4", "NUM_5", "NUM_6", "NUM_7", "NUM_8", "NUM_9", "NUM_0", "MINUS", "EQUALS",
-    "TAB", "CAPS_LOCK", "ENTER", "BACKSPACE", "SPACE",
+    "TAB", "CAPS_LOCK", "ENTER", "BACKSPACE", "SPACE", "DEL",
     "L_SHIFT", "R_SHIFT", "SHIFT",
     "L_CTRL", "R_CTRL", "CTRL",
     "L_ALT", "R_ALT", "ALT",
@@ -58,6 +59,20 @@ struct SeMousePos
     int64_t y;
 };
 
+struct SeCharacterInput
+{
+    enum : uint32_t
+    {
+        CHARACTER,
+        SPECIAL,
+    } type;
+    union
+    {
+        SeUtf8Char character;
+        SeKeyboard::Type special;
+    };
+};
+
 namespace win
 {
     template<typename T = uint32_t> T   get_width();
@@ -72,6 +87,8 @@ namespace win
     bool        is_keyboard_button_just_pressed(SeKeyboard::Type keyFlag);
     bool        is_mouse_button_pressed(SeMouse::Type keyFlag);
     bool        is_mouse_button_just_pressed(SeMouse::Type keyFlag);
+
+    const DynamicArray<SeCharacterInput> get_character_input();
 
     namespace engine
     {

@@ -21,87 +21,6 @@ void ui_stbtt_free(void* ptr)
 
 // =======================================================================
 //
-// Iterator for utf-8 codepoints
-//
-// =======================================================================
-
-struct Utf8Iterator
-{
-    const void* data;
-    size_t index;
-
-    bool            operator != (const Utf8Iterator& other) const;
-    uint32_t        operator *  ();
-    Utf8Iterator&   operator ++ ();
-};
-
-struct Utf8
-{
-    const void* data;
-};
-
-Utf8Iterator begin(Utf8 data)
-{
-    return { data.data, 0 };
-}
-
-Utf8Iterator end(Utf8 data)
-{
-    return { &data.data, strlen((const char*)data.data) };
-}
-
-bool Utf8Iterator::operator != (const Utf8Iterator& other) const
-{
-    return data != other.data && index != other.index;
-}
-
-uint32_t Utf8Iterator::operator * ()
-{
-    const uint8_t* const utf8Sequence = ((const uint8_t*)data) + index;
-    uint32_t result = 0;
-    if ((utf8Sequence[0] & 0x80) == 0)
-    {
-        result = utf8Sequence[0];
-    }
-    else if ((utf8Sequence[0] & 0xe0) == 0xc0)
-    {
-        result =
-            (((uint32_t)utf8Sequence[0] & 0x1f) << 6)   |
-            (((uint32_t)utf8Sequence[1] & 0x3f));
-    }
-    else if ((utf8Sequence[0] & 0xf0) == 0xe0)
-    {
-        result =
-            (((uint32_t)utf8Sequence[0] & 0x0f) << 12)  |
-            (((uint32_t)utf8Sequence[1] & 0x3f) << 6)   |
-            (((uint32_t)utf8Sequence[2] & 0x3f));
-    }
-    else
-    {
-        result =
-            (((uint32_t)utf8Sequence[0] & 0x07) << 18)  |
-            (((uint32_t)utf8Sequence[1] & 0x3f) << 12)  |
-            (((uint32_t)utf8Sequence[2] & 0x3f) << 6)   |
-            (((uint32_t)utf8Sequence[3] & 0x3f));
-    }
-    return result;
-}
-
-Utf8Iterator& Utf8Iterator::operator ++ ()
-{
-    // This is based on https://github.com/skeeto/branchless-utf8/blob/master/utf8.h
-    static const char lengths[] =
-    {
-        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-        0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 3, 3, 4, 0
-    };
-    const uint8_t firstByte = ((const uint8_t*)data)[index];
-    index += lengths[firstByte >> 3];
-    return *this;
-}
-
-// =======================================================================
-//
 // Render atlas
 //
 // =======================================================================
@@ -607,7 +526,7 @@ namespace font_info
 // =======================================================================
 //
 // Codepoint hash table
-// Special variation of hash table, optimized for a uint32_t codepoint keys
+// Special variation of hash table, optimized for a SeUtf32Char codepoint keys
 // Mostly a copy paste from original HashTable
 //
 // =======================================================================
@@ -617,7 +536,7 @@ struct CodepointHashTable
 {
     struct Entry
     {
-        uint32_t key;
+        SeUtf32Char key;
         uint32_t isOccupied;
         T value;
     };
@@ -653,7 +572,7 @@ namespace codepoint_hash_table
     }
 
     template<typename T>
-    T* set(CodepointHashTable<T>& table, uint32_t key, const T& value)
+    T* set(CodepointHashTable<T>& table, SeUtf32Char key, const T& value)
     {
         using Entry = CodepointHashTable<T>::Entry;
         //
@@ -699,7 +618,7 @@ namespace codepoint_hash_table
     }
 
     template<typename T>
-    size_t index_of(const CodepointHashTable<T>& table, uint32_t key)
+    size_t index_of(const CodepointHashTable<T>& table, SeUtf32Char key)
     {
         using Entry = CodepointHashTable<T>::Entry;
         const size_t capacity = table.capacity;
@@ -716,14 +635,14 @@ namespace codepoint_hash_table
     }
 
     template<typename T>
-    inline T* get(CodepointHashTable<T>& table, uint32_t key)
+    inline T* get(CodepointHashTable<T>& table, SeUtf32Char key)
     {
         const size_t position = index_of(table, key);
         return position != table.capacity ? &table.memory[position].value : nullptr;
     }
 
     template<typename T>
-    inline const T* get(const CodepointHashTable<T>& table, uint32_t key)
+    inline const T* get(const CodepointHashTable<T>& table, SeUtf32Char key)
     {
         const size_t position = index_of(table, key);
         return position != table.capacity ? &table.memory[position].value : nullptr;
@@ -742,7 +661,7 @@ struct CodepointHashTableIterator;
 template<typename Value, typename Table>
 struct CodepointHashTableIteratorValue
 {
-    uint32_t                                    key;
+    SeUtf32Char                                 key;
     Value&                                      value;
     CodepointHashTableIterator<Value, Table>*   iterator;
 };
@@ -822,7 +741,7 @@ namespace iter
     }
 
     template<typename Value, typename Table>
-    uint32_t key(const CodepointHashTableIteratorValue<Value, Table>& val)
+    SeUtf32Char key(const CodepointHashTableIteratorValue<Value, Table>& val)
     {
         return val.key;
     }
@@ -863,7 +782,7 @@ struct FontGroup
 
 namespace font_group
 {
-    inline int direct_cast_to_int(uint32_t value)
+    inline int direct_cast_to_int(SeUtf32Char value)
     {
         return *((int*)&value);
     };
@@ -915,7 +834,7 @@ namespace font_group
             //
             // Bitmap
             //
-            const uint32_t codepoint = iter::key(it);
+            const SeUtf32Char codepoint = iter::key(it);
             const FontInfo* const font = iter::value(it);
             const float scale = stbtt_ScaleForPixelHeight(&font->stbInfo, FontGroup::ATLAS_CODEPOINT_HEIGHT_PIX);
             int width;
@@ -1368,7 +1287,7 @@ namespace ui
             float biggestAscent = 0;
             float biggestDescent = 0;
             int previousCodepoint = 0;
-            for (uint32_t codepoint : Utf8{ utf8text })
+            for (SeUtf32Char codepoint : SeUtf8CodepointIterator{ utf8text })
             {
                 const FontGroup::CodepointInfo* const codepointInfo = codepoint_hash_table::get(fontGroup->codepointToInfo, codepoint);
                 se_assert(codepointInfo);
@@ -1411,7 +1330,7 @@ namespace ui
             //
             float positionX = baselineX;
             int previousCodepoint = 0;
-            for (uint32_t codepoint : Utf8{ utf8text })
+            for (SeUtf32Char codepoint : SeUtf8CodepointIterator{ utf8text })
             {
                 const FontGroup::CodepointInfo* const codepointInfo = codepoint_hash_table::get(fontGroup->codepointToInfo, codepoint);
                 se_assert(codepointInfo);
