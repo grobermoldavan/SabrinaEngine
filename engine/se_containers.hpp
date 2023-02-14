@@ -9,6 +9,7 @@
 #include "se_utils.hpp"
 #include "subsystems/se_debug.hpp"
 #include "subsystems/se_platform.hpp"
+#include "subsystems/se_string.hpp" // This file is included only because of utils::compare definitions
 
 /*
     Dynamic array

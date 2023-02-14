@@ -46,7 +46,7 @@ struct SeUiParam
         PIVOT_POSITION_Y            = 11,
         PIVOT_TYPE_X                = 12,
         PIVOT_TYPE_Y                = 13,
-        BUTTON_BORDER_SIZE          = 14,
+        INPUT_ELEMENTS_BORDER_SIZE  = 14,
         _COUNT,
     };
     union
@@ -106,6 +106,12 @@ struct SeUiButtonInfo
     SeUiButtonMode  mode;
 };
 
+struct SeUiInputTextLineInfo
+{
+    const char* uid;
+    const char* hintText;
+};
+
 namespace ui
 {
     bool                begin           (const SeUiBeginInfo& info);
@@ -118,6 +124,7 @@ namespace ui
     bool                begin_region    (const SeUiRegionInfo& info);
     void                end_region      ();
     bool                button          (const SeUiButtonInfo& info);
+    const char*         input_text_line (const SeUiInputTextLineInfo& info);
 
     namespace engine
     {

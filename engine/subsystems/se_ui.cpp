@@ -1043,6 +1043,14 @@ struct UiObjectData
 
     // Buttons data
     UiStateFlags::Type  stateFlags;
+
+    // Text input data
+    SeUtf32Char* codepoints;
+    size_t codepointsCapacity;
+    size_t codepointsSize;
+    size_t codepointsPivot;
+    char* utf8text;
+    size_t utf8textCapacity;
 };
 
 struct UiContext
@@ -1075,11 +1083,13 @@ struct UiContext
     SeString                                        currentHoveredObjectUid;
     SeString                                        previousHoveredWindowUid;
     SeString                                        currentHoveredWindowUid;
+    SeString                                        lastClickedObjectUid;
 
     SeString                                        previousActiveObjectUid;
     SeString                                        currentActiveObjectUid;
-    SeString                                        currentWindowUid;
     bool                                            isJustActivated;
+
+    SeString                                        currentWindowUid;
 
     bool                                            hasWorkRegion;
     UiQuadCoords                                    workRegion;
@@ -1109,7 +1119,7 @@ const UiParams DEFAULT_PARAMS =
     /* PIVOT_POSITION_Y             */ { .dim = 0.0f },
     /* PIVOT_TYPE_X                 */ { .enumeration = SeUiPivotType::BOTTOM_LEFT },
     /* PIVOT_TYPE_Y                 */ { .enumeration = SeUiPivotType::BOTTOM_LEFT },
-    /* BUTTON_BORDER_SIZE           */ { .dim = 5.0f },
+    /* INPUT_ELEMENTS_BORDER_SIZE   */ { .dim = 5.0f },
 };
 
 UiContext g_uiCtx;
@@ -1158,6 +1168,7 @@ namespace ui
             if (!data)
             {
                 data = hash_table::set(g_uiCtx.uidToObjectData, string::create(cstrUid, SeStringLifetime::PERSISTENT), { });
+                *data = {};
             }
             se_assert(data);
             return { hash_table::key(g_uiCtx.uidToObjectData, data), data, isFirstAccess };
@@ -1247,15 +1258,15 @@ namespace ui
                 const float blX = window
                     ? g_uiCtx.workRegion.blX - window->scrollInfoX.absoluteScrollPosition
                     : g_uiCtx.workRegion.blX;
-                const float tlY = window
+                const float trY = window
                     ? window->workRegion.trY - window->scrollInfoY.absoluteContentSize + window->scrollInfoY.absoluteScrollPosition
                     : g_uiCtx.workRegion.trY;
                 return
                 {
                     blX,
-                    tlY - height,
+                    trY - height,
                     blX + width,
-                    tlY,
+                    trY,
                 };
             }
             else
@@ -1277,7 +1288,9 @@ namespace ui
                 (quad.trY >= g_uiCtx.mouseY);
         }
 
-        UiQuadCoords get_text_bbox(const char* utf8text)
+        // @TODO : move copypasta text-processing code to some base function
+        template<typename T>
+        UiQuadCoords get_text_bbox(const T* text)
         {
             const FontGroup* const fontGroup = g_uiCtx.currentFontGroup;
             const float fontHeight = g_uiCtx.currentParams[SeUiParam::FONT_HEIGHT].dim;
@@ -1287,7 +1300,7 @@ namespace ui
             float biggestAscent = 0;
             float biggestDescent = 0;
             int previousCodepoint = 0;
-            for (SeUtf32Char codepoint : SeUtf32Iterator{ utf8text })
+            for (SeUtf32Char codepoint : SeUtf32Iterator{ text })
             {
                 const FontGroup::CodepointInfo* const codepointInfo = codepoint_hash_table::get(fontGroup->codepointToInfo, codepoint);
                 se_assert(codepointInfo);
@@ -1312,7 +1325,8 @@ namespace ui
             return { 0, -biggestDescent, positionX, biggestAscent };
         }
 
-        float draw_text_at_pos(const char* utf8text, float baselineX, float baselineY)
+        template<typename T>
+        float draw_text_at_pos(const T* text, float baselineX, float baselineY, const SeColorUnpacked& tint = { 1.0f, 1.0f, 1.0f, 1.0f })
         {
             if (g_uiCtx.hasWorkRegion && baselineX >= g_uiCtx.workRegion.trX)
             {
@@ -1320,9 +1334,17 @@ namespace ui
             }
             const FontGroup* const fontGroup = g_uiCtx.currentFontGroup;
             const float fontHeight = g_uiCtx.currentParams[SeUiParam::FONT_HEIGHT].dim;
+            const SeColorUnpacked fontColorUntinted = col::unpack(g_uiCtx.currentParams[SeUiParam::FONT_COLOR].color);
+            const SeColorUnpacked fontColorTinted
+            {
+                fontColorUntinted.r * tint.r,
+                fontColorUntinted.g * tint.g,
+                fontColorUntinted.b * tint.b,
+                fontColorUntinted.a * tint.a,
+            };
             const uint32_t colorIndex = set_draw_call(fontGroup->texture,
             {
-                .tint = col::unpack(g_uiCtx.currentParams[SeUiParam::FONT_COLOR].color),
+                .tint = fontColorTinted,
                 .mode = UiRenderColorsUnpacked::MODE_TEXT,
             });
             //
@@ -1330,12 +1352,13 @@ namespace ui
             //
             float positionX = baselineX;
             int previousCodepoint = 0;
-            for (SeUtf32Char codepoint : SeUtf32Iterator{ utf8text })
+            for (SeUtf32Char codepoint : SeUtf32Iterator{ text })
             {
                 const FontGroup::CodepointInfo* const codepointInfo = codepoint_hash_table::get(fontGroup->codepointToInfo, codepoint);
                 se_assert(codepointInfo);
                 const FontInfo* const font = codepointInfo->font;
                 const float scale = stbtt_ScaleForPixelHeight(&font->stbInfo, fontHeight);
+                const float advance = scale * float(codepointInfo->advanceWidthUnscaled);
                 const float bearing = scale * float(codepointInfo->leftSideBearingUnscaled);
                 const int codepointSigned = font_group::direct_cast_to_int(codepoint);
                 int x0;
@@ -1353,10 +1376,46 @@ namespace ui
                 const float topRightY = bottomLeftY + height;
                 const RenderAtlasRectNormalized& rect = fontGroup->atlas.uvRects[codepointInfo->atlasRectIndex];
                 push_quad(colorIndex, { bottomLeftX, bottomLeftY, topRightX, topRightY }, rect.p1x, rect.p1y, rect.p2x, rect.p2y);
-                positionX += scale * float(codepointInfo->advanceWidthUnscaled);
+                positionX += advance;
                 previousCodepoint = codepointSigned;
             }
             return positionX - baselineX;
+        }
+
+        template<typename T>
+        float get_text_pivot_offset(const T* text, size_t pivotPosition)
+        {
+            const FontGroup* const fontGroup = g_uiCtx.currentFontGroup;
+            const float fontHeight = g_uiCtx.currentParams[SeUiParam::FONT_HEIGHT].dim;
+            float positionX = 0;
+            int previousCodepoint = 0;
+            float previousAdditionalAdvance = 0.0f;
+            size_t it = 0;
+            for (SeUtf32Char codepoint : SeUtf32Iterator{ text })
+            {
+                if (it++ == pivotPosition)
+                {
+                    positionX -= previousAdditionalAdvance;
+                    break;
+                }
+                const FontGroup::CodepointInfo* const codepointInfo = codepoint_hash_table::get(fontGroup->codepointToInfo, codepoint);
+                se_assert(codepointInfo);
+                const FontInfo* const font = codepointInfo->font;
+                const float scale = stbtt_ScaleForPixelHeight(&font->stbInfo, fontHeight);
+                const float advance = scale * float(codepointInfo->advanceWidthUnscaled);
+                const float bearing = scale * float(codepointInfo->leftSideBearingUnscaled);
+                const int codepointSigned = font_group::direct_cast_to_int(codepoint);
+                int x0;
+                int y0;
+                int x1;
+                int y1;
+                stbtt_GetCodepointBitmapBox(&font->stbInfo, codepointSigned, scale, scale, &x0, &y0, &x1, &y1);
+                const float additionalAdvance = scale * float(stbtt_GetCodepointKernAdvance(&font->stbInfo, previousCodepoint, codepointSigned));
+                positionX += additionalAdvance + advance;
+                previousCodepoint = codepointSigned;
+                previousAdditionalAdvance = additionalAdvance;
+            }
+            return positionX;
         }
 
         void reset_work_region()
@@ -1670,7 +1729,7 @@ namespace ui
             if (lineLowestPoint < g_uiCtx.workRegion.trY)
             {
                 textWidth = impl::draw_text_at_pos(info.utf8text, baselineX, baselineY);
-                g_uiCtx.workRegion.trY = lineLowestPoint;
+                g_uiCtx.workRegion.trY = lineLowestPoint - lineGap;
             }
             else
             {
@@ -1702,7 +1761,7 @@ namespace ui
         //
         // Get object data, update quad and settings
         //
-        auto [uid, data, isFirst] = impl::object_data_get(info.uid);
+        const auto [uid, data, isFirst] = impl::object_data_get(info.uid);
         const bool getQuadFromData = (info.flags & (SeUiFlags::RESIZABLE_X | SeUiFlags::RESIZABLE_Y)) && !isFirst;
         const UiQuadCoords quad = getQuadFromData
             ? data->quad
@@ -1800,6 +1859,7 @@ namespace ui
                 static constexpr float BORDER_PANEL_TOLERANCE = 2.0f;
 
                 g_uiCtx.currentActiveObjectUid = uid;
+                g_uiCtx.lastClickedObjectUid = uid;
 
                 const bool isTopPanelUnderCursor = ((quad.trY - topPanelThickness) <= g_uiCtx.mouseY);
                 const bool isLeftBorderUnderCursor = !isTopPanelUnderCursor && ((quad.blX + borderThickness + BORDER_PANEL_TOLERANCE) >= g_uiCtx.mouseX);
@@ -1914,7 +1974,7 @@ namespace ui
 
     bool button(const SeUiButtonInfo& info)
     {
-        auto [uid, data, isFirst] = impl::object_data_get(info.uid);
+        const auto [uid, data, isFirst] = impl::object_data_get(info.uid);
         //
         // Get button size
         //
@@ -1925,7 +1985,7 @@ namespace ui
         if (info.utf8text)
         {
             const float fontHeight = g_uiCtx.currentParams[SeUiParam::FONT_HEIGHT].dim;
-            const float border = g_uiCtx.currentParams[SeUiParam::BUTTON_BORDER_SIZE].dim;
+            const float border = g_uiCtx.currentParams[SeUiParam::INPUT_ELEMENTS_BORDER_SIZE].dim;
             const auto [bbx1, bby1, bbx2, bby2] = impl::get_text_bbox(info.utf8text);
             textWidth = bbx2 - bbx1;
             const float textWidthWithBorder = textWidth + border * 2.0f;
@@ -1945,6 +2005,7 @@ namespace ui
             if (g_uiCtx.isMouseJustDown)
             {
                 g_uiCtx.currentActiveObjectUid = uid;
+                g_uiCtx.lastClickedObjectUid = uid;
             }
         }
         const bool isPressed = utils::compare(g_uiCtx.previousActiveObjectUid, uid);
@@ -1999,6 +2060,190 @@ namespace ui
             (info.mode == SeUiButtonMode::CLICK && isClicked);
     }
 
+    const char* input_text_line(const SeUiInputTextLineInfo& info)
+    {
+        se_assert_msg(g_uiCtx.hasWorkRegion, "@TODO : support input text line outside of work region");
+
+        const auto [uid, data, isFirst] = impl::object_data_get(info.uid);
+        if (isFirst)
+        {
+            static constexpr const size_t INITIAL_CAPACITY = 128;
+            data->codepoints = (SeUtf32Char*)allocator_bindings::alloc(allocators::persistent(), INITIAL_CAPACITY * sizeof(SeUtf32Char), se_alloc_tag);
+            data->codepointsCapacity = INITIAL_CAPACITY;
+            data->codepointsSize = 0;
+            data->codepointsPivot = 0;
+            data->codepoints[0] = 0;
+        }
+        const bool isLastClicked = utils::compare(g_uiCtx.lastClickedObjectUid, uid);
+
+        //
+        // Process character input
+        //
+        bool isTextUpdated = isFirst;
+        if (isLastClicked)
+        {
+            for (auto it : win::get_character_input())
+            {
+                const SeCharacterInput& input = iter::value(it);
+                if (input.type == SeCharacterInput::SPECIAL)
+                {
+                    switch (input.special)
+                    {
+                        case SeKeyboard::BACKSPACE:
+                        {
+                            if (data->codepointsPivot)
+                            {
+                                for (size_t codepointIt = data->codepointsPivot; codepointIt < data->codepointsSize; codepointIt++)
+                                {
+                                    data->codepoints[codepointIt - 1] = data->codepoints[codepointIt];
+                                }
+                                data->codepointsSize -=1;
+                                data->codepointsPivot -= 1;
+                                data->codepoints[data->codepointsSize] = 0;
+                                isTextUpdated = true;
+                            }
+                        } break;
+                        case SeKeyboard::DEL:
+                        {
+                            if (data->codepointsPivot < data->codepointsSize)
+                            {
+                                for (size_t codepointIt = data->codepointsPivot; codepointIt < (data->codepointsSize - 1); codepointIt++)
+                                {
+                                    data->codepoints[codepointIt] = data->codepoints[codepointIt + 1];
+                                }
+                                data->codepointsSize -=1;
+                                data->codepoints[data->codepointsSize] = 0;
+                                isTextUpdated = true;
+                            }
+                        } break;
+                        case SeKeyboard::ARROW_LEFT:
+                        {
+                            if (data->codepointsPivot) data->codepointsPivot -= 1;
+                        } break;
+                        case SeKeyboard::ARROW_RIGHT:
+                        {
+                            if (data->codepointsPivot < data->codepointsSize) data->codepointsPivot += 1;
+                        } break;
+                        case SeKeyboard::HOME:
+                        {
+                            data->codepointsPivot = 0;
+                        } break;
+                        case SeKeyboard::END:
+                        {
+                            data->codepointsPivot = data->codepointsSize;
+                        } break;
+                    }
+                }
+                else // input.type == SeCharacterInput::CHARACTER
+                {
+                    const SeUtf32Char character = input.character;
+                    const bool needsExpansion = (data->codepointsCapacity - data->codepointsSize) <= 1;
+                    if (needsExpansion)
+                    {
+                        SeUtf32Char* const newCodepointData = (SeUtf32Char*)allocator_bindings::alloc(allocators::persistent(), data->codepointsCapacity * 2 * sizeof(SeUtf32Char), se_alloc_tag);
+                        memcpy(newCodepointData, data->codepoints, data->codepointsSize * sizeof(SeUtf32Char));
+                        allocator_bindings::dealloc(allocators::persistent(), data->codepoints, data->codepointsCapacity * sizeof(SeUtf32Char));
+                        data->codepoints = newCodepointData;
+                        data->codepointsCapacity = data->codepointsCapacity * 2;
+                    }
+                    data->codepoints[data->codepointsSize + 1] = 0;
+                    for (size_t codepointIt = data->codepointsSize; codepointIt > data->codepointsPivot; codepointIt--)
+                    {
+                        data->codepoints[codepointIt] = data->codepoints[codepointIt - 1];
+                    }
+                    data->codepoints[data->codepointsPivot++] = character;
+                    data->codepointsSize += 1;
+                    isTextUpdated = true;
+                }
+            }
+        }
+
+        //
+        // Update utf-8 version if required
+        //
+        if (isTextUpdated)
+        {
+            const size_t requiredSize = data->codepointsSize * SeUtf8Char::CAPACITY + 1; // Every codepoint translates to 4 or less bytes, +1 for null terminator
+            const bool needsNewAllocation = (data->utf8textCapacity < requiredSize) || (data->utf8text == nullptr);
+            char* const memory = needsNewAllocation
+                ? (char*)allocator_bindings::alloc(allocators::persistent(), requiredSize, se_alloc_tag)
+                : data->utf8text;
+            
+            size_t pivot = 0;
+            for (SeUtf32Char c : SeUtf32Iterator{ data->codepoints })
+            {
+                const SeUtf8Char utf8char = unicode::to_utf8(c);
+                const size_t length = unicode::length(utf8char);
+                memcpy(memory + pivot, utf8char.data, length);
+                pivot += length;
+            }
+            memory[pivot] = 0;
+
+            if (needsNewAllocation)
+            {
+                if (data->utf8text != nullptr) allocator_bindings::dealloc(allocators::persistent(), data->utf8text, data->utf8textCapacity);
+                data->utf8text = memory;
+                data->utf8textCapacity = requiredSize;
+            }
+        }
+
+        //
+        // Draw stuff
+        //
+        const float border = g_uiCtx.currentParams[SeUiParam::INPUT_ELEMENTS_BORDER_SIZE].dim;
+        const float fontHeight = g_uiCtx.currentParams[SeUiParam::FONT_HEIGHT].dim;
+        const SeColorUnpacked backgroundColor = col::unpack(g_uiCtx.currentParams[SeUiParam::PRIMARY_COLOR].color);
+        const SeColorUnpacked pivotColor = col::unpack(g_uiCtx.currentParams[SeUiParam::ACCENT_COLOR].color);
+        const float width = 1337.0f * 1984.0f; // @HACK : just a very big number
+        const float height = fontHeight + border * 2.0f;
+
+        // Draw backgound
+        const UiQuadCoords quad = impl::get_corners(width, height);
+        const uint32_t backgroundColorIndex = impl::set_draw_call({ backgroundColor, UiRenderColorsUnpacked::MODE_SIMPLE });
+        impl::push_quad(backgroundColorIndex, quad);
+
+        // Draw pivot
+        if (isLastClicked)
+        {
+            const float pivotOffsetX = impl::get_text_pivot_offset(data->codepoints, data->codepointsPivot);
+            const uint32_t pivotColorIndex = impl::set_draw_call({ pivotColor, UiRenderColorsUnpacked::MODE_SIMPLE });
+            impl::push_quad(pivotColorIndex, { quad.blX + pivotOffsetX, quad.blY, quad.blX + pivotOffsetX + 2.0f, quad.trY });
+        }
+
+        // Draw text
+        float textWidth = 0.0f;
+        if (data->codepointsSize)
+        {
+            textWidth = impl::draw_text_at_pos(data->codepoints, quad.blX + border, quad.trY - impl::get_current_font_ascent() - border);
+        }
+        else
+        {
+            const SeColorUnpacked tint { 1.0f, 1.0f, 1.0f, 0.1f };
+            textWidth = impl::draw_text_at_pos(info.hintText, quad.blX + border, quad.trY - impl::get_current_font_ascent() - border, tint);
+        }
+
+        //
+        // Update data
+        //
+        const bool isUnderCursor = impl::is_under_cursor(quad) && (g_uiCtx.hasWorkRegion ? impl::is_under_cursor(g_uiCtx.workRegion) : true);
+        if (g_uiCtx.isMouseJustDown && isUnderCursor)
+        {
+            g_uiCtx.lastClickedObjectUid = uid;
+        }
+        if (g_uiCtx.hasWorkRegion)
+        {
+            g_uiCtx.workRegion.trY = se_min(g_uiCtx.workRegion.trY, quad.blY);
+        }
+        UiObjectData* const window = hash_table::get(g_uiCtx.uidToObjectData, g_uiCtx.currentWindowUid);
+        if (window)
+        {
+            window->scrollInfoX.absoluteContentSize = se_max(window->scrollInfoX.absoluteContentSize, textWidth + border * 2.0f);
+            window->scrollInfoY.absoluteContentSize += height;
+        }
+
+        return data->utf8text;
+    }
+
     void engine::init()
     {
         g_uiCtx = { };
@@ -2028,7 +2273,15 @@ namespace ui
 
     void engine::terminate()
     {
-        for (auto it : g_uiCtx.uidToObjectData) string::destroy(iter::key(it));
+        for (auto it : g_uiCtx.uidToObjectData)
+        {
+            UiObjectData& data = iter::value(it);
+            if (data.codepoints) allocator_bindings::dealloc(allocators::persistent(), data.codepoints, data.codepointsSize * sizeof(SeUtf32Char));
+            if (data.utf8text) allocator_bindings::dealloc(allocators::persistent(), data.utf8text, data.utf8textCapacity);
+
+            SeString& key = iter::key(it);
+            string::destroy(key);
+        }
         hash_table::destroy(g_uiCtx.uidToObjectData);
 
         for (auto it : g_uiCtx.fontGroups) font_group::destroy(iter::value(it));

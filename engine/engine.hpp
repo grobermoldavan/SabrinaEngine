@@ -2,10 +2,10 @@
 #define _SE_ENGINE_HPP_
 
 #include "engine/se_common_includes.hpp"
-#include "engine/se_math.hpp"
+#include "engine/se_utils.hpp"
 #include "engine/se_allocator_bindings.hpp"
 #include "engine/se_hash.hpp"
-#include "engine/se_utils.hpp"
+#include "engine/se_math.hpp"
 #include "engine/se_containers.hpp"
 #include "engine/se_data_providers.hpp"
 #include "engine/se_unicode.hpp"

@@ -1,9 +1,7 @@
 #ifndef _SE_PLATFORM_HPP_
 #define _SE_PLATFORM_HPP_
 
-#include "engine/subsystems/se_string.hpp"
 #include "engine/se_common_includes.hpp"
-#include "engine/se_allocator_bindings.hpp"
 
 enum SeMemoryOrder
 {

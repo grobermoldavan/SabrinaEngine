@@ -30,7 +30,8 @@ struct SeKeyboard
         L_CTRL, R_CTRL, CTRL,
         L_ALT, R_ALT, ALT,
         ESCAPE, F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12,
-        ARROW_UP, ARROW_DOWN, ARROW_LEFT, ARROW_RIGHT
+        ARROW_UP, ARROW_DOWN, ARROW_LEFT, ARROW_RIGHT,
+        END, HOME,
     };
 };
 
@@ -45,7 +46,8 @@ const char* SE_KEYBOARD_INPUT_TO_STRING[] =
     "L_CTRL", "R_CTRL", "CTRL",
     "L_ALT", "R_ALT", "ALT",
     "ESCAPE", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
-    "ARROW_UP", "ARROW_DOWN", "ARROW_LEFT", "ARROW_RIGHT"
+    "ARROW_UP", "ARROW_DOWN", "ARROW_LEFT", "ARROW_RIGHT",
+    "END", "HOME",
 };
 
 const char* SE_MOUSE_INPUT_TO_STRING[] =
@@ -68,7 +70,7 @@ struct SeCharacterInput
     } type;
     union
     {
-        SeUtf8Char character;
+        SeUtf32Char character;
         SeKeyboard::Type special;
     };
 };
@@ -88,7 +90,7 @@ namespace win
     bool        is_mouse_button_pressed(SeMouse::Type keyFlag);
     bool        is_mouse_button_just_pressed(SeMouse::Type keyFlag);
 
-    const DynamicArray<SeCharacterInput> get_character_input();
+    const DynamicArray<SeCharacterInput>& get_character_input();
 
     namespace engine
     {

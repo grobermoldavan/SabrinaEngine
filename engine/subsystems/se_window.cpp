@@ -91,7 +91,7 @@ namespace win
         return isPressed && !wasPressed;
     }
 
-    const DynamicArray<SeCharacterInput> get_character_input()
+    const DynamicArray<SeCharacterInput>& get_character_input()
     {
         return g_window.characterInput;
     }
@@ -225,9 +225,11 @@ namespace win
                 g_window.height = uint32_t(HIWORD(lParam));
                 return 0;
             case WM_CHAR:
+                // @TODO : support surrogate pairs
+                // https://learn.microsoft.com/en-us/windows/win32/inputdev/wm-char
+                // https://learn.microsoft.com/en-us/windows/win32/intl/surrogates-and-supplementary-characters
                 const wchar_t w = wchar_t(wParam);
-                SeUtf8Char character{};
-                platform::wchar_to_utf8(&w, 1, character.data, 4);
+                const SeUtf32Char character = unicode::to_utf32(w);
                 // Special characters are processed in win32_window_process_keyboard_input
                 if (!unicode::is_special_character(character))
                 {
@@ -362,8 +364,8 @@ namespace win
             k(SeKeyboard::SPACE),       // 0x20 - spacebar
             k(SeKeyboard::NONE),        // 0x21 - page up
             k(SeKeyboard::NONE),        // 0x22 - page down
-            k(SeKeyboard::NONE),        // 0x23 - end
-            k(SeKeyboard::NONE),        // 0x24 - home
+            k(SeKeyboard::END),         // 0x23 - end
+            k(SeKeyboard::HOME),        // 0x24 - home
             k(SeKeyboard::ARROW_LEFT),  // 0x25 - left arrow
             k(SeKeyboard::ARROW_UP),    // 0x26 - up arrow
             k(SeKeyboard::ARROW_RIGHT), // 0x27 - right arrow
@@ -591,21 +593,17 @@ namespace win
                 const uint64_t id = flag / 64ULL;
                 g_window.input.keyboardButtonsCurrent[id] |= BIT(flag - id * 64);
 
-                if (flag == SeKeyboard::BACKSPACE)
+                switch (SeKeyboard::Type keyboardFlag = SeKeyboard::Type(flag))
                 {
-                    dynamic_array::push(g_window.characterInput, { .type = SeCharacterInput::SPECIAL, .special = SeKeyboard::BACKSPACE });
-                }
-                else if (flag == SeKeyboard::DEL)
-                {
-                    dynamic_array::push(g_window.characterInput, { .type = SeCharacterInput::SPECIAL, .special = SeKeyboard::DEL });
-                }
-                else if (flag == SeKeyboard::ENTER)
-                {
-                    dynamic_array::push(g_window.characterInput, { .type = SeCharacterInput::SPECIAL, .special = SeKeyboard::ENTER });
-                }
-                else if (flag == SeKeyboard::TAB)
-                {
-                    dynamic_array::push(g_window.characterInput, { .type = SeCharacterInput::SPECIAL, .special = SeKeyboard::TAB });
+                    case SeKeyboard::BACKSPACE:
+                    case SeKeyboard::DEL:
+                    case SeKeyboard::ENTER:
+                    case SeKeyboard::TAB:
+                    case SeKeyboard::ARROW_LEFT:
+                    case SeKeyboard::ARROW_RIGHT:
+                    case SeKeyboard::HOME:
+                    case SeKeyboard::END:
+                        dynamic_array::push(g_window.characterInput, { .type = SeCharacterInput::SPECIAL, .special = keyboardFlag });
                 }
 
                 break;

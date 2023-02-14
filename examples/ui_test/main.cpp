@@ -37,6 +37,7 @@ enum LocalizedString
     YOU_VE_TOGGLED_THE_BUTTON,
     HOLD_BUTTON,
     YOU_RE_HOLDING_THE_BUTTON,
+    THIS_IS_A_TEXT_LINE,
     __LOCALIZED_STRING_COUNT,
 };
 
@@ -59,6 +60,7 @@ LocalizationSet LOCALIZATION_SETS[Language::__LANGUAGE_COUNT] =
         /* YOU_VE_TOGGLED_THE_BUTTON */                     "You've toggled the button",
         /* HOLD_BUTTON */                                   "Hold button",
         /* YOU_RE_HOLDING_THE_BUTTON */                     "You're holding the button",
+        /* THIS_IS_A_TEXT_LINE */                           "This is a text input line",
     },
     {
         /* CURRENT_LANGUAGE */                              "Русский",
@@ -76,6 +78,7 @@ LocalizationSet LOCALIZATION_SETS[Language::__LANGUAGE_COUNT] =
         /* YOU_VE_TOGGLED_THE_BUTTON */                     "Вы переключили кнопку",
         /* HOLD_BUTTON */                                   "HOLD кнопка",
         /* YOU_RE_HOLDING_THE_BUTTON */                     "Вы удерживаете кнопку",
+        /* THIS_IS_A_TEXT_LINE */                           "Строка для текстового инпута",
     },
 };
 
@@ -200,7 +203,9 @@ void update_window_example()
     {
         ui::text({ get_local(LocalizedString::TEXT_INSIDE_WINDOW) });
         ui::text({ get_local(LocalizedString::EVERY_TEXT_COMMAND_STARTS_FROM_THE_NEW_LINE) });
-        for (size_t it = 0; it < 15; it++)
+        ui::text({ get_local(LocalizedString::WINDOW_CAN_BE_MOVED_AND_RESIZED) });
+        ui::input_text_line({ "text_input_line", get_local(LocalizedString::THIS_IS_A_TEXT_LINE) });
+        for (size_t it = 0; it < 10; it++)
             ui::text({ get_local(LocalizedString::WINDOW_CAN_BE_SCROLLED) });
         ui::end_window();
     }
@@ -233,6 +238,7 @@ void update_window_example()
             ui::text({ get_local(LocalizedString::YOU_RE_HOLDING_THE_BUTTON) });
         }
         ui::text({ get_local(LocalizedString::WINDOW_CAN_NOT_BE_SCROLLED) });
+
         ui::end_window();
     }
 }
@@ -306,7 +312,7 @@ int main(int argc, char* argv[])
     const SeSettings settings
     {
         .applicationName        = "Sabrina engine - ui example",
-        .isFullscreenWindow     = true,
+        .isFullscreenWindow     = false,
         .isResizableWindow      = true,
         .windowWidth            = 640,
         .windowHeight           = 480,

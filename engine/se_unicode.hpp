@@ -3,12 +3,13 @@
 
 #include "engine/se_common_includes.hpp"
 #include "engine/subsystems/se_debug.hpp"
+#include "engine/subsystems/se_platform.hpp"
 
+// @NOTE : SeUtf8Char::data will not be null-terminated if utf8 representation of unicode codepoint requires 4 bytes
 struct SeUtf8Char
 {
-    char data[4];
-
-    operator const char* () const { return data; }
+    static constexpr size_t CAPACITY = 4;
+    char data[CAPACITY];
 
     bool operator == (SeUtf8Char other) const
     {
@@ -17,7 +18,6 @@ struct SeUtf8Char
             (data[1] == other.data[1]) &
             (data[2] == other.data[2]) &
             (data[3] == other.data[3]);
-            
     }
 };
 
@@ -56,7 +56,7 @@ namespace unicode
             (character == SeUnicodeSpecialCharacters::TAB_CODEPOINT);
     }
 
-    SeUtf32Char convert(SeUtf8Char character)
+    SeUtf32Char to_utf32(SeUtf8Char character)
     {
         SeUtf32Char result;
         if ((character.data[0] & 0x80) == 0)
@@ -86,45 +86,95 @@ namespace unicode
         }
         return result;
     }
+
+    // Code taken from https://stackoverflow.com/a/42013433
+    SeUtf8Char to_utf8(SeUtf32Char character)
+    {
+        SeUtf8Char result = {};
+        if (character <= 0x7F) {
+            result.data[0] = char(character);
+        }
+        else if (character <= 0x7FF) {
+            result.data[0] = 0xC0 | char(character >> 6);           /* 110xxxxx */
+            result.data[1] = 0x80 | char(character & 0x3F);         /* 10xxxxxx */
+        }
+        else if (character <= 0xFFFF) {
+            result.data[0] = 0xE0 | char(character >> 12);          /* 1110xxxx */
+            result.data[1] = 0x80 | char((character >> 6) & 0x3F);  /* 10xxxxxx */
+            result.data[2] = 0x80 | char(character & 0x3F);         /* 10xxxxxx */
+        }
+        else if (character <= 0x10FFFF) {
+            result.data[0] = 0xF0 | char(character >> 18);          /* 11110xxx */
+            result.data[1] = 0x80 | char((character >> 12) & 0x3F); /* 10xxxxxx */
+            result.data[2] = 0x80 | char((character >> 6) & 0x3F);  /* 10xxxxxx */
+            result.data[3] = 0x80 | char(character & 0x3F);         /* 10xxxxxx */
+        }
+        else
+        {
+            se_assert(!"Unsupported utf32 characrer");
+        }
+        return result;
+    }
+
+    inline SeUtf8Char to_utf8(wchar_t character)
+    {
+        SeUtf8Char result = {};
+        platform::wchar_to_utf8(&character, 1, result.data, SeUtf8Char::CAPACITY);
+        return result;
+    }
+
+    inline SeUtf32Char to_utf32(wchar_t character)
+    {
+        return SeUtf32Char(character);
+    }
+
+    inline size_t length(SeUtf8Char character)
+    {
+        return (character.data[0] != 0) + (character.data[1] != 0) + (character.data[2] != 0) + (character.data[3] != 0);
+    }
 }
 
 // =======================================================================
 //
-// Iterator for utf-32 codepoints
+// Iterator for utf-32 codepoints (supports utf-8 and utf-32 sources)
 //
 // =======================================================================
 
+template<typename T>
 struct SeUtf32Iterator
 {
-    const char* utf8string;
+    const T* source; // null-terminated string
 };
 
-struct SeUtf32IteratorInstance
+//
+// This iterator takes utf-8 string and outputs utf-32 codepoints
+//
+struct SeUtf32IteratorInstanceUtf8
 {
     const uint8_t* data;
     size_t index;
 
-    bool                        operator != (const SeUtf32IteratorInstance& other) const;
-    SeUtf32Char                 operator *  ();
-    SeUtf32IteratorInstance&    operator ++ ();
+    bool                            operator != (const SeUtf32IteratorInstanceUtf8& other) const;
+    SeUtf32Char                     operator *  ();
+    SeUtf32IteratorInstanceUtf8&    operator ++ ();
 };
 
-SeUtf32IteratorInstance begin(SeUtf32Iterator data)
+inline SeUtf32IteratorInstanceUtf8 begin(SeUtf32Iterator<char> data)
 {
-    return { (const uint8_t*)data.utf8string, 0 };
+    return { (const uint8_t*)data.source, 0 };
 }
 
-SeUtf32IteratorInstance end(SeUtf32Iterator data)
+inline SeUtf32IteratorInstanceUtf8 end(SeUtf32Iterator<char> data)
 {
-    return { (const uint8_t*)data.utf8string, strlen(data.utf8string) };
+    return { (const uint8_t*)data.source, strlen(data.source) };
 }
 
-bool SeUtf32IteratorInstance::operator != (const SeUtf32IteratorInstance& other) const
+inline bool SeUtf32IteratorInstanceUtf8::operator != (const SeUtf32IteratorInstanceUtf8& other) const
 {
     return index != other.index;
 }
 
-SeUtf32Char SeUtf32IteratorInstance::operator * ()
+SeUtf32Char SeUtf32IteratorInstanceUtf8::operator * ()
 {
     const uint8_t* const utf8Sequence = data + index;
     SeUtf32Char result;
@@ -156,7 +206,7 @@ SeUtf32Char SeUtf32IteratorInstance::operator * ()
     return result;
 }
 
-SeUtf32IteratorInstance& SeUtf32IteratorInstance::operator ++ ()
+inline SeUtf32IteratorInstanceUtf8& SeUtf32IteratorInstanceUtf8::operator ++ ()
 {
     // This is based on https://github.com/skeeto/branchless-utf8/blob/master/utf8.h
     static const char lengths[] =
@@ -166,6 +216,55 @@ SeUtf32IteratorInstance& SeUtf32IteratorInstance::operator ++ ()
     };
     const uint8_t firstByte = data[index];
     index += lengths[firstByte >> 3];
+    return *this;
+}
+
+//
+// This iterator takes utf-32 string and outputs utf-32 codepoints
+//
+struct SeUtf32IteratorInstanceUtf32
+{
+    const SeUtf32Char* data;
+    size_t index;
+
+    bool                            operator != (const SeUtf32IteratorInstanceUtf32& other) const;
+    SeUtf32Char                     operator *  ();
+    SeUtf32IteratorInstanceUtf32&   operator ++ ();
+};
+
+inline SeUtf32IteratorInstanceUtf32 begin(SeUtf32Iterator<SeUtf32Char> data)
+{
+    return { data.source, 0 };
+}
+
+inline SeUtf32IteratorInstanceUtf32 end(SeUtf32Iterator<SeUtf32Char> data)
+{
+    const size_t length = [](const SeUtf32Char* source) -> size_t
+    {
+        size_t result = 0;
+        while (*source)
+        {
+            result += 1;
+            source++;
+        }
+        return result;
+    } (data.source);
+    return { data.source, length };
+}
+
+inline bool SeUtf32IteratorInstanceUtf32::operator != (const SeUtf32IteratorInstanceUtf32& other) const
+{
+    return index != other.index;
+}
+
+inline SeUtf32Char SeUtf32IteratorInstanceUtf32::operator * ()
+{
+    return data[index];
+}
+
+inline SeUtf32IteratorInstanceUtf32& SeUtf32IteratorInstanceUtf32::operator ++ ()
+{
+    index += 1;
     return *this;
 }
 
@@ -190,12 +289,12 @@ struct SeUtf8teratorInstance
     SeUtf8teratorInstance&  operator ++ ();
 };
 
-SeUtf8teratorInstance begin(SeUtf8CharacterIterator data)
+SeUtf8teratorInstance begin(SeUtf8Iterator data)
 {
     return { data.utf8string, 0 };
 }
 
-SeUtf8teratorInstance end(SeUtf8CharacterIterator data)
+SeUtf8teratorInstance end(SeUtf8Iterator data)
 {
     return { data.utf8string, strlen(data.utf8string) };
 }
