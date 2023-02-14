@@ -2279,7 +2279,7 @@ namespace ui
             if (data.codepoints) allocator_bindings::dealloc(allocators::persistent(), data.codepoints, data.codepointsSize * sizeof(SeUtf32Char));
             if (data.utf8text) allocator_bindings::dealloc(allocators::persistent(), data.utf8text, data.utf8textCapacity);
 
-            SeString& key = iter::key(it);
+            SeString key = iter::key(it);
             string::destroy(key);
         }
         hash_table::destroy(g_uiCtx.uidToObjectData);
