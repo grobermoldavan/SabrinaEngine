@@ -2276,7 +2276,7 @@ namespace ui
         for (auto it : g_uiCtx.uidToObjectData)
         {
             UiObjectData& data = iter::value(it);
-            if (data.codepoints) allocator_bindings::dealloc(allocators::persistent(), data.codepoints, data.codepointsSize * sizeof(SeUtf32Char));
+            if (data.codepoints) allocator_bindings::dealloc(allocators::persistent(), data.codepoints, data.codepointsCapacity * sizeof(SeUtf32Char));
             if (data.utf8text) allocator_bindings::dealloc(allocators::persistent(), data.utf8text, data.utf8textCapacity);
 
             SeString key = iter::key(it);

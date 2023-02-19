@@ -18,6 +18,15 @@ template <typename T> concept se_cstrw = std::is_convertible_v<T, const wchar_t*
 template <typename T> concept se_cstring = std::is_convertible_v<T, const char*>;
 template <typename T> concept se_not_cstring = !std::is_convertible_v<T, const char*>;
 
+template<typename T>
+struct SeResult
+{
+    T value;
+    bool result;
+    operator T () const { return value; }
+    operator bool () const { return result; }
+};
+
 namespace utils
 {
     inline bool compare_raw(const void* first, const void* second, size_t size)

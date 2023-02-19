@@ -492,6 +492,7 @@ namespace fs
             .fullPath       = fileFullPath,
             .fullPathW      = fileFullPathW,
             .extension      = impl::get_extension_from_path(fileFullPath),
+            .name           = impl::get_name_from_path(fileFullPath),
             .folder         = folderHandle,
             .ioState        = SeFileSystemFile::IOState::NOT_OPEN,
             .writeHandle    = INVALID_HANDLE_VALUE,
