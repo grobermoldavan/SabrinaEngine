@@ -1,6 +1,6 @@
 
-#include "engine/engine.hpp"
-#include "engine/engine.cpp"
+#include "engine/se_engine.hpp"
+#include "engine/se_engine.cpp"
 
 #include "impl/cubes.hpp"
 #include "impl/cubes.cpp"
@@ -16,7 +16,7 @@ int main(int argc, char* argv[])
         .windowHeight           = 480,
         .createUserDataFolder   = false,
     };
-    engine::run(settings, init, update, terminate);
+    se_engine_run(settings, init, update, terminate);
     return 0;
 }
 

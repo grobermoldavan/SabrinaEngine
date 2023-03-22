@@ -23,7 +23,7 @@ using SeFolderHandle = SeFsHandle<SeFsHandleType::FOLDER>;
 
 struct SeFileContent
 {
-    AllocatorBindings bindings;
+    SeAllocatorBindings bindings;
     void* data;
     size_t dataSize;
 };

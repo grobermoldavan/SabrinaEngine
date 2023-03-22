@@ -16,7 +16,7 @@ size_t g_numStbiAllocations = 0;
 #define STBI_MALLOC(sz) se_vk_texture_stbi_alloc(sz)
 void* se_vk_texture_stbi_alloc(size_t size)
 {
-    const AllocatorBindings allocator = allocators::persistent();
+    const SeAllocatorBindings allocator = se_allocator_persistent();
     void* const ptr = allocator.alloc(allocator.allocator, size, se_default_alignment, se_alloc_tag);
     se_assert(g_numStbiAllocations < MAX_STBI_ALLOCATIONS);
     g_stbiAllocations[g_numStbiAllocations++] = { ptr, size };
@@ -26,7 +26,7 @@ void* se_vk_texture_stbi_alloc(size_t size)
 #define STBI_REALLOC(p,newsz) se_vk_texture_stbi_realloc(p, newsz)
 void* se_vk_texture_stbi_realloc(void* oldPtr, size_t newSize)
 {
-    AllocatorBindings allocator = allocators::persistent();
+    SeAllocatorBindings allocator = se_allocator_persistent();
     void* newPtr = se_vk_texture_stbi_alloc(newSize);
     for (size_t it = 0; it < g_numStbiAllocations; it++)
     {
@@ -45,7 +45,7 @@ void* se_vk_texture_stbi_realloc(void* oldPtr, size_t newSize)
 #define STBI_FREE(p) se_vk_texture_stbi_free(p)
 void se_vk_texture_stbi_free(void* ptr)
 {
-    AllocatorBindings allocator = allocators::persistent();
+    SeAllocatorBindings allocator = se_allocator_persistent();
     for (size_t it = 0; it < g_numStbiAllocations; it++)
     {
         if (g_stbiAllocations[it].ptr == ptr)
@@ -77,10 +77,10 @@ void se_vk_texture_construct(SeVkTexture* texture, SeVkTextureInfo* info)
     VkExtent3D textureExtent = info->extent;
     void* loadedTextureData = nullptr;
     size_t loadedTextureDataSize = 0;
-    if (data_provider::is_valid(info->data))
+    if (se_data_provider_is_valid(info->data))
     {
-        auto [sourcePtr, sourceSize] = data_provider::get(info->data);
-        if (info->data.type == DataProvider::FROM_FILE)
+        auto [sourcePtr, sourceSize] = se_data_provider_get(info->data);
+        if (info->data.type == SeDataProvider::FROM_FILE)
         {
             const SeVkFormatInfo formatInfo = se_vk_utils_get_format_info(info->format);
             int dimX = 0;
@@ -191,15 +191,15 @@ void se_vk_texture_construct(SeVkTexture* texture, SeVkTextureInfo* info)
             void* const stagingMemory = stagingBuffer->memory.mappedMemory;
             se_assert(stagingBufferSize >= loadedTextureDataSize);
             memcpy(stagingMemory, loadedTextureData, loadedTextureDataSize);
-            if (info->data.type == DataProvider::FROM_FILE)
+            if (info->data.type == SeDataProvider::FROM_FILE)
             {
                 stbi_image_free(loadedTextureData);
             }
             //
             // Transition image layout and copy buffer
             //
-            ObjectPool<SeVkCommandBuffer>& cmdPool = se_vk_memory_manager_get_pool<SeVkCommandBuffer>(memoryManager);
-            SeVkCommandBuffer* cmd = object_pool::take(cmdPool);
+            SeObjectPool<SeVkCommandBuffer>& cmdPool = se_vk_memory_manager_get_pool<SeVkCommandBuffer>(memoryManager);
+            SeVkCommandBuffer* cmd = se_object_pool_take(cmdPool);
             SeVkCommandBufferInfo cmdInfo =
             {
                 .device = info->device,
@@ -263,7 +263,7 @@ void se_vk_texture_construct(SeVkTexture* texture, SeVkTextureInfo* info)
             se_vk_command_buffer_submit(cmd, &submit);
             vkWaitForFences(logicalHandle, 1, &cmd->fence, VK_TRUE, UINT64_MAX);    
             se_vk_command_buffer_destroy(cmd);
-            object_pool::release(cmdPool, cmd);
+            se_object_pool_release(cmdPool, cmd);
         }
     }
     {

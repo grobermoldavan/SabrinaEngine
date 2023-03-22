@@ -3,17 +3,11 @@
 
 #include "engine/se_allocator_bindings.hpp"
 
-namespace allocators
-{
-    AllocatorBindings frame();
-    AllocatorBindings persistent();
+SeAllocatorBindings se_allocator_frame();
+SeAllocatorBindings se_allocator_persistent();
 
-    namespace engine
-    {
-        void init();
-        void update();
-        void terminate();
-    }
-}
+void _se_allocator_init();
+void _se_allocator_update();
+void _se_allocator_terminate();
 
 #endif

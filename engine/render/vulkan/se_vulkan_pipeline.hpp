@@ -84,56 +84,50 @@ void se_vk_destroy<SeVkPipeline>(SeVkPipeline* res)
     se_vk_pipeline_destroy(res);
 }
 
-namespace hash_value
+template<>
+void se_hash_value_builder_absorb<SeVkGraphicsPipelineInfo>(SeHashValueBuilder& builder, const SeVkGraphicsPipelineInfo& value)
 {
-    namespace builder
-    {
-        template<>
-        void absorb<SeVkGraphicsPipelineInfo>(HashValueBuilder& builder, const SeVkGraphicsPipelineInfo& value)
-        {
-            hash_value::builder::absorb(builder, *value.pass);
-            hash_value::builder::absorb(builder, value.vertexProgram);
-            hash_value::builder::absorb(builder, value.fragmentProgram);
-            const size_t absorbOffset = (size_t)&(((SeVkGraphicsPipelineInfo*)0)->subpassIndex);
-            const size_t absorbSize = sizeof(SeVkGraphicsPipelineInfo) - absorbOffset;
-            void* data = (void*)(((uint8_t*)&value) + absorbOffset);
-            hash_value::builder::absorb_raw(builder, { data, absorbSize });
-        }
+    se_hash_value_builder_absorb(builder, *value.pass);
+    se_hash_value_builder_absorb(builder, value.vertexProgram);
+    se_hash_value_builder_absorb(builder, value.fragmentProgram);
+    const size_t absorbOffset = (size_t)&(((SeVkGraphicsPipelineInfo*)0)->subpassIndex);
+    const size_t absorbSize = sizeof(SeVkGraphicsPipelineInfo) - absorbOffset;
+    void* data = (void*)(((uint8_t*)&value) + absorbOffset);
+    se_hash_value_builder_absorb_raw(builder, { data, absorbSize });
+}
 
-        template<>
-        void absorb<SeVkComputePipelineInfo>(HashValueBuilder& builder, const SeVkComputePipelineInfo& value)
-        {
-            hash_value::builder::absorb(builder, value.program);
-        }
+template<>
+void se_hash_value_builder_absorb<SeVkComputePipelineInfo>(SeHashValueBuilder& builder, const SeVkComputePipelineInfo& value)
+{
+    se_hash_value_builder_absorb(builder, value.program);
+}
 
-        template<>
-        void absorb<SeVkPipeline>(HashValueBuilder& builder, const SeVkPipeline& value)
-        {
-            hash_value::builder::absorb_raw(builder, { (void*)&value.object, sizeof(value.object) });
-        }
-    }
+template<>
+void se_hash_value_builder_absorb<SeVkPipeline>(SeHashValueBuilder& builder, const SeVkPipeline& value)
+{
+    se_hash_value_builder_absorb_raw(builder, { (void*)&value.object, sizeof(value.object) });
+}
 
-    template<>
-    HashValue generate<SeVkComputePipelineInfo>(const SeVkComputePipelineInfo& value)
-    {
-        HashValueBuilder builder = hash_value::builder::begin();
-        hash_value::builder::absorb(builder, value);
-        return hash_value::builder::end(builder);
-    }
+template<>
+SeHashValue se_hash_value_generate<SeVkComputePipelineInfo>(const SeVkComputePipelineInfo& value)
+{
+    SeHashValueBuilder builder = se_hash_value_builder_begin();
+    se_hash_value_builder_absorb(builder, value);
+    return se_hash_value_builder_end(builder);
+}
 
-    template<>
-    HashValue generate<SeVkGraphicsPipelineInfo>(const SeVkGraphicsPipelineInfo& value)
-    {
-        HashValueBuilder builder = hash_value::builder::begin();
-        hash_value::builder::absorb(builder, value);
-        return hash_value::builder::end(builder);
-    }
+template<>
+SeHashValue se_hash_value_generate<SeVkGraphicsPipelineInfo>(const SeVkGraphicsPipelineInfo& value)
+{
+    SeHashValueBuilder builder = se_hash_value_builder_begin();
+    se_hash_value_builder_absorb(builder, value);
+    return se_hash_value_builder_end(builder);
+}
 
-    template<>
-    HashValue generate<SeVkPipeline>(const SeVkPipeline& value)
-    {
-        return hash_value::generate_raw({ (void*)&value.object, sizeof(value.object) });
-    }
+template<>
+SeHashValue se_hash_value_generate<SeVkPipeline>(const SeVkPipeline& value)
+{
+    return se_hash_value_generate_raw({ (void*)&value.object, sizeof(value.object) });
 }
 
 #endif

@@ -24,44 +24,38 @@
 constexpr SeFolderHandle SE_APPLICATION_FOLDER = { 1 };
 constexpr SeFolderHandle SE_USER_DATA_FOLDER = { 2 };
 
-namespace fs
-{
-    SeFileHandle    file_find(const char* filePath, SeFolderHandle handle = SE_APPLICATION_FOLDER);
-    SeFolderHandle  folder_find(const char* folderPath, SeFolderHandle handle = SE_APPLICATION_FOLDER);
-    SeFileHandle    file_find_recursive(const char* filePath, SeFolderHandle handle = SE_APPLICATION_FOLDER);
-    SeFolderHandle  folder_find_recursive(const char* folderPath, SeFolderHandle handle = SE_APPLICATION_FOLDER);
+SeFileHandle    se_fs_file_find(const char* filePath, SeFolderHandle handle = SE_APPLICATION_FOLDER);
+SeFolderHandle  se_fs_folder_find(const char* folderPath, SeFolderHandle handle = SE_APPLICATION_FOLDER);
+SeFileHandle    se_fs_file_find_recursive(const char* filePath, SeFolderHandle handle = SE_APPLICATION_FOLDER);
+SeFolderHandle  se_fs_folder_find_recursive(const char* folderPath, SeFolderHandle handle = SE_APPLICATION_FOLDER);
 
-    SeFolderHandle  file_get_folder(SeFileHandle handle);
+SeFolderHandle  se_fs_file_get_folder(SeFileHandle handle);
 
-    SeFileContent   file_read(SeFileHandle handle, const AllocatorBindings& bindings);
-    void            file_content_free(SeFileContent& content);
+SeFileContent   se_fs_file_read(SeFileHandle handle, const SeAllocatorBindings& bindings);
+void            se_fs_file_content_free(SeFileContent& content);
 
-    void            file_write_begin(SeFileHandle handle, SeFileWriteOpenMode openMode);
-    void            file_write(SeFileHandle handle, DataProvider data);
-    void            file_write_end(SeFileHandle handle);
+void            se_fs_file_write_begin(SeFileHandle handle, SeFileWriteOpenMode openMode);
+void            se_fs_file_write(SeFileHandle handle, SeDataProvider data);
+void            se_fs_file_write_end(SeFileHandle handle);
 
-    SeFileHandle    file_create(const char* filePath, SeFolderHandle handle = SE_USER_DATA_FOLDER);
-    SeFolderHandle  folder_create(const char* folderPath, SeFolderHandle handle = SE_USER_DATA_FOLDER);
+SeFileHandle    se_fs_file_create(const char* filePath, SeFolderHandle handle = SE_USER_DATA_FOLDER);
+SeFolderHandle  se_fs_folder_create(const char* folderPath, SeFolderHandle handle = SE_USER_DATA_FOLDER);
 
-    SeFolderHandle  parent_folder(SeFolderHandle handle);
-    SeFolderHandle  parent_folder(SeFileHandle handle);
+SeFolderHandle  se_fs_parent_folder(SeFolderHandle handle);
+SeFolderHandle  se_fs_parent_folder(SeFileHandle handle);
 
-    const char*     full_path(SeFileHandle handle);
-    const char*     full_path(SeFolderHandle handle);
+const char*     se_fs_full_path(SeFileHandle handle);
+const char*     se_fs_full_path(SeFolderHandle handle);
 
-    const char*     extension(SeFileHandle handle);
+const char*     se_fs_extension(SeFileHandle handle);
 
-    const char*     name(SeFileHandle handle);
-    const char*     name(SeFolderHandle handle);
+const char*     se_fs_name(SeFileHandle handle);
+const char*     se_fs_name(SeFolderHandle handle);
 
-    template<typename ... Args> const char* path(const Args& ... args);
+template<typename ... Args> const char* se_fs_path(const Args& ... args);
 
-    namespace engine
-    {
-        void init(const SeSettings& settings);
-        void terminate();
-    }
-}
+void _se_fs_init(const SeSettings& settings);
+void _se_fs_terminate();
 
 struct SeFolderIterator
 {

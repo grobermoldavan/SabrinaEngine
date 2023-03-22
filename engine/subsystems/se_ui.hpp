@@ -14,7 +14,7 @@ struct SeUiBeginInfo
 struct SeUiFontGroupInfo
 {
     static constexpr size_t MAX_FONTS = 8;
-    DataProvider fonts[MAX_FONTS];
+    SeDataProvider fonts[MAX_FONTS];
 };
 
 using SeUiEnumType = uint32_t;
@@ -112,34 +112,22 @@ struct SeUiInputTextLineInfo
     const char* hintText;
 };
 
-namespace ui
-{
-    bool                begin           (const SeUiBeginInfo& info);
-    SePassDependencies  end             (SePassDependencies dependencies);
-    void                set_font_group  (const SeUiFontGroupInfo& info);
-    void                set_param       (SeUiParam::Type type, const SeUiParam& param);
-    void                text            (const SeUiTextInfo& info);
-    bool                begin_window    (const SeUiWindowInfo& info);
-    void                end_window      ();
-    bool                begin_region    (const SeUiRegionInfo& info);
-    void                end_region      ();
-    bool                button          (const SeUiButtonInfo& info);
-    const char*         input_text_line (const SeUiInputTextLineInfo& info);
+bool                se_ui_begin           (const SeUiBeginInfo& info);
+SePassDependencies  se_ui_end             (SePassDependencies dependencies);
+void                se_ui_set_font_group  (const SeUiFontGroupInfo& info);
+void                se_ui_set_param       (SeUiParam::Type type, const SeUiParam& param);
+void                se_ui_text            (const SeUiTextInfo& info);
+bool                se_ui_begin_window    (const SeUiWindowInfo& info);
+void                se_ui_end_window      ();
+bool                se_ui_begin_region    (const SeUiRegionInfo& info);
+void                se_ui_end_region      ();
+bool                se_ui_button          (const SeUiButtonInfo& info);
+const char*         se_ui_input_text_line (const SeUiInputTextLineInfo& info);
 
-    namespace engine
-    {
-        void init();
-        void terminate();
-    }
-}
+void _se_ui_init();
+void _se_ui_terminate();
 
-namespace hash_value
-{
-    namespace builder
-    {
-        template<> void absorb<SeUiFontGroupInfo>(HashValueBuilder& builder, const SeUiFontGroupInfo& input);
-    }
-    template<> HashValue generate<SeUiFontGroupInfo>(const SeUiFontGroupInfo& value);
-}
+template<> void se_hash_value_builder_absorb<SeUiFontGroupInfo>(SeHashValueBuilder& builder, const SeUiFontGroupInfo& input);
+template<> SeHashValue se_hash_value_generate<SeUiFontGroupInfo>(const SeUiFontGroupInfo& value);
 
 #endif

@@ -40,22 +40,16 @@ void se_vk_destroy<SeVkSampler>(SeVkSampler* res)
     se_vk_sampler_destroy(res);
 }
 
-namespace hash_value
+template<>
+void se_hash_value_builder_absorb<SeVkSampler>(SeHashValueBuilder& builder, const SeVkSampler& value)
 {
-    namespace builder
-    {
-        template<>
-        void absorb<SeVkSampler>(HashValueBuilder& builder, const SeVkSampler& value)
-        {
-            hash_value::builder::absorb_raw(builder, { (void*)&value, sizeof(value) });
-        }
-    }
+    se_hash_value_builder_absorb_raw(builder, { (void*)&value, sizeof(value) });
+}
 
-    template<>
-    HashValue generate<SeVkSampler>(const SeVkSampler& value)
-    {
-        return hash_value::generate_raw({ (void*)&value, sizeof(value) });
-    }
+template<>
+SeHashValue se_hash_value_generate<SeVkSampler>(const SeVkSampler& value)
+{
+    return se_hash_value_generate_raw({ (void*)&value, sizeof(value) });
 }
 
 #endif

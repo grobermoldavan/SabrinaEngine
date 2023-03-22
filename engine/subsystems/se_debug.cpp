@@ -1,6 +1,6 @@
 
 #include "se_debug.hpp"
-#include "engine/engine.hpp"
+#include "engine/se_engine.hpp"
 
 #ifdef _WIN32
 
@@ -9,18 +9,18 @@
 
 HANDLE g_outputHandle = INVALID_HANDLE_VALUE;
 
-inline void se_debug_platform_init()
+inline void _se_dbg_platform_init()
 {
     SetConsoleOutputCP(CP_UTF8);
     g_outputHandle = GetStdHandle(STD_OUTPUT_HANDLE);
 }
 
-inline void se_debug_platform_terminate()
+inline void _se_dbg_platform_terminate()
 {
     g_outputHandle = INVALID_HANDLE_VALUE;
 }
 
-inline void se_debug_platform_output(const char* str)
+inline void _se_dbg_platform_output(const char* str)
 {
     // @NOTE : for some unknown reason, console output with "nextLine = "\n"" (no space before \n)
     //         was bugged - sometimes next output could be written in the same line
@@ -31,7 +31,7 @@ inline void se_debug_platform_output(const char* str)
     WriteFile(g_outputHandle, nextLine, nextLineLen, NULL, NULL);
 }
 
-inline void se_debug_platform_thread_yeild()
+inline void _se_dbg_platform_thread_yeild()
 {
     SwitchToThread();
 }
@@ -42,122 +42,119 @@ inline void se_debug_platform_thread_yeild()
 
 struct SeLogger
 {
-    ThreadSafeQueue<SeString>   logQueue;
+    SeThreadSafeQueue<SeString>   logQueue;
     uint64_t                    isFlushing;
     bool                        isInited;
 } g_logger;
 
-void se_debug_wait_for_flush()
+void _se_dbg_wait_for_flush()
 {
-    while (platform::atomic_64_bit_load(&g_logger.isFlushing, SE_ACQUIRE))
+    while (se_platform_atomic_64_bit_load(&g_logger.isFlushing, SE_ACQUIRE))
     {
-        se_debug_platform_thread_yeild();
+        _se_dbg_platform_thread_yeild();
     }
 }
 
-bool se_debug_try_flush()
+bool _se_dbg_try_flush()
 {
     uint64_t expected = 0;
     // Try to lock the writing flag
-    if (platform::atomic_64_bit_cas(&g_logger.isFlushing, &expected, 1, SE_ACQUIRE_RELEASE))
+    if (se_platform_atomic_64_bit_cas(&g_logger.isFlushing, &expected, 1, SE_ACQUIRE_RELEASE))
     {
         // If flag is locked by this thread, print all messages
         SeString entry;
-        while (thread_safe_queue::dequeue(g_logger.logQueue, &entry))
+        while (se_thread_safe_queue_dequeue(g_logger.logQueue, &entry))
         {
-            se_debug_platform_output(string::cstr(entry));
+            _se_dbg_platform_output(se_string_cstr(entry));
         }
-        platform::atomic_64_bit_store(&g_logger.isFlushing, 0, SE_RELEASE);
+        se_platform_atomic_64_bit_store(&g_logger.isFlushing, 0, SE_RELEASE);
         return true;
     }
     // return false if someone is already flushing message queue
     return false;
 }
 
-void se_debug_submit(SeString msg)
+void _se_dbg_submit(SeString msg)
 {
-    while (!thread_safe_queue::enqueue(g_logger.logQueue, msg))
+    while (!se_thread_safe_queue_enqueue(g_logger.logQueue, msg))
     {
-        if (!se_debug_try_flush())
+        if (!_se_dbg_try_flush())
         {
-            se_debug_wait_for_flush();
+            _se_dbg_wait_for_flush();
         }
     }
-    se_debug_try_flush();
+    _se_dbg_try_flush();
 }
 
-void se_debug_abort()
+void _se_dbg_abort()
 {
-    se_debug_try_flush();
+    _se_dbg_try_flush();
     int* crash = 0;
     *crash = 0;
 }
 
-void se_debug_assert_simple()
+void _se_dbg_assert_simple()
 {
     int* a = 0;
     *a = 0;
 }
 
-namespace debug
+template<typename ... Args>
+void se_dbg_message(const char* fmt, const Args& ... args)
 {
-    template<typename ... Args>
-    void message(const char* fmt, const Args& ... args)
-    {
-        SeStringBuilder builder = string_builder::begin(nullptr, SeStringLifetime::TEMPORARY);
-        string_builder::append_fmt(builder, fmt, args...);
-        SeString formattedString = string_builder::end(builder);
-        se_debug_submit(formattedString);
-    }
+    SeStringBuilder builder = se_string_builder_begin(nullptr, SeStringLifetime::TEMPORARY);
+    se_string_builder_append_fmt(builder, fmt, args...);
+    SeString formattedString = se_string_builder_end(builder);
+    _se_dbg_submit(formattedString);
+}
 
-    template<typename ... Args>
-    void error(const char* fmt, const Args& ... args)
-    {
-        SeStringBuilder builder = string_builder::begin(nullptr, SeStringLifetime::TEMPORARY);
-        string_builder::append_fmt(builder, fmt, args...);
-        SeString formattedString = string_builder::end(builder);
-        se_debug_submit(formattedString);
-    }
+template<typename ... Args>
+void se_dbg_error(const char* fmt, const Args& ... args)
+{
+    SeStringBuilder builder = se_string_builder_begin(nullptr, SeStringLifetime::TEMPORARY);
+    se_string_builder_append_fmt(builder, fmt, args...);
+    SeString formattedString = se_string_builder_end(builder);
+    _se_dbg_submit(formattedString);
+}
 
-    void assert_impl(bool result, const char* condition, const char* file, size_t line)
-    {
-        if (!g_logger.isInited) se_debug_assert_simple();
-        error("Assertion failed. File : {}, line : {}, condition : {}", file, line, condition);
-        se_debug_abort();
-    }
+void _se_dbg_assert_impl(bool result, const char* condition, const char* file, size_t line)
+{
+    if (!g_logger.isInited) _se_dbg_assert_simple();
+    se_dbg_error("Assertion failed. File : {}, line : {}, condition : {}", file, line, condition);
+    _se_dbg_abort();
+}
 
-    void assert_impl(bool result, const char* condition, const char* file, size_t line, const char* fmt)
-    {
-        if (!g_logger.isInited) se_debug_assert_simple();
-        error(fmt);
-        assert_impl(result, condition, file, line);
-    }
+void _se_dbg_assert_impl(bool result, const char* condition, const char* file, size_t line, const char* fmt)
+{
+    if (!g_logger.isInited) _se_dbg_assert_simple();
+    se_dbg_error(fmt);
+    _se_dbg_assert_impl(result, condition, file, line);
+}
 
-    template<typename ... Args>
-    void assert_impl(bool result, const char* condition, const char* file, size_t line, const char* fmt, const Args& ... args)
-    {
-        if (!g_logger.isInited) se_debug_assert_simple();
-        error(fmt, args...);
-        assert_impl(result, condition, file, line);
-    }
+template<typename ... Args>
+void _se_dbg_assert_impl(bool result, const char* condition, const char* file, size_t line, const char* fmt, const Args& ... args)
+{
+    if (!g_logger.isInited) _se_dbg_assert_simple();
+    se_dbg_error(fmt, args...);
+    _se_dbg_assert_impl(result, condition, file, line);
+}
 
-    void engine::init()
-    {
-        se_debug_platform_init();
-        thread_safe_queue::construct(g_logger.logQueue, allocators::persistent(), utils::power_of_two<4096>());
-        g_logger.isFlushing = 0;
-        g_logger.isInited = true;
-    }
+void _se_dbg_init()
+{
+    _se_dbg_platform_init();
+    se_thread_safe_queue_construct(g_logger.logQueue, se_allocator_persistent(), se_power_of_two<4096>());
+    g_logger.isFlushing = 0;
+    g_logger.isInited = true;
+}
 
-    void engine::update()
-    {
-        se_debug_try_flush();
-    }
+inline void _se_dbg_update()
+{
+    _se_dbg_try_flush();
+}
 
-    void engine::terminate()
-    {
-        se_debug_try_flush();
-        thread_safe_queue::destroy(g_logger.logQueue);
-        se_debug_platform_terminate();
-    }
+inline void _se_dbg_terminate()
+{
+    _se_dbg_try_flush();
+    se_thread_safe_queue_destroy(g_logger.logQueue);
+    _se_dbg_platform_terminate();
 }

@@ -16,7 +16,7 @@ struct SeVkTextureInfo
     VkExtent3D              extent;
     VkImageUsageFlags       usage;
     VkSampleCountFlagBits   sampling;
-    DataProvider            data;
+    SeDataProvider            data;
 };
 
 struct SeVkTexture
@@ -43,50 +43,41 @@ void se_vk_destroy<SeVkTexture>(SeVkTexture* res)
     se_vk_texture_destroy(res);
 }
 
-namespace utils
+template<>
+bool se_compare<SeVkTextureInfo, SeVkTextureInfo>(const SeVkTextureInfo& first, const SeVkTextureInfo& second)
 {
-    template<>
-    bool compare<SeVkTextureInfo, SeVkTextureInfo>(const SeVkTextureInfo& first, const SeVkTextureInfo& second)
-    {
-        return compare_raw(&first, &second, offsetof(SeVkTextureInfo, data)) && compare(first.data, second.data);
-    }
+    return se_compare_raw(&first, &second, offsetof(SeVkTextureInfo, data)) && se_compare(first.data, second.data);
 }
 
-namespace hash_value
+template<>
+void se_hash_value_builder_absorb<SeVkTextureInfo>(SeHashValueBuilder& builder, const SeVkTextureInfo& info)
 {
-    namespace builder
-    {
-        template<>
-        void absorb<SeVkTextureInfo>(HashValueBuilder& builder, const SeVkTextureInfo& info)
-        {
-            hash_value::builder::absorb_raw(builder, { (void*)&info, offsetof(SeVkTextureInfo, data) });
-            hash_value::builder::absorb(builder, info.data);
-        }
+    se_hash_value_builder_absorb_raw(builder, { (void*)&info, offsetof(SeVkTextureInfo, data) });
+    se_hash_value_builder_absorb(builder, info.data);
+}
 
-        template<>
-        void absorb<SeVkTexture>(HashValueBuilder& builder, const SeVkTexture& tex)
-        {
-            hash_value::builder::absorb(builder, tex.object);
-            hash_value::builder::absorb(builder, tex.extent);
-            hash_value::builder::absorb(builder, tex.format);
-            hash_value::builder::absorb(builder, tex.image);
-            hash_value::builder::absorb(builder, tex.object);
-        }
-    }
+template<>
+void se_hash_value_builder_absorb<SeVkTexture>(SeHashValueBuilder& builder, const SeVkTexture& tex)
+{
+    se_hash_value_builder_absorb(builder, tex.object);
+    se_hash_value_builder_absorb(builder, tex.extent);
+    se_hash_value_builder_absorb(builder, tex.format);
+    se_hash_value_builder_absorb(builder, tex.image);
+    se_hash_value_builder_absorb(builder, tex.object);
+}
 
-    template<>
-    HashValue generate<SeVkTextureInfo>(const SeVkTextureInfo& info)
-    {
-        return hash_value::generate_raw({ (void*)&info, sizeof(SeVkTextureInfo) });
-    }
+template<>
+SeHashValue se_hash_value_generate<SeVkTextureInfo>(const SeVkTextureInfo& info)
+{
+    return se_hash_value_generate_raw({ (void*)&info, sizeof(SeVkTextureInfo) });
+}
 
-    template<>
-    HashValue generate<SeVkTexture>(const SeVkTexture& tex)
-    {
-        HashValueBuilder builder = hash_value::builder::begin();
-        hash_value::builder::absorb(builder, tex);
-        return hash_value::builder::end(builder);
-    }
+template<>
+SeHashValue se_hash_value_generate<SeVkTexture>(const SeVkTexture& tex)
+{
+    SeHashValueBuilder builder = se_hash_value_builder_begin();
+    se_hash_value_builder_absorb(builder, tex);
+    return se_hash_value_builder_end(builder);
 }
 
 #endif

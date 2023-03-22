@@ -19,9 +19,9 @@ struct SeVkFrame
     };
 
     VkSemaphore                         imageAvailableSemaphore;
-    DynamicArray<SeVkCommandBuffer*>    commandBuffers;
+    SeDynamicArray<SeVkCommandBuffer*>    commandBuffers;
     SeVkMemoryBuffer*                   scratchBuffer;
-    DynamicArray<ScratchBufferView>     scratchBufferViews;
+    SeDynamicArray<ScratchBufferView>     scratchBufferViews;
     size_t                              scratchBufferTop;
 };
 
@@ -46,6 +46,6 @@ void se_vk_frame_manager_destroy(SeVkFrameManager* manager);
 void se_vk_frame_manager_advance(SeVkFrameManager* manager);
 
 SeVkCommandBuffer* se_vk_frame_manager_get_cmd(SeVkFrameManager* manager, SeVkCommandBufferInfo* info);
-uint32_t se_vk_frame_manager_alloc_scratch_buffer(SeVkFrameManager* manager, DataProvider data);
+uint32_t se_vk_frame_manager_alloc_scratch_buffer(SeVkFrameManager* manager, SeDataProvider data);
 
 #endif

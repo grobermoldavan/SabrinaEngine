@@ -1,7 +1,7 @@
 #ifndef _CUBES_HPP_
 #define _CUBES_HPP_
 
-#include "engine/engine.hpp"
+#include "engine/se_engine.hpp"
 
 const int32_t EDGE_TABLE[256] =
 {

@@ -73,34 +73,28 @@ void se_vk_destroy<SeVkRenderPass>(SeVkRenderPass* res)
     se_vk_render_pass_destroy(res);
 }
 
-namespace hash_value
+template<>
+void se_hash_value_builder_absorb<SeVkRenderPassInfo>(SeHashValueBuilder& builder, const SeVkRenderPassInfo& value)
 {
-    namespace builder
-    {
-        template<>
-        void absorb<SeVkRenderPassInfo>(HashValueBuilder& builder, const SeVkRenderPassInfo& value)
-        {
-            hash_value::builder::absorb_raw(builder, { (void*)&value, sizeof(value) });
-        }
+    se_hash_value_builder_absorb_raw(builder, { (void*)&value, sizeof(value) });
+}
 
-        template<>
-        void absorb<SeVkRenderPass>(HashValueBuilder& builder, const SeVkRenderPass& value)
-        {
-            hash_value::builder::absorb_raw(builder, { (void*)&value.object, sizeof(value.object) });
-        }
-    }
+template<>
+void se_hash_value_builder_absorb<SeVkRenderPass>(SeHashValueBuilder& builder, const SeVkRenderPass& value)
+{
+    se_hash_value_builder_absorb_raw(builder, { (void*)&value.object, sizeof(value.object) });
+}
 
-    template<>
-    HashValue generate<SeVkRenderPassInfo>(const SeVkRenderPassInfo& value)
-    {
-        return hash_value::generate_raw({ (void*)&value, sizeof(value) });
-    }
+template<>
+SeHashValue se_hash_value_generate<SeVkRenderPassInfo>(const SeVkRenderPassInfo& value)
+{
+    return se_hash_value_generate_raw({ (void*)&value, sizeof(value) });
+}
 
-    template<>
-    HashValue generate<SeVkRenderPass>(const SeVkRenderPass& value)
-    {
-        return hash_value::generate_raw({ (void*)&value.object, sizeof(value.object) });
-    }
+template<>
+SeHashValue se_hash_value_generate<SeVkRenderPass>(const SeVkRenderPass& value)
+{
+    return se_hash_value_generate_raw({ (void*)&value.object, sizeof(value.object) });
 }
 
 #endif

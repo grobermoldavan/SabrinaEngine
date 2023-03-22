@@ -22,6 +22,10 @@ struct SeSettings;
 #define se_megabytes(val) val * 1024ull * 1024ull
 #define se_gigabytes(val) val * 1024ull * 1024ull * 1024ull
 
+//
+// TODO : rewrite qsort to more c++ style
+//
+
 void se_qsort(void* memory, size_t left, size_t right, bool (*is_greater)(void* mem, size_t one, size_t other), void (*swap)(void* mem, size_t one, size_t other))
 {
     if (left >= right) return;

@@ -1,6 +1,6 @@
 
-#include "engine/engine.hpp"
-#include "engine/engine.cpp"
+#include "engine/se_engine.hpp"
+#include "engine/se_engine.cpp"
 
 #include "impl/tetris_controller.hpp"
 #include "impl/tetris_render.hpp"
@@ -20,7 +20,7 @@ void terminate()
 
 void update(const SeUpdateInfo& info)
 {
-    if (win::is_close_button_pressed() || win::is_keyboard_button_pressed(SeKeyboard::ESCAPE)) engine::stop();
+    if (se_win_is_close_button_pressed() || se_win_is_keyboard_button_pressed(SeKeyboard::ESCAPE)) se_engine_stop();
     tetris_controller_update(info.dt);
     tetris_render_update(info.dt);
 }
@@ -36,6 +36,6 @@ int main(int argc, char* argv[])
         .windowHeight           = 480,
         .createUserDataFolder   = false,
     };
-    engine::run(settings, init, update, terminate);
+    se_engine_run(settings, init, update, terminate);
     return 0;
 }

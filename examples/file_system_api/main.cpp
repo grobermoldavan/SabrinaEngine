@@ -1,16 +1,16 @@
 
-#include "engine/engine.hpp"
-#include "engine/engine.cpp"
+#include "engine/se_engine.hpp"
+#include "engine/se_engine.cpp"
 
-DataProvider g_fontDataEnglish;
-DataProvider g_fontDataRussian;
+SeDataProvider g_fontDataEnglish;
+SeDataProvider g_fontDataRussian;
 
 SeFolderHandle g_folder = {};
 
 void init()
 {
-    g_fontDataEnglish = data_provider::from_file("shahd serif.ttf");
-    g_fontDataRussian = data_provider::from_file("a_antiquetrady regular.ttf");
+    g_fontDataEnglish = se_data_provider_from_file("shahd serif.ttf");
+    g_fontDataRussian = se_data_provider_from_file("a_antiquetrady regular.ttf");
 }
 
 void terminate()
@@ -20,29 +20,29 @@ void terminate()
 
 void update(const SeUpdateInfo& info)
 {
-    if (win::is_close_button_pressed()) engine::stop();
-    if (render::begin_frame())
+    if (se_win_is_close_button_pressed()) se_engine_stop();
+    if (se_render_begin_frame())
     {
-        if (ui::begin({ render::swap_chain_texture(), SeRenderTargetLoadOp::CLEAR, { 0.0f, 0.0f, 0.0f, 1.0f } }))
+        if (se_ui_begin({ se_render_swap_chain_texture(), SeRenderTargetLoadOp::CLEAR, { 0.0f, 0.0f, 0.0f, 1.0f } }))
         {
-            ui::set_font_group({ g_fontDataEnglish, g_fontDataRussian });
+            se_ui_set_font_group({ g_fontDataEnglish, g_fontDataRussian });
 
-            ui::set_param(SeUiParam::PIVOT_TYPE_X, { .enumeration = SeUiPivotType::BOTTOM_LEFT });
-            ui::set_param(SeUiParam::PIVOT_TYPE_Y, { .enumeration = SeUiPivotType::BOTTOM_LEFT });
-            ui::set_param(SeUiParam::PIVOT_POSITION_X, { .dim = 0.0f });
-            ui::set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = 0.0f });
-            ui::set_param(SeUiParam::FONT_HEIGHT, { .dim = 20.0f });
-            ui::set_param(SeUiParam::FONT_LINE_GAP, { .dim = 2.0f });
+            se_ui_set_param(SeUiParam::PIVOT_TYPE_X, { .enumeration = SeUiPivotType::BOTTOM_LEFT });
+            se_ui_set_param(SeUiParam::PIVOT_TYPE_Y, { .enumeration = SeUiPivotType::BOTTOM_LEFT });
+            se_ui_set_param(SeUiParam::PIVOT_POSITION_X, { .dim = 0.0f });
+            se_ui_set_param(SeUiParam::PIVOT_POSITION_Y, { .dim = 0.0f });
+            se_ui_set_param(SeUiParam::FONT_HEIGHT, { .dim = 20.0f });
+            se_ui_set_param(SeUiParam::FONT_LINE_GAP, { .dim = 2.0f });
 
-            if (ui::begin_window
+            if (se_ui_begin_window
             ({
                 .uid    = "Main window",
-                .width  = win::get_width<float>(),
-                .height = win::get_height<float>(),
+                .width  = se_win_get_width<float>(),
+                .height = se_win_get_height<float>(),
                 .flags  = 0,
             }))
             {
-                if (ui::button
+                if (se_ui_button
                 ({
                     .uid        = "back",
                     .utf8text   = "back",
@@ -51,15 +51,15 @@ void update(const SeUpdateInfo& info)
                     .mode       = SeUiButtonMode::CLICK,
                 }))
                 {
-                    if (g_folder) g_folder = fs::parent_folder(g_folder);
+                    if (g_folder) g_folder = se_fs_parent_folder(g_folder);
                 }
 
                 if (!g_folder)
                 {
-                    if (ui::button
+                    if (se_ui_button
                     ({
-                        .uid        = fs::full_path(SE_APPLICATION_FOLDER),
-                        .utf8text   = fs::full_path(SE_APPLICATION_FOLDER),
+                        .uid        = se_fs_full_path(SE_APPLICATION_FOLDER),
+                        .utf8text   = se_fs_full_path(SE_APPLICATION_FOLDER),
                         .width      = 0,
                         .height     = 0,
                         .mode       = SeUiButtonMode::CLICK,
@@ -67,12 +67,12 @@ void update(const SeUpdateInfo& info)
                     {
                         g_folder = SE_APPLICATION_FOLDER;
                     }
-                    if (fs::full_path(SE_USER_DATA_FOLDER))
+                    if (se_fs_full_path(SE_USER_DATA_FOLDER))
                     {
-                        if (ui::button
+                        if (se_ui_button
                         ({
-                            .uid        = fs::full_path(SE_USER_DATA_FOLDER),
-                            .utf8text   = fs::full_path(SE_USER_DATA_FOLDER),
+                            .uid        = se_fs_full_path(SE_USER_DATA_FOLDER),
+                            .utf8text   = se_fs_full_path(SE_USER_DATA_FOLDER),
                             .width      = 0,
                             .height     = 0,
                             .mode       = SeUiButtonMode::CLICK,
@@ -84,15 +84,15 @@ void update(const SeUpdateInfo& info)
                 }
                 else
                 {
-                    ui::text({ .utf8text = fs::full_path(g_folder) });
+                    se_ui_text({ .utf8text = se_fs_full_path(g_folder) });
                     for (SeFileHandle file : SeFileIterator{ g_folder })
                     {
-                        ui::text({ .utf8text = fs::full_path(file) });
+                        se_ui_text({ .utf8text = se_fs_full_path(file) });
                     }
                     for (SeFolderHandle folder : SeFolderIterator{ g_folder, true })
                     {
-                        const char* fullPath = fs::full_path(folder);
-                        if (ui::button
+                        const char* fullPath = se_fs_full_path(folder);
+                        if (se_ui_button
                         ({
                             .uid        = fullPath,
                             .utf8text   = fullPath,
@@ -105,16 +105,16 @@ void update(const SeUpdateInfo& info)
                         }
                         for (SeFileHandle file : SeFileIterator{ folder })
                         {
-                            ui::text({ .utf8text = fs::full_path(file) });
+                            se_ui_text({ .utf8text = se_fs_full_path(file) });
                         }
                     }
                 }
-                ui::end_window();
+                se_ui_end_window();
             }
 
-            ui::end(0);
+            se_ui_end(0);
         }
-        render::end_frame();
+        se_render_end_frame();
     }
 
 }
@@ -133,6 +133,6 @@ int main(int argc, char* argv[])
         .windowHeight           = 480,
         .createUserDataFolder   = true,
     };
-    engine::run(settings, init, update, terminate);
+    se_engine_run(settings, init, update, terminate);
     return 0;
 }

@@ -3,29 +3,23 @@
 
 #include "engine/se_common_includes.hpp"
 
-namespace debug
-{
-    template<typename ... Args> void message(const char* fmt, const Args& ... args);
-    template<typename ... Args> void error(const char* fmt, const Args& ... args);
+template<typename ... Args> void se_dbg_message(const char* fmt, const Args& ... args);
+template<typename ... Args> void se_dbg_error(const char* fmt, const Args& ... args);
 
-    void assert_impl(bool result, const char* condition, const char* file, size_t line);
-    void assert_impl(bool result, const char* condition, const char* file, size_t line, const char* fmt);
+void _se_dbg_assert_impl(bool result, const char* condition, const char* file, size_t line);
+void _se_dbg_assert_impl(bool result, const char* condition, const char* file, size_t line, const char* fmt);
 
-    template<typename ... Args>
-    void assert_impl(bool result, const char* condition, const char* file, size_t line, const char* fmt, const Args& ... args);
+template<typename ... Args>
+void _se_dbg_assert_impl(bool result, const char* condition, const char* file, size_t line, const char* fmt, const Args& ... args);
 
-    namespace engine
-    {
-        void init();
-        void update();
-        void terminate();
-    }
-}
+void _se_dbg_init();
+void _se_dbg_update();
+void _se_dbg_terminate();
 
 #ifdef SE_DEBUG
-    #define se_assert(cond) ((!!(cond)) || (debug::assert_impl(cond, #cond, __FILE__, __LINE__), 0))
-    #define se_assert_msg(cond, fmt, ...) ((!!(cond)) || (debug::assert_impl(cond, #cond, __FILE__, __LINE__, fmt, __VA_ARGS__), 0))
-    #define se_message(fmt, ...) debug::message(fmt, __VA_ARGS__)
+    #define se_assert(cond) ((!!(cond)) || (_se_dbg_assert_impl(cond, #cond, __FILE__, __LINE__), 0))
+    #define se_assert_msg(cond, fmt, ...) ((!!(cond)) || (_se_dbg_assert_impl(cond, #cond, __FILE__, __LINE__, fmt, __VA_ARGS__), 0))
+    #define se_message(fmt, ...) se_dbg_message(fmt, __VA_ARGS__)
 #else
     #define se_assert(cond) ((void)(cond))
     #define se_assert_msg(cond, fmt, ...) ((void)(cond))

@@ -162,7 +162,7 @@ struct SeDepthState
 
 struct SeProgramInfo
 {
-    DataProvider data;
+    SeDataProvider data;
 };
 
 struct SeSpecializationConstant
@@ -226,7 +226,7 @@ struct SeTextureInfo
     SeTextureFormat format;
     uint32_t        width;
     uint32_t        height;
-    DataProvider    data;
+    SeDataProvider    data;
 };
 
 struct SeSamplerInfo
@@ -248,13 +248,13 @@ struct SeSamplerInfo
 
 struct SeMemoryBufferInfo
 {
-    DataProvider data;
+    SeDataProvider data;
 };
 
 struct SeMemoryBufferWriteInfo
 {
     SeBufferRef buffer;
-    DataProvider data;
+    SeDataProvider data;
     size_t offset;
 };
 
@@ -318,43 +318,37 @@ struct SeTextureSize
     size_t depth;
 };
 
-namespace render
-{
-    bool                    begin_frame                 ();
-    void                    end_frame                   ();
+bool                    se_render_begin_frame                 ();
+void                    se_render_end_frame                   ();
 
-    SePassDependencies      begin_graphics_pass         (const SeGraphicsPassInfo& info);
-    SePassDependencies      begin_compute_pass          (const SeComputePassInfo& info);
-    void                    end_pass                    ();
+SePassDependencies      se_render_begin_graphics_pass         (const SeGraphicsPassInfo& info);
+SePassDependencies      se_render_begin_compute_pass          (const SeComputePassInfo& info);
+void                    se_render_end_pass                    ();
 
-    SeProgramRef            program                     (const SeProgramInfo& info);
-    SeTextureRef            texture                     (const SeTextureInfo& info);
-    SeTextureRef            swap_chain_texture          ();
-    SeBufferRef             memory_buffer               (const SeMemoryBufferInfo& info);
-    SeBufferRef             scratch_memory_buffer       (const SeMemoryBufferInfo& info);
-    SeSamplerRef            sampler                     (const SeSamplerInfo& info);
+SeProgramRef            se_render_program                     (const SeProgramInfo& info);
+SeTextureRef            se_render_texture                     (const SeTextureInfo& info);
+SeTextureRef            se_render_swap_chain_texture          ();
+SeBufferRef             se_render_memory_buffer               (const SeMemoryBufferInfo& info);
+SeBufferRef             se_render_scratch_memory_buffer       (const SeMemoryBufferInfo& info);
+SeSamplerRef            se_render_sampler                     (const SeSamplerInfo& info);
 
-    void                    bind                        (const SeCommandBindInfo& info);
-    void                    draw                        (const SeCommandDrawInfo& info);
-    void                    dispatch                    (const SeCommandDispatchInfo& info);
-    void                    write                       (const SeMemoryBufferWriteInfo& info);
+void                    se_render_bind                        (const SeCommandBindInfo& info);
+void                    se_render_draw                        (const SeCommandDrawInfo& info);
+void                    se_render_dispatch                    (const SeCommandDispatchInfo& info);
+void                    se_render_write                       (const SeMemoryBufferWriteInfo& info);
 
-    SeFloat4x4              perspective                 (float fovDeg, float aspect, float nearPlane, float farPlane);
-    SeFloat4x4              orthographic                (float left, float right, float bottom, float top, float nearPlane, float farPlane);
-    SeTextureSize           texture_size                (SeTextureRef texture);
-    SeComputeWorkgroupSize  workgroup_size              (SeProgramRef program);
+SeFloat4x4              se_render_perspective                 (float fovDeg, float aspect, float nearPlane, float farPlane);
+SeFloat4x4              se_render_orthographic                (float left, float right, float bottom, float top, float nearPlane, float farPlane);
+SeTextureSize           se_render_texture_size                (SeTextureRef texture);
+SeComputeWorkgroupSize  se_render_workgroup_size              (SeProgramRef program);
 
-    void                    destroy                     (SeProgramRef ref);
-    void                    destroy                     (SeSamplerRef ref);
-    void                    destroy                     (SeBufferRef ref);
-    void                    destroy                     (SeTextureRef ref);
+void                    se_render_destroy                     (SeProgramRef ref);
+void                    se_render_destroy                     (SeSamplerRef ref);
+void                    se_render_destroy                     (SeBufferRef ref);
+void                    se_render_destroy                     (SeTextureRef ref);
 
-    namespace engine
-    {
-        void init(const SeSettings& settings);
-        void terminate();
-        void update();
-    }
-};
+void _se_render_init(const SeSettings& settings);
+void _se_render_terminate();
+void _se_render_update();
 
 #endif

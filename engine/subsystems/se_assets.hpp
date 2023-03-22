@@ -10,17 +10,11 @@
 
 using SeAssetHandle = uint64_t;
 
-namespace assets
-{
-    template<typename AssetType> SeAssetHandle              add(const typename AssetType::Info& info);
-    template<typename AssetType> typename AssetType::Value* access(SeAssetHandle handle);
-                                 void                       remove(SeAssetHandle handle);
+template<typename AssetType> SeAssetHandle              se_asset_add(const typename AssetType::Info& info);
+template<typename AssetType> typename AssetType::Value* se_asset_access(SeAssetHandle handle);
+                                void                    se_asset_remove(SeAssetHandle handle);
 
-    namespace engine
-    {
-        void init(const SeSettings& settings);
-        void terminate();
-    }
-}
+void _se_asset_init(const SeSettings& settings);
+void _se_asset_terminate();
 
 #endif

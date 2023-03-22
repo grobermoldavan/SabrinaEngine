@@ -32,7 +32,7 @@ void se_vk_frame_manager_construct(SeVkFrameManager* manager, const SeVkFrameMan
         {
             .imageAvailableSemaphore    = VK_NULL_HANDLE,
             .commandBuffers             = { },
-            .scratchBuffer              = object_pool::take(memoryBufferPool),
+            .scratchBuffer              = se_object_pool_take(memoryBufferPool),
             .scratchBufferViews         = { },
             .scratchBufferTop           = 0,
         };
@@ -44,7 +44,7 @@ void se_vk_frame_manager_construct(SeVkFrameManager* manager, const SeVkFrameMan
             .flags = 0,
         };
         se_vk_check(vkCreateSemaphore(logicalHandle, &semaphoreCreateInfo, callbacks, &frame->imageAvailableSemaphore));
-        dynamic_array::construct(frame->commandBuffers, allocators::persistent(), SeVkConfig::COMMAND_BUFFERS_ARRAY_INITIAL_CAPACITY);
+        se_dynamic_array_construct(frame->commandBuffers, se_allocator_persistent(), SeVkConfig::COMMAND_BUFFERS_ARRAY_INITIAL_CAPACITY);
 
         SeVkMemoryBufferInfo bufferInfo
         {
@@ -57,7 +57,7 @@ void se_vk_frame_manager_construct(SeVkFrameManager* manager, const SeVkFrameMan
             .visibility = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
         };
         se_vk_memory_buffer_construct(frame->scratchBuffer, &bufferInfo);
-        dynamic_array::construct(frame->scratchBufferViews, allocators::persistent(), SeVkConfig::SCRATCH_BUFFERS_ARRAY_INITIAL_CAPACITY);
+        se_dynamic_array_construct(frame->scratchBufferViews, se_allocator_persistent(), SeVkConfig::SCRATCH_BUFFERS_ARRAY_INITIAL_CAPACITY);
     }
     for (size_t it = 0; it < SeVkConfig::MAX_SWAP_CHAIN_IMAGES; it++)
     {
@@ -73,8 +73,8 @@ void se_vk_frame_manager_destroy(SeVkFrameManager* manager)
     {
         SeVkFrame* const frame = &manager->frames[it];
         vkDestroySemaphore(logicalHandle, frame->imageAvailableSemaphore, callbacks);
-        dynamic_array::destroy(frame->commandBuffers);
-        dynamic_array::destroy(frame->scratchBufferViews);
+        se_dynamic_array_destroy(frame->commandBuffers);
+        se_dynamic_array_destroy(frame->scratchBufferViews);
     }
 }
 
@@ -87,7 +87,7 @@ void se_vk_frame_manager_advance(SeVkFrameManager* manager)
     //
     // Wait and reset command buffers
     //
-    if (SeVkCommandBuffer** const lastCommandBufferFromThisFrame = dynamic_array::last(frame->commandBuffers))
+    if (SeVkCommandBuffer** const lastCommandBufferFromThisFrame = se_dynamic_array_last(frame->commandBuffers))
     {
         se_vk_check(vkWaitForFences(
             logicalHandle,
@@ -100,34 +100,34 @@ void se_vk_frame_manager_advance(SeVkFrameManager* manager)
         auto& commandBufferPool = se_vk_memory_manager_get_pool<SeVkCommandBuffer>(&manager->device->memoryManager);
         for (auto it : frame->commandBuffers)
         {
-            SeVkCommandBuffer* const value = iter::value(it);
+            SeVkCommandBuffer* const value = se_iterator_value(it);
             se_vk_command_buffer_destroy(value);
-            object_pool::release(commandBufferPool, value);
+            se_object_pool_release(commandBufferPool, value);
         }
 
-        dynamic_array::reset(frame->commandBuffers);
+        se_dynamic_array_reset(frame->commandBuffers);
     }
 
     //
     // Reset scratch buffer
     //
-    dynamic_array::reset(frame->scratchBufferViews);
+    se_dynamic_array_reset(frame->scratchBufferViews);
     frame->scratchBufferTop = 0;
 }
 
 SeVkCommandBuffer* se_vk_frame_manager_get_cmd(SeVkFrameManager* manager, SeVkCommandBufferInfo* info)
 {
     auto& commandBufferPool = se_vk_memory_manager_get_pool<SeVkCommandBuffer>(&manager->device->memoryManager);
-    SeVkCommandBuffer* const cmd = object_pool::take(commandBufferPool);
-    dynamic_array::push(se_vk_frame_manager_get_active_frame(manager)->commandBuffers, cmd);
+    SeVkCommandBuffer* const cmd = se_object_pool_take(commandBufferPool);
+    se_dynamic_array_push(se_vk_frame_manager_get_active_frame(manager)->commandBuffers, cmd);
     se_vk_command_buffer_construct(cmd, info);
     return cmd;
 }
 
-uint32_t se_vk_frame_manager_alloc_scratch_buffer(SeVkFrameManager* manager, DataProvider data)
+uint32_t se_vk_frame_manager_alloc_scratch_buffer(SeVkFrameManager* manager, SeDataProvider data)
 {
-    se_assert(data_provider::is_valid(data));
-    const auto [sourcePtr, sourceSize] = data_provider::get(data);
+    se_assert(se_data_provider_is_valid(data));
+    const auto [sourcePtr, sourceSize] = se_data_provider_get(data);
     
     SeVkFrame* const frame = se_vk_frame_manager_get_active_frame(manager);
 
@@ -137,7 +137,7 @@ uint32_t se_vk_frame_manager_alloc_scratch_buffer(SeVkFrameManager* manager, Dat
     se_assert_msg((frame->scratchBuffer->memory.size - alignedBase) >= sourceSize, "Not enough scratch memory");
 
     frame->scratchBufferTop = alignedBase + sourceSize;
-    dynamic_array::push(frame->scratchBufferViews,
+    se_dynamic_array_push(frame->scratchBufferViews,
     {
         .offset = alignedBase,
         .size   = sourceSize,
@@ -149,5 +149,5 @@ uint32_t se_vk_frame_manager_alloc_scratch_buffer(SeVkFrameManager* manager, Dat
         memcpy(base, sourcePtr, sourceSize);
     }
 
-    return dynamic_array::size<uint32_t>(frame->scratchBufferViews) - 1;
+    return se_dynamic_array_size<uint32_t>(frame->scratchBufferViews) - 1;
 }

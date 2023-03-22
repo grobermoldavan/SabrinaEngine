@@ -1,6 +1,6 @@
 
 #include "se_application_allocators.hpp"
-#include "engine/engine.hpp"
+#include "engine/se_engine.hpp"
 
 //
 // Stack allocator
@@ -14,7 +14,7 @@ struct SeStackAllocator
     size_t commitedMax; // offset form base
 };
 
-void* se_stack_allocator_alloc(SeStackAllocator* allocator, size_t size, size_t alignment, const char* allocTag)
+void* _se_stack_allocator_alloc(SeStackAllocator* allocator, size_t size, size_t alignment, const char* allocTag)
 {
     se_assert(((alignment - 1) & alignment) == 0 && "Alignment must be a power of two");
     //
@@ -35,35 +35,35 @@ void* se_stack_allocator_alloc(SeStackAllocator* allocator, size_t size, size_t 
     if ((allocator->cur + alignedAllocationSize) > allocator->commitedMax)
     {
         const intptr_t allocationSize = alignedAllocationSize - (allocator->commitedMax - allocator->cur);
-        const size_t pageSize = platform::get_mem_page_size();
+        const size_t pageSize = se_platform_get_mem_page_size();
         const size_t numPages = allocationSize / pageSize + (allocationSize % pageSize == 0 ? 0 : 1);
         void* const commitedTopPtr = (void*)(allocator->base + allocator->commitedMax);
-        platform::mem_commit(commitedTopPtr, numPages * pageSize);
+        se_platform_mem_commit(commitedTopPtr, numPages * pageSize);
         allocator->commitedMax += numPages * pageSize;
     }
     allocator->cur += alignedAllocationSize;
     return (void*)alignedPtr;
 }
 
-void se_stack_allocator_dealloc(SeStackAllocator* allocator, void* ptr, size_t size)
+void _se_stack_allocator_dealloc(SeStackAllocator* allocator, void* ptr, size_t size)
 {
     // nothing
 }
 
-SeStackAllocator se_stack_allocator_create(size_t capacity)
+SeStackAllocator _se_stack_allocator_create(size_t capacity)
 {
     return
     {
-        .base           = (intptr_t)platform::mem_reserve(capacity),
+        .base           = (intptr_t)se_platform_mem_reserve(capacity),
         .cur            = 0,
         .reservedMax    = capacity,
         .commitedMax    = 0,
     };
 }
 
-void se_stack_allocator_destroy(SeStackAllocator& allocator)
+void _se_stack_allocator_destroy(SeStackAllocator& allocator)
 {
-    platform::mem_release((void*)allocator.base, allocator.reservedMax);
+    se_platform_mem_release((void*)allocator.base, allocator.reservedMax);
     memset(&allocator, 0, sizeof(SeStackAllocator));
 }
 
@@ -71,7 +71,7 @@ void se_stack_allocator_destroy(SeStackAllocator& allocator)
 // Pool allocator
 //
 
-constexpr size_t POOL_ALLOCATOR_MAX_BUCKETS = 8;
+constexpr size_t SE_POOL_ALLOCATOR_MAX_BUCKETS = 8;
 
 struct SePoolMemoryBucketSource
 {
@@ -90,7 +90,7 @@ struct SePoolMemoryBucket
 
 struct SePoolAllocator
 {
-    SePoolMemoryBucket buckets[POOL_ALLOCATOR_MAX_BUCKETS];
+    SePoolMemoryBucket buckets[SE_POOL_ALLOCATOR_MAX_BUCKETS];
     size_t numBuckets;
 };
 
@@ -101,7 +101,7 @@ struct SePoolMemoryBucketConfig
 
 struct SePoolAllocatorCreateInfo
 {
-    SePoolMemoryBucketConfig buckets[POOL_ALLOCATOR_MAX_BUCKETS];
+    SePoolMemoryBucketConfig buckets[SE_POOL_ALLOCATOR_MAX_BUCKETS];
 };
 
 struct SePoolMemoryBucketCompareInfo
@@ -111,36 +111,36 @@ struct SePoolMemoryBucketCompareInfo
     size_t memoryWasted;
 };
 
-void se_pool_allocator_memory_bucket_source_construct(SePoolMemoryBucketSource* source)
+void _se_pool_allocator_memory_bucket_source_construct(SePoolMemoryBucketSource* source)
 {
     const size_t reserveSize = se_gigabytes(32);
-    source->base = platform::mem_reserve(reserveSize);
+    source->base = se_platform_mem_reserve(reserveSize);
     source->reserved = reserveSize;
     source->commited = 0;
     source->used = 0;
 }
 
-void se_pool_allocator_memory_bucket_source_add_memory(SePoolMemoryBucketSource* source, size_t size)
+void _se_pool_allocator_memory_bucket_source_add_memory(SePoolMemoryBucketSource* source, size_t size)
 {
     source->used += size;
     if (source->used > source->commited)
     {
         const size_t requiredCommit = source->used - source->commited;
-        const size_t memPageSize = platform::get_mem_page_size();
+        const size_t memPageSize = se_platform_get_mem_page_size();
         const size_t numPagesToCommit = 1 + ((requiredCommit - 1) / memPageSize);
         const size_t actualCommitSize = numPagesToCommit * memPageSize;
         se_assert((source->commited + actualCommitSize) <= source->reserved);
-        platform::mem_commit(((char*)source->base) + source->commited, actualCommitSize);
+        se_platform_mem_commit(((char*)source->base) + source->commited, actualCommitSize);
         source->commited += actualCommitSize;
     }
 }
 
-void se_pool_allocator_memory_bucket_source_destroy(SePoolMemoryBucketSource* source)
+void _se_pool_allocator_memory_bucket_source_destroy(SePoolMemoryBucketSource* source)
 {
-    platform::mem_release(source->base, source->reserved);
+    se_platform_mem_release(source->base, source->reserved);
 }
 
-bool se_pool_allocator_compare_infos_is_greater(void* _infos, size_t oneIndex, size_t otherIndex)
+bool _se_pool_allocator_compare_infos_is_greater(void* _infos, size_t oneIndex, size_t otherIndex)
 {
     SePoolMemoryBucketCompareInfo* infos = (SePoolMemoryBucketCompareInfo*)_infos;
     SePoolMemoryBucketCompareInfo* one = &infos[oneIndex];
@@ -148,7 +148,7 @@ bool se_pool_allocator_compare_infos_is_greater(void* _infos, size_t oneIndex, s
     return one->memoryWasted == other->memoryWasted ? one->blocksUsed > other->blocksUsed : one->memoryWasted > other->memoryWasted;
 }
 
-void se_pool_allocator_compare_infos_swap(void* _infos, size_t oneIndex, size_t otherIndex)
+void _se_pool_allocator_compare_infos_swap(void* _infos, size_t oneIndex, size_t otherIndex)
 {
     SePoolMemoryBucketCompareInfo* infos = (SePoolMemoryBucketCompareInfo*)_infos;
     SePoolMemoryBucketCompareInfo val = infos[oneIndex];
@@ -156,7 +156,7 @@ void se_pool_allocator_compare_infos_swap(void* _infos, size_t oneIndex, size_t 
     infos[otherIndex] = val;
 }
 
-void* se_pool_allocator_alloc(SePoolAllocator* allocator, size_t allocationSize, size_t alignment, const char* allocTag /*unused*/)
+void* _se_pool_allocator_alloc(SePoolAllocator* allocator, size_t allocationSize, size_t alignment, const char* allocTag /*unused*/)
 {
     if (allocationSize == 0)
     {
@@ -166,7 +166,7 @@ void* se_pool_allocator_alloc(SePoolAllocator* allocator, size_t allocationSize,
     //
     // Find best bucket
     //
-    SePoolMemoryBucketCompareInfo compareInfos[POOL_ALLOCATOR_MAX_BUCKETS] = {0};
+    SePoolMemoryBucketCompareInfo compareInfos[SE_POOL_ALLOCATOR_MAX_BUCKETS] = {0};
     for (size_t it = 0; it < allocator->numBuckets; it++)
     {
         SePoolMemoryBucket* bucket = &allocator->buckets[it];
@@ -183,7 +183,7 @@ void* se_pool_allocator_alloc(SePoolAllocator* allocator, size_t allocationSize,
             compareInfo->memoryWasted = (compareInfo->blocksUsed * bucket->blockSize) - allocationSize;
         }
     }
-    se_qsort(compareInfos, 0, allocator->numBuckets - 1, se_pool_allocator_compare_infos_is_greater, se_pool_allocator_compare_infos_swap);
+    se_qsort(compareInfos, 0, allocator->numBuckets - 1, _se_pool_allocator_compare_infos_is_greater, _se_pool_allocator_compare_infos_swap);
     //
     // Allocate memory in the best bucket
     //
@@ -247,8 +247,8 @@ void* se_pool_allocator_alloc(SePoolAllocator* allocator, size_t allocationSize,
         if (firstValidLedgerBit == (bucket->ledger.used * 8))
         {
             const size_t numOccupiedLedgerBytes = numOccupiedLedgerBits / 8 + ((numOccupiedLedgerBits % 8) ? 1 : 0);
-            se_pool_allocator_memory_bucket_source_add_memory(&bucket->ledger, numOccupiedLedgerBytes);
-            se_pool_allocator_memory_bucket_source_add_memory(&bucket->memory, numOccupiedLedgerBytes * 8 * bucket->blockSize);
+            _se_pool_allocator_memory_bucket_source_add_memory(&bucket->ledger, numOccupiedLedgerBytes);
+            _se_pool_allocator_memory_bucket_source_add_memory(&bucket->memory, numOccupiedLedgerBytes * 8 * bucket->blockSize);
         }
         //
         // Set ledger blocks in use if requested memory if found
@@ -269,7 +269,7 @@ void* se_pool_allocator_alloc(SePoolAllocator* allocator, size_t allocationSize,
     return ((uint8_t*)bucket->memory.base) + firstValidLedgerBit * bucket->blockSize;
 }
 
-void se_pool_allocator_dealloc(SePoolAllocator* allocator, void* ptr, size_t size)
+void _se_pool_allocator_dealloc(SePoolAllocator* allocator, void* ptr, size_t size)
 {
     for (size_t it = 0; it < allocator->numBuckets; it++)
     {
@@ -294,87 +294,83 @@ void se_pool_allocator_dealloc(SePoolAllocator* allocator, void* ptr, size_t siz
     }
 }
 
-SePoolAllocator se_pool_allocator_create(const SePoolAllocatorCreateInfo& createInfo)
+SePoolAllocator _se_pool_allocator_create(const SePoolAllocatorCreateInfo& createInfo)
 {
     SePoolAllocator allocator = { };
-    for (size_t it = 0; it < POOL_ALLOCATOR_MAX_BUCKETS; it++)
+    for (size_t it = 0; it < SE_POOL_ALLOCATOR_MAX_BUCKETS; it++)
     {
         const SePoolMemoryBucketConfig* config = &createInfo.buckets[it];
         if (config->blockSize == 0) break;
         SePoolMemoryBucket* bucket = &allocator.buckets[allocator.numBuckets++];
         bucket->blockSize = config->blockSize;
-        se_pool_allocator_memory_bucket_source_construct(&bucket->memory);
-        se_pool_allocator_memory_bucket_source_construct(&bucket->ledger);
+        _se_pool_allocator_memory_bucket_source_construct(&bucket->memory);
+        _se_pool_allocator_memory_bucket_source_construct(&bucket->ledger);
     }
     return allocator;
 }
 
-void se_pool_allocator_destroy(SePoolAllocator& allocator)
+void _se_pool_allocator_destroy(SePoolAllocator& allocator)
 {
     for (size_t it = 0; it < allocator.numBuckets; it++)
     {
         SePoolMemoryBucket* bucket = &allocator.buckets[it];
-        se_pool_allocator_memory_bucket_source_destroy(&bucket->memory);
-        se_pool_allocator_memory_bucket_source_destroy(&bucket->ledger);
+        _se_pool_allocator_memory_bucket_source_destroy(&bucket->memory);
+        _se_pool_allocator_memory_bucket_source_destroy(&bucket->ledger);
     }
 }
 
-SeStackAllocator    g_frameAllocator;
-AllocatorBindings   g_frameBindings;
-SePoolAllocator     g_persistentAllocator;
-AllocatorBindings   g_persistentBindings;
+SeStackAllocator        g_frameAllocator;
+SeAllocatorBindings     g_frameBindings;
+SePoolAllocator         g_persistentAllocator;
+SeAllocatorBindings     g_persistentBindings;
 
-namespace allocators
+SeAllocatorBindings se_allocator_frame()
 {
-    AllocatorBindings frame()
-    {
-        return g_frameBindings;
-    }
+    return g_frameBindings;
+}
 
-    AllocatorBindings persistent()
-    {
-        return g_persistentBindings;
-    }
+SeAllocatorBindings se_allocator_persistent()
+{
+    return g_persistentBindings;
+}
 
-    void engine::init()
+void _se_allocator_init()
+{
+    g_frameAllocator = _se_stack_allocator_create(se_gigabytes(64));
+    g_persistentAllocator = _se_pool_allocator_create({ .buckets = { { .blockSize = 8 }, { .blockSize = 32 }, { .blockSize = 256 } }, });
+    g_frameBindings =
     {
-        g_frameAllocator = se_stack_allocator_create(se_gigabytes(64));
-        g_persistentAllocator = se_pool_allocator_create({ .buckets = { { .blockSize = 8 }, { .blockSize = 32 }, { .blockSize = 256 } }, });
-        g_frameBindings =
+        .allocator = &g_frameAllocator,
+        .alloc = [](void* allocator, size_t size, size_t alignment, const char* tag)
         {
-            .allocator = &g_frameAllocator,
-            .alloc = [](void* allocator, size_t size, size_t alignment, const char* tag)
-            {
-                return se_stack_allocator_alloc((SeStackAllocator*)allocator, size, alignment, tag);
-            },
-            .dealloc = [](void* allocator, void* ptr, size_t size)
-            {
-                se_stack_allocator_dealloc((SeStackAllocator*)allocator, ptr, size);
-            },
-        };
-        g_persistentBindings =
+            return _se_stack_allocator_alloc((SeStackAllocator*)allocator, size, alignment, tag);
+        },
+        .dealloc = [](void* allocator, void* ptr, size_t size)
         {
-            .allocator = &g_persistentAllocator,
-            .alloc = [](void* allocator, size_t size, size_t alignment, const char* tag)
-            {
-                return se_pool_allocator_alloc((SePoolAllocator*)allocator, size, alignment, tag);
-            },
-            .dealloc = [](void* allocator, void* ptr, size_t size)
-            {
-                se_pool_allocator_dealloc((SePoolAllocator*)allocator, ptr, size);
-            },
-        };
-    }
-
-    void engine::terminate()
+            _se_stack_allocator_dealloc((SeStackAllocator*)allocator, ptr, size);
+        },
+    };
+    g_persistentBindings =
     {
-        se_pool_allocator_destroy(g_persistentAllocator);
-        se_stack_allocator_destroy(g_frameAllocator);
-    }
+        .allocator = &g_persistentAllocator,
+        .alloc = [](void* allocator, size_t size, size_t alignment, const char* tag)
+        {
+            return _se_pool_allocator_alloc((SePoolAllocator*)allocator, size, alignment, tag);
+        },
+        .dealloc = [](void* allocator, void* ptr, size_t size)
+        {
+            _se_pool_allocator_dealloc((SePoolAllocator*)allocator, ptr, size);
+        },
+    };
+}
 
-    void engine::update()
-    {
-        g_frameAllocator.cur = 0;
-    }
+void _se_allocator_terminate()
+{
+    _se_pool_allocator_destroy(g_persistentAllocator);
+    _se_stack_allocator_destroy(g_frameAllocator);
+}
 
+void _se_allocator_update()
+{
+    g_frameAllocator.cur = 0;
 }

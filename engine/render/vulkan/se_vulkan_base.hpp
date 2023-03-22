@@ -104,7 +104,7 @@ template<> struct SeVkRefToResource<SeTextureRef> { using Res = SeVkTexture; };
 // Defined in se_vulkan.cpp
 template<typename Ref> typename SeVkRefToResource<Ref>::Res* se_vk_unref(Ref ref);
 template<typename Ref> typename SeVkRefToResource<Ref>::Res* se_vk_unref_graveyard(Ref ref);
-template<typename Ref> ObjectPoolEntryRef<typename SeVkRefToResource<Ref>::Res> se_vk_to_pool_ref(Ref ref);
+template<typename Ref> SeObjectPoolEntryRef<typename SeVkRefToResource<Ref>::Res> se_vk_to_pool_ref(Ref ref);
 
 struct SeVkConfig
 {

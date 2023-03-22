@@ -28,7 +28,7 @@ using SeMeshGeometryMask = SeBitMask<SE_MESH_MAX_GEOMETRIES>;
 
 struct SeMeshAssetInfo
 {
-    DataProvider data;
+    SeDataProvider data;
 };
 
 struct SeMeshNode
@@ -112,24 +112,24 @@ struct SeMeshInstanceData
 struct SeMeshIterator
 {
     const SeMeshAssetValue* mesh;
-    const DynamicArray<SeMeshInstanceData> instances;
+    const SeDynamicArray<SeMeshInstanceData> instances;
     const SeFloat4x4 viewProjectionMatrix;
 };
 
 struct SeMeshIteratorValue
 {
     const SeMeshGeometry* geometry;
-    const DynamicArray<SeFloat4x4> transformsWs;
+    const SeDynamicArray<SeFloat4x4> transformsWs;
 };
 
 struct SeMeshIteratorInstance
 {
     const SeMeshAssetValue*                 mesh;
-    const DynamicArray<SeMeshInstanceData>  instances;
+    const SeDynamicArray<SeMeshInstanceData>  instances;
     const SeFloat4x4                        viewProjectionMatrix;
 
     size_t                                  index;
-    DynamicArray<SeFloat4x4>                transforms;
+    SeDynamicArray<SeFloat4x4>                transforms;
 
     bool                    operator != (const SeMeshIteratorInstance& other) const;
     SeMeshIteratorValue     operator *  ();

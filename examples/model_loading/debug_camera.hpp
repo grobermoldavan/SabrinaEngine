@@ -1,7 +1,7 @@
 #ifndef _DEBUG_CAMERA_HPP_
 #define _DEBUG_CAMERA_HPP_
 
-#include "engine/engine.hpp"
+#include "engine/se_engine.hpp"
 
 struct DebugCamera
 {
@@ -14,10 +14,10 @@ void debug_camera_construct(DebugCamera* camera, SeFloat3 pos)
 {
     *camera =
     {
-        .trf            = float4x4::mul
+        .trf            = se_float4x4_mul
         (
-            float4x4::from_position(pos),
-            float4x4::look_at({ 0, 0, 0 }, { 0, 0, 1 }, { 0, 1, 0 })
+            se_float4x4_from_position(pos),
+            se_float4x4_look_at({ 0, 0, 0 }, { 0, 0, 1 }, { 0, 1, 0 })
         ),
         .lastMouse      = { },
         .isRbmPressed   = false,
@@ -29,25 +29,25 @@ void debug_camera_update(DebugCamera* camera, float dt)
     //
     // Update position
     //
-    SeFloat3 position       = float4x4::get_position(camera->trf);
-    const SeFloat3 forward  = float4x4::get_forward(camera->trf);
-    const SeFloat3 up       = float4x4::get_up(camera->trf);
-    const SeFloat3 right    = float4x4::get_right(camera->trf);
-    const float add = (win::is_keyboard_button_pressed(SeKeyboard::CTRL) ? 10.0f : 2.0f) * dt;
-    if (win::is_keyboard_button_pressed(SeKeyboard::W)) position = position + (forward * add);
-    if (win::is_keyboard_button_pressed(SeKeyboard::S)) position = position - (forward * add);
-    if (win::is_keyboard_button_pressed(SeKeyboard::A)) position = position - (right * add);
-    if (win::is_keyboard_button_pressed(SeKeyboard::D)) position = position + (right * add);
-    if (win::is_keyboard_button_pressed(SeKeyboard::Q)) position = position - (up * add);
-    if (win::is_keyboard_button_pressed(SeKeyboard::E)) position = position + (up * add);
+    SeFloat3 position       = se_float4x4_get_position(camera->trf);
+    const SeFloat3 forward  = se_float4x4_get_forward(camera->trf);
+    const SeFloat3 up       = se_float4x4_get_up(camera->trf);
+    const SeFloat3 right    = se_float4x4_get_right(camera->trf);
+    const float add = (se_win_is_keyboard_button_pressed(SeKeyboard::CTRL) ? 10.0f : 2.0f) * dt;
+    if (se_win_is_keyboard_button_pressed(SeKeyboard::W)) position = position + (forward * add);
+    if (se_win_is_keyboard_button_pressed(SeKeyboard::S)) position = position - (forward * add);
+    if (se_win_is_keyboard_button_pressed(SeKeyboard::A)) position = position - (right * add);
+    if (se_win_is_keyboard_button_pressed(SeKeyboard::D)) position = position + (right * add);
+    if (se_win_is_keyboard_button_pressed(SeKeyboard::Q)) position = position - (up * add);
+    if (se_win_is_keyboard_button_pressed(SeKeyboard::E)) position = position + (up * add);
     //
     // Update rotation
     //
-    SeFloat3 rotation = float4x4::get_rotation(camera->trf);
-    if (win::is_mouse_button_pressed(SeMouse::RMB))
+    SeFloat3 rotation = se_float4x4_get_rotation(camera->trf);
+    if (se_win_is_mouse_button_pressed(SeMouse::RMB))
     {
         const bool isJustPressed = !camera->isRbmPressed;
-        const SeMousePos mousePos = win::get_mouse_pos();
+        const SeMousePos mousePos = se_win_get_mouse_pos();
         if (!isJustPressed)
         {
             rotation.x += float(camera->lastMouse.y - mousePos.y) * dt * 5.0f;
@@ -63,10 +63,10 @@ void debug_camera_update(DebugCamera* camera, float dt)
     //
     // Set updated position and rotation
     //
-    camera->trf = float4x4::mul
+    camera->trf = se_float4x4_mul
     (
-        float4x4::from_position(position),
-        float4x4::from_rotation(rotation)
+        se_float4x4_from_position(position),
+        se_float4x4_from_rotation(rotation)
     );
 }
 

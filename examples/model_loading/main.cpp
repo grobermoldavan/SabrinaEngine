@@ -1,6 +1,6 @@
 
-#include "engine/engine.hpp"
-#include "engine/engine.cpp"
+#include "engine/se_engine.hpp"
+#include "engine/se_engine.cpp"
 #include "debug_camera.hpp"
 
 DebugCamera g_camera;
@@ -15,17 +15,17 @@ SeSamplerRef g_sampler;
 
 void init()
 {
-    g_duckMesh = assets::add<SeMeshAsset>({ data_provider::from_file("duck.gltf") });
-    g_cameraMesh = assets::add<SeMeshAsset>({ data_provider::from_file("AntiqueCamera.gltf") });
-    g_drawVs = render::program({ data_provider::from_file("mesh_unlit.vert.spv") });
-    g_drawFs = render::program({ data_provider::from_file("mesh_unlit.frag.spv") });
-    g_depthTexture = render::texture
+    g_duckMesh = se_asset_add<SeMeshAsset>({ se_data_provider_from_file("duck.gltf") });
+    g_cameraMesh = se_asset_add<SeMeshAsset>({ se_data_provider_from_file("AntiqueCamera.gltf") });
+    g_drawVs = se_render_program({ se_data_provider_from_file("mesh_unlit.vert.spv") });
+    g_drawFs = se_render_program({ se_data_provider_from_file("mesh_unlit.frag.spv") });
+    g_depthTexture = se_render_texture
     ({
         .format = SeTextureFormat::DEPTH_STENCIL,
-        .width  = win::get_width(),
-        .height = win::get_height(),
+        .width  = se_win_get_width(),
+        .height = se_win_get_height(),
     });
-    g_sampler = render::sampler
+    g_sampler = se_render_sampler
     ({
         .magFilter          = SeSamplerFilter::LINEAR,
         .minFilter          = SeSamplerFilter::LINEAR,
@@ -50,12 +50,12 @@ void terminate()
     
 }
 
-void draw(const SeMeshAssetValue* mesh, const SeMeshGeometry* geometry, const DynamicArray<SeFloat4x4>& transforms)
+void draw(const SeMeshAssetValue* mesh, const SeMeshGeometry* geometry, const SeDynamicArray<SeFloat4x4>& transforms)
 {
-    const DataProvider data = data_provider::from_memory(dynamic_array::raw(transforms), dynamic_array::raw_size(transforms));
-    const SeBufferRef instancesBuffer = render::scratch_memory_buffer({ data });
+    const SeDataProvider data = se_data_provider_from_memory(se_dynamic_array_raw(transforms), se_dynamic_array_raw_size(transforms));
+    const SeBufferRef instancesBuffer = se_render_scratch_memory_buffer({ data });
     const SeTextureRef colorTexture = mesh->textureSets[geometry->textureSetIndex].colorTexture;
-    render::bind
+    se_render_bind
     ({
         .set = 0,
         .bindings =
@@ -67,23 +67,23 @@ void draw(const SeMeshAssetValue* mesh, const SeMeshGeometry* geometry, const Dy
             { .binding = 4, .type = SeBinding::TEXTURE, .texture = { colorTexture, g_sampler } },
         }
     });
-    render::draw({ geometry->numIndices, dynamic_array::size<uint32_t>(transforms) });
+    se_render_draw({ geometry->numIndices, se_dynamic_array_size<uint32_t>(transforms) });
 }
 
 void update(const SeUpdateInfo& info)
 {
-    if (win::is_close_button_pressed()) engine::stop();
+    if (se_win_is_close_button_pressed()) se_engine_stop();
 
     debug_camera_update(&g_camera, info.dt);
 
-    if (render::begin_frame())
+    if (se_render_begin_frame())
     {
-        const SeTextureSize swapChainSize = render::texture_size(render::swap_chain_texture());
-        const SeTextureSize depthSize = render::texture_size(g_depthTexture);
-        if (!utils::compare(depthSize, swapChainSize))
+        const SeTextureSize swapChainSize = se_render_texture_size(se_render_swap_chain_texture());
+        const SeTextureSize depthSize = se_render_texture_size(g_depthTexture);
+        if (!se_compare(depthSize, swapChainSize))
         {
-            render::destroy(g_depthTexture);
-            g_depthTexture = render::texture
+            se_render_destroy(g_depthTexture);
+            g_depthTexture = se_render_texture
             ({
                 .format = SeTextureFormat::DEPTH_STENCIL,
                 .width  = uint32_t(swapChainSize.width),
@@ -91,7 +91,7 @@ void update(const SeUpdateInfo& info)
             });
         }
         
-        render::begin_graphics_pass
+        se_render_begin_graphics_pass
         ({
             .dependencies           = 0,
             .vertexProgram          = { g_drawVs },
@@ -103,41 +103,41 @@ void update(const SeUpdateInfo& info)
             .cullMode               = SePipelineCullMode::BACK,
             .frontFace              = SePipelineFrontFace::CLOCKWISE,
             .samplingType           = SeSamplingType::_1,
-            .renderTargets          = { render::swap_chain_texture(), SeRenderTargetLoadOp::CLEAR },
+            .renderTargets          = { se_render_swap_chain_texture(), SeRenderTargetLoadOp::CLEAR },
             .depthStencilTarget     = { g_depthTexture, SeRenderTargetLoadOp::CLEAR },
         });
 
-        const float aspect = win::get_width<float>() / win::get_height<float>();
-        const SeFloat4x4 projection = render::perspective(60, aspect, 0.1f, 100.0f);
-        const SeFloat4x4 viewProjection = projection * float4x4::inverted(g_camera.trf);
+        const float aspect = se_win_get_width<float>() / se_win_get_height<float>();
+        const SeFloat4x4 projection = se_render_perspective(60, aspect, 0.1f, 100.0f);
+        const SeFloat4x4 viewProjection = projection * se_float4x4_inverted(g_camera.trf);
 
-        const SeMeshAsset::Value* const cameraMesh = assets::access<SeMeshAsset>(g_cameraMesh);
-        const auto cameraInstances = dynamic_array::create<SeMeshInstanceData>(allocators::frame(),
+        const SeMeshAsset::Value* const cameraMesh = se_asset_access<SeMeshAsset>(g_cameraMesh);
+        const auto cameraInstances = se_dynamic_array_create<SeMeshInstanceData>(se_allocator_frame(),
         {
             { SE_F4X4_IDENTITY },
-            { float4x4::from_position({ 4, 0, 0 }) },
-            { float4x4::from_position({ -4, 0, 0 }) },
+            { se_float4x4_from_position({ 4, 0, 0 }) },
+            { se_float4x4_from_position({ -4, 0, 0 }) },
         });
         for (auto it : SeMeshIterator{ cameraMesh, cameraInstances, viewProjection })
         {
             draw(cameraMesh, it.geometry, it.transformsWs);
         }
 
-        const SeMeshAsset::Value* const duckMesh = assets::access<SeMeshAsset>(g_duckMesh);
-        const auto duckInstances = dynamic_array::create<SeMeshInstanceData>(allocators::frame(),
+        const SeMeshAsset::Value* const duckMesh = se_asset_access<SeMeshAsset>(g_duckMesh);
+        const auto duckInstances = se_dynamic_array_create<SeMeshInstanceData>(se_allocator_frame(),
         {
-            { float4x4::from_position({ 0, 0, -2 }) },
-            { float4x4::from_position({ 4, 0, -2 }) },
-            { float4x4::from_position({ -4, 0, -2 }) },
+            { se_float4x4_from_position({ 0, 0, -2 }) },
+            { se_float4x4_from_position({ 4, 0, -2 }) },
+            { se_float4x4_from_position({ -4, 0, -2 }) },
         });
         for (auto it : SeMeshIterator{ duckMesh, duckInstances, viewProjection })
         {
             draw(duckMesh, it.geometry, it.transformsWs);
         }
 
-        render::end_pass();
+        se_render_end_pass();
 
-        render::end_frame();
+        se_render_end_frame();
     }
 }
 
@@ -154,6 +154,6 @@ int main(int argc, char* argv[])
         .maxAssetsGpuUsage      = se_megabytes(512),
         .createUserDataFolder   = false,
     };
-    engine::run(settings, init, update, terminate);
+    se_engine_run(settings, init, update, terminate);
     return 0;
 }

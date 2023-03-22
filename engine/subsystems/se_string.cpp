@@ -1,6 +1,6 @@
 
 #include "se_string.hpp"
-#include "engine/engine.hpp"
+#include "engine/se_engine.hpp"
 
 struct SePersistentAllocation
 {
@@ -8,16 +8,16 @@ struct SePersistentAllocation
     size_t capacity;
 };
 
-ObjectPool<SePersistentAllocation> g_presistentStringPool;
+SeObjectPool<SePersistentAllocation> g_presistentStringPool;
 
-char* se_string_allocate_new_buffer(const AllocatorBindings& allocator, size_t capacity)
+inline char* _se_string_allocate_new_buffer(const SeAllocatorBindings& allocator, size_t capacity)
 {
     char* memory = (char*)allocator.alloc(allocator.allocator, capacity + 1, se_default_alignment, se_alloc_tag);
     memset(memory, 0, capacity + 1);
     return memory;
 }
 
-char* se_string_allocate_new_buffer(const AllocatorBindings& allocator, size_t capacity, size_t sourceLength, const char* source)
+char* _se_string_allocate_new_buffer(const SeAllocatorBindings& allocator, size_t capacity, size_t sourceLength, const char* source)
 {
     char* memory = (char*)allocator.alloc(allocator.allocator, capacity + 1, se_default_alignment, se_alloc_tag);
 
@@ -29,29 +29,29 @@ char* se_string_allocate_new_buffer(const AllocatorBindings& allocator, size_t c
     return memory;
 }
 
-void se_string_deallocate_buffer(const AllocatorBindings& allocator, const char* buffer, size_t length)
+inline void _se_string_deallocate_buffer(const SeAllocatorBindings& allocator, const char* buffer, size_t length)
 {
     allocator.dealloc(allocator.allocator, (void*)buffer, length + 1);
 }
 
-SeString se_string_create(bool isTmp, size_t length, const char* source)
+SeString _se_string_create(bool isTmp, size_t length, const char* source)
 {
     if (!isTmp)
     {
-        debug::message("Allocating new string. Length : {}, text : \"{}\"", length, source);
+        se_dbg_message("Allocating new string. Length : {}, text : \"{}\"", length, source);
     }
 
-    const AllocatorBindings allocator = isTmp ? allocators::frame() : allocators::persistent();
+    const SeAllocatorBindings allocator = isTmp ? se_allocator_frame() : se_allocator_persistent();
     char* const memory = source
-        ? se_string_allocate_new_buffer(allocator, length, strlen(source), source)
-        : se_string_allocate_new_buffer(allocator, length);
+        ? _se_string_allocate_new_buffer(allocator, length, strlen(source), source)
+        : _se_string_allocate_new_buffer(allocator, length);
     if (isTmp)
     {
         return { memory, length, nullptr };
     }
     else
     {
-        SePersistentAllocation* const allocation = object_pool::take(g_presistentStringPool);
+        SePersistentAllocation* const allocation = se_object_pool_take(g_presistentStringPool);
         *allocation =
         {
             .memory = memory,
@@ -61,43 +61,43 @@ SeString se_string_create(bool isTmp, size_t length, const char* source)
     }
 }
 
-SeString se_string_create_from_source(bool isTmp, const char* source)
+inline SeString _se_string_create_from_source(bool isTmp, const char* source)
 {
     se_assert(source);
-    return se_string_create(isTmp, strlen(source), source);
+    return _se_string_create(isTmp, strlen(source), source);
 }
 
-void se_string_persistent_allocation_destroy(const SePersistentAllocation* data)
+inline void _se_string_persistent_allocation_destroy(const SePersistentAllocation* data)
 {
-    AllocatorBindings allocator = allocators::persistent();
-    se_string_deallocate_buffer(allocator, data->memory, data->capacity);
+    SeAllocatorBindings allocator = se_allocator_persistent();
+    _se_string_deallocate_buffer(allocator, data->memory, data->capacity);
 }
 
-void se_string_destroy(const SeString& string)
+void _se_string_destroy(const SeString& string)
 {
     if (!string.internaldData) return;
 
     const SePersistentAllocation* const allocation = (SePersistentAllocation*)string.internaldData;
-    se_string_persistent_allocation_destroy(allocation);
-    object_pool::release(g_presistentStringPool, allocation);
+    _se_string_persistent_allocation_destroy(allocation);
+    se_object_pool_release(g_presistentStringPool, allocation);
 }
 
-SeStringBuilder se_string_builder_begin(bool isTmp, size_t capacity, const char* source)
+SeStringBuilder _se_string_builder_begin(bool isTmp, size_t capacity, const char* source)
 {
-    AllocatorBindings allocator = isTmp ? allocators::frame() : allocators::persistent();
+    SeAllocatorBindings allocator = isTmp ? se_allocator_frame() : se_allocator_persistent();
     const size_t sourceLength = source ? strlen(source) : 0;
     char* memory = source
-        ? se_string_allocate_new_buffer(allocator, capacity, sourceLength, source)
-        : se_string_allocate_new_buffer(allocator, capacity);
+        ? _se_string_allocate_new_buffer(allocator, capacity, sourceLength, source)
+        : _se_string_allocate_new_buffer(allocator, capacity);
     return { memory, sourceLength, capacity, isTmp };
 }
 
-SeStringBuilder se_string_builder_begin_from_source(bool isTmp, const char* source)
+inline SeStringBuilder _se_string_builder_begin_from_source(bool isTmp, const char* source)
 {
-    return se_string_builder_begin(isTmp, source ? strlen(source) : 32, source);
+    return _se_string_builder_begin(isTmp, source ? strlen(source) : 32, source);
 }
 
-void se_string_builder_append_with_specified_length(SeStringBuilder& builder, const char* source, size_t sourceLength)
+void _se_string_builder_append_with_specified_length(SeStringBuilder& builder, const char* source, size_t sourceLength)
 {
     se_assert(source);
     const size_t oldLength = builder.length;
@@ -105,9 +105,9 @@ void se_string_builder_append_with_specified_length(SeStringBuilder& builder, co
     if (newLength > builder.capacity)
     {
         const size_t newCapacity = newLength;
-        const AllocatorBindings allocator = builder.isTmp ? allocators::frame() : allocators::persistent();
-        char* const newMemory = se_string_allocate_new_buffer(allocator, newCapacity, oldLength, builder.memory);
-        se_string_deallocate_buffer(allocator, builder.memory, builder.capacity);
+        const SeAllocatorBindings allocator = builder.isTmp ? se_allocator_frame() : se_allocator_persistent();
+        char* const newMemory = _se_string_allocate_new_buffer(allocator, newCapacity, oldLength, builder.memory);
+        _se_string_deallocate_buffer(allocator, builder.memory, builder.capacity);
         builder.memory = newMemory;
         builder.capacity = newCapacity;
     }
@@ -115,12 +115,12 @@ void se_string_builder_append_with_specified_length(SeStringBuilder& builder, co
     builder.length += sourceLength;
 }
 
-void se_string_builder_append(SeStringBuilder& builder, const char* source)
+inline void _se_string_builder_append(SeStringBuilder& builder, const char* source)
 {
-    se_string_builder_append_with_specified_length(builder, source, strlen(source));
+    _se_string_builder_append_with_specified_length(builder, source, strlen(source));
 }
 
-void se_string_builder_append_fmt(SeStringBuilder& builder, const char* fmt, const char** args, size_t numArgs)
+void _se_string_builder_append_fmt(SeStringBuilder& builder, const char* fmt, const char** args, size_t numArgs)
 {
     enum ParserState
     {
@@ -141,8 +141,8 @@ void se_string_builder_append_fmt(SeStringBuilder& builder, const char* fmt, con
                 {
                     const size_t textCopySize = it - fmtPivot;
                     const char* arg = args[argIt++];
-                    se_string_builder_append_with_specified_length(builder, fmt + fmtPivot, textCopySize);
-                    se_string_builder_append(builder, arg);
+                    _se_string_builder_append_with_specified_length(builder, fmt + fmtPivot, textCopySize);
+                    _se_string_builder_append(builder, arg);
                     state = IN_ARG;
                 }
             } break;
@@ -156,10 +156,10 @@ void se_string_builder_append_fmt(SeStringBuilder& builder, const char* fmt, con
             } break;
         }
     }
-    se_string_builder_append_with_specified_length(builder, fmt + fmtPivot, fmtLength - fmtPivot);
+    _se_string_builder_append_with_specified_length(builder, fmt + fmtPivot, fmtLength - fmtPivot);
 }
 
-SeString se_string_builder_end(SeStringBuilder& builder)
+SeString _se_string_builder_end(SeStringBuilder& builder)
 {
     if (builder.isTmp)
     {
@@ -167,8 +167,8 @@ SeString se_string_builder_end(SeStringBuilder& builder)
     }
     else
     {
-        debug::message("Allocating new string from builder. Capacity : {}, text : \"{}\"", builder.capacity, builder.memory);
-        SePersistentAllocation* const allocation = object_pool::take(g_presistentStringPool);
+        se_dbg_message("Allocating new string from builder. Capacity : {}, text : \"{}\"", builder.capacity, builder.memory);
+        SePersistentAllocation* const allocation = se_object_pool_take(g_presistentStringPool);
         *allocation =
         {
             .memory = builder.memory,
@@ -178,335 +178,311 @@ SeString se_string_builder_end(SeStringBuilder& builder)
     }
 }
 
-namespace string
+template<size_t it, typename Arg>
+inline void _se_string_fill_args(const char** argsStr, const Arg& arg)
 {
-    inline const char* cstr(const SeString& str)
-    {
-        return str.memory;
-    }
+    argsStr[it] = se_string_cstr(se_string_cast(arg, SeStringLifetime::TEMPORARY));
+}
 
-    inline char* cstr(SeString& str)
-    {
-        return str.memory;
-    }
+template<size_t it, typename Arg, typename ... Other>
+void _se_string_fill_args(const char** argsStr, const Arg& arg, const Other& ... other)
+{
+    argsStr[it] = se_string_cstr(se_string_cast(arg, SeStringLifetime::TEMPORARY));
+    _se_string_fill_args<it + 1, Other...>(argsStr, other...);
+}
 
-    inline size_t length(const SeString& str)
-    {
-        return str.length;
-    }
+inline const char* se_string_cstr(const SeString& str)
+{
+    return str.memory;
+}
 
-    inline SeString create(const SeString& source, SeStringLifetime lifetime)
-    {
-        return se_string_create_from_source(lifetime == SeStringLifetime::TEMPORARY, string::cstr(source));
-    }
+inline char* se_string_cstr(SeString& str)
+{
+    return str.memory;
+}
 
-    inline SeString create(const char* source, SeStringLifetime lifetime)
-    {
-        return se_string_create_from_source(lifetime == SeStringLifetime::TEMPORARY, source);
-    }
+inline size_t se_string_length(const SeString& str)
+{
+    return str.length;
+}
 
-    template<typename ... Args>
-    inline SeString create_fmt(SeStringLifetime lifetime, const char* fmt, const Args& ... args)
-    {
-        SeStringBuilder builder = string_builder::begin(nullptr, lifetime);
-        string_builder::append_fmt(builder, fmt, args...);
-        return string_builder::end(builder);
-    }
+inline SeString se_string_create(const SeString& source, SeStringLifetime lifetime)
+{
+    return _se_string_create_from_source(lifetime == SeStringLifetime::TEMPORARY, se_string_cstr(source));
+}
 
-    inline SeString create(size_t length, SeStringLifetime lifetime)
-    {
-        return se_string_create(lifetime == SeStringLifetime::TEMPORARY, length, nullptr);
-    }
+inline SeString se_string_create(const char* source, SeStringLifetime lifetime)
+{
+    return _se_string_create_from_source(lifetime == SeStringLifetime::TEMPORARY, source);
+}
 
-    inline void destroy(const SeString& str)
-    {
-        se_string_destroy(str);
-    }
+template<typename ... Args>
+inline SeString se_string_create_fmt(SeStringLifetime lifetime, const char* fmt, const Args& ... args)
+{
+    SeStringBuilder builder = se_string_builder_begin(nullptr, lifetime);
+    se_string_builder_append_fmt(builder, fmt, args...);
+    return se_string_builder_end(builder);
+}
 
-    template<typename T>
-    inline SeString cast(const T& value, SeStringLifetime lifetime)
-    {
-        return string::create("!!! string::cast operation is not specified !!!");
-    }
+inline SeString se_string_create(size_t length, SeStringLifetime lifetime)
+{
+    return _se_string_create(lifetime == SeStringLifetime::TEMPORARY, length, nullptr);
+}
 
-    template<std::unsigned_integral T>
-    inline SeString cast(const T& value, SeStringLifetime lifetime)
-    {
-        char buffer[32];
-        snprintf(buffer, sizeof(buffer), "%llu", uint64_t(value));
-        return string::create(buffer, lifetime);
-    }
+inline void se_string_destroy(const SeString& str)
+{
+    _se_string_destroy(str);
+}
 
-    template<std::signed_integral T>
-    inline SeString cast(const T& value, SeStringLifetime lifetime)
-    {
-        char buffer[32];
-        snprintf(buffer, sizeof(buffer), "%lld", int64_t(value));
-        return string::create(buffer, lifetime);
-    }
+template<typename T>
+inline SeString se_string_cast(const T& value, SeStringLifetime lifetime)
+{
+    return se_string_create("!!! se_string_cast operation is not specified !!!");
+}
 
-    template<std::floating_point T>
-    inline SeString cast(const T& value, SeStringLifetime lifetime)
-    {
-        char buffer[64];
-        snprintf(buffer, sizeof(buffer), "%f", value);
-        return string::create(buffer, lifetime);
-    }
+template<std::unsigned_integral T>
+inline SeString se_string_cast(const T& value, SeStringLifetime lifetime)
+{
+    char buffer[32];
+    snprintf(buffer, sizeof(buffer), "%llu", uint64_t(value));
+    return se_string_create(buffer, lifetime);
+}
 
-    template<se_cstring T>
-    inline SeString cast(const T& value, SeStringLifetime lifetime)
-    {
-        return value == nullptr ? string::cast(nullptr, lifetime) : string::create(value, lifetime);
-    }
+template<std::signed_integral T>
+inline SeString se_string_cast(const T& value, SeStringLifetime lifetime)
+{
+    char buffer[32];
+    snprintf(buffer, sizeof(buffer), "%lld", int64_t(value));
+    return se_string_create(buffer, lifetime);
+}
 
-    template<>
-    inline SeString cast<SeString>(const SeString& value, SeStringLifetime lifetime)
-    {
-        return string::create(value, lifetime);
-    }
+template<std::floating_point T>
+inline SeString se_string_cast(const T& value, SeStringLifetime lifetime)
+{
+    char buffer[64];
+    snprintf(buffer, sizeof(buffer), "%f", value);
+    return se_string_create(buffer, lifetime);
+}
 
-    template<>
-    inline SeString cast<nullptr_t>(const nullptr_t& value, SeStringLifetime lifetime)
-    {
-        return string::create("nullptr", lifetime);
-    }
+template<se_cstring T>
+inline SeString se_string_cast(const T& value, SeStringLifetime lifetime)
+{
+    return value == nullptr ? se_string_cast(nullptr, lifetime) : se_string_create(value, lifetime);
+}
 
-    void engine::init()
-    {
-        object_pool::construct(g_presistentStringPool);
-    }
+template<>
+inline SeString se_string_cast<SeString>(const SeString& value, SeStringLifetime lifetime)
+{
+    return se_string_create(value, lifetime);
+}
 
-    void engine::terminate()
+template<>
+inline SeString se_string_cast<nullptr_t>(const nullptr_t& value, SeStringLifetime lifetime)
+{
+    return se_string_create("nullptr", lifetime);
+}
+
+void _se_string_init()
+{
+    se_object_pool_construct(g_presistentStringPool);
+}
+
+void _se_string_terminate()
+{
+    for (auto it : g_presistentStringPool) { _se_string_persistent_allocation_destroy(&se_iterator_value(it)); }
+    se_object_pool_destroy(g_presistentStringPool);
+}
+
+inline SeStringBuilder se_string_builder_begin(const char* source, SeStringLifetime lifetime)
+{
+    return _se_string_builder_begin_from_source(lifetime == SeStringLifetime::TEMPORARY, source);
+}
+
+inline SeStringBuilder se_string_builder_begin(size_t capacity, const char* source, SeStringLifetime lifetime)
+{
+    return _se_string_builder_begin(lifetime == SeStringLifetime::TEMPORARY, capacity, source);
+}
+
+inline void se_string_builder_append(SeStringBuilder& builder, const char* source)
+{
+    _se_string_builder_append(builder, source);
+}
+
+inline void se_string_builder_append(SeStringBuilder& builder, char symbol)
+{
+    const char smallStr[2] = { symbol, 0 };
+    _se_string_builder_append(builder, smallStr);
+}
+
+inline void se_string_builder_append(SeStringBuilder& builder, const SeString& source)
+{
+    _se_string_builder_append(builder, source.memory);
+}
+
+template<typename ... Args>
+inline void se_string_builder_append_fmt(SeStringBuilder& builder, const char* fmt, const Args& ... args)
+{
+    if constexpr (sizeof...(Args) == 0)
     {
-        for (auto it : g_presistentStringPool) { se_string_persistent_allocation_destroy(&iter::value(it)); }
-        object_pool::destroy(g_presistentStringPool);
+        _se_string_builder_append(builder, fmt);
+    }
+    else
+    {
+        const char* argsStr[sizeof...(args)];
+        _se_string_fill_args<0, Args...>(argsStr, args...);
+        _se_string_builder_append_fmt(builder, fmt, (const char**)argsStr, sizeof...(args));
     }
 }
 
-namespace string_builder
+template<typename ... Args>
+void se_string_builder_append_with_separator(SeStringBuilder& builder, const char* separator, const Args& ... args)
 {
-    namespace impl
+    constexpr size_t NUM_ARGS = sizeof...(args);
+    static_assert(NUM_ARGS > 0);
+    const char* argsStr[NUM_ARGS];
+    _se_string_fill_args<0, Args...>(argsStr, args...);
+    for (size_t it = 0; it < NUM_ARGS; it++)
     {
-        template<size_t it, typename Arg>
-        void fill_args(const char** argsStr, const Arg& arg)
-        {
-            argsStr[it] = string::cstr(string::cast(arg, SeStringLifetime::TEMPORARY));
-        }
-
-        template<size_t it, typename Arg, typename ... Other>
-        void fill_args(const char** argsStr, const Arg& arg, const Other& ... other)
-        {
-            argsStr[it] = string::cstr(string::cast(arg, SeStringLifetime::TEMPORARY));
-            fill_args<it + 1, Other...>(argsStr, other...);
-        }
-    }
-
-    SeStringBuilder begin(const char* source, SeStringLifetime lifetime)
-    {
-        return se_string_builder_begin_from_source(lifetime == SeStringLifetime::TEMPORARY, source);
-    }
-
-    SeStringBuilder begin(size_t capacity, const char* source, SeStringLifetime lifetime)
-    {
-        return se_string_builder_begin(lifetime == SeStringLifetime::TEMPORARY, capacity, source);
-    }
-
-    void append(SeStringBuilder& builder, const char* source)
-    {
-        se_string_builder_append(builder, source);
-    }
-
-    void append(SeStringBuilder& builder, char symbol)
-    {
-        const char smallStr[2] = { symbol, 0 };
-        se_string_builder_append(builder, smallStr);
-    }
-
-    void append(SeStringBuilder& builder, const SeString& source)
-    {
-        se_string_builder_append(builder, source.memory);
-    }
-
-    template<typename ... Args>
-    void append_fmt(SeStringBuilder& builder, const char* fmt, const Args& ... args)
-    {
-        if constexpr (sizeof...(Args) == 0)
-        {
-            se_string_builder_append(builder, fmt);
-        }
-        else
-        {
-            const char* argsStr[sizeof...(args)];
-            impl::fill_args<0, Args...>(argsStr, args...);
-            se_string_builder_append_fmt(builder, fmt, (const char**)argsStr, sizeof...(args));
-        }
-    }
-
-    template<typename ... Args>
-    void append_with_separator(SeStringBuilder& builder, const char* separator, const Args& ... args)
-    {
-        constexpr size_t NUM_ARGS = sizeof...(args);
-        static_assert(NUM_ARGS > 0);
-        const char* argsStr[NUM_ARGS];
-        impl::fill_args<0, Args...>(argsStr, args...);
-        for (size_t it = 0; it < NUM_ARGS; it++)
-        {
-            se_string_builder_append(builder, argsStr[it]);
-            if (it < (NUM_ARGS - 1)) se_string_builder_append(builder, separator);
-        }
-    }
-
-    SeString end(SeStringBuilder& builder)
-    {
-        return se_string_builder_end(builder);
+        _se_string_builder_append(builder, argsStr[it]);
+        if (it < (NUM_ARGS - 1)) _se_string_builder_append(builder, separator);
     }
 }
 
-namespace utils
+inline SeString se_string_builder_end(SeStringBuilder& builder)
 {
-    template<>
-    bool compare<SeString, SeString>(const SeString& first, const SeString& second)
-    {
-        return first.length == second.length && compare_raw(first.memory, second.memory, first.length);
-    }
-
-    template<se_cstring T>
-    bool compare(const SeString& first, const T& second)
-    {
-        const char* const cstr = (const char*)second;
-        return first.length == strlen(cstr) && compare_raw(first.memory, cstr, first.length);
-    }
-
-    template<se_cstring T>
-    bool compare(const T& first, const SeString& second)
-    {
-        const char* const cstr = (const char*)first;
-        return strlen(cstr) == second.length && compare_raw(cstr, second.memory, second.length);
-    }
-
-    template<se_cstring First, se_cstring Second>
-    bool compare(const First& first, const Second& second)
-    {
-        const char* const firstCstr = (const char*)first;
-        const char* const secondCstr = (const char*)second;
-        const size_t firstLength = strlen(firstCstr);
-        const size_t secondLength = strlen(secondCstr);
-        const bool isCorrectLength = firstLength == secondLength;
-        return isCorrectLength && compare_raw(firstCstr, secondCstr, firstLength);
-    }
+    return _se_string_builder_end(builder);
 }
 
-namespace hash_value
+template<>
+inline bool se_compare<SeString, SeString>(const SeString& first, const SeString& second)
 {
-    namespace builder
-    {
-        template<>
-        void absorb<SeString>(HashValueBuilder& builder, const SeString& value)
-        {
-            hash_value::builder::absorb_raw(builder, { value.memory, value.length });
-        }
-
-        template<se_cstring T>
-        void absorb(HashValueBuilder& builder, const T& value)
-        {
-            const char* const cstr = (const char*)value;
-            hash_value::builder::absorb_raw(builder, { (void*)cstr, strlen(cstr) });
-        }
-    }
-
-    template<>
-    HashValue generate<SeString>(const SeString& value)
-    {
-        return hash_value::generate_raw({ value.memory, value.length });
-    }
-
-    template<se_cstring T>
-    HashValue generate(const T& value)
-    {
-        const char* const cstr = (const char*)value;
-        return hash_value::generate_raw({ (void*)cstr, strlen(cstr) });
-    }
+    return first.length == second.length && se_compare_raw(first.memory, second.memory, first.length);
 }
 
-namespace stringw
+template<se_cstring T>
+inline bool se_compare(const SeString& first, const T& second)
 {
-    namespace impl
-    {
-        template<se_cstrw Arg>
-        void process(const wchar_t** elements, size_t index, const Arg& arg)
-        {
-            elements[index] = (const wchar_t*)arg;
-        }
+    const char* const cstr = (const char*)second;
+    return first.length == se_cstr_len(cstr) && se_compare_raw(first.memory, cstr, first.length);
+}
 
-        template<se_cstrw Arg, typename ... Args>
-        void process(const wchar_t** elements, size_t index, const Arg& arg, const Args& ... args)
-        {
-            elements[index] = (const wchar_t*)arg;
-            process(elements, index + 1, args...);
-        }
+template<se_cstring T>
+inline bool se_compare(const T& first, const SeString& second)
+{
+    const char* const cstr = (const char*)first;
+    return se_cstr_len(cstr) == second.length && se_compare_raw(cstr, second.memory, second.length);
+}
+
+template<se_cstring First, se_cstring Second>
+inline bool se_compare(const First& first, const Second& second)
+{
+    const char* const firstCstr = (const char*)first;
+    const char* const secondCstr = (const char*)second;
+    const size_t firstLength = se_cstr_len(firstCstr);
+    const size_t secondLength = se_cstr_len(secondCstr);
+    const bool isCorrectLength = firstLength == secondLength;
+    return isCorrectLength && se_compare_raw(firstCstr, secondCstr, firstLength);
+}
+
+template<>
+inline void se_hash_value_builder_absorb<SeString>(SeHashValueBuilder& builder, const SeString& value)
+{
+    se_hash_value_builder_absorb_raw(builder, { value.memory, value.length });
+}
+
+template<se_cstring T>
+inline void se_hash_value_builder_absorb(SeHashValueBuilder& builder, const T& value)
+{
+    const char* const cstr = (const char*)value;
+    se_hash_value_builder_absorb_raw(builder, { (void*)cstr, strlen(cstr) });
+}
+
+template<>
+inline SeHashValue se_hash_value_generate<SeString>(const SeString& value)
+{
+    return se_hash_value_generate_raw({ value.memory, value.length });
+}
+
+template<se_cstring T>
+inline SeHashValue se_hash_value_generate(const T& value)
+{
+    const char* const cstr = (const char*)value;
+    return se_hash_value_generate_raw({ (void*)cstr, strlen(cstr) });
+}
+
+template<se_cstrw Arg>
+void _se_stringw_process(const wchar_t** elements, size_t index, const Arg& arg)
+{
+    elements[index] = (const wchar_t*)arg;
+}
+
+template<se_cstrw Arg, typename ... Args>
+void _se_stringw_process(const wchar_t** elements, size_t index, const Arg& arg, const Args& ... args)
+{
+    elements[index] = (const wchar_t*)arg;
+    _se_stringw_process(elements, index + 1, args...);
+}
+
+template<typename ... Args>
+SeStringW se_stringw_create(const SeAllocatorBindings& allocator, const Args& ... args)
+{
+    const wchar_t* argsCstr[sizeof...(args)];
+    _se_stringw_process(argsCstr, 0, args...);
+
+    size_t argsLength[sizeof...(args)];
+    size_t length = 0;
+    for (size_t it = 0; it < sizeof...(args); it++)
+    {
+        const size_t argLength = se_cstr_len(argsCstr[it]);
+        length += argLength;
+        argsLength[it] = argLength;
     }
 
-    template<typename ... Args>
-    SeStringW create(const AllocatorBindings& allocator, const Args& ... args)
+    wchar_t* const buffer = (wchar_t*)se_alloc(allocator, sizeof(wchar_t) * (length + 1), se_alloc_tag);
+    size_t pivot = 0;
+    for (size_t it = 0; it < sizeof...(args); it++)
     {
-        const wchar_t* argsCstr[sizeof...(args)];
-        impl::process(argsCstr, 0, args...);
-
-        size_t argsLength[sizeof...(args)];
-        size_t length = 0;
-        for (size_t it = 0; it < sizeof...(args); it++)
-        {
-            const size_t argLength = utils::cstr_len(argsCstr[it]);
-            length += argLength;
-            argsLength[it] = argLength;
-        }
-
-        wchar_t* const buffer = (wchar_t*)allocator_bindings::alloc(allocator, sizeof(wchar_t) * (length + 1), se_alloc_tag);
-        size_t pivot = 0;
-        for (size_t it = 0; it < sizeof...(args); it++)
-        {
-            memcpy(buffer + pivot, argsCstr[it], sizeof(wchar_t) * argsLength[it]);
-            pivot += argsLength[it];
-        }
-        buffer[length] = 0;
-        return { buffer, length };
+        memcpy(buffer + pivot, argsCstr[it], sizeof(wchar_t) * argsLength[it]);
+        pivot += argsLength[it];
     }
+    buffer[length] = 0;
+    return { buffer, length };
+}
 
-    inline const wchar_t* cstr(const SeStringW& str)
-    {
-        return str.buffer;
-    }
+inline const wchar_t* se_stringw_cstr(const SeStringW& str)
+{
+    return str.buffer;
+}
 
-    SeString to_utf8(const SeStringW& str)
-    {
-        const wchar_t* const source = str.buffer;
-        const size_t sourceLength = str.length;
-        const size_t targetLength = platform::wchar_to_utf8_required_length(source, sourceLength);
-        
-        // string::create allocates string with additional null-terminated character, so we don't need to set it manually
-        SeString result = string::create(targetLength, SeStringLifetime::PERSISTENT);
-        char* const target = string::cstr(result);
-        platform::wchar_to_utf8(source, sourceLength, target, targetLength);
-        
-        return result;
-    }
+SeString se_stringw_to_utf8(const SeStringW& str)
+{
+    const wchar_t* const source = str.buffer;
+    const size_t sourceLength = str.length;
+    const size_t targetLength = se_platform_wchar_to_utf8_required_length(source, sourceLength);
+    
+    // se_string_create allocates string with additional null-terminated character, so we don't need to set it manually
+    SeString result = se_string_create(targetLength, SeStringLifetime::PERSISTENT);
+    char* const target = se_string_cstr(result);
+    se_platform_wchar_to_utf8(source, sourceLength, target, targetLength);
+    
+    return result;
+}
 
-    SeStringW from_utf8(const AllocatorBindings& allocator, const char* source)
-    {
-        const size_t sourceLength = utils::cstr_len(source);
-        const size_t targetLength = platform::utf8_to_wchar_required_length(source, sourceLength);
+SeStringW se_stringw_from_utf8(const SeAllocatorBindings& allocator, const char* source)
+{
+    const size_t sourceLength = se_cstr_len(source);
+    const size_t targetLength = se_platform_utf8_to_wchar_required_length(source, sourceLength);
 
-        wchar_t* const target = (wchar_t*)allocator_bindings::alloc(allocator, sizeof(wchar_t) * (targetLength + 1), se_alloc_tag);
-        platform::utf8_to_wchar(source, sourceLength, target, targetLength);
+    wchar_t* const target = (wchar_t*)se_alloc(allocator, sizeof(wchar_t) * (targetLength + 1), se_alloc_tag);
+    se_platform_utf8_to_wchar(source, sourceLength, target, targetLength);
 
-        target[targetLength] = 0;
-        return { target, size_t(targetLength) };
-    }
+    target[targetLength] = 0;
+    return { target, size_t(targetLength) };
+}
 
-    void destroy(SeStringW& str)
-    {
-        allocator_bindings::dealloc(allocators::persistent(), str.buffer, sizeof(wchar_t) * (str.length + 1));
-        str.buffer = nullptr;
-        str.length = 0;
-    }
+void se_stringw_destroy(SeStringW& str)
+{
+    se_dealloc(se_allocator_persistent(), str.buffer, sizeof(wchar_t) * (str.length + 1));
+    str.buffer = nullptr;
+    str.length = 0;
 }

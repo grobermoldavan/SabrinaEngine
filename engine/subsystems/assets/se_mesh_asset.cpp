@@ -1,6 +1,6 @@
 
 #include "se_mesh_asset.hpp"
-#include "engine/engine.hpp"
+#include "engine/se_engine.hpp"
 
 #define CGLTF_MALLOC(size) malloc(size)
 #define CGLTF_FREE(ptr) free(ptr)
@@ -41,9 +41,9 @@ struct
 } g_cgltfAllocations[SE_MAX_CGLTF_ALLOCATIONS];
 size_t g_numCgltfAllocations = 0;
 
-void* se_mesh_cgltf_alloc(void* userData, cgltf_size size)
+void* _se_mesh_cgltf_alloc(void* userData, cgltf_size size)
 {
-    const AllocatorBindings allocator = allocators::persistent();
+    const SeAllocatorBindings allocator = se_allocator_persistent();
     // @NOTE : this is a hack - cgltf library expects _some allocation_ even if requested allocation size is zero
     const size_t allocationSize = size ? size : 4;
     void* const ptr = allocator.alloc(allocator.allocator, allocationSize, se_default_alignment, se_alloc_tag);
@@ -52,9 +52,9 @@ void* se_mesh_cgltf_alloc(void* userData, cgltf_size size)
     return ptr;
 }
 
-void se_mesh_cgltf_free(void* userData, void* ptr)
+void _se_mesh_cgltf_free(void* userData, void* ptr)
 {
-    const AllocatorBindings allocator = allocators::persistent();
+    const SeAllocatorBindings allocator = se_allocator_persistent();
     for (size_t it = 0; it < g_numCgltfAllocations; it++)
     {
         if (g_cgltfAllocations[it].ptr == ptr)
@@ -75,15 +75,15 @@ struct
 } g_cgltfFiles[SE_MAX_CGLTF_FILES];
 size_t g_numCgltfFiles = 0;
 
-cgltf_result se_mesh_cgltf_read(const cgltf_memory_options* memory_options, const cgltf_file_options* file_options, const char* path, cgltf_size* size, void** data)
+cgltf_result _se_mesh_cgltf_read(const cgltf_memory_options* memory_options, const cgltf_file_options* file_options, const char* path, cgltf_size* size, void** data)
 {
     se_assert(g_numCgltfFiles < SE_MAX_CGLTF_FILES);
     auto* const fileEntry = &g_cgltfFiles[g_numCgltfFiles++];
 
-    fileEntry->file = fs::file_find_recursive(path);
+    fileEntry->file = se_fs_file_find_recursive(path);
     se_assert(fileEntry->file);
 
-    fileEntry->content = fs::file_read(fileEntry->file, allocators::frame());
+    fileEntry->content = se_fs_file_read(fileEntry->file, se_allocator_frame());
 
     *size = fileEntry->content.dataSize;
     *data = fileEntry->content.data;
@@ -91,14 +91,14 @@ cgltf_result se_mesh_cgltf_read(const cgltf_memory_options* memory_options, cons
     return cgltf_result_success;
 }
 
-void se_mesh_cgltf_release(const cgltf_memory_options* memory_options, const cgltf_file_options* file_options, void* data)
+void _se_mesh_cgltf_release(const cgltf_memory_options* memory_options, const cgltf_file_options* file_options, void* data)
 {
     se_assert(g_numCgltfFiles);
     for (size_t it = 0; it < g_numCgltfFiles; it++)
     {
         if (g_cgltfFiles[it].content.data == data)
         {
-            fs::file_content_free(g_cgltfFiles[it].content);
+            se_fs_file_content_free(g_cgltfFiles[it].content);
             g_cgltfFiles[it] = g_cgltfFiles[g_numCgltfFiles - 1];
             g_numCgltfFiles -= 1;
             break;
@@ -112,19 +112,19 @@ const cgltf_options SE_CGLTF_OPTIONS
     .json_token_count = 0, /* 0 == auto */
     .memory =
     {
-        .alloc_func = se_mesh_cgltf_alloc,
-        .free_func = se_mesh_cgltf_free,
+        .alloc_func = _se_mesh_cgltf_alloc,
+        .free_func = _se_mesh_cgltf_free,
         .user_data = nullptr,
     },
     .file =
     {
-        .read = se_mesh_cgltf_read,
-        .release = se_mesh_cgltf_release,
+        .read = _se_mesh_cgltf_read,
+        .release = _se_mesh_cgltf_release,
         .user_data = nullptr,
     },
 };
 
-inline SeFloat4x4 se_mesh_gltf_get_node_local_transform(const cgltf_node* node)
+inline SeFloat4x4 _se_mesh_gltf_get_node_local_transform(const cgltf_node* node)
 {
     // @NOTE : this is a gltf default right-handed transform. It will be converted to left-handed later in SeMeshAsset::load function
     SeFloat4x4 rhsTransform;
@@ -147,22 +147,22 @@ inline SeFloat4x4 se_mesh_gltf_get_node_local_transform(const cgltf_node* node)
     {
         se_assert(!node->has_matrix);
         const SeFloat4x4 translation = node->has_translation
-            ? float4x4::from_position({ node->translation[0], node->translation[1], node->translation[2] })
+            ? se_float4x4_from_position({ node->translation[0], node->translation[1], node->translation[2] })
             : SE_F4X4_IDENTITY;
         // @NOTE : gltf stores quaternions as { x, y, z, w }, but out math library stores them as { w, x, y, z }
         const SeFloat4x4 rotation = node->has_rotation
-            ? quaternion::to_rotation_mat({ node->rotation[3], node->rotation[0], node->rotation[1], node->rotation[2] })
+            ? se_quaternion_to_rotation_mat({ node->rotation[3], node->rotation[0], node->rotation[1], node->rotation[2] })
             : SE_F4X4_IDENTITY;
         const SeFloat4x4 scale = node->has_scale
-            ? float4x4::from_scale({ node->scale[0], node->scale[1], node->scale[2] })
+            ? se_float4x4_from_scale({ node->scale[0], node->scale[1], node->scale[2] })
             : SE_F4X4_IDENTITY;
-        rhsTransform = float4x4::mul(translation, float4x4::mul(rotation, scale));
+        rhsTransform = se_float4x4_mul(translation, se_float4x4_mul(rotation, scale));
     }
 
     return rhsTransform;
 }
 
-SeMeshNodeMask se_mesh_process_gltf_node
+SeMeshNodeMask _se_mesh_process_gltf_node
 (
     SeMeshAsset::Value* meshAsset,
     const cgltf_data* data,
@@ -172,9 +172,9 @@ SeMeshNodeMask se_mesh_process_gltf_node
     const SeFloat4x4& accumulatedModelTransform
 )
 {
-    const SeFloat4x4 nodeTrfLs = se_mesh_gltf_get_node_local_transform(node);
-    const SeFloat4x4 nodeTrfLocalAccumulated = float4x4::mul(nodeTrfLs, accumulatedLocalTransform);
-    const SeFloat4x4 nodeTrfModelAccumulated = float4x4::mul(nodeTrfLs, accumulatedModelTransform);
+    const SeFloat4x4 nodeTrfLs = _se_mesh_gltf_get_node_local_transform(node);
+    const SeFloat4x4 nodeTrfLocalAccumulated = se_float4x4_mul(nodeTrfLs, accumulatedLocalTransform);
+    const SeFloat4x4 nodeTrfModelAccumulated = se_float4x4_mul(nodeTrfLs, accumulatedModelTransform);
 
     SeMeshNode* seNode = nullptr;
     if (const cgltf_mesh* const cgltfMesh = node->mesh)
@@ -203,7 +203,7 @@ SeMeshNodeMask se_mesh_process_gltf_node
                 .modelTrf = nodeTrfModelAccumulated,
                 .geometryMask = { },
                 .childNodesMask = { },
-                .name = string::create(nodeNameCstr, SeStringLifetime::PERSISTENT)
+                .name = se_string_create(nodeNameCstr, SeStringLifetime::PERSISTENT)
             };
 
             size_t localGeometryIndex = 0;
@@ -221,23 +221,23 @@ SeMeshNodeMask se_mesh_process_gltf_node
                 se_assert(globalGeometryIndex < meshAsset->numGeometries);
                 se_assert(globalGeometryIndex < SE_MESH_MAX_GEOMETRIES);
 
-                utils::bm_set(seNode->geometryMask, globalGeometryIndex);
+                se_bm_set(seNode->geometryMask, globalGeometryIndex);
                 localGeometryIndex += 1;
 
                 se_assert(meshAsset->numNodes > 0);
                 SeMeshGeometry& geometry = meshAsset->geometries[globalGeometryIndex];
-                utils::bm_set(geometry.nodes, meshAsset->numNodes - 1);
+                se_bm_set(geometry.nodes, meshAsset->numNodes - 1);
             }
             se_assert(localGeometryIndex == numMeshGeometries);
         }
     }
 
     SeMeshNodeMask resultMask = {};
-    if (seNode) utils::bm_set(resultMask, meshAsset->numNodes - 1);
+    if (seNode) se_bm_set(resultMask, meshAsset->numNodes - 1);
 
     for (size_t it = 0; it < node->children_count; it++)
     {
-        const SeMeshNodeMask childMask = se_mesh_process_gltf_node
+        const SeMeshNodeMask childMask = _se_mesh_process_gltf_node
         (
             meshAsset,
             data,
@@ -247,9 +247,9 @@ SeMeshNodeMask se_mesh_process_gltf_node
             nodeTrfModelAccumulated
         );
         if (seNode)
-            utils::bm_set(seNode->childNodesMask, childMask);
+            se_bm_set(seNode->childNodesMask, childMask);
         else
-            utils::bm_set(resultMask, childMask);
+            se_bm_set(resultMask, childMask);
     }
 
     return resultMask;
@@ -258,7 +258,7 @@ SeMeshNodeMask se_mesh_process_gltf_node
 using SeMeshGltfCopyFunc = void (*)(uint8_t*, const uint8_t*);
 
 template<typename ComponentT, size_t numComponents, float defaultW>
-void se_mesh_gltf_copy_vector(uint8_t* dst, const uint8_t* src)
+void _se_mesh_gltf_copy_vector(uint8_t* dst, const uint8_t* src)
 {
     static_assert(numComponents <= 4 && numComponents >= 1);
     const ComponentT* const _src = (const ComponentT*)src;
@@ -271,18 +271,18 @@ void se_mesh_gltf_copy_vector(uint8_t* dst, const uint8_t* src)
 }
 
 template<typename DestinationT, typename SourceT>
-void se_mesh_gltf_copy_triangle_indices(uint8_t* dst, const uint8_t* src)
+void _se_mesh_gltf_copy_triangle_indices(uint8_t* dst, const uint8_t* src)
 {
     DestinationT* const _dst = (DestinationT*)dst;
     const SourceT* const _src = (const SourceT*)src;
     // @NOTE : This is not a mistake - we actually want to switch first and third indices
-    //         Check se_mesh_gltf_load_buffer_of_indices_from_accessor for extended expalanation
+    //         Check _se_mesh_gltf_load_buffer_of_indices_from_accessor for extended expalanation
     _dst[0] = DestinationT(_src[2]);
     _dst[1] = DestinationT(_src[1]);
     _dst[2] = DestinationT(_src[0]);
 }
 
-SeBufferRef se_mesh_gltf_load_buffer_from_accessor
+SeBufferRef _se_mesh_gltf_load_buffer_from_accessor
 (
     const cgltf_accessor* accessor,
     SeMeshGltfCopyFunc copyPfn,
@@ -304,7 +304,7 @@ SeBufferRef se_mesh_gltf_load_buffer_from_accessor
 
     const size_t numElements = accessor->count;
     const size_t dstBufferSize = numElements * dstElementStride;
-    uint8_t* const dstBuffer = (uint8_t*)allocator_bindings::alloc(allocators::frame(), dstBufferSize, se_alloc_tag);
+    uint8_t* const dstBuffer = (uint8_t*)se_alloc(se_allocator_frame(), dstBufferSize, se_alloc_tag);
 
     se_assert((numElements % numOfProcessedElementsInSingleCopy) == 0);
     const size_t numIterations = numElements / numOfProcessedElementsInSingleCopy;
@@ -317,10 +317,10 @@ SeBufferRef se_mesh_gltf_load_buffer_from_accessor
         copyPfn(dstElement, sourceElement);
     }
 
-    return render::memory_buffer({ data_provider::from_memory(dstBuffer, dstBufferSize) });
+    return se_render_memory_buffer({ se_data_provider_from_memory(dstBuffer, dstBufferSize) });
 }
 
-SeBufferRef se_mesh_gltf_load_buffer_of_vectors_from_accessor(const cgltf_accessor* accessor, bool isPositionComponent)
+SeBufferRef _se_mesh_gltf_load_buffer_of_vectors_from_accessor(const cgltf_accessor* accessor, bool isPositionComponent)
 {
     const bool isMatrix =
         accessor->type == cgltf_type_mat2 ||
@@ -333,15 +333,15 @@ SeBufferRef se_mesh_gltf_load_buffer_of_vectors_from_accessor(const cgltf_access
     const size_t dstElementStride = sizeof(SeFloat4);
 
     const SeMeshGltfCopyFunc copyPfn =
-        accessor->type == cgltf_type_vec2 ? (isPositionComponent ? se_mesh_gltf_copy_vector<float, 2, 1.0f> : se_mesh_gltf_copy_vector<float, 2, 0.0f>) :
-        accessor->type == cgltf_type_vec3 ? (isPositionComponent ? se_mesh_gltf_copy_vector<float, 3, 1.0f> : se_mesh_gltf_copy_vector<float, 3, 0.0f>) :
-        accessor->type == cgltf_type_vec4 ? (isPositionComponent ? se_mesh_gltf_copy_vector<float, 4, 1.0f> : se_mesh_gltf_copy_vector<float, 4, 0.0f>) : nullptr;
+        accessor->type == cgltf_type_vec2 ? (isPositionComponent ? _se_mesh_gltf_copy_vector<float, 2, 1.0f> : _se_mesh_gltf_copy_vector<float, 2, 0.0f>) :
+        accessor->type == cgltf_type_vec3 ? (isPositionComponent ? _se_mesh_gltf_copy_vector<float, 3, 1.0f> : _se_mesh_gltf_copy_vector<float, 3, 0.0f>) :
+        accessor->type == cgltf_type_vec4 ? (isPositionComponent ? _se_mesh_gltf_copy_vector<float, 4, 1.0f> : _se_mesh_gltf_copy_vector<float, 4, 0.0f>) : nullptr;
     se_assert(copyPfn);
 
-    return se_mesh_gltf_load_buffer_from_accessor(accessor, copyPfn, dstElementStride, 1);
+    return _se_mesh_gltf_load_buffer_from_accessor(accessor, copyPfn, dstElementStride, 1);
 }
 
-SeBufferRef se_mesh_gltf_load_buffer_of_indices_from_accessor(const cgltf_accessor* accessor)
+SeBufferRef _se_mesh_gltf_load_buffer_of_indices_from_accessor(const cgltf_accessor* accessor)
 {
     se_assert_msg(accessor->type == cgltf_type_scalar, "Index buffer : expected scalar component");
     se_assert_msg(accessor->component_type != cgltf_component_type_r_32f, "Index buffer : unexpected float component");
@@ -350,22 +350,22 @@ SeBufferRef se_mesh_gltf_load_buffer_of_indices_from_accessor(const cgltf_access
     const size_t dstElementStride = sizeof(uint32_t);
 
     const SeMeshGltfCopyFunc copyPfn =
-        accessor->component_type == cgltf_component_type_r_8    ? se_mesh_gltf_copy_triangle_indices<uint32_t, int8_t> :
-        accessor->component_type == cgltf_component_type_r_8u   ? se_mesh_gltf_copy_triangle_indices<uint32_t, uint8_t> :
-        accessor->component_type == cgltf_component_type_r_16   ? se_mesh_gltf_copy_triangle_indices<uint32_t, int16_t> :
-        accessor->component_type == cgltf_component_type_r_16u  ? se_mesh_gltf_copy_triangle_indices<uint32_t, uint16_t> :
-        accessor->component_type == cgltf_component_type_r_32u  ? se_mesh_gltf_copy_triangle_indices<uint32_t, uint32_t> : nullptr;
+        accessor->component_type == cgltf_component_type_r_8    ? _se_mesh_gltf_copy_triangle_indices<uint32_t, int8_t> :
+        accessor->component_type == cgltf_component_type_r_8u   ? _se_mesh_gltf_copy_triangle_indices<uint32_t, uint8_t> :
+        accessor->component_type == cgltf_component_type_r_16   ? _se_mesh_gltf_copy_triangle_indices<uint32_t, int16_t> :
+        accessor->component_type == cgltf_component_type_r_16u  ? _se_mesh_gltf_copy_triangle_indices<uint32_t, uint16_t> :
+        accessor->component_type == cgltf_component_type_r_32u  ? _se_mesh_gltf_copy_triangle_indices<uint32_t, uint32_t> : nullptr;
     se_assert(copyPfn);
 
     // @NOTE : when we copying the indices buffer, we switch every first and third indices to make triangles face the other side.
     //         This is required since we mirror the whole mesh (check "Load nodes hierarchy" in SeMeshAsset::load) to convert it from
     //         right-handed coordinate system to left-handed coordinate system
-    return se_mesh_gltf_load_buffer_from_accessor(accessor, copyPfn, dstElementStride, 3);
+    return _se_mesh_gltf_load_buffer_from_accessor(accessor, copyPfn, dstElementStride, 3);
 }
 
 SeMeshAsset::Intermediate SeMeshAsset::get_intermediate_data(const Info& info)
 {
-    const auto [data, size] = data_provider::get(info.data);
+    const auto [data, size] = se_data_provider_get(info.data);
     se_assert(data);
 
     cgltf_data* gltfData = nullptr;
@@ -405,14 +405,14 @@ void* SeMeshAsset::load(const Info& info, const Intermediate& intermediateData)
     //
     // Load buffers
     //
-    se_assert(info.data.type == DataProvider::FROM_FILE);
-    const char* const filePath = fs::full_path(info.data.file.handle);
-    const SeFolderHandle fileFolder = fs::file_get_folder(info.data.file.handle);
+    se_assert(info.data.type == SeDataProvider::FROM_FILE);
+    const char* const filePath = se_fs_full_path(info.data.file.handle);
+    const SeFolderHandle fileFolder = se_fs_file_get_folder(info.data.file.handle);
     const cgltf_result bufferLoadResult = cgltf_load_buffers(&SE_CGLTF_OPTIONS, intermediateData.gltfData, filePath);
     se_assert_msg(bufferLoadResult == cgltf_result_success, "Unable to load cgltf buffers. Error is {}", SE_CGLTF_RESULT_TO_STR[bufferLoadResult]);
 
     const cgltf_data* const gltf = intermediateData.gltfData;
-    SeMeshAsset::Value* const meshAsset = allocator_bindings::alloc<SeMeshAsset::Value>(allocators::persistent(), se_alloc_tag);
+    SeMeshAsset::Value* const meshAsset = se_alloc<SeMeshAsset::Value>(se_allocator_persistent(), se_alloc_tag);
     *meshAsset = {};
     
     //
@@ -430,11 +430,11 @@ void* SeMeshAsset::load(const Info& info, const Intermediate& intermediateData)
             if (colorTexture)
             {
                 const char* const textureFileName = colorTexture->image->uri;
-                const SeFileHandle textureFile = fs::file_find(textureFileName, fileFolder);
-                textureSet.colorTexture = render::texture
+                const SeFileHandle textureFile = se_fs_file_find(textureFileName, fileFolder);
+                textureSet.colorTexture = se_render_texture
                 ({
                     .format = SeTextureFormat::RGBA_8_SRGB,
-                    .data = data_provider::from_file(textureFile),
+                    .data = se_data_provider_from_file(textureFile),
                 });
             }
         }
@@ -487,7 +487,7 @@ void* SeMeshAsset::load(const Info& info, const Intermediate& intermediateData)
                 if (!seGeometry.numVertices) seGeometry.numVertices = numElements;
                 se_assert_msg(seGeometry.numVertices == numElements, "All mesh components are expected to have the same number of elements");
 
-                const SeBufferRef renderBuffer = se_mesh_gltf_load_buffer_of_vectors_from_accessor(attribute.data, attribute.type == cgltf_attribute_type_position);
+                const SeBufferRef renderBuffer = _se_mesh_gltf_load_buffer_of_vectors_from_accessor(attribute.data, attribute.type == cgltf_attribute_type_position);
                 switch (attribute.type)
                 {
                     case cgltf_attribute_type_position: { se_assert(!seGeometry.positionBuffer);  seGeometry.positionBuffer = renderBuffer; } break;
@@ -501,17 +501,17 @@ void* SeMeshAsset::load(const Info& info, const Intermediate& intermediateData)
             //
             if (primitive.indices)
             {
-                seGeometry.indicesBuffer = se_mesh_gltf_load_buffer_of_indices_from_accessor(primitive.indices);
+                seGeometry.indicesBuffer = _se_mesh_gltf_load_buffer_of_indices_from_accessor(primitive.indices);
                 se_assert(primitive.indices->count < UINT32_MAX);
                 seGeometry.numIndices = uint32_t(primitive.indices->count);
             }
             else
             {
                 const size_t indicesBufferSize = sizeof(uint32_t) * seGeometry.numVertices;
-                uint32_t* const indices = (uint32_t*)allocator_bindings::alloc(allocators::frame(), indicesBufferSize, se_alloc_tag);
+                uint32_t* const indices = (uint32_t*)se_alloc(se_allocator_frame(), indicesBufferSize, se_alloc_tag);
                 se_assert((seGeometry.numVertices % 3) == 0);
                 for (uint32_t it = 0; it < seGeometry.numVertices; it++) indices[it] = it;
-                seGeometry.indicesBuffer = render::memory_buffer({ data_provider::from_memory(indices, indicesBufferSize) });
+                seGeometry.indicesBuffer = se_render_memory_buffer({ se_data_provider_from_memory(indices, indicesBufferSize) });
                 seGeometry.numIndices = seGeometry.numVertices;
             }
             se_assert(seGeometry.numIndices);
@@ -541,7 +541,7 @@ void* SeMeshAsset::load(const Info& info, const Intermediate& intermediateData)
                  0, 0, 1, 0,
                  0, 0, 0, 1,
             };
-            const SeBitMask nodes = se_mesh_process_gltf_node
+            const SeBitMask nodes = _se_mesh_process_gltf_node
             (
                 meshAsset,
                 gltf,
@@ -550,7 +550,7 @@ void* SeMeshAsset::load(const Info& info, const Intermediate& intermediateData)
                 GLTF_TO_SE_CONVERSION,
                 GLTF_TO_SE_CONVERSION
             );
-            utils::bm_set(meshAsset->rootNodes, nodes);
+            se_bm_set(meshAsset->rootNodes, nodes);
         }
     }
 
@@ -564,26 +564,26 @@ void SeMeshAsset::unload(void* data)
     for (size_t it = 0; it < mesh->numGeometries; it++)
     {
         const SeMeshGeometry& geometry = mesh->geometries[it];
-        if (geometry.indicesBuffer) render::destroy(geometry.indicesBuffer);
-        if (geometry.positionBuffer) render::destroy(geometry.positionBuffer);
-        if (geometry.normalBuffer) render::destroy(geometry.normalBuffer);
-        if (geometry.tangentBuffer) render::destroy(geometry.tangentBuffer);
-        if (geometry.uvBuffer) render::destroy(geometry.uvBuffer);
+        if (geometry.indicesBuffer) se_render_destroy(geometry.indicesBuffer);
+        if (geometry.positionBuffer) se_render_destroy(geometry.positionBuffer);
+        if (geometry.normalBuffer) se_render_destroy(geometry.normalBuffer);
+        if (geometry.tangentBuffer) se_render_destroy(geometry.tangentBuffer);
+        if (geometry.uvBuffer) se_render_destroy(geometry.uvBuffer);
     }
 
     for (size_t it = 0; it < mesh->numTextureSets; it++)
     {
         const SeMeshTextureSet& set = mesh->textureSets[it];
-        if (set.colorTexture) render::destroy(set.colorTexture);
+        if (set.colorTexture) se_render_destroy(set.colorTexture);
     }
 
     for (size_t it = 0; it < mesh->numNodes; it++)
     {
         const SeMeshNode& node = mesh->nodes[it];
-        string::destroy(node.name);
+        se_string_destroy(node.name);
     }
 
-    allocator_bindings::dealloc(allocators::persistent(), mesh);
+    se_dealloc(se_allocator_persistent(), mesh);
 }
 
 void SeMeshAsset::maximize(void* data)
@@ -605,25 +605,25 @@ bool SeMeshIteratorInstance::operator != (const SeMeshIteratorInstance& other) c
 
 SeMeshIteratorValue SeMeshIteratorInstance::operator *  ()
 {
-    dynamic_array::reset(transforms);
+    se_dynamic_array_reset(transforms);
 
     se_assert(index < mesh->numGeometries);
     const SeMeshGeometry& geometry = mesh->geometries[index];
 
     for (size_t nodeIt = 0; nodeIt < SE_MESH_MAX_NODES; nodeIt++)
     {
-        if (!utils::bm_get(geometry.nodes, nodeIt)) continue;
+        if (!se_bm_get(geometry.nodes, nodeIt)) continue;
 
         se_assert(nodeIt < mesh->numNodes);
         const SeMeshNode& node = mesh->nodes[nodeIt];
 
         for (auto instanceIt : instances)
         {
-            const SeMeshInstanceData& instance = iter::value(instanceIt);
+            const SeMeshInstanceData& instance = se_iterator_value(instanceIt);
             const SeFloat4x4& trf = instance.transformWs;
-            const SeFloat4x4 transformWs = float4x4::mul(trf, node.modelTrf);
-            const SeFloat4x4 mvp = float4x4::mul(viewProjectionMatrix, transformWs);
-            dynamic_array::push(transforms, float4x4::transposed(mvp));
+            const SeFloat4x4 transformWs = se_float4x4_mul(trf, node.modelTrf);
+            const SeFloat4x4 mvp = se_float4x4_mul(viewProjectionMatrix, transformWs);
+            se_dynamic_array_push(transforms, se_float4x4_transposed(mvp));
         }
     }
 
@@ -645,7 +645,7 @@ SeMeshIteratorInstance begin(const SeMeshIterator& iterator)
         .instances = iterator.instances,
         .viewProjectionMatrix = iterator.viewProjectionMatrix,
         .index = 0,
-        .transforms = dynamic_array::create<SeFloat4x4>(allocators::frame(), dynamic_array::size(iterator.instances) * 4),
+        .transforms = se_dynamic_array_create<SeFloat4x4>(se_allocator_frame(), se_dynamic_array_size(iterator.instances) * 4),
     };
 }
 

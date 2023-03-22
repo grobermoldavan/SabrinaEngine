@@ -11,16 +11,16 @@ void se_vk_gpu_fill_required_physical_deivce_features(VkPhysicalDeviceFeatures* 
     features->samplerAnisotropy = VK_TRUE;
 }
 
-float se_vk_gpu_get_device_rating(VkPhysicalDevice device, VkSurfaceKHR surface, const AllocatorBindings& bindings, VkPhysicalDeviceFeatures* featuresToEnable)
+float se_vk_gpu_get_device_rating(VkPhysicalDevice device, VkSurfaceKHR surface, const SeAllocatorBindings& bindings, VkPhysicalDeviceFeatures* featuresToEnable)
 {
     //
     // Get queues
     //
-    DynamicArray<VkQueueFamilyProperties> familyProperties = se_vk_utils_get_physical_device_queue_family_properties(device, bindings);
+    SeDynamicArray<VkQueueFamilyProperties> familyProperties = se_vk_utils_get_physical_device_queue_family_properties(device, bindings);
     const uint32_t graphicsQueue = se_vk_utils_pick_graphics_queue(familyProperties);
     const uint32_t presentQueue = se_vk_utils_pick_present_queue(familyProperties, device, surface);
     const uint32_t transferQueue = se_vk_utils_pick_transfer_queue(familyProperties);
-    dynamic_array::destroy(familyProperties);
+    se_dynamic_array_destroy(familyProperties);
     if ((graphicsQueue == SE_VK_INVALID_QUEUE) || (presentQueue == SE_VK_INVALID_QUEUE) || (transferQueue == SE_VK_INVALID_QUEUE))
     {
         return SE_VK_INVALID_DEVICE_RATING;
@@ -39,7 +39,7 @@ float se_vk_gpu_get_device_rating(VkPhysicalDevice device, VkSurfaceKHR surface,
     // Check swap chain support
     //
     SeVkSwapChainSupportDetails supportDetails = se_vk_utils_create_swap_chain_support_details(surface, device, bindings);
-    const bool isSwapChainSuppoted = dynamic_array::size(supportDetails.formats) && dynamic_array::size(supportDetails.presentModes);
+    const bool isSwapChainSuppoted = se_dynamic_array_size(supportDetails.formats) && se_dynamic_array_size(supportDetails.presentModes);
     se_vk_utils_destroy_swap_chain_support_details(supportDetails);
     if (!isSwapChainSuppoted)
     {
@@ -81,19 +81,19 @@ const SeVkCommandQueue* se_vk_gpu_get_command_queue(const SeVkGpu* gpu, SeVkComm
     return nullptr;
 }
 
-VkPhysicalDevice se_vk_gpu_pick_physical_device(VkInstance instance, VkSurfaceKHR surface, const AllocatorBindings& bindings, VkPhysicalDeviceFeatures* featuresToEnable)
+VkPhysicalDevice se_vk_gpu_pick_physical_device(VkInstance instance, VkSurfaceKHR surface, const SeAllocatorBindings& bindings, VkPhysicalDeviceFeatures* featuresToEnable)
 {
-    DynamicArray<VkPhysicalDevice> available = se_vk_utils_get_available_physical_devices(instance, bindings);
-    const size_t numAvailableDevices = dynamic_array::size(available);
-    DynamicArray<float> ratings;
-    DynamicArray<VkPhysicalDeviceFeatures> features;
-    dynamic_array::construct(ratings, bindings, numAvailableDevices);
-    dynamic_array::construct(features, bindings, numAvailableDevices);
+    SeDynamicArray<VkPhysicalDevice> available = se_vk_utils_get_available_physical_devices(instance, bindings);
+    const size_t numAvailableDevices = se_dynamic_array_size(available);
+    SeDynamicArray<float> ratings;
+    SeDynamicArray<VkPhysicalDeviceFeatures> features;
+    se_dynamic_array_construct(ratings, bindings, numAvailableDevices);
+    se_dynamic_array_construct(features, bindings, numAvailableDevices);
     for (size_t it = 0; it < numAvailableDevices; it++)
     {
-        dynamic_array::push(features, { });
+        se_dynamic_array_push(features, { });
         const float rating = se_vk_gpu_get_device_rating(available[it], surface, bindings, &features[it]);
-        dynamic_array::push(ratings, rating);
+        se_dynamic_array_push(ratings, rating);
     }
     float bestRating = SE_VK_INVALID_DEVICE_RATING;
     size_t bestDeviceIndex = 0;
@@ -108,15 +108,15 @@ VkPhysicalDevice se_vk_gpu_pick_physical_device(VkInstance instance, VkSurfaceKH
     se_assert_msg(bestRating != SE_VK_INVALID_DEVICE_RATING, "Unable to pick physical device");
     VkPhysicalDevice device = available[bestDeviceIndex];
     *featuresToEnable = features[bestDeviceIndex];
-    dynamic_array::destroy(features);
-    dynamic_array::destroy(ratings);
-    dynamic_array::destroy(available);
+    se_dynamic_array_destroy(features);
+    se_dynamic_array_destroy(ratings);
+    se_dynamic_array_destroy(available);
     return device;
 }
 
 void se_vk_device_swap_chain_create(SeVkDevice* device, uint32_t width, uint32_t height)
 {
-    const AllocatorBindings frameAllocator = allocators::frame();
+    const SeAllocatorBindings frameAllocator = se_allocator_frame();
     SeVkMemoryManager* const memoryManager = &device->memoryManager;
     const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
     {
@@ -169,11 +169,11 @@ void se_vk_device_swap_chain_create(SeVkDevice* device, uint32_t width, uint32_t
         uint32_t swapChainImageCount;
         se_vk_check(vkGetSwapchainImagesKHR(device->gpu.logicalHandle, device->swapChain.handle, &swapChainImageCount, nullptr));
         se_assert(swapChainImageCount < SeVkConfig::MAX_SWAP_CHAIN_IMAGES);
-        DynamicArray<VkImage> swapChainImageHandles;
-        dynamic_array::construct(swapChainImageHandles, frameAllocator, swapChainImageCount);
-        dynamic_array::force_set_size(swapChainImageHandles, swapChainImageCount);
+        SeDynamicArray<VkImage> swapChainImageHandles;
+        se_dynamic_array_construct(swapChainImageHandles, frameAllocator, swapChainImageCount);
+        se_dynamic_array_force_set_size(swapChainImageHandles, swapChainImageCount);
         // It seems like this vkGetSwapchainImagesKHR call leaks memory
-        se_vk_check(vkGetSwapchainImagesKHR(device->gpu.logicalHandle, device->swapChain.handle, &swapChainImageCount, dynamic_array::raw(swapChainImageHandles)));
+        se_vk_check(vkGetSwapchainImagesKHR(device->gpu.logicalHandle, device->swapChain.handle, &swapChainImageCount, se_dynamic_array_raw(swapChainImageHandles)));
         for (uint32_t it = 0; it < swapChainImageCount; it++)
         {
             VkImageView view = VK_NULL_HANDLE;
@@ -209,16 +209,16 @@ void se_vk_device_swap_chain_create(SeVkDevice* device, uint32_t width, uint32_t
             };
         }
         device->swapChain.numTextures = swapChainImageCount;
-        dynamic_array::destroy(swapChainImageHandles);
+        se_dynamic_array_destroy(swapChainImageHandles);
     }
     {
         for (size_t it = 0; it < device->swapChain.numTextures; it++)
         {
             SeVkSwapChainImage* const image = &device->swapChain.images[it];
-            ObjectPool<SeVkTexture>& pool = se_vk_memory_manager_get_pool<SeVkTexture>(memoryManager);
-            SeVkTexture* const texture = object_pool::take(pool);
+            SeObjectPool<SeVkTexture>& pool = se_vk_memory_manager_get_pool<SeVkTexture>(memoryManager);
+            SeVkTexture* const texture = se_object_pool_take(pool);
             se_vk_texture_construct_from_swap_chain(texture, device, &device->swapChain.extent, image->handle, image->view, device->swapChain.surfaceFormat.format);
-            device->swapChain.textures[it] = object_pool::to_ref(pool, texture);
+            device->swapChain.textures[it] = se_object_pool_to_ref(pool, texture);
         }
     }
 }
@@ -229,7 +229,7 @@ void se_vk_device_swap_chain_destroy(SeVkDevice* device)
     {
         SeVkTexture* const tex = *device->swapChain.textures[it];
         se_vk_texture_destroy(tex);
-        object_pool::release(se_vk_memory_manager_get_pool<SeVkTexture>(&device->memoryManager), tex);
+        se_object_pool_release(se_vk_memory_manager_get_pool<SeVkTexture>(&device->memoryManager), tex);
     }
     const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(&device->memoryManager);
     for (size_t it = 0; it < device->swapChain.numTextures; it++)
@@ -243,15 +243,15 @@ VKAPI_ATTR VkBool32 VKAPI_CALL se_vk_debug_callback(
                                             const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
                                             void* pUserData)
 {
-    debug::message("Debug callback : {}\n", pCallbackData->pMessage);
+    se_dbg_message("Debug callback : {}\n", pCallbackData->pMessage);
     se_assert(false);
     return VK_FALSE;
 }
 
 SeVkDevice* se_vk_device_create(const SeSettings& settings, void* nativeWindowHandle)
 {
-    const AllocatorBindings persistentAllocator = allocators::persistent();
-    const AllocatorBindings frameAllocator = allocators::frame();
+    const SeAllocatorBindings persistentAllocator = se_allocator_persistent();
+    const SeAllocatorBindings frameAllocator = se_allocator_frame();
 
     SeVkDevice* const device = (SeVkDevice*)persistentAllocator.alloc(persistentAllocator.allocator, sizeof(SeVkDevice), se_default_alignment, se_alloc_tag);
     device->object = { SeVkObject::Type::DEVICE, 0, g_deviceIndex++ };
@@ -270,14 +270,14 @@ SeVkDevice* se_vk_device_create(const SeSettings& settings, void* nativeWindowHa
         //
         size_t numValidationLayers = 0;
         const char** const validationLayers = se_vk_utils_get_required_validation_layers(&numValidationLayers);
-        DynamicArray<VkLayerProperties> availableValidationLayers = se_vk_utils_get_available_validation_layers(frameAllocator);
+        SeDynamicArray<VkLayerProperties> availableValidationLayers = se_vk_utils_get_available_validation_layers(frameAllocator);
         for (size_t requiredIt = 0; requiredIt < numValidationLayers; requiredIt++)
         {
             const char* const requiredLayerName = validationLayers[requiredIt];
             bool isFound = false;
             for (auto it : availableValidationLayers)
             {
-                const char* const availableLayerName = iter::value(it).layerName;
+                const char* const availableLayerName = se_iterator_value(it).layerName;
                 if (strcmp(availableLayerName, requiredLayerName) == 0)
                 {
                     isFound = true;
@@ -286,21 +286,21 @@ SeVkDevice* se_vk_device_create(const SeSettings& settings, void* nativeWindowHa
             }
             se_assert_msg(isFound, "Required validation layer is not supported");
         }
-        dynamic_array::destroy(availableValidationLayers);
+        se_dynamic_array_destroy(availableValidationLayers);
 #endif
         //
         // Check that all instance extensions are supported
         //
         size_t numInstanceExtensions = 0;
         const char** const instanceExtensions = se_vk_utils_get_required_instance_extensions(&numInstanceExtensions);
-        DynamicArray<VkExtensionProperties> availableInstanceExtensions = se_vk_utils_get_available_instance_extensions(frameAllocator);
+        SeDynamicArray<VkExtensionProperties> availableInstanceExtensions = se_vk_utils_get_available_instance_extensions(frameAllocator);
         for (size_t requiredIt = 0; requiredIt < numInstanceExtensions; requiredIt++)
         {
             const char* const requiredExtensionName = instanceExtensions[requiredIt];
             bool isFound = false;
             for (auto it : availableInstanceExtensions)
             {
-                const char* const availableExtensionName = iter::value(it).extensionName;
+                const char* const availableExtensionName = se_iterator_value(it).extensionName;
                 if (strcmp(availableExtensionName, requiredExtensionName) == 0)
                 {
                     isFound = true;
@@ -309,7 +309,7 @@ SeVkDevice* se_vk_device_create(const SeSettings& settings, void* nativeWindowHa
             }
             se_assert_msg(isFound, "Required instance extension is not supported");
         }
-        dynamic_array::destroy(availableInstanceExtensions);
+        se_dynamic_array_destroy(availableInstanceExtensions);
         const VkApplicationInfo applicationInfo =
         {
             .sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO,
@@ -386,7 +386,7 @@ SeVkDevice* se_vk_device_create(const SeSettings& settings, void* nativeWindowHa
         //
         // Get command queue infos
         //
-        DynamicArray<VkQueueFamilyProperties> familyProperties = se_vk_utils_get_physical_device_queue_family_properties(device->gpu.physicalHandle, frameAllocator);
+        SeDynamicArray<VkQueueFamilyProperties> familyProperties = se_vk_utils_get_physical_device_queue_family_properties(device->gpu.physicalHandle, frameAllocator);
         const uint32_t queuesFamilyIndices[] =
         {
             se_vk_utils_pick_graphics_queue(familyProperties),
@@ -394,7 +394,7 @@ SeVkDevice* se_vk_device_create(const SeSettings& settings, void* nativeWindowHa
             se_vk_utils_pick_transfer_queue(familyProperties),
             se_vk_utils_pick_compute_queue(familyProperties),
         };
-        DynamicArray<VkDeviceQueueCreateInfo> queueCreateInfos = se_vk_utils_get_queue_create_infos(queuesFamilyIndices, se_array_size(queuesFamilyIndices), frameAllocator);
+        SeDynamicArray<VkDeviceQueueCreateInfo> queueCreateInfos = se_vk_utils_get_queue_create_infos(queuesFamilyIndices, se_array_size(queuesFamilyIndices), frameAllocator);
         //
         // Create logical device
         //
@@ -407,8 +407,8 @@ SeVkDevice* se_vk_device_create(const SeSettings& settings, void* nativeWindowHa
             .sType                      = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
             .pNext                      = nullptr,
             .flags                      = 0,
-            .queueCreateInfoCount       = (uint32_t)dynamic_array::size(queueCreateInfos),
-            .pQueueCreateInfos          = dynamic_array::raw(queueCreateInfos),
+            .queueCreateInfoCount       = (uint32_t)se_dynamic_array_size(queueCreateInfos),
+            .pQueueCreateInfos          = se_dynamic_array_raw(queueCreateInfos),
             .enabledLayerCount          = (uint32_t)numValidationLayers,
             .ppEnabledLayerNames        = requiredValidationLayers,
             .enabledExtensionCount      = (uint32_t)numDeviceExtensions,
@@ -421,8 +421,8 @@ SeVkDevice* se_vk_device_create(const SeSettings& settings, void* nativeWindowHa
         //
         for (auto it : queueCreateInfos)
         {
-            SeVkCommandQueue* const queue = &device->gpu.commandQueues[iter::index(it)];
-            queue->queueFamilyIndex = iter::value(it).queueFamilyIndex;
+            SeVkCommandQueue* const queue = &device->gpu.commandQueues[se_iterator_index(it)];
+            queue->queueFamilyIndex = se_iterator_value(it).queueFamilyIndex;
             if (queuesFamilyIndices[0] == queue->queueFamilyIndex) queue->flags |= SE_VK_CMD_QUEUE_GRAPHICS;
             if (queuesFamilyIndices[1] == queue->queueFamilyIndex) queue->flags |= SE_VK_CMD_QUEUE_PRESENT;
             if (queuesFamilyIndices[2] == queue->queueFamilyIndex) queue->flags |= SE_VK_CMD_QUEUE_TRANSFER;
@@ -431,8 +431,8 @@ SeVkDevice* se_vk_device_create(const SeSettings& settings, void* nativeWindowHa
             const VkCommandPoolCreateInfo poolCreateInfo = se_vk_utils_command_pool_create_info(queue->queueFamilyIndex, VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
             se_vk_check(vkCreateCommandPool(device->gpu.logicalHandle, &poolCreateInfo, callbacks, &queue->commandPoolHandle));
         }
-        dynamic_array::destroy(familyProperties);
-        dynamic_array::destroy(queueCreateInfos);
+        se_dynamic_array_destroy(familyProperties);
+        se_dynamic_array_destroy(queueCreateInfos);
         //
         // Get device info
         //
@@ -464,7 +464,7 @@ SeVkDevice* se_vk_device_create(const SeSettings& settings, void* nativeWindowHa
     //
     // Swap chain
     //
-    se_vk_device_swap_chain_create(device, win::get_width(), win::get_height());
+    se_vk_device_swap_chain_create(device, se_win_get_width(), se_win_get_height());
     //
     // Frame manager
     //
@@ -488,10 +488,10 @@ SeVkDevice* se_vk_device_create(const SeSettings& settings, void* nativeWindowHa
     //
     // Graveyard
     //
-    dynamic_array::construct(device->graveyard.programs, allocators::persistent());
-    dynamic_array::construct(device->graveyard.samplers, allocators::persistent());
-    dynamic_array::construct(device->graveyard.buffers, allocators::persistent());
-    dynamic_array::construct(device->graveyard.textures, allocators::persistent());
+    se_dynamic_array_construct(device->graveyard.programs, se_allocator_persistent());
+    se_dynamic_array_construct(device->graveyard.samplers, se_allocator_persistent());
+    se_dynamic_array_construct(device->graveyard.buffers, se_allocator_persistent());
+    se_dynamic_array_construct(device->graveyard.textures, se_allocator_persistent());
     return device;
 }
 
@@ -502,21 +502,21 @@ void se_vk_device_destroy(SeVkDevice* device)
     //
     // Destroy all resources
     //
-    for (auto it : se_vk_memory_manager_get_pool<SeVkSampler>(&device->memoryManager))       se_vk_destroy(&iter::value(it));
-    for (auto it : se_vk_memory_manager_get_pool<SeVkMemoryBuffer>(&device->memoryManager))  se_vk_destroy(&iter::value(it));
-    for (auto it : se_vk_memory_manager_get_pool<SeVkFramebuffer>(&device->memoryManager))   se_vk_destroy(&iter::value(it));
-    for (auto it : se_vk_memory_manager_get_pool<SeVkTexture>(&device->memoryManager))       se_vk_destroy(&iter::value(it));
-    for (auto it : se_vk_memory_manager_get_pool<SeVkPipeline>(&device->memoryManager))      se_vk_destroy(&iter::value(it));
-    for (auto it : se_vk_memory_manager_get_pool<SeVkRenderPass>(&device->memoryManager))    se_vk_destroy(&iter::value(it));
-    for (auto it : se_vk_memory_manager_get_pool<SeVkProgram>(&device->memoryManager))       se_vk_destroy(&iter::value(it));
-    for (auto it : se_vk_memory_manager_get_pool<SeVkCommandBuffer>(&device->memoryManager)) se_vk_destroy(&iter::value(it));
+    for (auto it : se_vk_memory_manager_get_pool<SeVkSampler>(&device->memoryManager))       se_vk_destroy(&se_iterator_value(it));
+    for (auto it : se_vk_memory_manager_get_pool<SeVkMemoryBuffer>(&device->memoryManager))  se_vk_destroy(&se_iterator_value(it));
+    for (auto it : se_vk_memory_manager_get_pool<SeVkFramebuffer>(&device->memoryManager))   se_vk_destroy(&se_iterator_value(it));
+    for (auto it : se_vk_memory_manager_get_pool<SeVkTexture>(&device->memoryManager))       se_vk_destroy(&se_iterator_value(it));
+    for (auto it : se_vk_memory_manager_get_pool<SeVkPipeline>(&device->memoryManager))      se_vk_destroy(&se_iterator_value(it));
+    for (auto it : se_vk_memory_manager_get_pool<SeVkRenderPass>(&device->memoryManager))    se_vk_destroy(&se_iterator_value(it));
+    for (auto it : se_vk_memory_manager_get_pool<SeVkProgram>(&device->memoryManager))       se_vk_destroy(&se_iterator_value(it));
+    for (auto it : se_vk_memory_manager_get_pool<SeVkCommandBuffer>(&device->memoryManager)) se_vk_destroy(&se_iterator_value(it));
     //
     // Graveyard
     //
-    dynamic_array::destroy(device->graveyard.programs);
-    dynamic_array::destroy(device->graveyard.samplers);
-    dynamic_array::destroy(device->graveyard.buffers);
-    dynamic_array::destroy(device->graveyard.textures);
+    se_dynamic_array_destroy(device->graveyard.programs);
+    se_dynamic_array_destroy(device->graveyard.samplers);
+    se_dynamic_array_destroy(device->graveyard.buffers);
+    se_dynamic_array_destroy(device->graveyard.textures);
     //
     // Graph
     //
@@ -552,13 +552,13 @@ void se_vk_device_destroy(SeVkDevice* device)
     vkDestroyInstance(device->instance, callbacks);
     se_vk_memory_manager_free_cpu_memory(&device->memoryManager);
 
-    const AllocatorBindings allocator = allocators::persistent();
+    const SeAllocatorBindings allocator = se_allocator_persistent();
     allocator.dealloc(allocator.allocator, device, sizeof(SeVkDevice));
 }
 
 inline void se_vk_device_begin_frame(SeVkDevice* device, VkExtent2D extent)
 {
-    if (!utils::compare(device->swapChain.extent, extent))
+    if (!se_compare(device->swapChain.extent, extent))
     {
         vkDeviceWaitIdle(device->gpu.logicalHandle);
         se_vk_device_swap_chain_destroy(device);
@@ -577,36 +577,36 @@ template<typename Ref>
 void se_vk_device_submit_to_graveyard(SeVkDevice* device, Ref ref)
 {
     const size_t frameNumber = device->frameManager.frameNumber;
-    if      constexpr (std::is_same_v<Ref, SeProgramRef>) dynamic_array::push(device->graveyard.programs, { ref, frameNumber });
-    else if constexpr (std::is_same_v<Ref, SeSamplerRef>) dynamic_array::push(device->graveyard.samplers, { ref, frameNumber });
-    else if constexpr (std::is_same_v<Ref, SeBufferRef>)  dynamic_array::push(device->graveyard.buffers,  { ref, frameNumber });
-    else if constexpr (std::is_same_v<Ref, SeTextureRef>) dynamic_array::push(device->graveyard.textures, { ref, frameNumber });
+    if      constexpr (std::is_same_v<Ref, SeProgramRef>) se_dynamic_array_push(device->graveyard.programs, { ref, frameNumber });
+    else if constexpr (std::is_same_v<Ref, SeSamplerRef>) se_dynamic_array_push(device->graveyard.samplers, { ref, frameNumber });
+    else if constexpr (std::is_same_v<Ref, SeBufferRef>)  se_dynamic_array_push(device->graveyard.buffers,  { ref, frameNumber });
+    else if constexpr (std::is_same_v<Ref, SeTextureRef>) se_dynamic_array_push(device->graveyard.textures, { ref, frameNumber });
     else static_assert(!"what");
     se_vk_unref(ref)->object.flags |= SeVkObject::Flags::IN_GRAVEYARD;
 }
 
 template<typename Ref>
-void se_vk_device_update_graveyard_collection(SeVkDevice* device, DynamicArray<SeVkGraveyard::Entry<Ref>>& collection)
+void se_vk_device_update_graveyard_collection(SeVkDevice* device, SeDynamicArray<SeVkGraveyard::Entry<Ref>>& collection)
 {
     using VulkanResourceT = SeVkRefToResource<Ref>::Res;
-    ObjectPool<VulkanResourceT>& objectPool = se_vk_memory_manager_get_pool<VulkanResourceT>(&device->memoryManager);
+    SeObjectPool<VulkanResourceT>& objectPool = se_vk_memory_manager_get_pool<VulkanResourceT>(&device->memoryManager);
     const SeVkFrameManager* const frameManager = &device->frameManager;
     const VkDevice logicalHandle = device->gpu.logicalHandle;
     for (auto it : collection)
     {
-        const auto& value = iter::value(it);
+        const auto& value = se_iterator_value(it);
         const SeVkFrame* const frame = ((frameManager->frameNumber - value.frameIndex) < SeVkConfig::NUM_FRAMES_IN_FLIGHT)
             ? se_vk_frame_manager_get_frame(frameManager, value.frameIndex)
             : nullptr;
-        const VkFence fence = (*dynamic_array::last(frame->commandBuffers))->fence;
+        const VkFence fence = (*se_dynamic_array_last(frame->commandBuffers))->fence;
         const bool isFinished = !frame || vkGetFenceStatus(logicalHandle, fence) == VK_SUCCESS;
         if (isFinished)
         {
             auto* const object = se_vk_unref_graveyard(value.ref);
             se_vk_destroy(object);
-            object_pool::release(objectPool, object);
-            iter::remove(it);
-            debug::message("Destroyed texture");
+            se_object_pool_release(objectPool, object);
+            se_iterator_remove(it);
+            se_dbg_message("Destroyed texture");
         }
     }
 }

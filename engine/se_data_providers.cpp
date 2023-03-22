@@ -3,128 +3,116 @@
 #include "subsystems/se_file_system.hpp"
 #include "subsystems/se_application_allocators.hpp"
 
-namespace utils
+template<>
+bool se_compare<SeDataProvider, SeDataProvider>(const SeDataProvider& first, const SeDataProvider& second)
 {
-    template<>
-    bool compare<DataProvider, DataProvider>(const DataProvider& first, const DataProvider& second)
+    if (first.type != second.type) return false;
+    switch (first.type)
     {
-        if (first.type != second.type) return false;
-        switch (first.type)
-        {
-            case DataProvider::FROM_MEMORY: return compare(first.memory, second.memory);
-            case DataProvider::FROM_FILE:   return compare(first.file.handle, second.file.handle);
-            default:                        return true;
-        }
+        case SeDataProvider::FROM_MEMORY: return se_compare(first.memory, second.memory);
+        case SeDataProvider::FROM_FILE:   return se_compare(first.file.handle, second.file.handle);
+        default:                        return true;
     }
 }
 
-namespace hash_value
+template<>
+void se_hash_value_builder_absorb<SeDataProvider>(SeHashValueBuilder& builder, const SeDataProvider& value)
 {
-    namespace builder
+    switch (value.type)
     {
-        template<>
-        void absorb<DataProvider>(HashValueBuilder& builder, const DataProvider& value)
+        case SeDataProvider::FROM_MEMORY:
         {
-            switch (value.type)
-            {
-                case DataProvider::FROM_MEMORY:
-                {
-                    hash_value::builder::absorb_raw(builder, { value.memory.ptr, value.memory.size });
-                } break;
-                case DataProvider::FROM_FILE:
-                {
-                    hash_value::builder::absorb(builder, value.file.handle);
-                } break;
-                default: { }
-            }
-        }
-    }
-
-    template<>
-    HashValue generate<DataProvider>(const DataProvider& value)
-    {
-        HashValueBuilder builder = hash_value::builder::begin();
-        hash_value::builder::absorb(builder, value);
-        return hash_value::builder::end(builder);
+            se_hash_value_builder_absorb_raw(builder, { value.memory.ptr, value.memory.size });
+        } break;
+        case SeDataProvider::FROM_FILE:
+        {
+            se_hash_value_builder_absorb(builder, value.file.handle);
+        } break;
+        default: { }
     }
 }
 
-namespace data_provider
+template<>
+SeHashValue se_hash_value_generate<SeDataProvider>(const SeDataProvider& value)
 {
-    inline bool is_valid(const DataProvider& provider)
-    {
-        return  provider.type == DataProvider::FROM_MEMORY ||
-                provider.type == DataProvider::FROM_FILE    ;
-    }
+    SeHashValueBuilder builder = se_hash_value_builder_begin();
+    se_hash_value_builder_absorb(builder, value);
+    return se_hash_value_builder_end(builder);
+}
 
-    template<size_t Size>
-    DataProvider from_memory(const char (&memory)[Size])
-    {
-        return
-        {
-            .type   = DataProvider::FROM_MEMORY,
-            .memory = { (void*)memory, Size - 1 },
-        };
-    }
+inline bool se_data_provider_is_valid(const SeDataProvider& provider)
+{
+    return  provider.type == SeDataProvider::FROM_MEMORY ||
+            provider.type == SeDataProvider::FROM_FILE    ;
+}
 
-    DataProvider from_memory(const void* memory, size_t size)
+template<size_t Size>
+SeDataProvider se_data_provider_from_memory(const char (&memory)[Size])
+{
+    return
     {
-        return
-        {
-            .type   = DataProvider::FROM_MEMORY,
-            .memory = { (void*)memory, size },
-        };
-    }
+        .type   = SeDataProvider::FROM_MEMORY,
+        .memory = { (void*)memory, Size - 1 },
+    };
+}
 
-    template<se_not_cstring T>
-    DataProvider from_memory(const T& obj)
+SeDataProvider se_data_provider_from_memory(const void* memory, size_t size)
+{
+    return
     {
-        return
-        {
-            .type   = DataProvider::FROM_MEMORY,
-            .memory = { (void*)&obj, sizeof(T) },
-        };
-    }
+        .type   = SeDataProvider::FROM_MEMORY,
+        .memory = { (void*)memory, size },
+    };
+}
 
-    DataProvider from_file(const char* path)
+template<se_not_cstring T>
+SeDataProvider se_data_provider_from_memory(const T& obj)
+{
+    return
     {
-        return
-        {
-            .type = DataProvider::FROM_FILE,
-            .file = { fs::file_find_recursive(path) },
-        };
-    }
+        .type   = SeDataProvider::FROM_MEMORY,
+        .memory = { (void*)&obj, sizeof(T) },
+    };
+}
 
-    DataProvider from_file(SeFileHandle file)
+SeDataProvider se_data_provider_from_file(const char* path)
+{
+    return
     {
-        return
-        {
-            .type = DataProvider::FROM_FILE,
-            .file = { file },
-        };
-    }
+        .type = SeDataProvider::FROM_FILE,
+        .file = { se_fs_file_find_recursive(path) },
+    };
+}
 
-    DataProviderResult get(const DataProvider& provider)
+SeDataProvider se_data_provider_from_file(SeFileHandle file)
+{
+    return
     {
-        switch (provider.type)
+        .type = SeDataProvider::FROM_FILE,
+        .file = { file },
+    };
+}
+
+DataProviderResult se_data_provider_get(const SeDataProvider& provider)
+{
+    switch (provider.type)
+    {
+        case SeDataProvider::UNINITIALIZED:
         {
-            case DataProvider::UNINITIALIZED:
-            {
-                return { };
-            } break;
-            case DataProvider::FROM_MEMORY:
-            {
-                return { provider.memory.ptr, provider.memory.size };
-            } break;
-            case DataProvider::FROM_FILE:
-            {
-                const SeFileContent content = fs::file_read(provider.file.handle, allocators::frame());
-                return { content.data, content.dataSize };
-            } break;
-            default:
-            {
-                return { };
-            }
+            return { };
+        } break;
+        case SeDataProvider::FROM_MEMORY:
+        {
+            return { provider.memory.ptr, provider.memory.size };
+        } break;
+        case SeDataProvider::FROM_FILE:
+        {
+            const SeFileContent content = se_fs_file_read(provider.file.handle, se_allocator_frame());
+            return { content.data, content.dataSize };
+        } break;
+        default:
+        {
+            return { };
         }
     }
 }

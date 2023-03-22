@@ -42,11 +42,8 @@ using SeInitPfn = void (*)();
 using SeUpdatePfn = void (*)(const SeUpdateInfo&);
 using SeTerminatePfn = void (*)();
 
-namespace engine
-{
-    void run(const SeSettings& settings, SeInitPfn init, SeUpdatePfn update, SeTerminatePfn terminate);
-    void stop();
-}
+void se_engine_run(const SeSettings& settings, SeInitPfn init, SeUpdatePfn update, SeTerminatePfn terminate);
+void se_engine_stop();
 
 
 #endif

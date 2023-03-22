@@ -17,7 +17,7 @@ struct SeVkMemory
     VkDeviceSize    offset;
     VkDeviceSize    size;
     void*           mappedMemory;
-    operator bool () const { return utils::compare(*this, SeVkMemory{}); }
+    operator bool () const { return se_compare(*this, SeVkMemory{}); }
 };
 
 struct SeVkGpuMemoryChunk
@@ -42,11 +42,11 @@ struct SeVkMemoryObjectPools;
 struct SeVkMemoryManager
 {
     VkAllocationCallbacks               cpu_allocationCallbacks;
-    DynamicArray<SeVkCpuAllocation>     cpu_allocations;
+    SeDynamicArray<SeVkCpuAllocation>     cpu_allocations;
     SeVkMemoryObjectPools*              cpu_objectPools;
     
     SeVkDevice*                         device;
-    DynamicArray<SeVkGpuMemoryChunk>    gpu_chunks;
+    SeDynamicArray<SeVkGpuMemoryChunk>    gpu_chunks;
     VkPhysicalDeviceMemoryProperties*   memoryProperties;
 
     SeVkMemoryBuffer*                   stagingBuffer;
@@ -61,7 +61,7 @@ bool            se_vk_memory_manager_is_valid_memory(SeVkMemory memory);
 SeVkMemory      se_vk_memory_manager_allocate(SeVkMemoryManager* manager, SeVkGpuAllocationRequest request);
 void            se_vk_memory_manager_deallocate(SeVkMemoryManager* manager, SeVkMemory allocation);
 
-template<typename T> ObjectPool<T>& se_vk_memory_manager_get_pool(SeVkMemoryManager* manager);
+template<typename T> SeObjectPool<T>& se_vk_memory_manager_get_pool(SeVkMemoryManager* manager);
 const VkAllocationCallbacks*        se_vk_memory_manager_get_callbacks(const SeVkMemoryManager* manager);
 SeVkMemoryBuffer*                   se_vk_memory_manager_get_staging_buffer(SeVkMemoryManager* manager);
 

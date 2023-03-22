@@ -8,8 +8,8 @@
 struct SeVkFramebufferInfo
 {
     SeVkDevice*                         device;
-    ObjectPoolEntryRef<SeVkRenderPass>  pass;
-    ObjectPoolEntryRef<SeVkTexture>     textures[SeVkConfig::FRAMEBUFFER_MAX_TEXTURES];
+    SeObjectPoolEntryRef<SeVkRenderPass>  pass;
+    SeObjectPoolEntryRef<SeVkTexture>     textures[SeVkConfig::FRAMEBUFFER_MAX_TEXTURES];
     uint32_t                            numTextures;
 };
 
@@ -17,8 +17,8 @@ struct SeVkFramebuffer
 {
     SeVkObject                          object;
     SeVkDevice*                         device;
-    ObjectPoolEntryRef<SeVkRenderPass>  pass;
-    ObjectPoolEntryRef<SeVkTexture>     textures[SeVkConfig::FRAMEBUFFER_MAX_TEXTURES];
+    SeObjectPoolEntryRef<SeVkRenderPass>  pass;
+    SeObjectPoolEntryRef<SeVkTexture>     textures[SeVkConfig::FRAMEBUFFER_MAX_TEXTURES];
     uint32_t                            numTextures;
     VkFramebuffer                       handle;
     VkExtent2D                          extent;
@@ -33,62 +33,53 @@ void se_vk_destroy<SeVkFramebuffer>(SeVkFramebuffer* res)
     se_vk_framebuffer_destroy(res);
 }
 
-namespace hash_value
+template<>
+void se_hash_value_builder_absorb<SeVkFramebufferInfo>(SeHashValueBuilder& builder, const SeVkFramebufferInfo& value)
 {
-    namespace builder
-    {
-        template<>
-        void absorb<SeVkFramebufferInfo>(HashValueBuilder& builder, const SeVkFramebufferInfo& value)
-        {
-            hash_value::builder::absorb(builder, value.pass);
-            hash_value::builder::absorb(builder, value.numTextures);
-            for (size_t it = 0; it < value.numTextures; it++) hash_value::builder::absorb(builder, value.textures[it]);
-        }
-    }
-
-    template<>
-    HashValue generate<SeVkFramebufferInfo>(const SeVkFramebufferInfo& value)
-    {
-        HashValueBuilder builder = hash_value::builder::begin();
-        hash_value::builder::absorb(builder, value);
-        return hash_value::builder::end(builder);
-    }
+    se_hash_value_builder_absorb(builder, value.pass);
+    se_hash_value_builder_absorb(builder, value.numTextures);
+    for (size_t it = 0; it < value.numTextures; it++) se_hash_value_builder_absorb(builder, value.textures[it]);
 }
 
-namespace string
+template<>
+SeHashValue se_hash_value_generate<SeVkFramebufferInfo>(const SeVkFramebufferInfo& value)
 {
-    template<>
-    SeString cast<SeVkFramebufferInfo>(const SeVkFramebufferInfo& value, SeStringLifetime lifetime)
-    {
-        SeStringBuilder builder = string_builder::begin("[Framebuffer info. ", lifetime);
-        string_builder::append(builder, "Pass id: [");
-        string_builder::append(builder, string::cast(value.pass.generation));
-        string_builder::append(builder, ", ");
-        string_builder::append(builder, string::cast(value.pass.index));
-        string_builder::append(builder, "]. Textures: [num: ");
-        string_builder::append(builder, string::cast(value.numTextures));
-        string_builder::append(builder, ", ");
-        for (size_t it = 0; it < value.numTextures; it++)
-        {
-            string_builder::append(builder, "[");
-            string_builder::append(builder, string::cast(value.textures[it].generation));
-            string_builder::append(builder, ", ");
-            string_builder::append(builder, string::cast(value.textures[it].index));
-            string_builder::append(builder, "], ");
-        }
-        string_builder::append(builder, "]]");
-        return string_builder::end(builder);
-    }
+    SeHashValueBuilder builder = se_hash_value_builder_begin();
+    se_hash_value_builder_absorb(builder, value);
+    return se_hash_value_builder_end(builder);
+}
 
-    template<>
-    SeString cast<SeVkFramebuffer>(const SeVkFramebuffer& value, SeStringLifetime lifetime)
+template<>
+SeString se_string_cast<SeVkFramebufferInfo>(const SeVkFramebufferInfo& value, SeStringLifetime lifetime)
+{
+    SeStringBuilder builder = se_string_builder_begin("[Framebuffer info. ", lifetime);
+    se_string_builder_append(builder, "Pass id: [");
+    se_string_builder_append(builder, se_string_cast(value.pass.generation));
+    se_string_builder_append(builder, ", ");
+    se_string_builder_append(builder, se_string_cast(value.pass.index));
+    se_string_builder_append(builder, "]. Textures: [num: ");
+    se_string_builder_append(builder, se_string_cast(value.numTextures));
+    se_string_builder_append(builder, ", ");
+    for (size_t it = 0; it < value.numTextures; it++)
     {
-        SeStringBuilder builder = string_builder::begin("[Framebuffer. ", lifetime);
-        string_builder::append(builder, "id: [");
-        string_builder::append(builder, string::cast(value.object.uniqueIndex));
-        string_builder::append(builder, "]");
-        return string_builder::end(builder);
+        se_string_builder_append(builder, "[");
+        se_string_builder_append(builder, se_string_cast(value.textures[it].generation));
+        se_string_builder_append(builder, ", ");
+        se_string_builder_append(builder, se_string_cast(value.textures[it].index));
+        se_string_builder_append(builder, "], ");
     }
+    se_string_builder_append(builder, "]]");
+    return se_string_builder_end(builder);
+}
+
+template<>
+SeString se_string_cast<SeVkFramebuffer>(const SeVkFramebuffer& value, SeStringLifetime lifetime)
+{
+    SeStringBuilder builder = se_string_builder_begin("[Framebuffer. ", lifetime);
+    se_string_builder_append(builder, "id: [");
+    se_string_builder_append(builder, se_string_cast(value.object.uniqueIndex));
+    se_string_builder_append(builder, "]");
+    return se_string_builder_end(builder);
 }
 
 #endif

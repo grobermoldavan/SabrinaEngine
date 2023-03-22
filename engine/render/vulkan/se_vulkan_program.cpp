@@ -9,25 +9,25 @@ size_t g_programIndex = 0;
 
 void* se_vk_ssr_alloc_persistent(void* userData, size_t size)
 {
-    AllocatorBindings allocator = allocators::persistent();
+    SeAllocatorBindings allocator = se_allocator_persistent();
     return allocator.alloc(allocator.allocator, size, se_default_alignment, se_alloc_tag);
 }
 
 void se_vk_ssr_free_persistent(void* userData, void* ptr, size_t size)
 {
-    AllocatorBindings allocator = allocators::persistent();
+    SeAllocatorBindings allocator = se_allocator_persistent();
     allocator.dealloc(allocator.allocator, ptr, size);
 }
 
 void* se_vk_ssr_alloc_frame(void* userData, size_t size)
 {
-    AllocatorBindings allocator = allocators::frame();
+    SeAllocatorBindings allocator = se_allocator_frame();
     return allocator.alloc(allocator.allocator, size, se_default_alignment, se_alloc_tag);
 }
 
 void se_vk_ssr_free_frame(void* userData, void* ptr, size_t size)
 {
-    AllocatorBindings allocator = allocators::frame();
+    SeAllocatorBindings allocator = se_allocator_frame();
     allocator.dealloc(allocator.allocator, ptr, size);
 }
 
@@ -38,7 +38,7 @@ void se_vk_program_construct(SeVkProgram* program, SeVkProgramInfo* info)
     const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
     const VkDevice logicalHandle = se_vk_device_get_logical_handle(info->device);
     
-    auto [bytecode, bytecodeSize] = data_provider::get(info->data);
+    auto [bytecode, bytecodeSize] = se_data_provider_get(info->data);
     *program =
     {
         .object     = { SeVkObject::Type::PROGRAM, 0, g_programIndex++ },
@@ -78,7 +78,7 @@ void se_vk_program_destroy(SeVkProgram* program)
     se_vk_utils_destroy_shader_module(logicalHandle, program->handle, callbacks);
 }
 
-VkPipelineShaderStageCreateInfo se_vk_program_get_shader_stage_create_info(SeVkDevice* device, SeVkProgramWithConstants* pipelineProgram, const AllocatorBindings& allocator)
+VkPipelineShaderStageCreateInfo se_vk_program_get_shader_stage_create_info(SeVkDevice* device, SeVkProgramWithConstants* pipelineProgram, const SeAllocatorBindings& allocator)
 {
     const SeVkProgram* program = pipelineProgram->program;
     const SimpleSpirvReflection* reflection = &program->reflection;

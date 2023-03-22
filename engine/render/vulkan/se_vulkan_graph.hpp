@@ -47,7 +47,7 @@ struct SeVkGraphPass
         SeComputePassInfo computePassInfo;
     };
     SeVkRenderPassInfo renderPassInfo;
-    DynamicArray<SeVkGraphCommand> commands;
+    SeDynamicArray<SeVkGraphCommand> commands;
 };
 
 struct SeVkGraphPipelineWithFrame
@@ -81,13 +81,13 @@ struct SeVkGraph
     SeVkDevice*                                             device;
     SeVkGraphContextType                                    context;
     
-    DynamicArray<SeVkGraphPass>                             passes;
+    SeDynamicArray<SeVkGraphPass>                             passes;
 
-    HashTable<SeVkRenderPassInfo            , SeVkGraphWithFrame<SeVkRenderPass>>   renderPassInfoToRenderPass;
-    HashTable<SeVkFramebufferInfo           , SeVkGraphWithFrame<SeVkFramebuffer>>  framebufferInfoToFramebuffer;
-    HashTable<SeVkGraphicsPipelineInfo      , SeVkGraphWithFrame<SeVkPipeline>>     graphicsPipelineInfoToGraphicsPipeline;
-    HashTable<SeVkComputePipelineInfo       , SeVkGraphWithFrame<SeVkPipeline>>     computePipelineInfoToComputePipeline;
-    HashTable<SeVkGraphPipelineWithFrame    , SeVkGraphDescriptorPoolArray>         pipelineToDescriptorPools;
+    SeHashTable<SeVkRenderPassInfo            , SeVkGraphWithFrame<SeVkRenderPass>>   renderPassInfoToRenderPass;
+    SeHashTable<SeVkFramebufferInfo           , SeVkGraphWithFrame<SeVkFramebuffer>>  framebufferInfoToFramebuffer;
+    SeHashTable<SeVkGraphicsPipelineInfo      , SeVkGraphWithFrame<SeVkPipeline>>     graphicsPipelineInfoToGraphicsPipeline;
+    SeHashTable<SeVkComputePipelineInfo       , SeVkGraphWithFrame<SeVkPipeline>>     computePipelineInfoToComputePipeline;
+    SeHashTable<SeVkGraphPipelineWithFrame    , SeVkGraphDescriptorPoolArray>         pipelineToDescriptorPools;
 };
 
 struct SeVkGraphInfo
@@ -109,39 +109,30 @@ void                se_vk_graph_command_bind(SeVkGraph* graph, const SeCommandBi
 void                se_vk_graph_command_draw(SeVkGraph* graph, const SeCommandDrawInfo& info);
 void                se_vk_graph_command_dispatch(SeVkGraph* graph, const SeCommandDispatchInfo& info);
 
-namespace hash_value
+template<>
+void se_hash_value_builder_absorb<SeVkGraphPipelineWithFrame>(SeHashValueBuilder& builder, const SeVkGraphPipelineWithFrame& value)
 {
-    namespace builder
-    {
-        template<>
-        void absorb<SeVkGraphPipelineWithFrame>(HashValueBuilder& builder, const SeVkGraphPipelineWithFrame& value)
-        {
-            hash_value::builder::absorb(builder, *value.pipeline);
-            hash_value::builder::absorb(builder, value.frame);
-        }
-    }
-
-    template<>
-    HashValue generate<SeVkGraphPipelineWithFrame>(const SeVkGraphPipelineWithFrame& value)
-    {
-        HashValueBuilder builder = hash_value::builder::begin();
-        hash_value::builder::absorb(builder, value);
-        return hash_value::builder::end(builder);
-    }
+    se_hash_value_builder_absorb(builder, *value.pipeline);
+    se_hash_value_builder_absorb(builder, value.frame);
 }
 
-namespace string
+template<>
+SeHashValue se_hash_value_generate<SeVkGraphPipelineWithFrame>(const SeVkGraphPipelineWithFrame& value)
 {
-    template<>
-    SeString cast<SeVkGraphWithFrame<SeVkFramebuffer>>(const SeVkGraphWithFrame<SeVkFramebuffer>& value, SeStringLifetime lifetime)
-    {
-        SeStringBuilder builder = string_builder::begin("[object: ", lifetime);
-        string_builder::append(builder, string::cast(*value.object));
-        string_builder::append(builder, ", frame: ");
-        string_builder::append(builder, string::cast(value.frame));
-        string_builder::append(builder, "]");
-        return string_builder::end(builder);
-    }
+    SeHashValueBuilder builder = se_hash_value_builder_begin();
+    se_hash_value_builder_absorb(builder, value);
+    return se_hash_value_builder_end(builder);
+}
+
+template<>
+SeString se_string_cast<SeVkGraphWithFrame<SeVkFramebuffer>>(const SeVkGraphWithFrame<SeVkFramebuffer>& value, SeStringLifetime lifetime)
+{
+    SeStringBuilder builder = se_string_builder_begin("[object: ", lifetime);
+    se_string_builder_append(builder, se_string_cast(*value.object));
+    se_string_builder_append(builder, ", frame: ");
+    se_string_builder_append(builder, se_string_cast(value.frame));
+    se_string_builder_append(builder, "]");
+    return se_string_builder_end(builder);
 }
 
 #endif

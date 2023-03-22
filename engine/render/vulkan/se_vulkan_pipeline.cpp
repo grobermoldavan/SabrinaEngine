@@ -11,8 +11,8 @@
 
 struct SeVkDescriptorSetLayoutCreateInfos
 {
-    DynamicArray<VkDescriptorSetLayoutCreateInfo> createInfos;
-    DynamicArray<VkDescriptorSetLayoutBinding> bindings;
+    SeDynamicArray<VkDescriptorSetLayoutCreateInfo> createInfos;
+    SeDynamicArray<VkDescriptorSetLayoutBinding> bindings;
 };
 
 size_t g_pipelineIndex = 0;
@@ -27,7 +27,7 @@ bool se_vk_pipeline_has_vertex_input(const SimpleSpirvReflection* reflection)
     return false;
 }
 
-SeVkDescriptorSetLayoutCreateInfos se_vk_pipeline_get_discriptor_set_layout_create_infos(const AllocatorBindings& allocator, const SimpleSpirvReflection** programReflections, size_t numProgramReflections)
+SeVkDescriptorSetLayoutCreateInfos se_vk_pipeline_get_discriptor_set_layout_create_infos(const SeAllocatorBindings& allocator, const SimpleSpirvReflection** programReflections, size_t numProgramReflections)
 {
     SeVkGeneralBitmask setBindingMasks[SeVkConfig::RENDER_PIPELINE_MAX_DESCRIPTOR_SETS] = {0};
     //
@@ -64,14 +64,14 @@ SeVkDescriptorSetLayoutCreateInfos se_vk_pipeline_get_discriptor_set_layout_crea
             if (setBindingMasks[it] & (1 << maskIt)) numBindings += 1;
         }
     }
-    DynamicArray<VkDescriptorSetLayoutCreateInfo> layoutCreateInfos;
-    DynamicArray<VkDescriptorSetLayoutBinding> bindings;
-    dynamic_array::construct(layoutCreateInfos, allocator, numLayouts);
-    dynamic_array::construct(bindings, allocator, numBindings);
+    SeDynamicArray<VkDescriptorSetLayoutCreateInfo> layoutCreateInfos;
+    SeDynamicArray<VkDescriptorSetLayoutBinding> bindings;
+    se_dynamic_array_construct(layoutCreateInfos, allocator, numLayouts);
+    se_dynamic_array_construct(bindings, allocator, numBindings);
     // ~((uint32_t)0) is an unused binding
     for (size_t it = 0; it < numBindings; it++)
     {
-        dynamic_array::push(bindings,
+        se_dynamic_array_push(bindings,
         {
             .binding            = ~((uint32_t)0),
             .descriptorType     = (VkDescriptorType)0,
@@ -93,7 +93,7 @@ SeVkDescriptorSetLayoutCreateInfos se_vk_pipeline_get_discriptor_set_layout_crea
             {
                 if (setBindingMasks[it] & (1 << maskIt)) numBindingsInSet += 1;
             }
-            dynamic_array::push(layoutCreateInfos,
+            se_dynamic_array_push(layoutCreateInfos,
             {
                 .sType          = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
                 .pNext          = nullptr,
@@ -132,7 +132,7 @@ SeVkDescriptorSetLayoutCreateInfos se_vk_pipeline_get_discriptor_set_layout_crea
                 (VkDescriptorType)~0;
             se_assert(uniformDescriptorType != ~0);
             const VkDescriptorSetLayoutCreateInfo* const layoutCreateInfo = &layoutCreateInfos[uniform->set];
-            const size_t bindingsArrayInitialOffset = layoutCreateInfo->pBindings - dynamic_array::raw(bindings);
+            const size_t bindingsArrayInitialOffset = layoutCreateInfo->pBindings - se_dynamic_array_raw(bindings);
             VkDescriptorSetLayoutBinding* binding = &bindings[bindingsArrayInitialOffset + uniform->binding];
             const uint32_t uniformDescriptorCount =
                 ssr_is_array(uniform->type) && ssr_get_array_size_kind(uniform->type) == SSR_ARRAY_SIZE_CONSTANT
@@ -167,8 +167,8 @@ SeVkDescriptorSetLayoutCreateInfos se_vk_pipeline_get_discriptor_set_layout_crea
 
 void se_vk_pipeline_destroy_descriptor_set_layout_create_infos(SeVkDescriptorSetLayoutCreateInfos* infos)
 {
-    dynamic_array::destroy(infos->createInfos);
-    dynamic_array::destroy(infos->bindings);
+    se_dynamic_array_destroy(infos->createInfos);
+    se_dynamic_array_destroy(infos->bindings);
 }
 
 void se_vk_pipeline_create_descriptor_sets_and_layout(SeVkPipeline* pipeline, const SimpleSpirvReflection** reflections, size_t numReflections)
@@ -177,13 +177,13 @@ void se_vk_pipeline_create_descriptor_sets_and_layout(SeVkPipeline* pipeline, co
     const VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
     SeVkMemoryManager* const memoryManager = &device->memoryManager;
     const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    const AllocatorBindings frameAllocator = allocators::frame();
+    const SeAllocatorBindings frameAllocator = se_allocator_frame();
     //
     // Descriptor set layouts and pools
     //
     {
         SeVkDescriptorSetLayoutCreateInfos layoutCreateInfos = se_vk_pipeline_get_discriptor_set_layout_create_infos(frameAllocator, reflections, numReflections);
-        pipeline->numDescriptorSetLayouts = dynamic_array::size(layoutCreateInfos.createInfos);
+        pipeline->numDescriptorSetLayouts = se_dynamic_array_size(layoutCreateInfos.createInfos);
         for (size_t it = 0; it < pipeline->numDescriptorSetLayouts; it++)
         {
             const VkDescriptorSetLayoutCreateInfo* const layoutCreateInfo = &layoutCreateInfos.createInfos[it];
@@ -283,7 +283,7 @@ void se_vk_pipeline_graphics_construct(SeVkPipeline* pipeline, SeVkGraphicsPipel
     const VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
     SeVkMemoryManager* const memoryManager = &device->memoryManager;
     const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    const AllocatorBindings frameAllocator = allocators::frame();
+    const SeAllocatorBindings frameAllocator = se_allocator_frame();
 
     SeVkProgram* const vertexProgram = info->vertexProgram.program;
     SeVkProgram* const fragmentProgram = info->fragmentProgram.program;
@@ -394,7 +394,7 @@ void se_vk_pipeline_compute_construct(SeVkPipeline* pipeline, SeVkComputePipelin
     const VkDevice logicalHandle = se_vk_device_get_logical_handle(device);
     SeVkMemoryManager* const memoryManager = &device->memoryManager;
     const VkAllocationCallbacks* const callbacks = se_vk_memory_manager_get_callbacks(memoryManager);
-    const AllocatorBindings frameAllocator = allocators::frame();
+    const SeAllocatorBindings frameAllocator = se_allocator_frame();
     
     SeVkProgram* const program = info->program.program;
     *pipeline =

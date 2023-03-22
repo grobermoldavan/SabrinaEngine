@@ -75,7 +75,7 @@ struct SeVkSwapChain
     VkSurfaceFormatKHR              surfaceFormat;
     VkExtent2D                      extent;
     SeVkSwapChainImage              images[SeVkConfig::MAX_SWAP_CHAIN_IMAGES];
-    ObjectPoolEntryRef<SeVkTexture> textures[SeVkConfig::MAX_SWAP_CHAIN_IMAGES];
+    SeObjectPoolEntryRef<SeVkTexture> textures[SeVkConfig::MAX_SWAP_CHAIN_IMAGES];
     size_t                          numTextures;
 };
 
@@ -87,10 +87,10 @@ struct SeVkGraveyard
         Ref ref;
         size_t frameIndex;
     };
-    DynamicArray<Entry<SeProgramRef>>   programs;
-    DynamicArray<Entry<SeSamplerRef>>   samplers;
-    DynamicArray<Entry<SeBufferRef>>    buffers;
-    DynamicArray<Entry<SeTextureRef>>   textures;
+    SeDynamicArray<Entry<SeProgramRef>>   programs;
+    SeDynamicArray<Entry<SeSamplerRef>>   samplers;
+    SeDynamicArray<Entry<SeBufferRef>>    buffers;
+    SeDynamicArray<Entry<SeTextureRef>>   textures;
 };
 
 struct SeVkDevice
@@ -114,7 +114,7 @@ void                                se_vk_device_begin_frame(SeVkDevice* device,
 void                                se_vk_device_end_frame(SeVkDevice* device);
 
 template<typename Ref> void         se_vk_device_submit_to_graveyard(SeVkDevice* device, Ref ref);
-template<typename Ref> void         se_vk_device_update_graveyard_collection(SeVkDevice* device, DynamicArray<SeVkGraveyard::Entry<Ref>>& collection);
+template<typename Ref> void         se_vk_device_update_graveyard_collection(SeVkDevice* device, SeDynamicArray<SeVkGraveyard::Entry<Ref>>& collection);
 void                                se_vk_device_update_graveyard(SeVkDevice* device);
 
 SeVkFlags                           se_vk_device_get_supported_sampling_types(SeVkDevice* device);

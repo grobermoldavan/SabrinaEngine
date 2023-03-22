@@ -75,29 +75,23 @@ struct SeCharacterInput
     };
 };
 
-namespace win
-{
-    template<typename T = uint32_t> T   get_width();
-    template<typename T = uint32_t> T   get_height();
-    void*                               get_native_handle();
+template<typename T = uint32_t> T   se_win_get_width();
+template<typename T = uint32_t> T   se_win_get_height();
+void*                               se_win_get_native_handle();
 
-    SeMousePos  get_mouse_pos();
-    int32_t     get_mouse_wheel();
-    bool        is_close_button_pressed();
+SeMousePos  se_win_get_mouse_pos();
+int32_t     se_win_get_mouse_wheel();
+bool        se_win_is_close_button_pressed();
 
-    bool        is_keyboard_button_pressed(SeKeyboard::Type keyFlag);
-    bool        is_keyboard_button_just_pressed(SeKeyboard::Type keyFlag);
-    bool        is_mouse_button_pressed(SeMouse::Type keyFlag);
-    bool        is_mouse_button_just_pressed(SeMouse::Type keyFlag);
+bool        se_win_is_keyboard_button_pressed(SeKeyboard::Type keyFlag);
+bool        se_win_is_keyboard_button_just_pressed(SeKeyboard::Type keyFlag);
+bool        se_win_is_mouse_button_pressed(SeMouse::Type keyFlag);
+bool        se_win_is_mouse_button_just_pressed(SeMouse::Type keyFlag);
 
-    const DynamicArray<SeCharacterInput>& get_character_input();
+const SeDynamicArray<SeCharacterInput>& se_win_get_character_input();
 
-    namespace engine
-    {
-        void init(const SeSettings& settings);
-        void update();
-        void terminate();
-    }
-}
+void _se_win_init(const SeSettings& settings);
+void _se_win_update();
+void _se_win_terminate();
 
 #endif

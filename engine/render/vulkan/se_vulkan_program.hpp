@@ -6,7 +6,7 @@
 struct SeVkProgramInfo
 {
     SeVkDevice*  device;
-    DataProvider data;
+    SeDataProvider data;
 };
 
 struct SeVkProgram
@@ -27,7 +27,7 @@ struct SeVkProgramWithConstants
 void se_vk_program_construct(SeVkProgram* program, SeVkProgramInfo* info);
 void se_vk_program_destroy(SeVkProgram* program);
 
-VkPipelineShaderStageCreateInfo se_vk_program_get_shader_stage_create_info(SeVkDevice* device, SeVkProgramWithConstants* pipelineProgram, const AllocatorBindings& allocator);
+VkPipelineShaderStageCreateInfo se_vk_program_get_shader_stage_create_info(SeVkDevice* device, SeVkProgramWithConstants* pipelineProgram, const SeAllocatorBindings& allocator);
 
 template<>
 void se_vk_destroy<SeVkProgram>(SeVkProgram* res)
@@ -35,50 +35,44 @@ void se_vk_destroy<SeVkProgram>(SeVkProgram* res)
     se_vk_program_destroy(res);
 }
 
-namespace hash_value
+template<>
+void se_hash_value_builder_absorb<SeVkProgramInfo>(SeHashValueBuilder& builder, const SeVkProgramInfo& value)
 {
-    namespace builder
-    {
-        template<>
-        void absorb<SeVkProgramInfo>(HashValueBuilder& builder, const SeVkProgramInfo& value)
-        {
-            hash_value::builder::absorb(builder, value.data);
-        }
+    se_hash_value_builder_absorb(builder, value.data);
+}
 
-        template<>
-        void absorb<SeVkProgram>(HashValueBuilder& builder, const SeVkProgram& value)
-        {
-            hash_value::builder::absorb_raw(builder, { (void*)&value.object, sizeof(value.object) });
-        }
+template<>
+void se_hash_value_builder_absorb<SeVkProgram>(SeHashValueBuilder& builder, const SeVkProgram& value)
+{
+    se_hash_value_builder_absorb_raw(builder, { (void*)&value.object, sizeof(value.object) });
+}
 
-        template<>
-        void absorb<SeVkProgramWithConstants>(HashValueBuilder& builder, const SeVkProgramWithConstants& value)
-        {
-            hash_value::builder::absorb(builder, *value.program);
-            for (size_t it = 0; it < value.numSpecializationConstants; it++)
-                hash_value::builder::absorb(builder, value.constants[it]);
-        }
-    }
+template<>
+void se_hash_value_builder_absorb<SeVkProgramWithConstants>(SeHashValueBuilder& builder, const SeVkProgramWithConstants& value)
+{
+    se_hash_value_builder_absorb(builder, *value.program);
+    for (size_t it = 0; it < value.numSpecializationConstants; it++)
+        se_hash_value_builder_absorb(builder, value.constants[it]);
+}
 
-    template<>
-    HashValue generate<SeVkProgramInfo>(const SeVkProgramInfo& value)
-    {
-        return hash_value::generate(value.data);
-    }
+template<>
+SeHashValue se_hash_value_generate<SeVkProgramInfo>(const SeVkProgramInfo& value)
+{
+    return se_hash_value_generate(value.data);
+}
 
-    template<>
-    HashValue generate<SeVkProgram>(const SeVkProgram& value)
-    {
-        return hash_value::generate_raw({ (void*)&value.object, sizeof(value.object) });
-    }
+template<>
+SeHashValue se_hash_value_generate<SeVkProgram>(const SeVkProgram& value)
+{
+    return se_hash_value_generate_raw({ (void*)&value.object, sizeof(value.object) });
+}
 
-    template<>
-    HashValue generate<SeVkProgramWithConstants>(const SeVkProgramWithConstants& value)
-    {
-        HashValueBuilder builder = hash_value::builder::begin();
-        hash_value::builder::absorb(builder, value);
-        return hash_value::builder::end(builder);
-    }
+template<>
+SeHashValue se_hash_value_generate<SeVkProgramWithConstants>(const SeVkProgramWithConstants& value)
+{
+    SeHashValueBuilder builder = se_hash_value_builder_begin();
+    se_hash_value_builder_absorb(builder, value);
+    return se_hash_value_builder_end(builder);
 }
 
 #endif

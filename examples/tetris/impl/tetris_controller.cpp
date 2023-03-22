@@ -1,7 +1,7 @@
 
 #include <math.h>
 #include "tetris_controller.hpp"
-#include "engine/engine.hpp"
+#include "engine/se_engine.hpp"
 
 // https://tetris.fandom.com/wiki/Tetris_Wiki
 
@@ -323,11 +323,11 @@ void tetris_controller_update(float dt)
         tetris_controller_spawn_new_figure();
         return;
     }
-    const bool isSpeedUpInputActive = win::is_keyboard_button_pressed(SeKeyboard::SPACE);
-    const bool isMoveLeftInputActive = win::is_keyboard_button_just_pressed(SeKeyboard::A);
-    const bool isMoveRightInputActive = win::is_keyboard_button_just_pressed(SeKeyboard::D);
-    const bool isRotateLeftInputActive = win::is_keyboard_button_just_pressed(SeKeyboard::W);
-    const bool isRotateRightInputActive = win::is_keyboard_button_just_pressed(SeKeyboard::S);
+    const bool isSpeedUpInputActive = se_win_is_keyboard_button_pressed(SeKeyboard::SPACE);
+    const bool isMoveLeftInputActive = se_win_is_keyboard_button_just_pressed(SeKeyboard::A);
+    const bool isMoveRightInputActive = se_win_is_keyboard_button_just_pressed(SeKeyboard::D);
+    const bool isRotateLeftInputActive = se_win_is_keyboard_button_just_pressed(SeKeyboard::W);
+    const bool isRotateRightInputActive = se_win_is_keyboard_button_just_pressed(SeKeyboard::S);
     const bool needFigureFallUpdate = isSpeedUpInputActive
         ? floor(g_state.elapsedTimeSec / TETRIS_FALL_UPDATE_FAST_PERIOD_SEC) != floor((g_state.elapsedTimeSec + dt) / TETRIS_FALL_UPDATE_FAST_PERIOD_SEC)
         : floor(g_state.elapsedTimeSec / TETRIS_FALL_UPDATE_SLOW_PERIOD_SEC) != floor((g_state.elapsedTimeSec + dt) / TETRIS_FALL_UPDATE_SLOW_PERIOD_SEC);

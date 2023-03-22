@@ -36,102 +36,99 @@ struct SeUnicodeSpecialCharacters
     static constexpr const SeUtf32Char TAB_CODEPOINT                = 0x00000009;
 };
 
-namespace unicode
+inline bool se_unicode_is_special_character(SeUtf8Char character)
 {
-    inline bool is_special_character(SeUtf8Char character)
-    {
-        return
-            (character == SeUnicodeSpecialCharacters::ESCAPE_UTF8) ||
-            (character == SeUnicodeSpecialCharacters::BACKSPACE_UTF8) ||
-            (character == SeUnicodeSpecialCharacters::CARRIAGE_RETURN_UTF8) ||
-            (character == SeUnicodeSpecialCharacters::TAB_UTF8);
-    }
+    return
+        (character == SeUnicodeSpecialCharacters::ESCAPE_UTF8) ||
+        (character == SeUnicodeSpecialCharacters::BACKSPACE_UTF8) ||
+        (character == SeUnicodeSpecialCharacters::CARRIAGE_RETURN_UTF8) ||
+        (character == SeUnicodeSpecialCharacters::TAB_UTF8);
+}
 
-    inline bool is_special_character(SeUtf32Char character)
-    {
-        return
-            (character == SeUnicodeSpecialCharacters::ESCAPE_CODEPOINT) ||
-            (character == SeUnicodeSpecialCharacters::BACKSPACE_CODEPOINT) ||
-            (character == SeUnicodeSpecialCharacters::CARRIAGE_RETURN_CODEPOINT) ||
-            (character == SeUnicodeSpecialCharacters::TAB_CODEPOINT);
-    }
+inline bool se_unicode_is_special_character(SeUtf32Char character)
+{
+    return
+        (character == SeUnicodeSpecialCharacters::ESCAPE_CODEPOINT) ||
+        (character == SeUnicodeSpecialCharacters::BACKSPACE_CODEPOINT) ||
+        (character == SeUnicodeSpecialCharacters::CARRIAGE_RETURN_CODEPOINT) ||
+        (character == SeUnicodeSpecialCharacters::TAB_CODEPOINT);
+}
 
-    SeUtf32Char to_utf32(SeUtf8Char character)
+SeUtf32Char se_unicode_to_utf32(SeUtf8Char character)
+{
+    SeUtf32Char result;
+    if ((character.data[0] & 0x80) == 0)
     {
-        SeUtf32Char result;
-        if ((character.data[0] & 0x80) == 0)
-        {
-            result = SeUtf32Char(character.data[0]);
-        }
-        else if ((character.data[0] & 0xe0) == 0xc0)
-        {
-            result =
-                ((SeUtf32Char(character.data[0]) & 0x1f) << 6)   |
-                ((SeUtf32Char(character.data[1]) & 0x3f));
-        }
-        else if ((character.data[0] & 0xf0) == 0xe0)
-        {
-            result =
-                ((SeUtf32Char(character.data[0]) & 0x0f) << 12)  |
-                ((SeUtf32Char(character.data[1]) & 0x3f) << 6)   |
-                ((SeUtf32Char(character.data[2]) & 0x3f));
-        }
-        else
-        {
-            result =
-                ((SeUtf32Char(character.data[0]) & 0x07) << 18)  |
-                ((SeUtf32Char(character.data[1]) & 0x3f) << 12)  |
-                ((SeUtf32Char(character.data[2]) & 0x3f) << 6)   |
-                ((SeUtf32Char(character.data[3]) & 0x3f));
-        }
-        return result;
+        result = SeUtf32Char(character.data[0]);
     }
+    else if ((character.data[0] & 0xe0) == 0xc0)
+    {
+        result =
+            ((SeUtf32Char(character.data[0]) & 0x1f) << 6)   |
+            ((SeUtf32Char(character.data[1]) & 0x3f));
+    }
+    else if ((character.data[0] & 0xf0) == 0xe0)
+    {
+        result =
+            ((SeUtf32Char(character.data[0]) & 0x0f) << 12)  |
+            ((SeUtf32Char(character.data[1]) & 0x3f) << 6)   |
+            ((SeUtf32Char(character.data[2]) & 0x3f));
+    }
+    else
+    {
+        result =
+            ((SeUtf32Char(character.data[0]) & 0x07) << 18)  |
+            ((SeUtf32Char(character.data[1]) & 0x3f) << 12)  |
+            ((SeUtf32Char(character.data[2]) & 0x3f) << 6)   |
+            ((SeUtf32Char(character.data[3]) & 0x3f));
+    }
+    return result;
+}
 
-    // Code taken from https://stackoverflow.com/a/42013433
-    SeUtf8Char to_utf8(SeUtf32Char character)
-    {
-        SeUtf8Char result = {};
-        if (character <= 0x7F) {
-            result.data[0] = char(character);
-        }
-        else if (character <= 0x7FF) {
-            result.data[0] = 0xC0 | char(character >> 6);           /* 110xxxxx */
-            result.data[1] = 0x80 | char(character & 0x3F);         /* 10xxxxxx */
-        }
-        else if (character <= 0xFFFF) {
-            result.data[0] = 0xE0 | char(character >> 12);          /* 1110xxxx */
-            result.data[1] = 0x80 | char((character >> 6) & 0x3F);  /* 10xxxxxx */
-            result.data[2] = 0x80 | char(character & 0x3F);         /* 10xxxxxx */
-        }
-        else if (character <= 0x10FFFF) {
-            result.data[0] = 0xF0 | char(character >> 18);          /* 11110xxx */
-            result.data[1] = 0x80 | char((character >> 12) & 0x3F); /* 10xxxxxx */
-            result.data[2] = 0x80 | char((character >> 6) & 0x3F);  /* 10xxxxxx */
-            result.data[3] = 0x80 | char(character & 0x3F);         /* 10xxxxxx */
-        }
-        else
-        {
-            se_assert(!"Unsupported utf32 characrer");
-        }
-        return result;
+// Code taken from https://stackoverflow.com/a/42013433
+SeUtf8Char se_unicode_to_utf8(SeUtf32Char character)
+{
+    SeUtf8Char result = {};
+    if (character <= 0x7F) {
+        result.data[0] = char(character);
     }
+    else if (character <= 0x7FF) {
+        result.data[0] = 0xC0 | char(character >> 6);           /* 110xxxxx */
+        result.data[1] = 0x80 | char(character & 0x3F);         /* 10xxxxxx */
+    }
+    else if (character <= 0xFFFF) {
+        result.data[0] = 0xE0 | char(character >> 12);          /* 1110xxxx */
+        result.data[1] = 0x80 | char((character >> 6) & 0x3F);  /* 10xxxxxx */
+        result.data[2] = 0x80 | char(character & 0x3F);         /* 10xxxxxx */
+    }
+    else if (character <= 0x10FFFF) {
+        result.data[0] = 0xF0 | char(character >> 18);          /* 11110xxx */
+        result.data[1] = 0x80 | char((character >> 12) & 0x3F); /* 10xxxxxx */
+        result.data[2] = 0x80 | char((character >> 6) & 0x3F);  /* 10xxxxxx */
+        result.data[3] = 0x80 | char(character & 0x3F);         /* 10xxxxxx */
+    }
+    else
+    {
+        se_assert(!"Unsupported utf32 characrer");
+    }
+    return result;
+}
 
-    inline SeUtf8Char to_utf8(wchar_t character)
-    {
-        SeUtf8Char result = {};
-        platform::wchar_to_utf8(&character, 1, result.data, SeUtf8Char::CAPACITY);
-        return result;
-    }
+inline SeUtf8Char se_unicode_to_utf8(wchar_t character)
+{
+    SeUtf8Char result = {};
+    se_platform_wchar_to_utf8(&character, 1, result.data, SeUtf8Char::CAPACITY);
+    return result;
+}
 
-    inline SeUtf32Char to_utf32(wchar_t character)
-    {
-        return SeUtf32Char(character);
-    }
+inline SeUtf32Char se_unicode_to_utf32(wchar_t character)
+{
+    return SeUtf32Char(character);
+}
 
-    inline size_t length(SeUtf8Char character)
-    {
-        return (character.data[0] != 0) + (character.data[1] != 0) + (character.data[2] != 0) + (character.data[3] != 0);
-    }
+inline size_t se_unicode_length(SeUtf8Char character)
+{
+    return (character.data[0] != 0) + (character.data[1] != 0) + (character.data[2] != 0) + (character.data[3] != 0);
 }
 
 // =======================================================================

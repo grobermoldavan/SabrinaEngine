@@ -43,35 +43,35 @@ DebugCamera     g_camera;
 
 void init()
 {
-    g_clearChunkCs          = render::program({ data_provider::from_file("clear_chunk.comp.spv") });
-    g_generateChunkCs       = render::program({ data_provider::from_file("generate_chunk.comp.spv") });
-    g_triangulateChunkCs    = render::program({ data_provider::from_file("triangulate_chunk.comp.spv") });
-    g_renderChunkVs         = render::program({ data_provider::from_file("render_chunk.vert.spv") });
-    g_renderChunkFs         = render::program({ data_provider::from_file("render_chunk.frag.spv") });
+    g_clearChunkCs          = se_render_program({ se_data_provider_from_file("clear_chunk.comp.spv") });
+    g_generateChunkCs       = se_render_program({ se_data_provider_from_file("generate_chunk.comp.spv") });
+    g_triangulateChunkCs    = se_render_program({ se_data_provider_from_file("triangulate_chunk.comp.spv") });
+    g_renderChunkVs         = se_render_program({ se_data_provider_from_file("render_chunk.vert.spv") });
+    g_renderChunkFs         = se_render_program({ se_data_provider_from_file("render_chunk.frag.spv") });
 
-    g_grassTexture = render::texture
+    g_grassTexture = se_render_texture
     ({
         .format = SeTextureFormat::RGBA_8_SRGB,
-        .data   = data_provider::from_file("grass.png"),
+        .data   = se_data_provider_from_file("grass.png"),
     });
-    g_rockTexture = render::texture
+    g_rockTexture = se_render_texture
     ({
         .format = SeTextureFormat::RGBA_8_SRGB,
-        .data   = data_provider::from_file("rocks.png"),
+        .data   = se_data_provider_from_file("rocks.png"),
     });
-    g_depthTexture = render::texture
+    g_depthTexture = se_render_texture
     ({
         .format = SeTextureFormat::DEPTH_STENCIL,
-        .width  = win::get_width<uint32_t>(),
-        .height = win::get_height<uint32_t>(),
+        .width  = se_win_get_width<uint32_t>(),
+        .height = se_win_get_height<uint32_t>(),
     });
     
-    g_edgeTableBuffer       = render::memory_buffer({ data_provider::from_memory(EDGE_TABLE, sizeof(EDGE_TABLE)) });
-    g_triangleTableBuffer   = render::memory_buffer({ data_provider::from_memory(TRIANGLE_TABLE, sizeof(TRIANGLE_TABLE)) });
-    g_gridValuesBuffer      = render::memory_buffer({ data_provider::from_memory(nullptr, sizeof(float) * CHUNK_DIM * CHUNK_DIM * CHUNK_DIM) });
-    g_geometryBuffer        = render::memory_buffer({ data_provider::from_memory(nullptr, sizeof(Vertex) * NUM_VERTS) });
+    g_edgeTableBuffer       = se_render_memory_buffer({ se_data_provider_from_memory(EDGE_TABLE, sizeof(EDGE_TABLE)) });
+    g_triangleTableBuffer   = se_render_memory_buffer({ se_data_provider_from_memory(TRIANGLE_TABLE, sizeof(TRIANGLE_TABLE)) });
+    g_gridValuesBuffer      = se_render_memory_buffer({ se_data_provider_from_memory(nullptr, sizeof(float) * CHUNK_DIM * CHUNK_DIM * CHUNK_DIM) });
+    g_geometryBuffer        = se_render_memory_buffer({ se_data_provider_from_memory(nullptr, sizeof(Vertex) * NUM_VERTS) });
 
-    g_sampler = render::sampler
+    g_sampler = se_render_sampler
     ({
         .magFilter          = SeSamplerFilter::LINEAR,
         .minFilter          = SeSamplerFilter::LINEAR,
@@ -109,8 +109,8 @@ SePassDependencies execute_compute(SeBufferRef frameDataBuffer, SeProgramRef pro
         },
         .numSpecializationConstants = 3,
     };
-    const SePassDependencies resultDeps = render::begin_compute_pass({ .dependencies = deps, .program = computeProgramInfo });
-    render::bind
+    const SePassDependencies resultDeps = se_render_begin_compute_pass({ .dependencies = deps, .program = computeProgramInfo });
+    se_render_bind
     ({
         .set = 0,
         .bindings =
@@ -118,7 +118,7 @@ SePassDependencies execute_compute(SeBufferRef frameDataBuffer, SeProgramRef pro
             { .binding = 0, .type = SeBinding::BUFFER, .buffer = { frameDataBuffer } }
         } 
     });
-    render::bind
+    se_render_bind
     ({
         .set = 1,
         .bindings =
@@ -129,20 +129,20 @@ SePassDependencies execute_compute(SeBufferRef frameDataBuffer, SeProgramRef pro
             { .binding = 3, .type = SeBinding::BUFFER, .buffer = { g_triangleTableBuffer } }
         }
     });
-    const SeComputeWorkgroupSize workgroupSize = render::workgroup_size(program);
-    render::dispatch
+    const SeComputeWorkgroupSize workgroupSize = se_render_workgroup_size(program);
+    se_render_dispatch
     ({
         1 + ((CHUNK_DIM - 1) / workgroupSize.x),
         1 + ((CHUNK_DIM - 1) / workgroupSize.y),
         1 + ((CHUNK_DIM - 1) / workgroupSize.z),   
     });
-    render::end_pass();
+    se_render_end_pass();
     return resultDeps;
 };
 
 void update(const SeUpdateInfo& updateInfo)
 {
-    if (win::is_close_button_pressed() || win::is_keyboard_button_pressed(SeKeyboard::ESCAPE)) engine::stop();
+    if (se_win_is_close_button_pressed() || se_win_is_keyboard_button_pressed(SeKeyboard::ESCAPE)) se_engine_stop();
 
     //
     // Fill frame data
@@ -150,44 +150,44 @@ void update(const SeUpdateInfo& updateInfo)
     static float time = 0.0f;
     static float isoLevel = 0.5f;
     time += updateInfo.dt;
-    isoLevel += float(win::get_mouse_wheel()) * 0.01f;
-    const SeFloat4x4 projection = render::perspective
+    isoLevel += float(se_win_get_mouse_wheel()) * 0.01f;
+    const SeFloat4x4 projection = se_render_perspective
     (
         90,
-        win::get_width<float>() / win::get_height<float>(),
+        se_win_get_width<float>() / se_win_get_height<float>(),
         0.1f,
         200.0f
     );
     debug_camera_update(&g_camera, updateInfo.dt);
     const FrameData frameData
     {
-        .viewProjection = float4x4::transposed(projection * float4x4::inverted(g_camera.trf)),
+        .viewProjection = se_float4x4_transposed(projection * se_float4x4_inverted(g_camera.trf)),
         .time           = time,
         .isoLevel       = isoLevel,
     };
 
-    if (render::begin_frame())
+    if (se_render_begin_frame())
     {
         //
         // Recreate depth texture on resize
         //
-        const SeTextureSize swapChainSize = render::texture_size(render::swap_chain_texture());
-        const SeTextureSize depthSize = render::texture_size(g_depthTexture);
-        if (!utils::compare(depthSize, swapChainSize))
+        const SeTextureSize swapChainSize = se_render_texture_size(se_render_swap_chain_texture());
+        const SeTextureSize depthSize = se_render_texture_size(g_depthTexture);
+        if (!se_compare(depthSize, swapChainSize))
         {
-            render::destroy(g_depthTexture);
-            g_depthTexture = render::texture
+            se_render_destroy(g_depthTexture);
+            g_depthTexture = se_render_texture
             ({
                 .format = SeTextureFormat::DEPTH_STENCIL,
                 .width  = uint32_t(swapChainSize.width),
                 .height = uint32_t(swapChainSize.height),
             });
         }
-        const SeBufferRef frameDataBuffer = render::scratch_memory_buffer({ data_provider::from_memory(frameData) });
+        const SeBufferRef frameDataBuffer = se_render_scratch_memory_buffer({ se_data_provider_from_memory(frameData) });
         const SePassDependencies clearChunkDependency = execute_compute(frameDataBuffer, g_clearChunkCs, 0);
         const SePassDependencies generateChunkDependency = execute_compute(frameDataBuffer, g_generateChunkCs, clearChunkDependency);
         const SePassDependencies triangulateChunkDependency = execute_compute(frameDataBuffer, g_triangulateChunkCs, generateChunkDependency);
-        render::begin_graphics_pass
+        se_render_begin_graphics_pass
         ({
             .dependencies           = triangulateChunkDependency,
             .vertexProgram          = { .program = g_renderChunkVs, },
@@ -199,11 +199,11 @@ void update(const SeUpdateInfo& updateInfo)
             .cullMode               = SePipelineCullMode::BACK,
             .frontFace              = SePipelineFrontFace::COUNTER_CLOCKWISE,
             .samplingType           = SeSamplingType::_1,
-            .renderTargets          = { { render::swap_chain_texture(), SeRenderTargetLoadOp::CLEAR } },
+            .renderTargets          = { { se_render_swap_chain_texture(), SeRenderTargetLoadOp::CLEAR } },
             .depthStencilTarget     = { g_depthTexture, SeRenderTargetLoadOp::CLEAR },
         });
         {
-            render::bind
+            se_render_bind
             ({
                 .set = 0,
                 .bindings =
@@ -211,7 +211,7 @@ void update(const SeUpdateInfo& updateInfo)
                     { .binding = 0, .type = SeBinding::BUFFER, .buffer = { frameDataBuffer } }
                 }
             });
-            render::bind
+            se_render_bind
             ({
                 .set = 1,
                 .bindings =
@@ -219,7 +219,7 @@ void update(const SeUpdateInfo& updateInfo)
                     { .binding = 0, .type = SeBinding::BUFFER, .buffer = { g_geometryBuffer } }
                 }
             });
-            render::bind
+            se_render_bind
             ({
                 .set = 2,
                 .bindings =
@@ -228,9 +228,9 @@ void update(const SeUpdateInfo& updateInfo)
                     { .binding = 1, .type = SeBinding::TEXTURE, .texture = { g_rockTexture, g_sampler } }
                 }
             });
-            render::draw({ .numVertices = NUM_VERTS, .numInstances = 1 });
+            se_render_draw({ .numVertices = NUM_VERTS, .numInstances = 1 });
         }
-        render::end_pass();
-        render::end_frame();
+        se_render_end_pass();
+        se_render_end_frame();
     }
 }

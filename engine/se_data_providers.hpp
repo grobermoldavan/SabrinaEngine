@@ -6,7 +6,7 @@
 #include "se_utils.hpp"
 #include "subsystems/file_system/se_file_system_data_types.hpp"
 
-struct DataProvider
+struct SeDataProvider
 {
     enum
     {
@@ -34,29 +34,17 @@ struct DataProviderResult
     size_t size;
 };
 
-namespace utils
-{
-    template<> bool compare<DataProvider, DataProvider>(const DataProvider& first, const DataProvider& second);
-}
+template<> bool se_compare<SeDataProvider, SeDataProvider>(const SeDataProvider& first, const SeDataProvider& second);
 
-namespace hash_value
-{
-    namespace builder
-    {
-        template<> void absorb<DataProvider>(HashValueBuilder& builder, const DataProvider& value);
-    }
-    template<> HashValue generate<DataProvider>(const DataProvider& value);
-}
+template<> void se_hash_value_builder_absorb<SeDataProvider>(SeHashValueBuilder& builder, const SeDataProvider& value);
+template<> SeHashValue se_hash_value_generate<SeDataProvider>(const SeDataProvider& value);
 
-namespace data_provider
-{
-    bool                                    is_valid(const DataProvider& provider);
-    template<size_t Size> DataProvider      from_memory(const char (&memory)[Size]);
-    DataProvider                            from_memory(const void* memory, size_t size);
-    template<se_not_cstring T> DataProvider from_memory(const T& obj);
-    DataProvider                            from_file(const char* path);
-    DataProvider                            from_file(SeFileHandle file);
-    DataProviderResult                      get(const DataProvider& provider);
-}
+bool                                        se_data_provider_is_valid(const SeDataProvider& provider);
+template<size_t Size> SeDataProvider        se_data_provider_from_memory(const char (&memory)[Size]);
+SeDataProvider                              se_data_provider_from_memory(const void* memory, size_t size);
+template<se_not_cstring T> SeDataProvider   se_data_provider_from_memory(const T& obj);
+SeDataProvider                              se_data_provider_from_file(const char* path);
+SeDataProvider                              se_data_provider_from_file(SeFileHandle file);
+DataProviderResult                          se_data_provider_get(const SeDataProvider& provider);
 
 #endif
